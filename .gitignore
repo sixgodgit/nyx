@@ -1,22 +1,31 @@
+# Python
 __pycache__/
-*.pyc
-*.tmp
-*.rej
-*.orig
-*.zip
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
 
-# 禁止上传真实数据
-sandglass.txt
-sandglass.backup
-sandglass.db
-sandglass.idx
-shadow_sand.db
-persona/persona.md
-persona/persona.*.md
-persona/decision-log.jsonl
-persona/scene-timeline.jsonl
-persona/scenes.json
-decision_particles.txt
-echo_wind.jsonl
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
 *.env
-*.key
+.env.*
+!.env.example
+
+# Old archives
+*.zip
+*.tar.gz
