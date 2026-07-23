@@ -1,3 +1,4 @@
+import importlib
 """NexSandglass L3 — weave_l3"""
 import os, re, json, logging
 from nexsandglass.core.sandglass_paths import _NB
@@ -25,7 +26,7 @@ except:
     search_with_stage_label = lambda *a, **kw: []
     weave_links = lambda: {"linked": False}
 
-@_fail_open({})
+@importlib.import_module("nexsandglass.l3.offset_signals")._fail_open({})
 def weave_insight(topic: str) -> dict:
     """织布：给定一个话题，从四个支柱分别取线，织成合成洞察。
     返回 {persona_view, offset_view, search_view, thread_view, synthesis}"""
@@ -82,7 +83,7 @@ def weave_insight(topic: str) -> dict:
     result["synthesis"] = "；".join(synthesis) if synthesis else "数据不足，无法合成"
     return result
 
-@_fail_open({})
+@importlib.import_module("nexsandglass.l3.offset_signals")._fail_open({})
 def weave_contradiction() -> dict:
     """织布：检测三大支柱之间的自相矛盾。
     返回 [{pillar_a, pillar_b, conflict, evidence}]"""
@@ -180,7 +181,7 @@ def weave_contradiction() -> dict:
         else "存在 " + str(len(conflicts)) + " 处跨支柱矛盾，建议审视"
     ), "interlinks": weave_links() if stage_list() and len(stage_list()) >= 2 else {"linked": False}}
 
-@_fail_open({})
+@importlib.import_module("nexsandglass.l3.offset_signals")._fail_open({})
 def weave_chain(start: str, depth: int = 3) -> dict:
     """织布：从一个起点出发，沿着三大支柱往下追，看能牵出什么。
     start 可以是：一个决策、一个画像声明、一个搜索关键词。

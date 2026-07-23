@@ -1,3 +1,4 @@
+import importlib
 """NexSandglass L3 — persona_l3"""
 import os, re, json, hashlib, logging, shutil, time
 from datetime import datetime, timezone
@@ -29,7 +30,7 @@ def _lazy_import():
         from nexsandglass.features.sandglass_think import _fail_open as _fo, _llm as _l, _extract_md_section as _em
         _fail_open = _fo; _llm = _l; _extract_md_section = _em
 
-@__import__("offset_signals")._fail_open("")
+@importlib.import_module("nexsandglass.l3.offset_signals")._fail_open("")
 def persona_build() -> str:
     """首次全量构建人格画像。从最近500条沙子提炼。返回 persona.md 路径。"""
     _lazy_import()
@@ -102,7 +103,7 @@ def persona_build() -> str:
     return ""
 
 
-@__import__("offset_signals")._fail_open("")
+@importlib.import_module("nexsandglass.l3.offset_signals")._fail_open("")
 def persona_update() -> str:
     """增量更新人格画像。只扫描上次更新后的新沙子。"""
     _lazy_import()
@@ -149,7 +150,7 @@ def persona_update() -> str:
     return _PERSONA
 
 
-@__import__("offset_signals")._fail_open("")
+@importlib.import_module("nexsandglass.l3.offset_signals")._fail_open("")
 def persona_canvas(persona_path: str = "", stage: str = "") -> str:
     """从 persona 生成画布。默认当前阶段。
     指定 persona_path 则从归档画像生成对应阶段画布。"""

@@ -1,3 +1,4 @@
+import importlib
 """NexSandglass L3 — offset_l3"""
 import os, re, json, hashlib, logging, math, statistics, shutil
 from datetime import datetime, timezone
@@ -61,7 +62,7 @@ _SEARCH_WEIGHTS = {
     "particle_push": 1.2,   # 决策粒子强化 → ×1.2
 }
 
-@__import__("offset_signals")._fail_open({})
+@importlib.import_module("nexsandglass.l3.offset_signals")._fail_open({})
 def offset_check(decision_text: str, user_persisted: bool = False) -> dict:
     """计算决策偏移率。user_persisted=True 表示主人明知偏移仍坚持。"""
     text = decision_text.lower()
@@ -226,7 +227,7 @@ def comprehensive_offset(scene: str = "") -> dict:
     return result
 
 
-@__import__("offset_signals")._fail_open({})
+@importlib.import_module("nexsandglass.l3.offset_signals")._fail_open({})
 def cross_stage_offset(decision_text: str) -> dict:
     """跨阶段偏移对比——同一个决策放到每个历史阶段的画像上量偏移率。
     返回 {trajectory: [{stage, offset, direction}], evolution: 描述}。
