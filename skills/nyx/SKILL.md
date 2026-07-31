@@ -93,6 +93,22 @@ mcp_pre_gateway_dispatch_sandglass_persona()
 sandglass_echo()
 
 # Step 5: 检查 Déjà Vu 系统状态
+sandglass_dejavu(action="stats")
+
+## 故障排查与参考
+
+- **模型链路验证**：当需要确认当前运行的模型版本（如判断是 preview 还是正式版）时，参见 `references/model-chain-verification.md`。核心结论：DeepSeek 正式版模型 API 名不变（仍为 `deepseek-v4-flash`），通过 `/v1/responses` 端点是否可用来判断后端是否已切换到正式版。
+- **GitHub 推送流程**：推送前必须检查 remote 地址和 repo 是否 archived。正确 nyx 仓库是 `sixgodgit/nyx`（Python 包），而非 `sixgodgit/hermes-memory-system`（已归档）。详见 `references/github-push-workflow.md`。
+
+
+- [DeepSeek V4 版本验证](references/deepseek-v4-verification.md) — 如何通过 Responses API 检测正式版
+- [输出压缩（ccr）环境_workarounds](references/output-compression-workarounds.md) — 工具输出被压缩时的读取技巧
+
+## 关键环境注意
+
+1. **推送代码前**：始终检查 `git remote -v` + 仓库归档状态（`curl api.github.com/repos/... | python3 -c "...archived..."`）
+2. **模型版本**：模型自称版本不可靠，用 Responses API 端点或官方 changelog 验证
+3. **输出压缩**：大文件/输出会被 ccr 压缩，用分块输出、grep/sed 精确提取、或 tempfile 分段读取
 mcp_pre_gateway_dispatch_sandglass_dejavu(action='stats')
 ```
 
@@ -165,6 +181,74 @@ fact_store(action='add', content='默认发件邮箱是 enfys@hvh.expert', categ
 ```
 mcp_pre_gateway_dispatch_sandglass_thread(entity='enfys', relation='used_for')
 mcp_pre_gateway_dispatch_sandglass_thread_add(subject='enfys', relation='send_email', object='10537543@qq.com')
+```
+
+---
+
+## 🧬 EngramTide 融合层（记忆加工）
+
+> 设计文档见 [`references/engram-fusion-design.md`](references/engram-fusion-design.md)。
+> 代码模块：`scripts/engram/`（types / decay / writer / context），测试 `scripts/test_engram_fusion.py`。
+
+Nyx 已融合 EngramTide 的认知科学记忆机制：**Tulving 四类记忆 + Ebbinghaus 衰减 + Constitutional 上下文**。
+
+### 记忆四分类（Tulving 模型）
+
+| 类型 | 含义 | 衰减 | 写入策略 |
+|------|------|------|----------|
+| **semantic** | 稳定事实/偏好/身份 | ❌ | 覆盖（相似 ≥0.85 旧记忆标记 superseded） |
+| **episodic** | 具体事件 | ✅ 指数衰减 | 直插，不可覆盖 |
+| **emotional** | 情绪色彩经历 | ✅ 慢衰减（唤醒度↑衰减↓） | 强化（相似 ≥0.85 提升权重） |
+| **procedural** | 相处规则/铁律 | ❌ | 去重（相似 ≥0.90 只计访问） |
+
+### 写记忆时的分类原则
+
+涉及以下内容时，按类型写入（对应存储位置不变，但**标注类型**）：
+
+- **semantic** → `fact_store(action='add', category='identity'/'preferences'/'facts')`
+  - 例：邮箱、住址、身份、长期偏好
+- **episodic** → `sandglass` 沙粒（事件日志）
+  - 例：昨天去了市政厅、Odido 7月14日上门装光纤
+- **emotional** → `fact_store(category='emotions')`，标注 arousal（0~1）
+  - 例：用户对 Apple 账户安全很紧张（arousal 0.8）
+- **procedural** → `fact_store(category='rules')`
+  - 例：涉及个人数据必须先检索再回答
+
+### 衰减与浮现（自动，无需手动触发）
+
+- **衰减**：episodic/emotional 记忆随时间指数衰减（`exp(-rate×time)`），但 **DECAY_FLOOR=0.01 永不归零**。semantic/procedural 不衰减。
+- **浮现优先级**：R1 procedural 规则 > R2 高唤醒 emotional > R3 unresolved > R4 近期 episodic
+- **逐轮激活**：当前输入相似度高的记忆被 boost（权重 ↑，封顶 1.0）
+
+### Constitutional 记忆（CRITICAL：自然无痕）
+
+记忆影响回复时，**严禁暴露机械记忆系统**：
+
+- ❌ "根据我的记忆""你上次说过""数据库显示""检索结果显示"
+- ✅ 记忆像潜意识一样影响态度、语气、切入点，自然融入
+
+四类记忆的呈现位置：
+- procedural → 动态行为修正案（最高优先级）
+- semantic → 基础用户信息
+- episodic → 近期生活事件
+- emotional → 历史情感沉淀
+
+### 代码调用示例
+
+```python
+# 从脚本层使用（路径：scripts/engram/）
+from engram import write_memory_classified, compute_decay_multiplier, build_constitutional_context
+
+# 分类写入：semantic 覆盖 / emotional 强化 / procedural 去重 / episodic 直插
+action, report, target = write_memory_classified(
+    "用户住在海牙", "semantic", existing_memories
+)
+
+# 衰减计算（Ebbinghaus）
+multiplier = compute_decay_multiplier("episodic", arousal=0.0, access_count=3, hours_elapsed=72)
+
+# Constitutional 上下文组装
+ctx = build_constitutional_context(retrieved, surfaced=surfaced_list)
 ```
 
 ---
