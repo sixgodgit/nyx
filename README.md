@@ -19,6 +19,9 @@ NexSandglass 是 Hermes Agent 的记忆基础设施，在 Hermes 原生 memory �
 | 📊 **情绪/画像** | `core/emotion_vocab.py`, `core/persona.py` | 用户状态追踪、偏移率计算、回音折 |
 | 🌙 **梦境 Dream** | `dream/` | 夜间多阶段复盘：记忆整理、反思成长、创造联结 |
 | 🔌 **MCP 接口** | `interfaces/sandglass_mcp.py`, `interfaces/nyx.py` | MCP 工具接入 Hermes / Claude |
+| 🧬 **记忆加工** | `engram/types.py`, `engram/decay.py` | Tulving 四类记忆 + Ebbinghaus 衰减（EngramTide 融合） |
+| 🧬 **差异化写入** | `engram/writer.py` | semantic 覆盖 / emotional 强化 / procedural 去重 / episodic 直插 |
+| 🧬 **Constitutional** | `engram/context.py` | 记忆融入 system prompt 隐性影响（自然无痕） |
 
 ---
 
@@ -37,6 +40,11 @@ nexsandglass/
 │   ├── fact_store.py             # 事实存储（信任评分）
 │   ├── dejavu.py                 # Déjà Vu 感知
 │   └── thread_*.py               # 织线知识图谱
+├── engram/                   # 🧬 EngramTide 融合层（记忆加工）
+│   ├── types.py                  # Tulving 四类记忆（semantic/episodic/emotional/procedural）
+│   ├── decay.py                  # Ebbinghaus 指数衰减 + 分层浮现(R1-R4) + 逐轮激活
+│   ├── writer.py                 # 差异化写入（覆盖/强化/去重/直插）
+│   └── context.py                # Constitutional 上下文组装（自然无痕）
 ├── interfaces/               # 对外接口
 │   ├── nexsandglass.py           # 主接口
 │   ├── nyx.py                    # Nyx 适配层
@@ -177,6 +185,16 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 ---
 
 ## 📝 更新日志
+
+### v3.1.0 (2026-07-31) — 🧬 EngramTide 融合
+
+- 🧬 新增 `nexsandglass/engram/` 记忆加工层（types / decay / writer / context）
+- 🧠 Tulving 四类记忆：semantic / episodic / emotional / procedural 差异化写入
+- ⏳ Ebbinghaus 指数衰减：episodic/emotional 衰减，DECAY_FLOOR 永不归零
+- 📤 分层浮现 R1-R4：规则 > 高唤醒情绪 > 未解决 > 近期事件
+- ⚡ 逐轮激活：当前输入相似记忆 boost（封顶 1.0）
+- 📜 Constitutional 上下文：记忆隐性影响回复，严禁暴露机械检索
+- 📝 README 更新：包结构 + 核心能力表加入融合层
 
 ### v3.0.0 (2026-07-31)
 
