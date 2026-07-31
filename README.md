@@ -23,6 +23,7 @@ NexSandglass 是 Hermes Agent 的记忆基础设施，在 Hermes 原生 memory �
 | 🧬 **差异化写入** | `engram/writer.py` | semantic 覆盖 / emotional 强化 / procedural 去重 / episodic 直插 |
 | 🧬 **Constitutional** | `engram/context.py` | 记忆融入 system prompt 隐性影响（自然无痕） |
 | 🔄 **记忆自我演化** | `engram/evolve.py`, `engram/loops/` | 四闭环：事实↔图谱、梦境→加工、画像→上下文、召回→重要性 |
+| 🌙 **梦境管线** | `engram/dream_pipeline.py`, `engram/prompts/` | hypnos 三女神融合：浅睡总结→深睡内化→灵感联结 |
 
 ---
 
@@ -47,6 +48,8 @@ nexsandglass/
 │   ├── writer.py                 # 差异化写入（覆盖/强化/去重/直插）
 │   ├── context.py                # Constitutional 上下文组装（自然无痕）
 │   ├── evolve.py                 # 🔄 演化协调器（run_evolution_pass）
+│   ├── dream_pipeline.py         # 🌙 梦境管线（hypnos×engram 三女神融合）
+│   ├── prompts/                  # 🌙 三女神 prompt（Mnemosyne/Epimetheus/Prometheus）
 │   └── loops/                    # 🔄 四闭环（记忆自我演化）
 │       ├── fact_thread.py        #   闭环1: Thread ↔ Fact Store
 │       ├── dream_engram.py       #   闭环2: Dream ↔ Engram
@@ -192,6 +195,13 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 ---
 
 ## 📝 更新日志
+
+### v3.3.0 (2026-07-31) — 🌙 hypnos 梦境融合
+
+- 🌙 新增 `engram/dream_pipeline.py`：hypnos 三女神流程并入 Nyx 梦境
+- 🌙 Mnemosyne 浅睡总结（prompt + 规则兜底）/ Epimetheus 深睡内化（确定性代码）/ Prometheus 灵感联结
+- 🌙 新增 `engram/prompts/`：hypnos 三女神 prompt 资产入库
+- 📝 README/SKILL.md 更新：梦境管线章节 + 融合设计文档
 
 ### v3.2.0 (2026-07-31) — 🔄 记忆自我演化
 

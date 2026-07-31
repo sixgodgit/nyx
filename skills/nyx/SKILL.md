@@ -1,6 +1,6 @@
 ---
 name: nyx
-description: Nyx（夜神）记忆感知系统 — Hermes 的替代记忆层。Hermes 原生记忆（memory tool）已关闭，Nyx 接管全部跨会话记忆、事实存储、联想检索和 déjà vu 检测。已融合 EngramTide 认知科学机制：Tulving 四类记忆差异化写入、Ebbinghaus 指数衰减、Constitutional 隐性上下文、分层浮现与逐轮激活。代码位于 sixgodgit/nyx 仓库 nexsandglass/engram/ 模块。
+description: Nyx（夜神）记忆感知系统 — 存储层（沙漏/图谱/Déjà Vu/梦境）+ 加工层（Tulving 四类记忆/Ebbinghaus 衰减/差异化写入/Constitutional 上下文）+ 演化层（四闭环自我演化）
 tags:
   - nyx
   - memory
@@ -13,7 +13,29 @@ tags:
 
 # Nyx 记忆感知系统
 
-## 📊 数据位置与表结构
+> 版本：v3.2.0 | 仓库：https://github.com/sixgodgit/nyx | 协议：MIT
+
+## 设计哲学：反馈回路 > 功能堆积
+
+**核心洞察**：当功能数量达到边际收益递减点后，真正的价值跃迁来自**模块间反馈回路**——让记忆能够自我演化，而非继续叠加功能。
+
+Nyx 的架构演进遵循这一原则：
+
+| 阶段 | 重点 | 局限 |
+|------|------|------|
+| v1 | 功能建设（沙漏/图谱/Déjà Vu/事实库） | 模块孤立，无反馈 |
+| v2 | EngramTide 融合（四类记忆/衰减/浮现/加工） | 有加工层，但无闭环 |
+| v3 | 四闭环自我演化（当前） | 模块互为输入输出 → 记忆活系统 |
+
+**四个闭环**：
+1. **Thread↔FactStore**：事实变化自动更新图谱，图谱关系反向验证事实
+2. **Dream↔Engram**：梦境触发重分类/合并/关系发现
+3. **Persona↔Context**：画像动态影响上下文组装
+4. **Recall↔Writer**：成功召回提升重要性，长期无关记忆衰减
+
+> 新功能在闭环上做（如新的浮现策略、新的合并规则），而非新增孤立模块。
+
+## 数据位置与表结构
 
 所有数据文件路径、数据库表结构、字段格式详见 [`references/data-locations.md`](references/data-locations.md)。
 
@@ -95,7 +117,99 @@ sandglass_echo()
 # Step 5: 检查 Déjà Vu 系统状态
 sandglass_dejavu(action="stats")
 
+## 📋 发布检查清单（CRITICAL）
+
+每次向 nyx 仓库推送前，**必须**执行以下检查：
+
+### 1. 确认目标仓库
+```bash
+cd /root/nyx-repo && git remote -v
+# 必须是 sixgodgit/nyx，不是 sixgodgit/hermes-memory-system（已归档只读）
+```
+
+### 2. 同步技能层副本
+```bash
+# 仓库 → 技能
+cp -r nexsandglass/engram skills/nyx/scripts/
+cp tests/test_engram_*.py skills/nyx/scripts/
+# 技能 → 仓库
+cp -r /root/.hermes/skills/memory/nyx/scripts/engram nexsandglass/
+cp /root/.hermes/skills/memory/nyx/scripts/test_engram_*.py tests/
+```
+
+### 3. 更新 README
+- 新增模块 → 包结构树加入路径
+- 新增能力 → 核心能力表加入行
+- 版本变更 → 更新日志加入条目
+- 新功能 → 新增对应工具/接口说明
+
+### 4. 更新 pyproject.toml 版本号
+```toml
+[project]
+version = "X.Y.Z"  # 与更新日志一致
+```
+
+### 5. 验证 + 推送
+```bash
+python3 tests/test_engram_fusion.py   # 融合层
+python3 tests/test_engram_loops.py    # 闭环层
+git add -A && git status              # 确认变更范围
+git commit -m "..."
+git push origin main
+```
+
+### Pitfalls（本次会话踩过的坑）
+- ❌ 推送到 `hermes-memory-system`（归档仓库，403）→ ✅ 推送到 `nyx`
+- ❌ 忘记更新 README → ✅ 每次功能变更都更新
+- ❌ 忘记更新 pyproject.toml 版本号 → ✅ 与更新日志同步
+
+---
+
+## 🏗️ 系统架构概览
+
+```
+Nyx 记忆感知系统
+├── 存储层（已有）
+│   ├── Sandglass 沙漏 — 长期记忆 / 全文+语义检索
+│   ├── Thread 织线 — 知识图谱（实体三元组）
+│   ├── Déjà Vu — Bloom Filter 模糊感知
+│   ├── Session Search — 跨会话 FTS5 检索
+│   ├── Fact Store — 结构化事实（信任评分）
+│   └── Dream System — 夜间 8 阶段复盘
+│
+├── 加工层（EngramTide 融合，v3.1.0）
+│   ├── engram/types.py       — Tulving 四类记忆（semantic/episodic/emotional/procedural）
+│   ├── engram/decay.py       — Ebbinghaus 指数衰减 + 分层浮现 + 逐轮激活
+│   ├── engram/writer.py      — 差异化写入（覆盖/强化/去重/直插）
+│   └── engram/context.py    — Constitutional 上下文组装
+│
+├── 演化层（四闭环，v3.2.0）
+│   ├── evolve.py                  — run_evolution_pass / recall_pass / fact_pass
+│   └── loops/
+│       ├── fact_thread.py         — 闭环1: Thread ↔ Fact Store
+│       ├── dream_engram.py        — 闭环2: Dream ↔ Engram
+│       ├── persona_ctx.py         — 闭环3: Persona ↔ Context
+│       └── recall_writer.py       — 闭环4: Recall ↔ Writer
+│
+└── Hermes 集成
+    ├── MCP 工具（write_memory / retrieve / run_decay / consolidate）
+    ├── 梦境 cron（每日 8 点推送）
+    └── 灵魂差分导出/迁移
+```
+
+详细设计文档见 references/ 目录。
+
+---
+
 ## 故障排查与参考
+
+### 相关技能关系
+### 设计文档索引
+- **EngramTide 融合设计** → [`references/engram-fusion-design.md`](references/engram-fusion-design.md)（v3.1.0 加工层）
+- **演化闭环设计** → [`references/engram-evolution-design.md`](references/engram-evolution-design.md)（v3.2.0 四闭环）
+- **Hypnos 重叠分析** → [`references/hypnos-overlap-analysis.md`](references/hypnos-overlap-analysis.md)（梦境系统定位）
+- **梦境融合设计** → [`references/engram-dream-fusion.md`](references/engram-dream-fusion.md)（v3.3.0 三女神管线）
+- **部署工作流** → [`references/deployment-workflow.md`](references/deployment-workflow.md)
 
 - **模型链路验证**：当需要确认当前运行的模型版本（如判断是 preview 还是正式版）时，参见 [`references/model-chain-verification.md`](references/model-chain-verification.md)。核心结论：DeepSeek 正式版模型 API 名不变（仍为 `deepseek-v4-flash`），通过 `/v1/responses` 端点是否可用来判断后端是否已切换到正式版。详细检测方法 + GPT-5.6 价格对比见 [`references/deepseek-v4-formal-release.md`](references/deepseek-v4-formal-release.md)。
 - **GitHub 推送流程**：推送前必须检查 remote 地址和 repo 是否 archived。正确 nyx 仓库是 `sixgodgit/nyx`（Python 包），而非 `sixgodgit/hermes-memory-system`（已归档）。详见 `references/github-push-workflow.md`。
@@ -278,10 +392,20 @@ git push origin main
 
 详细工作流见 [`references/deployment-workflow.md`](references/deployment-workflow.md)。
 
----
+## 本技能参考文档
 
-## 🔄 记忆自我演化（四闭环）
+| 文件 | 内容 |
+|------|------|
+| [`references/constitutional-memory-principles.md`](references/constitutional-memory-principles.md) | Constitutional 记忆原则（自然无痕、四类记忆呈现位置） |
+| [`references/github-workflow.md`](references/github-workflow.md) | 双目录同步、推送前检查、ccr 输出压缩规避 |
+| [`references/formulas-and-parameters.md`](references/formulas-and-parameters.md) | 衰减公式、浮现阈值、写入阈值、召回反馈参数 |
+| [`references/engram-fusion-design.md`](references/engram-fusion-design.md) | EngramTide 融合设计（v3.1.0） |
+| [`references/engram-evolution-design.md`](references/engram-evolution-design.md) | 四闭环自我演化设计（v3.2.0） |
 
+## 强制执行的场景（不得使用 Hermes memory）
+
+| 场景 | 以前的做法（已禁用） | 现在的做法（Nyx） |
+|------|---------------------|------------------|
 > 设计文档见 [`references/engram-evolution-design.md`](references/engram-evolution-design.md)。
 > 代码：`scripts/engram/loops/`（四个闭环）+ `scripts/engram/evolve.py`（协调器）。
 > 测试：`scripts/test_engram_loops.py`（15 项）。
@@ -324,12 +448,52 @@ recall_pass(memories, recalled_ids)
 fact_pass(fact_text, thread_store, thread_query)
 ```
 
----
+### 🌙 梦境管线（hypnos × engram 融合）
+
+> 设计文档见 [`references/engram-dream-fusion.md`](references/engram-dream-fusion.md)。
+> 代码：`scripts/engram/dream_pipeline.py` + `scripts/engram/prompts/`（三女神 prompt）。
+> 测试：`scripts/test_engram_dream.py`（7 项）。
+
+hypnos-dream-system 的三女神流程已并入 Nyx 梦境，消除重叠：
+
+| 阶段 | 女神 | 职责 | 实现层 |
+|------|------|------|--------|
+| Phase 1 | **Mnemosyne** 记忆女神 | 浅睡总结（已完成/未完成/新知事实/待确认） | prompt（`prompts/01-mnemosyne-nrem.md`）+ 规则兜底 |
+| Phase 2 | **Epimetheus** 后见之神 | 深睡内化：重分类≥3次 / 合并 / 关系发现 | **确定性代码**（engram 闭环 2） |
+| Phase 3 | **Prometheus** 先见之神 | 快速眼动：emotional → 跨域灵感联结 | prompt（`prompts/03-prometheus-rem.md`）+ 代码兜底 |
+| Phase 4 | 演化联动 | 关系写图谱 + 老化降权 | engram 闭环 1/4 |
+
+**调用**：
+
+```python
+from nexsandglass.engram import run_dream_pipeline
+
+evolved, report = run_dream_pipeline(
+    memories, day_log,
+    thread_store=wthread_add,     # 织线写入回调
+    llm_extract=mnemosyne_llm,    # 可选：LLM 浅睡总结
+    llm_connect=prometheus_llm,   # 可选：LLM 灵感联结
+)
+```
+
+**LLM 注入模式**：有回调 → hypnos 原 prompt 智能层；无回调 → 规则式兜底。
+
+详细工作流见 [`references/deployment-workflow.md`](references/deployment-workflow.md)。
+
+## 本技能参考文档
+
+| 文件 | 内容 |
+|------|------|
+| [`references/constitutional-memory-principles.md`](references/constitutional-memory-principles.md) | Constitutional 记忆原则（自然无痕、四类记忆呈现位置） |
+| [`references/github-workflow.md`](references/github-workflow.md) | 双目录同步、推送前检查、ccr 输出压缩规避 |
+| [`references/formulas-and-parameters.md`](references/formulas-and-parameters.md) | 衰减公式、浮现阈值、写入阈值、召回反馈参数 |
+| [`references/engram-fusion-design.md`](references/engram-fusion-design.md) | EngramTide 融合设计（v3.1.0） |
+| [`references/engram-evolution-design.md`](references/engram-evolution-design.md) | 四闭环自我演化设计（v3.2.0） |
 
 ## 强制执行的场景（不得使用 Hermes memory）
 
 | 场景 | 以前的做法（已禁用） | 现在的做法（Nyx） |
-|------|---------------------|-------------------|
+|------|---------------------|------------------|
 | 用户问"我QQ邮箱是多少" | `memory(action='search')` ❌ | `sandglass_search(query="QQ邮箱 qq.com")` ✅ |
 | 用户说"上次我说过xxx" | `memory(action='search')` ❌ | `sandglass_dejavu(action='check', query='xxx')` → `session_search` ✅ |
 | 用户说"记住这个偏好" | `memory(action='add', target='user')` ❌ | `fact_store(action='add', content='...', category='preferences')` ✅ |
@@ -351,6 +515,21 @@ fact_pass(fact_text, thread_store, thread_query)
 ---
 
 ## 常见错误 & 纠正
+
+## 版本历史
+
+### v3.2.0 (2026-07-31) — 记忆自我演化
+- 新增 `engram/loops/` 四闭环：fact_thread / dream_engram / persona_ctx / recall_writer
+- 新增 `engram/evolve.py` 演化协调器（run_evolution_pass / recall_pass / fact_pass）
+- 核心转变：从"功能很多"到"记忆能够自我演化"
+
+### v3.1.0 (2026-07-31) — EngramTide 融合
+- 新增 `engram/` 加工层：Tulving 四类记忆 / Ebbinghaus 衰减 / Constitutional 上下文
+- 差异化写入：semantic 覆盖 / emotional 强化 / procedural 去重 / episodic 直插
+
+### v3.0.0 (2026-07) — 模块化重构
+- 重构为 nexsandglass 包结构（core / interfaces / features / l3）
+- Sandglass 沙漏 + Thread 织线 + Déjà Vu + Fact Store
 
 | 错误 | 原因 | 纠正 |
 |------|------|------|
