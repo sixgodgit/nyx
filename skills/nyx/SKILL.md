@@ -1,6 +1,6 @@
 ---
 name: nyx
-description: Nyx（夜神）记忆感知系统 — Hermes 的替代记忆层。Hermes 原生记忆（memory tool）已关闭，Nyx 接管全部跨会话记忆、事实存储、联想检索和 déjà vu 检测
+description: Nyx（夜神）记忆感知系统 — Hermes 的替代记忆层。Hermes 原生记忆（memory tool）已关闭，Nyx 接管全部跨会话记忆、事实存储、联想检索和 déjà vu 检测。已融合 EngramTide 认知科学机制：Tulving 四类记忆差异化写入、Ebbinghaus 指数衰减、Constitutional 隐性上下文、分层浮现与逐轮激活。代码位于 sixgodgit/nyx 仓库 nexsandglass/engram/ 模块。
 tags:
   - nyx
   - memory
@@ -97,7 +97,7 @@ sandglass_dejavu(action="stats")
 
 ## 故障排查与参考
 
-- **模型链路验证**：当需要确认当前运行的模型版本（如判断是 preview 还是正式版）时，参见 `references/model-chain-verification.md`。核心结论：DeepSeek 正式版模型 API 名不变（仍为 `deepseek-v4-flash`），通过 `/v1/responses` 端点是否可用来判断后端是否已切换到正式版。
+- **模型链路验证**：当需要确认当前运行的模型版本（如判断是 preview 还是正式版）时，参见 [`references/model-chain-verification.md`](references/model-chain-verification.md)。核心结论：DeepSeek 正式版模型 API 名不变（仍为 `deepseek-v4-flash`），通过 `/v1/responses` 端点是否可用来判断后端是否已切换到正式版。详细检测方法 + GPT-5.6 价格对比见 [`references/deepseek-v4-formal-release.md`](references/deepseek-v4-formal-release.md)。
 - **GitHub 推送流程**：推送前必须检查 remote 地址和 repo 是否 archived。正确 nyx 仓库是 `sixgodgit/nyx`（Python 包），而非 `sixgodgit/hermes-memory-system`（已归档）。详见 `references/github-push-workflow.md`。
 
 
@@ -249,6 +249,79 @@ multiplier = compute_decay_multiplier("episodic", arousal=0.0, access_count=3, h
 
 # Constitutional 上下文组装
 ctx = build_constitutional_context(retrieved, surfaced=surfaced_list)
+```
+
+---
+
+## 🔄 GitHub 推送工作流
+
+**正确仓库**: `sixgodgit/nyx`（Python 包，`nexsandglass/` 目录）
+
+**推送前必检（三步）**:
+```bash
+# 1. 确认 remote 指向正确仓库
+git remote -v
+# 必须显示: origin  https://github.com/sixgodgit/nyx.git
+
+# 2. 确认 repo 未归档（归档 = 只读，推送会 403）
+gh repo view sixgodgit/nyx --json name,archived 2>/dev/null | grep archived
+# 必须返回: "archived": false
+
+# 3. 推送
+git push origin main
+```
+
+**⚠️ 已知陷阱**:
+- `sixgodgit/hermes-memory-system` 是**归档仓库**（只读），推它会报 `403: This repository was archived`
+- Nyx 技能层（`skills/nyx/`）和仓库代码（`nexsandglass/`）双向同步：修改任一侧都要 `cp` 到另一侧
+- 推送前先 `git add -A && git status` 确认变更范围
+
+详细工作流见 [`references/deployment-workflow.md`](references/deployment-workflow.md)。
+
+---
+
+## 🔄 记忆自我演化（四闭环）
+
+> 设计文档见 [`references/engram-evolution-design.md`](references/engram-evolution-design.md)。
+> 代码：`scripts/engram/loops/`（四个闭环）+ `scripts/engram/evolve.py`（协调器）。
+> 测试：`scripts/test_engram_loops.py`（15 项）。
+
+Nyx 核心竞争力：**记忆能够自我演化**。四个闭环让模块互为输入输出：
+
+### 闭环 1：Thread ↔ Fact Store（事实 ↔ 图谱）
+
+- **事实变化自动更新图谱**：新事实入库 → 提取三元组 → 写入织线
+- **图谱反向验证事实**：新事实入库前校验 → confirm / conflict / unknown
+- 使用：写入事实时走 `fact_pass`（先验证再同步图谱）
+
+### 闭环 2：Dream ↔ Engram（梦境 → 记忆加工）
+
+- **重分类**：同一 episodic 事件出现 ≥3 次 → 提炼为 semantic 稳定事实
+- **合并**：相似 episodic/emotional 记忆合并（贪心配对）
+- **关系发现**：从记忆中提取新图谱关系写入织线
+- 使用：梦境 cron 调用 `run_evolution_pass`
+
+### 闭环 3：Persona ↔ Context（画像 → 上下文）
+
+- **画像加权**：画像确认的 semantic 事实 → Context 组装时权重 +0.3
+- **变更重建**：画像字段变更（如邮箱）→ 旧记忆标记重建候选
+- 使用：组装 Constitutional 上下文前调用 `persona_weight_context`
+
+### 闭环 4：Recall ↔ Writer（召回 → 重要性）
+
+- **召回反馈**：成功召回的记忆 access_count+1、权重 +0.05（短期重要性）
+- **老化降权**：>30 天未访问 → 加速衰减；>90 天从未召回且权重 <0.05 → 归档候选
+- 使用：每次检索命中后调用 `recall_pass`；每日维护调用 `age_and_demote`
+
+### 演化协调器（唯一入口）
+
+```python
+# 梦境/每日维护：一次完整演化回合
+run_evolution_pass(memories, persona_entries, thread_store, thread_query)
+# 检索后：召回反馈
+recall_pass(memories, recalled_ids)
+# 事实写入：验证 + 图谱同步
+fact_pass(fact_text, thread_store, thread_query)
 ```
 
 ---

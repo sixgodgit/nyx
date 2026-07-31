@@ -43,6 +43,27 @@ from .context import (
     ConstitutionalContext,
     CONSTITUTION_TEMPLATE,
 )
+from .loops import (
+    fact_to_thread,
+    thread_validate_fact,
+    FactThreadReport,
+    dream_reclassify,
+    dream_consolidate,
+    dream_relation_discovery,
+    DreamReport,
+    persona_weight_context,
+    persona_trigger_rebuild,
+    PersonaWeightReport,
+    recall_feedback,
+    age_and_demote,
+    RecallFeedbackReport,
+)
+from .evolve import (
+    run_evolution_pass,
+    recall_pass,
+    fact_pass,
+    EvolutionReport,
+)
 
 __all__ = [
     # types
@@ -68,4 +89,23 @@ __all__ = [
     "render_constitution",
     "ConstitutionalContext",
     "CONSTITUTION_TEMPLATE",
+    # loops
+    "fact_to_thread",
+    "thread_validate_fact",
+    "FactThreadReport",
+    "dream_reclassify",
+    "dream_consolidate",
+    "dream_relation_discovery",
+    "DreamReport",
+    "persona_weight_context",
+    "persona_trigger_rebuild",
+    "PersonaWeightReport",
+    "recall_feedback",
+    "age_and_demote",
+    "RecallFeedbackReport",
+    # evolve
+    "run_evolution_pass",
+    "recall_pass",
+    "fact_pass",
+    "EvolutionReport",
 ]

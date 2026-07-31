@@ -22,6 +22,7 @@ NexSandglass 是 Hermes Agent 的记忆基础设施，在 Hermes 原生 memory �
 | 🧬 **记忆加工** | `engram/types.py`, `engram/decay.py` | Tulving 四类记忆 + Ebbinghaus 衰减（EngramTide 融合） |
 | 🧬 **差异化写入** | `engram/writer.py` | semantic 覆盖 / emotional 强化 / procedural 去重 / episodic 直插 |
 | 🧬 **Constitutional** | `engram/context.py` | 记忆融入 system prompt 隐性影响（自然无痕） |
+| 🔄 **记忆自我演化** | `engram/evolve.py`, `engram/loops/` | 四闭环：事实↔图谱、梦境→加工、画像→上下文、召回→重要性 |
 
 ---
 
@@ -44,7 +45,13 @@ nexsandglass/
 │   ├── types.py                  # Tulving 四类记忆（semantic/episodic/emotional/procedural）
 │   ├── decay.py                  # Ebbinghaus 指数衰减 + 分层浮现(R1-R4) + 逐轮激活
 │   ├── writer.py                 # 差异化写入（覆盖/强化/去重/直插）
-│   └── context.py                # Constitutional 上下文组装（自然无痕）
+│   ├── context.py                # Constitutional 上下文组装（自然无痕）
+│   ├── evolve.py                 # 🔄 演化协调器（run_evolution_pass）
+│   └── loops/                    # 🔄 四闭环（记忆自我演化）
+│       ├── fact_thread.py        #   闭环1: Thread ↔ Fact Store
+│       ├── dream_engram.py       #   闭环2: Dream ↔ Engram
+│       ├── persona_ctx.py        #   闭环3: Persona ↔ Context
+│       └── recall_writer.py      #   闭环4: Recall ↔ Writer
 ├── interfaces/               # 对外接口
 │   ├── nexsandglass.py           # 主接口
 │   ├── nyx.py                    # Nyx 适配层
@@ -185,6 +192,15 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 ---
 
 ## 📝 更新日志
+
+### v3.2.0 (2026-07-31) — 🔄 记忆自我演化
+
+- 🔄 新增 `engram/loops/` 四闭环 + `engram/evolve.py` 演化协调器
+- 🔄 闭环1 Thread↔FactStore：事实→图谱自动更新，图谱反向验证冲突
+- 🔄 闭环2 Dream↔Engram：梦境触发重分类（≥3次提炼）/合并/关系发现
+- 🔄 闭环3 Persona↔Context：画像确认事实加权，字段变更触发重建
+- 🔄 闭环4 Recall↔Writer：成功召回提升重要性，长期无关加速衰减
+- 📝 README/SKILL.md 更新：演化闭环章节 + 设计文档
 
 ### v3.1.0 (2026-07-31) — 🧬 EngramTide 融合
 
