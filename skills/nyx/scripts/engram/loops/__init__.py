@@ -34,6 +34,12 @@ from .recall_writer import (
     age_and_demote,
     RecallFeedbackReport,
 )
+from .temporal_fact import (
+    resolve_temporal_conflict,
+    ensure_temporal_columns,
+    TEMPORAL_RELATIONS,
+    TemporalFactReport,
+)
 
 __all__ = [
     # Loop 1
@@ -53,4 +59,9 @@ __all__ = [
     "recall_feedback",
     "age_and_demote",
     "RecallFeedbackReport",
+    # Temporal facts (Task 5)
+    "resolve_temporal_conflict",
+    "ensure_temporal_columns",
+    "TEMPORAL_RELATIONS",
+    "TemporalFactReport",
 ]

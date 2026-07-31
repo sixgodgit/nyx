@@ -13,17 +13,19 @@ NexSandglass 是 Hermes Agent 的记忆基础设施，在 Hermes 原生 memory �
 | 能力 | 模块 | 说明 |
 |------|------|------|
 | 🧠 **沙漏 Sandglass** | `core/sandglass_sqlite.py` | 长期记忆存储、全文搜索、语义搜索 |
-| 🕸️ **织线 Thread** | `core/thread_*.py` | 知识图谱（实体关系三元组），支持时间窗口查询 |
-| 👻 **Déjà Vu** | `core/dejavu.py` | 模糊感知 —"感觉聊过但检索不到"的 ghost 检测（Bloom Filter） |
-| 🏜️ **影子沙 Fact Store** | `core/fact_store.py` | 结构化事实存储（带信任评分） |
-| 📊 **情绪/画像** | `core/emotion_vocab.py`, `core/persona.py` | 用户状态追踪、偏移率计算、回音折 |
+| 🕸️ **织线 Thread** | `features/weavethread.py` | 知识图谱（实体关系三元组），支持时间窗口查询 |
+| 👻 **Déjà Vu (Veil)** | `interfaces/nyx.py` | 模糊感知 —"感觉聊过但检索不到"的 ghost 检测（Bloom Filter） |
+| 🏜️ **影子沙 Fact Store** | `features/shadow_sand.py` | 结构化事实存储（带信任评分） |
+| 📊 **情绪/画像** | `core/emotion_vocab.py`, `l3/persona_l3.py` | 用户状态追踪、偏移率计算、回音折 |
 | 🌙 **梦境 Dream** | `dream/` | 夜间多阶段复盘：记忆整理、反思成长、创造联结 |
 | 🔌 **MCP 接口** | `interfaces/sandglass_mcp.py`, `interfaces/nyx.py` | MCP 工具接入 Hermes / Claude |
+| 🔍 **语义检索** | `core/embedding_provider.py`, `core/vector_search.py` | 真正的向量语义检索（Task 1，本地免费模型 + RRF 混合） |
 | 🧬 **记忆加工** | `engram/types.py`, `engram/decay.py` | Tulving 四类记忆 + Ebbinghaus 衰减（EngramTide 融合） |
 | 🧬 **差异化写入** | `engram/writer.py` | semantic 覆盖 / emotional 强化 / procedural 去重 / episodic 直插 |
 | 🧬 **Constitutional** | `engram/context.py` | 记忆融入 system prompt 隐性影响（自然无痕） |
 | 🔄 **记忆自我演化** | `engram/evolve.py`, `engram/loops/` | 四闭环：事实↔图谱、梦境→加工、画像→上下文、召回→重要性 |
 | 🌙 **梦境管线** | `engram/dream_pipeline.py`, `engram/prompts/` | hypnos 三女神融合：浅睡总结→深睡内化→灵感联结 |
+| 🤖 **LLM 抽取** | `core/llm_extract.py`, `features/weavethread.py` | 可选 LLM 知识图谱补充抽取（Task 2，可降级） |
 
 ---
 
@@ -31,56 +33,45 @@ NexSandglass 是 Hermes Agent 的记忆基础设施，在 Hermes 原生 memory �
 
 ```
 nexsandglass/
-├── core/                    # 基础设施
-│   ├── memory_provider.py        # 记忆后端抽象
-│   ├── search_router.py          # 检索路由（TF-IDF / ChromaDB）
-│   ├── sandglass_sqlite.py       # SQLite 沙漏存储
-│   ├── sandglass_paths.py        # 数据路径管理
-│   ├── sandglass_archive.py      # 记忆归档
-│   ├── l0_buffer.py              # L0 缓冲层
-│   ├── emotion_vocab.py          # 情绪词库
-│   ├── fact_store.py             # 事实存储（信任评分）
-│   ├── dejavu.py                 # Déjà Vu 感知
-│   └── thread_*.py               # 织线知识图谱
-├── engram/                   # 🧬 EngramTide 融合层（记忆加工）
-│   ├── types.py                  # Tulving 四类记忆（semantic/episodic/emotional/procedural）
-│   ├── decay.py                  # Ebbinghaus 指数衰减 + 分层浮现(R1-R4) + 逐轮激活
-│   ├── writer.py                 # 差异化写入（覆盖/强化/去重/直插）
-│   ├── context.py                # Constitutional 上下文组装（自然无痕）
-│   ├── evolve.py                 # 🔄 演化协调器（run_evolution_pass）
-│   ├── dream_pipeline.py         # 🌙 梦境管线（hypnos×engram 三女神融合）
-│   ├── prompts/                  # 🌙 三女神 prompt（Mnemosyne/Epimetheus/Prometheus）
-│   └── loops/                    # 🔄 四闭环（记忆自我演化）
-│       ├── fact_thread.py        #   闭环1: Thread ↔ Fact Store
-│       ├── dream_engram.py       #   闭环2: Dream ↔ Engram
-│       ├── persona_ctx.py        #   闭环3: Persona ↔ Context
-│       └── recall_writer.py      #   闭环4: Recall ↔ Writer
-├── interfaces/               # 对外接口
-│   ├── nexsandglass.py           # 主接口
-│   ├── nyx.py                    # Nyx 适配层
-│   ├── sandglass_mcp.py          # MCP 工具
-│   └── plugin.py                 # 插件接口
-├── utils/                    # 工具
-│   ├── heartbeat.py              # 心跳
-│   └── discipline.py             # 纪律约束
-├── l3/                       # L3 层（高级记忆）
-├── features/                 # 特性模块
-│   └── ...                       # 梦境、画像等
-├── demo/                     # 演示脚本
-├── docs/                     # 文档
-│   ├── PROTOCOL.md               # 通信协议
-│   ├── persona.md                # 画像说明
-│   └── 偏移率说明书.md           # 偏移率算法说明
-├── experiments/              # 实验代码
-├── scripts/                  # 部署脚本
-├── skills/nyx/               # Hermes 技能层
-│   ├── SKILL.md                  # 技能定义
-│   └── references/               # 参考文档（14 篇）
-├── Dockerfile                # 容器化部署
-├── docker-compose.yml        # 编排
-├── install.sh / install.bat  # 安装脚本
-└── pyproject.toml            # 包配置 (v3.0.0)
-```
+├── core/                        # 基础设施
+│   ├── embedding_provider.py        # 语义向量后端（本地/外部 API，Task 1）
+│   ├── vector_store.py              # 向量存储（JSON/sqlite-vec，Task 1）
+│   ├── vector_search.py             # 向量语义检索 + RRF 融合（Task 1）
+│   ├── search_router.py             # 检索路由器（五路混合排序）
+│   ├── llm_extract.py               # 可选 LLM 抽取接口（Task 2）
+│   ├── sandglass_sqlite.py          # SQLite 沙漏存储
+│   ├── sandglass_paths.py           # 数据路径管理
+│   ├── sandglass_archive.py         # 记忆归档
+│   ├── l0_buffer.py                 # L0 缓冲层
+│   ├── emotion_vocab.py             # 情绪词库
+├── interfaces/                    # 对外接口
+│   ├── nexsandglass.py              # 主接口
+│   ├── nyx.py                       # Nyx 适配层（含 Veil Bloom Filter）
+│   ├── sandglass_mcp.py             # MCP 工具
+│   └── plugin.py                    # 插件接口
+├── features/                      # 特性模块
+│   ├── weavethread.py               # 知识图谱（正则 + 可选 LLM 抽取，Task 2）
+│   ├── shadow_sand.py               # 结构化事实存储（信任评分）
+│   ├── sandglass_vault.py           # 沙漏索引检索
+│   ├── soul_diff.py                 # 灵魂差分导出/迁移
+│   ├── nightwatch.py                # 夜间值守
+│   └── ...                          # decision_particles/multi_analysis/pulse/think
+├── l3/                          # L3 层（高级记忆）
+│   ├── persona_l3.py                # 画像构建
+│   ├── l3_search_core.py            # SimHash/搜索核心
+│   └── ...                          # tasks/emotion/scene/offset/weave/arch
+├── engram/                      # 🧬 EngramTide 融合层（记忆加工）
+│   ├── types.py                     # Tulving 四类记忆
+│   ├── decay.py                     # Ebbinghaus 衰减 + 浮现 + 激活
+│   ├── writer.py                    # 差异化写入 + embedding 计算（Task 1）
+│   ├── context.py                   # Constitutional 上下文
+│   ├── evolve.py                    # 演化协调器
+│   ├── dream_pipeline.py            # 🌙 梦境管线（hypnos 融合）
+│   ├── prompts/                     # 三女神 prompt（Mnemosyne/Epimetheus/Prometheus）
+│   └── loops/                       # 四闭环（事实↔图谱/梦境↔加工/画像↔上下文/召回↔重要性）
+└── utils/                       # 工具
+    ├── heartbeat.py                 # 心跳
+    └── discipline.py                # 纪律约束```
 
 ---
 
@@ -195,6 +186,12 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 ---
 
 ## 📝 更新日志
+
+### v3.4.0 (2026-08-01) — 审查问题修复
+
+- 🔍 **真正的语义检索**（Task 1）：新增 `core/embedding_provider.py`（本地 sentence-transformers + 外部 API 可插拔）、`core/vector_store.py`（JSON/sqlite-vec 后端）、`core/vector_search.py`（向量检索 + RRF 融合）；SearchRouter 新增第五路向量检索，与现有四路做混合排序；`engram/writer.py` 写入时自动计算 embedding
+- 🤖 **LLM 知识图谱抽取**（Task 2）：新增 `core/llm_extract.py`（可选接口）；`features/weavethread.py` 新增 `wthread_extract_with_source`（regex/llm 来源标注）和 `wthread_extract_llm`（可降级 LLM 补充抽取）；环境变量 `WTHREAD_LLM_EXTRACTION=1` 开启，关闭时纯正则
+- 📝 **文档修复**（Task 3）：README 包结构替换虚构路径（core/dejavu.py→interfaces/nyx.py, core/thread_*.py→features/weavethread.py, core/fact_store.py→features/shadow_sand.py）；术语一致性修复（Déjà Vu = Veil Bloom Filter）
 
 ### v3.3.0 (2026-07-31) — 🌙 hypnos 梦境融合
 

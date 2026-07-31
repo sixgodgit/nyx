@@ -4,6 +4,7 @@ NexSandglass 织线——织布机的线材 — V2.9.3-dev
 零 LLM，纯正则，存 shadow_sand.db 的 wthread_triples 表
 """
 import re, sqlite3, os
+import logging
 from datetime import datetime, timezone
 
 from nexsandglass.core.sandglass_paths import _NB
@@ -28,6 +29,8 @@ _EXTRACT_PATTERNS = [
 ]
 
 
+logger = logging.getLogger(__name__)
+
 def _ensure_table():
     """确保 wthread_triples 表存在"""
     conn = sqlite3.connect(_DB, timeout=10)
@@ -40,15 +43,59 @@ def _ensure_table():
             object TEXT NOT NULL,
             source_line INTEGER,
             confidence REAL DEFAULT 0.5,
+            source TEXT DEFAULT 'regex',
+            valid_from TEXT,
+            valid_until TEXT,
             created_at TEXT DEFAULT (datetime('now'))
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wthread_subject ON wthread_triples(subject)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wthread_relation ON wthread_triples(relation)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wthread_object ON wthread_triples(object)")
+    # 新增 source 列（兼容旧表）
+    try:
+        conn.execute("ALTER TABLE wthread_triples ADD COLUMN source TEXT DEFAULT 'regex'")
+    except Exception:
+        pass  # 列已存在
+    # 时序事实列（Task 5，兼容旧表）
+    try:
+        conn.execute("ALTER TABLE wthread_triples ADD COLUMN valid_from TEXT")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE wthread_triples ADD COLUMN valid_until TEXT")
+    except Exception:
+        pass
     conn.commit()
     conn.close()
 
+
+
+def wthread_extract_with_source(text: str, line_num: int = 0) -> list:
+    """
+    带来源标注的抽取。返回 [(subject, relation, object, source), ...]
+    source = 'regex' 或 'llm'
+    """
+    regex_triples = []
+    for pattern, relation in _EXTRACT_PATTERNS:
+        for match in re.finditer(pattern, text):
+            groups = match.groups()
+            if len(groups) == 1:
+                obj = _clean_entity(groups[0])
+                if obj:
+                    regex_triples.append(("subject", relation, obj))
+            elif len(groups) == 2:
+                subj = _clean_entity(groups[0])
+                obj = _clean_entity(groups[1])
+                if subj and obj:
+                    regex_triples.append((subj, relation, obj))
+    result = [(s, r, o, "regex") for s, r, o in regex_triples]
+    # LLM 补充
+    llm_triples = wthread_extract_llm(text, existing_regex=regex_triples)
+    for subj, rel, obj, conf in llm_triples:
+        if not any(s == subj and r == rel and o == obj for s, r, o in regex_triples):
+            result.append((subj, rel, obj, "llm"))
+    return result
 
 def wthread_extract(text: str, line_num: int = 0) -> list:
     """从文本提取三元组。返回 [(subject, relation, object), ...]"""
@@ -68,6 +115,31 @@ def wthread_extract(text: str, line_num: int = 0) -> list:
     return triples
 
 
+def wthread_extract_llm(text: str, existing_regex: list = None) -> list:
+    """
+    可选 LLM 抽取层：抓正则漏掉的三元组，做实体归一化。
+    
+    返回 [(subject, relation, object, confidence), ...]
+    source 标记为 'llm'。
+    
+    需要配置 WTHREAD_LLM_EXTRACTION=1 且可用的 LLM 后端。
+    失败时返回空列表（fail-safe，退回纯正则）。
+    """
+    if not os.environ.get("WTHREAD_LLM_EXTRACTION"):
+        return []
+    try:
+        # 延迟导入，避免强依赖
+        from nexsandglass.core.llm_extract import llm_extract_triples
+        result = llm_extract_triples(text, existing_regex=existing_regex)
+        if result:
+            logger.info("[wthread_extract_llm] LLM 补充抽取 %d 条三元组", len(result))
+        return result
+    except Exception as e:
+        logger.debug("[wthread_extract_llm] LLM 抽取失败（退回正则）: %s", e)
+        return []
+
+
+
 def _clean_entity(text: str) -> str:
     """清洗提取的实体——去掉语气词/连词前缀"""
     text = text.strip()
@@ -82,14 +154,17 @@ def _clean_entity(text: str) -> str:
 def wthread_store(text: str, line_num: int = 0, subject: str = "user") -> int:
     """提取并存储三元组。返回存储数量"""
     _ensure_table()
-    triples = wthread_extract(text, line_num)
-    if not triples:
+    if os.environ.get("WTHREAD_LLM_EXTRACTION"):
+        triples_with_source = wthread_extract_with_source(text, line_num)
+    else:
+        triples_with_source = [(s, r, o, "regex") for s, r, o in wthread_extract(text, line_num)]
+    if not triples_with_source:
         return 0
     
     conn = sqlite3.connect(_DB, timeout=10)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     count = 0
-    for subj, rel, obj in triples:
+    for subj, rel, obj, src_tag in triples_with_source:
         if subj == "subject":
             subj = subject
         # 去重检查
@@ -100,8 +175,8 @@ def wthread_store(text: str, line_num: int = 0, subject: str = "user") -> int:
         if exists:
             continue
         conn.execute(
-            "INSERT INTO wthread_triples (subject, relation, object, source_line, created_at) VALUES (?,?,?,?,?)",
-            (subj, rel, obj, line_num, now)
+            "INSERT INTO wthread_triples (subject, relation, object, source_line, source, created_at) VALUES (?,?,?,?,?,?)",
+            (subj, rel, obj, line_num, src_tag, now)
         )
         count += 1
     conn.commit()
@@ -231,7 +306,7 @@ def wthread_weave(limit: int = 3) -> str:
     for rel, targets in result["grouped"].items():
         lines.append(f"  {rel}: " + ", ".join(targets[:limit]))
     return "\n".join(lines)
-def wthread_add(subject: str, relation: str, object: str, source_line: int = 0) -> bool:
+def wthread_add(subject: str, relation: str, object: str, source_line: int = 0, source: str = "regex") -> bool:
     """LLM 手动补漏——Agent 发现正则漏抓的关系时，通过 MCP 工具补入。
     返回 True 表示写入成功或已存在。
     """
@@ -246,8 +321,8 @@ def wthread_add(subject: str, relation: str, object: str, source_line: int = 0) 
         return True
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     conn.execute(
-        "INSERT INTO wthread_triples (subject, relation, object, source_line, created_at) VALUES (?,?,?,?,?)",
-        (subject, relation, object, source_line, now)
+        "INSERT INTO wthread_triples (subject, relation, object, source_line, source, created_at) VALUES (?,?,?,?,?,?)",
+        (subject, relation, object, source_line, source or 'regex', now)
     )
     conn.commit()
     conn.close()

@@ -14,9 +14,25 @@ engram/writer.py — 差异化写入策略（记忆分类加工）
 from __future__ import annotations
 
 import hashlib
+import logging
 from typing import Callable, Optional
 
 from .types import Memory, MemoryType, WriteAction, WriteReport
+
+logger = logging.getLogger(__name__)
+
+
+def _fill_embedding(mem: Memory) -> None:
+    """为记忆计算 embedding（如果 Provider 可用）。Fail-safe：失败不抛异常。"""
+    try:
+        from ..core.embedding_provider import get_embedding_provider
+        provider = get_embedding_provider()
+        if provider.available:
+            emb = provider.encode_one(mem.content)
+            if emb:
+                mem.embedding = emb
+    except Exception as e:
+        logger.debug("[_fill_embedding] 跳过: %s", e)
 
 # ── 差异化写入阈值（对齐 EngramTide）────────────────────────
 
@@ -168,6 +184,8 @@ def write_memory_classified(
         arousal=arousal,
         tags=list(tags or []),
     )
+    # 计算 embedding（如果 Provider 可用）
+    _fill_embedding(new_mem)
     return classify_write(new_mem, existing, similarity_fn)
 
 

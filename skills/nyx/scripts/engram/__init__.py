@@ -64,6 +64,14 @@ from .evolve import (
     fact_pass,
     EvolutionReport,
 )
+from .dream_pipeline import (
+    run_dream_pipeline,
+    mnemosyne_summarize,
+    epimetheus_internalize,
+    prometheus_inspire,
+    MnemosyneSummary,
+    DreamPipelineReport,
+)
 
 __all__ = [
     # types
@@ -108,4 +116,11 @@ __all__ = [
     "recall_pass",
     "fact_pass",
     "EvolutionReport",
+    # dream pipeline (hypnos × engram)
+    "run_dream_pipeline",
+    "mnemosyne_summarize",
+    "epimetheus_internalize",
+    "prometheus_inspire",
+    "MnemosyneSummary",
+    "DreamPipelineReport",
 ]

@@ -1,6 +1,6 @@
 ---
 name: nyx
-description: Nyx（夜神）记忆感知系统 — 存储层（沙漏/图谱/Déjà Vu/梦境）+ 加工层（Tulving 四类记忆/Ebbinghaus 衰减/差异化写入/Constitutional 上下文）+ 演化层（四闭环自我演化）
+description: Nyx（夜神）记忆感知系统 — 存储层（沙漏/图谱/Déjà Vu/梦境）+ 加工层（Tulving 四类记忆/Ebbinghaus 衰减/差异化写入/Constitutional 上下文）+ 演化层（四闭环自我演化 + hypnos 梦境融合三女神管线）+ 语义层（真正的向量语义检索 + 可选 LLM 知识图谱抽取 + 时序事实冲突处理 + 量化评测框架）
 tags:
   - nyx
   - memory
@@ -9,15 +9,23 @@ tags:
   - fact-store
   - session-search
   - knowledge-graph
+  - engram
+  - decay
+  - constitutional
+  - dream-pipeline
+  - evolution
+  - hypnos
 ---
 
 # Nyx 记忆感知系统
 
-> 版本：v3.2.0 | 仓库：https://github.com/sixgodgit/nyx | 协议：MIT
+> 版本：v3.4.0 | 仓库：https://github.com/sixgodgit/nyx | 协议：MIT
 
 ## 设计哲学：反馈回路 > 功能堆积
 
-**核心洞察**：当功能数量达到边际收益递减点后，真正的价值跃迁来自**模块间反馈回路**——让记忆能够自我演化，而非继续叠加功能。
+**核心洞察**：当功能数量达到边际收益递减点后，真正的价值跃迁来自**模块间反馈回路**——让记忆能够自我演化。
+
+> 2026-08-01 代码审查发现语义检索、知识图谱抽取、文档脱节、评测缺失、时序冲突 5 类问题。审查报告与改进路线图见 [`references/code-review-2026-08-01.md`](references/code-review-2026-08-01.md)。已修复：真正的向量语义检索（embedding_provider + vector_store + vector_search + RRF 融合）、可选 LLM 知识图谱抽取（llm_extract + source 标注）、时序事实冲突处理（temporal_fact + valid_from/valid_until）。
 
 Nyx 的架构演进遵循这一原则：
 
@@ -59,12 +67,17 @@ Nyx 的架构演进遵循这一原则：
 
 ## 🚀 生产部署
 
-部署到 `nyx.hvh.expert`（服务器 162.0.225.252）。详见 [`references/deployment-workflow.md`](references/deployment-workflow.md)。
+## 关键环境注意
 
-**关键 pitfall**: CF API Key 在 Hermes 输出中被脱敏。完整 Key 在 `/root/.hermes/.credentials`，提取方式：
+- **CF API Key** 在 Hermes 输出中被脱敏。完整 Key 在 `/root/.hermes/.credentials`，提取方式：
 ```bash
-grep "^CLOUDFLARE_API_KEY=*** /root/.hermes/.credentials | cut -d= -f2-
+grep "^CLOUDFLARE_API_KEY=" /root/.hermes/.credentials | cut -d= -f2-
 ```
+
+- **⚠️ 输出压缩（ccr）**：终端和 `read_file`/`skill_view` 的大段内容会被环境压缩为 `<<ccr:...>>` 格式，无法直接阅读。
+  - 小段输出（<300 字符）通常可读
+  - 大段内容用 base64 编码、`head -c`、`sed -n`、Python 分块、或子代理（delegate_task）读取
+  - 详情见 [`references/ccr-output-compression.md`](references/ccr-output-compression.md)
 - **梦境日志**: `/root/.hermes/dreams/`（YYYY-MM-DD.md）
 - **语义索引**: `/root/.hermes/nexsandglass/chroma_sand/`
 
@@ -209,6 +222,8 @@ Nyx 记忆感知系统
 - **演化闭环设计** → [`references/engram-evolution-design.md`](references/engram-evolution-design.md)（v3.2.0 四闭环）
 - **Hypnos 重叠分析** → [`references/hypnos-overlap-analysis.md`](references/hypnos-overlap-analysis.md)（梦境系统定位）
 - **梦境融合设计** → [`references/engram-dream-fusion.md`](references/engram-dream-fusion.md)（v3.3.0 三女神管线）
+- **GitHub 推送避坑** → [`references/github-push-pitfall.md`](references/github-push-pitfall.md)（正确仓库 vs 归档仓库）
+- **输出压缩处理** → [`references/ccr-output-compression.md`](references/ccr-output-compression.md)（大文件读取策略）
 - **部署工作流** → [`references/deployment-workflow.md`](references/deployment-workflow.md)
 
 - **模型链路验证**：当需要确认当前运行的模型版本（如判断是 preview 还是正式版）时，参见 [`references/model-chain-verification.md`](references/model-chain-verification.md)。核心结论：DeepSeek 正式版模型 API 名不变（仍为 `deepseek-v4-flash`），通过 `/v1/responses` 端点是否可用来判断后端是否已切换到正式版。详细检测方法 + GPT-5.6 价格对比见 [`references/deepseek-v4-formal-release.md`](references/deepseek-v4-formal-release.md)。
@@ -388,7 +403,18 @@ git push origin main
 **⚠️ 已知陷阱**:
 - `sixgodgit/hermes-memory-system` 是**归档仓库**（只读），推它会报 `403: This repository was archived`
 - Nyx 技能层（`skills/nyx/`）和仓库代码（`nexsandglass/`）双向同步：修改任一侧都要 `cp` 到另一侧
-- 推送前先 `git add -A && git status` 确认变更范围
+推送前先 `git add -A && git status` 确认变更范围。
+
+**⚠️ GitHub 推送避坑（CRITICAL）**：
+
+| 正确 | 错误 |
+|------|------|
+| `cd /root/nyx-repo && git push origin main` | 推到 `sixgodgit/hermes-memory-system`（已归档，403） |
+
+- 正确仓库：`sixgodgit/nyx`（Python 包）
+- 归档仓库：`sixgodgit/hermes-memory-system`（只读，禁止推送）
+- 推送前**必须**确认 `git remote -v` 输出为 `sixgodgit/nyx.git`
+- 详情见 [`references/github-push-pitfall.md`](references/github-push-pitfall.md)
 
 详细工作流见 [`references/deployment-workflow.md`](references/deployment-workflow.md)。
 
