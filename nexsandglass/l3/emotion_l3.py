@@ -1,5 +1,8 @@
 """NexSandglass L3 — emotion_l3"""
-import os, re, json, logging
+import os
+import re
+import json
+import logging
 from datetime import datetime, timezone
 from nexsandglass.features.sandglass_vault import _tokenize
 from nexsandglass.core.sandglass_paths import _NB

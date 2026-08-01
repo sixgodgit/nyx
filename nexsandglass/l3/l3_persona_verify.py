@@ -1,3 +1,8 @@
+"""
+l3_persona_verify — 画像验证。
+
+检查画像数据的一致性与时效性。
+"""
 #!/usr/bin/env python3
 """
 NexSandglass L3 — 画像验证模块

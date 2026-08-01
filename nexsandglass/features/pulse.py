@@ -5,7 +5,10 @@ NexSandglass V1.4.2 — 感知深度
 每次对话前 pulse() 自动选择最深的一层回应。
 """
 
-import os, re, random, logging
+import os
+import re
+import random
+import logging
 from datetime import datetime
 
 logger = logging.getLogger(__name__)

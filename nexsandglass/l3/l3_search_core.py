@@ -1,3 +1,8 @@
+"""
+l3_search_core — 高级检索核心。
+
+SimHash 去重、语义风向计算与情感分析。
+"""
 #!/usr/bin/env python3
 """
 NexSandglass L3 — 搜索核心模块
@@ -466,7 +471,8 @@ def _feed_emotion_to_synonyms():
     _EMOTION_SYN_FED = True
     try:
         from nexsandglass.core.sandglass_paths import _NB
-        import os, json
+        import os
+        import json
         ev = os.path.join(_NB, "emotion_vocab.json")
         if not os.path.exists(ev):
             return

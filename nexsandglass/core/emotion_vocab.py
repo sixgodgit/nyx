@@ -5,7 +5,9 @@ NexSandglass 情绪词库 — 七大情绪分类
 动态学习 + 主语判断 + 小二回应策略。
 """
 
-import json, os, re
+import json
+import os
+import re
 
 from nexsandglass.core.sandglass_paths import _NB
 _VOCAB_FILE = os.path.join(_NB, "emotion_vocab.json")

@@ -1,3 +1,8 @@
+"""
+multi_analysis — 多模型并行分析。
+
+同时调用多个 LLM 对同一问题生成观点并汇总。
+"""
 #!/usr/bin/env python3
 """
 Multi-Analysis — 多模型会诊模块（由 Thalamus 调度）

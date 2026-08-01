@@ -8,7 +8,12 @@ NexSandglass MemoryProvider — MemoryProvider for Hermes
 """
 from __future__ import annotations
 
-import json, logging, os, re, threading, time
+import json
+import logging
+import os
+import re
+import threading
+import time
 from typing import Any, Dict, List, Optional
 
 # 条件导入——兼容赫姆斯环境和独立运行时
@@ -228,7 +233,8 @@ class NexSandglassProvider(MemoryProvider):
             # 最近决策
             decisions = []
             try:
-                import json, os
+                import json
+                import os
                 from nexsandglass.core.sandglass_paths import _NB
                 dlog = os.path.join(_NB, "persona", "decision-log.jsonl")
                 if os.path.exists(dlog):

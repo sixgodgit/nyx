@@ -5,7 +5,9 @@ NexSandglass — 影子沙 (Shadow Sand)
 投石问路之前先查影子沙——脱口而出级速度。
 零依赖：sqlite3是Python stdlib。
 """
-import sqlite3, os, re
+import sqlite3
+import os
+import re
 from collections import defaultdict
 
 from nexsandglass.core.sandglass_paths import _NB

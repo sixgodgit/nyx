@@ -3,7 +3,9 @@ NexSandglass 织线——织布机的线材 — V2.9.3-dev
 三元组提取 + SQLite 存储 + 图谱查询
 零 LLM，纯正则，存 shadow_sand.db 的 wthread_triples 表
 """
-import re, sqlite3, os
+import re
+import sqlite3
+import os
 import logging
 from datetime import datetime, timezone
 

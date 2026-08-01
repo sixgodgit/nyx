@@ -5,7 +5,9 @@ NexSandglass MCP Server V2.6.14
 启动: python sandglass_mcp.py
 """
 
-import sys, os, json
+import sys
+import os
+import json
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from nexsandglass.core.sandglass_paths import __version__

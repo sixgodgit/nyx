@@ -1,3 +1,8 @@
+"""
+nexsandglass — NexSandglass 主入口 记忆存储的统一对外接口。
+
+提供跨层级的统一 API，封装沙漏、知识图谱与画像的读写操作。
+"""
 #!/usr/bin/env python3
 """
 NexSandglass TTY Wrapper — 任何终端 Agent 自动落沙
@@ -45,7 +50,10 @@ def wrap_command():
         print("   - MCP 工具调用自动落沙")
         sys.exit(1)
 
-    import pty, select, tty, termios
+    import pty
+    import select
+    import tty
+    import termios
     cmd = sys.argv[2:]
     print(f"🧵 NexSandglass: 已启动 {cmd[0]}，自动落沙中...")
     print(f"   (Ctrl+D 或 exit 退出)")

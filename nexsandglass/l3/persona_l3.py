@@ -1,6 +1,17 @@
+"""
+persona_l3 — 主人画像构建。
+
+从对话历史中提取用户特征、偏好与决策模式。
+"""
 import importlib
 """NexSandglass L3 — persona_l3"""
-import os, re, json, hashlib, logging, shutil, time
+import os
+import re
+import json
+import hashlib
+import logging
+import shutil
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from nexsandglass.features.sandglass_vault import _tokenize

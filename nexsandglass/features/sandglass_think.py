@@ -1478,7 +1478,8 @@ def memory_migrate(output_path: str = "") -> str:
     
     不打包代码----只打包记忆本身。
     """
-    import tarfile, os
+    import tarfile
+    import os
     
     if not output_path:
         desktop = os.path.join(os.path.expanduser("~"), "Desktop")

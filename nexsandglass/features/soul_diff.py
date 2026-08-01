@@ -9,7 +9,11 @@ NexSandglass — 灵魂差分 (Soul Diff)
   python soul_diff.py export  → 导出到 ~/.neurobase/soul_diff.json
   python soul_diff.py merge <file>  → 从文件合并
 """
-import sys, os, json, shutil, logging
+import sys
+import os
+import json
+import shutil
+import logging
 from datetime import datetime
 
 logger = logging.getLogger(__name__)

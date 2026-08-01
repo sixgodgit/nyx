@@ -4,7 +4,9 @@ NexSandglass 系统心跳 (Heartbeat)
 每10分钟呼吸一次：检查沙漏健康、待办任务、当前环境。
 零依赖跨平台：Windows tasklist / Mac ps -ax / Linux ps -aux
 """
-import os, json, platform
+import os
+import json
+import platform
 from datetime import datetime
 from nexsandglass.core.sandglass_paths import _NB
 

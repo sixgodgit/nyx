@@ -1,5 +1,8 @@
 """NexSandglass L3 — scene_l3"""
-import os, re, json, logging
+import os
+import re
+import json
+import logging
 from nexsandglass.core.sandglass_paths import _NB
 from datetime import datetime, timezone
 
