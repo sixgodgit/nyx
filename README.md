@@ -14,7 +14,7 @@ NexSandglass 是 Hermes Agent 的记忆基础设施，在 Hermes 原生 memory �
 |------|------|------|
 | 🧠 **沙漏 Sandglass** | `core/sandglass_sqlite.py` | 长期记忆存储、全文搜索、语义搜索 |
 | 🕸️ **织线 Thread** | `features/weavethread.py` | 知识图谱（实体关系三元组），支持时间窗口查询 |
-| 👻 **Déjà Vu (Veil)** | `interfaces/nyx.py` | 模糊感知 —"感觉聊过但检索不到"的 ghost 检测（Bloom Filter） |
+| 👻 **Ghost 回放** | `l3/emotion_l3.py` | 决策回放——"如果选另一个选项会怎样"的幽灵推演（entropy_ghost） |
 | 🏜️ **影子沙 Fact Store** | `features/shadow_sand.py` | 结构化事实存储（带信任评分） |
 | 📊 **情绪/画像** | `core/emotion_vocab.py`, `l3/persona_l3.py` | 用户状态追踪、偏移率计算、回音折 |
 | 🌙 **梦境 Dream** | `dream/` | 夜间多阶段复盘：记忆整理、反思成长、创造联结 |
@@ -46,7 +46,7 @@ nexsandglass/
 │   ├── emotion_vocab.py             # 情绪词库
 ├── interfaces/                    # 对外接口
 │   ├── nexsandglass.py              # 主接口
-│   ├── nyx.py                       # Nyx 适配层（含 Veil Bloom Filter）
+│   ├── nyx.py                       # Nyx 适配层（记忆读写接口）
 │   ├── sandglass_mcp.py             # MCP 工具
 │   └── plugin.py                    # 插件接口
 ├── features/                      # 特性模块
@@ -137,7 +137,7 @@ memory:
 | `sandglass_offset` | 当前偏移率（决策趋势） |
 | `sandglass_echo` | 回音折（情感风向） |
 | `sandglass_chart` | 情绪熵 ASCII 可视化 |
-| `sandglass_dejavu` | Déjà Vu 检测（check/stats/save_bf） |
+| `sandglass_ghost` | 决策回放——"如果选另一个选项"的幽灵推演 |
 | `sandglass_thread` | 织线知识图谱查询 |
 | `sandglass_thread_graph` | 实体子图展开 |
 | `sandglass_thread_weave` | 因果链摘要 |
@@ -180,7 +180,7 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 | 沙漏记忆 | `~/.hermes/sandglass/` | SQLite / JSONL |
 | 织线图谱 | `~/.hermes/sandglass/thread/` | JSON（三元组） |
 | 事实存储 | `~/.hermes/sandglass/facts/` | SQLite |
-| Déjà Vu | `~/.hermes/sandglass/dejavu.bf` | Bloom Filter |
+| Ghost 回放 | 内存计算（无持久化文件） | 决策推演 |
 | 梦境日志 | `~/.hermes/dreams/` | Markdown |
 
 ---
@@ -199,7 +199,7 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 
 - 🔍 **真正的语义检索**（Task 1）：新增 `core/embedding_provider.py`（本地 sentence-transformers + 外部 API 可插拔）、`core/vector_store.py`（JSON/sqlite-vec 后端）、`core/vector_search.py`（向量检索 + RRF 融合）；SearchRouter 新增第五路向量检索，与现有四路做混合排序；`engram/writer.py` 写入时自动计算 embedding
 - 🤖 **LLM 知识图谱抽取**（Task 2）：新增 `core/llm_extract.py`（可选接口）；`features/weavethread.py` 新增 `wthread_extract_with_source`（regex/llm 来源标注）和 `wthread_extract_llm`（可降级 LLM 补充抽取）；环境变量 `WTHREAD_LLM_EXTRACTION=1` 开启，关闭时纯正则
-- 📝 **文档修复**（Task 3）：README 包结构替换虚构路径（core/dejavu.py→interfaces/nyx.py, core/thread_*.py→features/weavethread.py, core/fact_store.py→features/shadow_sand.py）；术语一致性修复（Déjà Vu = Veil Bloom Filter）
+- 📝 **文档修复**（Task 3）：README 包结构替换虚构路径（core/dejavu.py→interfaces/nyx.py, core/thread_*.py→features/weavethread.py, core/fact_store.py→features/shadow_sand.py）；明确 Ghost 回放功能（entropy_ghost 是决策推演，非模糊检索）
 
 ### v3.3.0 (2026-07-31) — 🌙 hypnos 梦境融合
 

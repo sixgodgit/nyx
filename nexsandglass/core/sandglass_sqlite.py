@@ -5,7 +5,13 @@ V1.4.4：sandglass.txt不动，SQLite分词FTS5平行加速。
 纯 stdlib，零依赖。FTS5挂了自动降级。
 """
 
-import os, re, sqlite3, threading
+import logging
+import os
+import re
+import sqlite3
+import threading
+
+logger = logging.getLogger(__name__)
 
 from nexsandglass.core.sandglass_paths import _NB
 _DB = os.path.join(_NB, "sandglass.db")
@@ -67,13 +73,13 @@ def sync_incremental() -> int:
     global _last_sync_mtime
     try:
         from nexsandglass.features.sandglass_vault import _SANDGLASS, _parse_line
-        # mtime检查——文件没变就跳过
-        if os.path.exists(_SANDGLASS):
-            mtime = os.path.getmtime(_SANDGLASS)
-            if mtime == _last_sync_mtime and _last_sync_mtime > 0:
-                return 0
-            _last_sync_mtime = mtime
         with _lock:
+            # mtime检查在锁内——防止 TOCTOU 竞态
+            if os.path.exists(_SANDGLASS):
+                mtime = os.path.getmtime(_SANDGLASS)
+                if mtime == _last_sync_mtime and _last_sync_mtime > 0:
+                    return 0
+                _last_sync_mtime = mtime
             conn = _get_db()
             cur = conn.execute("SELECT MAX(id) FROM sandglass")
             max_id = cur.fetchone()[0] or 0

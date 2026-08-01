@@ -187,14 +187,32 @@ def run_dream_pipeline(
     # Phase 3
     report.inspiration = prometheus_inspire(memories, llm_connect)
 
-    # Phase 4: 关系写图谱（Loop 2 → Loop 1 联动）
-    if thread_store:
-        for subj, rel, obj in report.dream.relations_found:
-            thread_store(subj, rel, obj)
-
-    # Phase 4: 老化降权（Loop 4）
-    evolved, recall = age_and_demote(memories)
-    report.recall = recall
+    # Phase 4: 通过 evolve 协调器执行四闭环（避免逻辑分叉）
+    try:
+        from .evolve import run_evolution_pass
+        # persona_entries 参数由调用方注入；thread_store 用于 Loop 1 图谱同步
+        persona = _extract_persona_from_memories(memories)
+        evolved, evo_report = run_evolution_pass(
+            memories=memories,
+            persona_entries=persona,
+            thread_store=thread_store,
+        )
+        report.recall = evo_report.recall
+        report.summary.update({
+            "reclassified": evo_report.summary.get("reclassified", 0),
+            "consolidated_groups": evo_report.summary.get("consolidated_groups", 0),
+            "relations_found": evo_report.summary.get("relations_found", 0),
+            "demoted": evo_report.summary.get("demoted", 0),
+            "archive_candidates": evo_report.summary.get("archive_candidates", 0),
+            "persona_boosted": evo_report.summary.get("persona_boosted", 0),
+        })
+    except Exception:
+        # Fail-safe: 回退到直接调用（不依赖 evolve 协调器）
+        if thread_store:
+            for subj, rel, obj in report.dream.relations_found:
+                thread_store(subj, rel, obj)
+        evolved, recall = age_and_demote(memories)
+        report.recall = recall
 
     report.summary = {
         "new_facts": len(report.mnemosyne.new_facts),
