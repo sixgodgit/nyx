@@ -187,6 +187,14 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 
 ## 📝 更新日志
 
+### v3.4.1 (2026-08-01) — 评测框架补全
+
+- 📊 评测测试集扩充至 **60 条**（fact_exact 10 / fact_semantic 15 / cross_session 10 / emotional 8 / procedural 8 / tech 9）
+- 📊 run_eval.py 词法对比真实接入（token 重叠检索），产出**具体数字**：
+  - 首轮评测：60 条测试集词法召回率 **75%**，衰减系数 0.223（30 天 episodic）
+  - 报告模板：`tests/eval/latest_report.md`
+- 混合检索对比支持注入向量组件后自动启用（RRF 融合）
+
 ### v3.4.0 (2026-08-01) — 审查问题修复
 
 - 🔍 **真正的语义检索**（Task 1）：新增 `core/embedding_provider.py`（本地 sentence-transformers + 外部 API 可插拔）、`core/vector_store.py`（JSON/sqlite-vec 后端）、`core/vector_search.py`（向量检索 + RRF 融合）；SearchRouter 新增第五路向量检索，与现有四路做混合排序；`engram/writer.py` 写入时自动计算 embedding
