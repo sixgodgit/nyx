@@ -39,7 +39,9 @@ def _handle_tool(name, args, request_id):
 
         elif name == "sandglass_semantic":
             from nexsandglass.features.sandglass_think import search_semantic
-            r = search_semantic(args.get("query", ""), limit=args.get("limit", 5))
+            backend = args.get("backend", "tfidf")
+            r = search_semantic(args.get("query", ""), limit=args.get("limit", 5),
+                                backend=backend)
             return _rpc_response(request_id, [
                 {"line": ln, "ts": ts, "text": txt[:200]} for ln, ts, txt, *_ in r
             ])

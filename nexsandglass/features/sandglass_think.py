@@ -552,9 +552,27 @@ def dynamic_expand(hit_line: int, query_tokens: set, all_lines: list, max_ctx: i
         if text and sand_density(text, query_tokens) >= threshold: end = i
         else: break
     return all_lines[start:end+1]
-def search_semantic(query: str, limit: int = 10) -> list:
+def search_semantic(query: str, limit: int = 10, backend: str = "tfidf") -> list:
     """V2.8.7: SearchRouter 统一搜索入口 + 密度元数据输出。
-    search_filter 扩展关键词 → SearchRouter → 密度标注 → 情感重排。"""
+    search_filter 扩展关键词 → SearchRouter(或ChromaDB) → 密度标注 → 情感重排。
+    backend 参数：'tfidf'（默认）/'chromadb'。
+    """
+    if backend == "chromadb":
+        try:
+            from nexsandglass.features.sandglass_chroma import search as chroma_search
+            results = chroma_search(query, limit)
+            if not results:
+                return []
+            query_tokens = _tokenize_for_density(query)
+            enriched = []
+            for item in results:
+                ln, ts, text = item[0], item[1], item[2]
+                density = sand_density(text, query_tokens)
+                enriched.append((ln, ts, text, f"sand:{density:.2f}"))
+            return sentiment_rerank(enriched, _sentiment_wind())
+        except Exception as e:
+            logger.warning(f"ChromaDB backend failed, falling back to tfidf: {e}")
+
     expanded_query = query
     try:
         filt = search_filter(query)
