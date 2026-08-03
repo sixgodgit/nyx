@@ -35,11 +35,17 @@ from nexsandglass.l3.offset_signals import _LLM_KEY, _LLM_ENDPOINT, _LLM_MODEL
 
 # Lazy imports — avoid circular dependency
 _fail_open = None; _llm = None; _extract_md_section = None
+_glass_reminder = None; _comprehensive_offset = None
 def _lazy_import():
     global _fail_open, _llm, _extract_md_section
+    global _glass_reminder, _comprehensive_offset
     if _fail_open is None:
         from nexsandglass.features.sandglass_think import _fail_open as _fo, _llm as _l, _extract_md_section as _em
         _fail_open = _fo; _llm = _l; _extract_md_section = _em
+    if _glass_reminder is None:
+        from nexsandglass.l3.emotion_l3 import glass_reminder as _gr
+        from nexsandglass.l3.offset_l3 import comprehensive_offset as _co
+        _glass_reminder = _gr; _comprehensive_offset = _co
 
 @importlib.import_module("nexsandglass.l3.offset_signals")._fail_open("")
 def persona_build() -> str:
@@ -66,17 +72,19 @@ def persona_build() -> str:
 
     # 玻璃画像 + 影子灵魂 注入
     try:
-        glass = glass_reminder("", emotion_trigger=False)
+        glass = _glass_reminder("", emotion_trigger=False)
         if glass and "无需提醒" not in glass:
             user_prompt += f"=== 玻璃画像（2D轮廓+3D注解） ===\n{glass}\n\n"
-    except: pass
+    except Exception:
+        pass
     try:
-        off = comprehensive_offset()
+        off = _comprehensive_offset()
         if off.get("direction") and off["direction"] != "neutral":
             proj = persona_project(off["direction"], off.get("offset", 0))
             if proj.get("shadow_persona"):
                 user_prompt += f"=== 影子灵魂（如果选相反方向） ===\n{proj['shadow_persona'][:500]}\n\n"
-    except: pass
+    except Exception:
+        pass
 
     user_prompt += f"=== 主人对话沙子 ===\n{sand_text[:30000]}\n=== 结束 ===\n\n请执行四层深度扫描，生成 persona.md。首次生成，全量写入。"
 

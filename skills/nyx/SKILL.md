@@ -19,7 +19,7 @@ tags:
 
 # Nyx 记忆感知系统
 
-> 版本：v3.4.0 | 仓库：https://github.com/sixgodgit/nyx | 协议：MIT
+> 版本：v3.4.1 | 仓库：https://github.com/sixgodgit/nyx | 协议：MIT
 
 ## 设计哲学：反馈回路 > 功能堆积
 

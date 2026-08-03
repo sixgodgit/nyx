@@ -514,7 +514,7 @@ def _tokenize_for_density(query: str) -> set:
                 prev_cjk = c
             else: prev_cjk = None
     if lang in ("en", "mixed"):
-        for w in __import__('re').findall(r'[a-zA-Z]+', query.lower()):
+        for w in re.findall(r'[a-zA-Z]+', query.lower()):
             if len(w) >= 2:
                 tokens.add(w)
                 for n in (2, 3):
@@ -524,34 +524,6 @@ def _tokenize_for_density(query: str) -> set:
 
 from nexsandglass.l3.l3_search_core import sand_density
 
-def simhash_rerank(query: str, candidates: list) -> dict:
-    """SimHash语义重排：对所有候选集计算汉明距离，返回{line_num: bonus}"""
-    try:
-        from nexsandglass.l3.l3_search_core import simhash, _hamming
-        q_fp = simhash(query)
-        if q_fp == -1: return {}
-        scores = {}
-        for ln, ts, text in candidates:
-            d_fp = simhash(text[:500])
-            if d_fp == -1: continue
-            dist = _hamming(q_fp, d_fp)
-            if dist <= 55:
-                scores[ln] = max(0, (55 - dist) / 55 * 0.5)
-        return scores
-    except: return {}
-
-def dynamic_expand(hit_line: int, query_tokens: set, all_lines: list, max_ctx: int = 15, threshold: float = 0.2):
-    """沙子密度衰减扩窗：遇到密度断崖就停"""
-    start, end = hit_line, hit_line
-    for i in range(hit_line - 1, max(0, hit_line - max_ctx), -1):
-        _, _, text = __import__('sandglass_vault')._parse_line(all_lines[i]) if callable(getattr(__import__('sandglass_vault'), '_parse_line', None)) else (None, None, all_lines[i])
-        if text and sand_density(text, query_tokens) >= threshold: start = i
-        else: break
-    for i in range(hit_line + 1, min(len(all_lines), hit_line + max_ctx)):
-        _, _, text = __import__('sandglass_vault')._parse_line(all_lines[i]) if callable(getattr(__import__('sandglass_vault'), '_parse_line', None)) else (None, None, all_lines[i])
-        if text and sand_density(text, query_tokens) >= threshold: end = i
-        else: break
-    return all_lines[start:end+1]
 def search_semantic(query: str, limit: int = 10, backend: str = "tfidf") -> list:
     """V2.8.7: SearchRouter 统一搜索入口 + 密度元数据输出。
     search_filter 扩展关键词 → SearchRouter(或ChromaDB) → 密度标注 → 情感重排。
@@ -704,8 +676,8 @@ def search_filter(query: str) -> dict:
 
     # ── 影子沙注入（脱口而出层的实体标签 → 搜索权重）──
     try:
-        from nexsandglass.features.shadow_sand import shadow_search
-        db = __import__('shadow_sand')._get_conn()
+        from nexsandglass.features.shadow_sand import _get_conn, shadow_search
+        db = _get_conn()
         sh = shadow_search(query, 5)
         if sh:
             line_nums = [ln for _, ln in sh[:3]]

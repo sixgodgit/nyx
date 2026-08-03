@@ -23,7 +23,7 @@ import re
 import sqlite3
 from datetime import datetime
 
-from sandglass_paths import _NB
+from nexsandglass.core.sandglass_paths import _NB
 
 # ── 夜之疆域 ────────────────────────────────────────
 _VEIL_PATH = os.path.join(_NB, "nyx_veil.bin")        # Bloom Filter 位图

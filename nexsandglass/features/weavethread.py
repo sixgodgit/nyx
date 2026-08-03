@@ -73,34 +73,8 @@ def _ensure_table():
 
 
 
-def wthread_extract_with_source(text: str, line_num: int = 0) -> list:
-    """
-    带来源标注的抽取。返回 [(subject, relation, object, source), ...]
-    source = 'regex' 或 'llm'
-    """
-    regex_triples = []
-    for pattern, relation in _EXTRACT_PATTERNS:
-        for match in re.finditer(pattern, text):
-            groups = match.groups()
-            if len(groups) == 1:
-                obj = _clean_entity(groups[0])
-                if obj:
-                    regex_triples.append(("subject", relation, obj))
-            elif len(groups) == 2:
-                subj = _clean_entity(groups[0])
-                obj = _clean_entity(groups[1])
-                if subj and obj:
-                    regex_triples.append((subj, relation, obj))
-    result = [(s, r, o, "regex") for s, r, o in regex_triples]
-    # LLM 补充
-    llm_triples = wthread_extract_llm(text, existing_regex=regex_triples)
-    for subj, rel, obj, conf in llm_triples:
-        if not any(s == subj and r == rel and o == obj for s, r, o in regex_triples):
-            result.append((subj, rel, obj, "llm"))
-    return result
-
-def wthread_extract(text: str, line_num: int = 0) -> list:
-    """从文本提取三元组。返回 [(subject, relation, object), ...]"""
+def _extract_regex_triples(text: str) -> list:
+    """纯正则三元组抽取。返回 [(subject, relation, object), ...]"""
     triples = []
     for pattern, relation in _EXTRACT_PATTERNS:
         for match in re.finditer(pattern, text):
@@ -115,6 +89,25 @@ def wthread_extract(text: str, line_num: int = 0) -> list:
                 if subj and obj:
                     triples.append((subj, relation, obj))
     return triples
+
+
+def wthread_extract_with_source(text: str, line_num: int = 0) -> list:
+    """
+    带来源标注的抽取。返回 [(subject, relation, object, source), ...]
+    source = 'regex' 或 'llm'
+    """
+    regex_triples = _extract_regex_triples(text)
+    result = [(s, r, o, "regex") for s, r, o in regex_triples]
+    # LLM 补充
+    llm_triples = wthread_extract_llm(text, existing_regex=regex_triples)
+    for subj, rel, obj, conf in llm_triples:
+        if not any(s == subj and r == rel and o == obj for s, r, o in regex_triples):
+            result.append((subj, rel, obj, "llm"))
+    return result
+
+def wthread_extract(text: str, line_num: int = 0) -> list:
+    """从文本提取三元组。返回 [(subject, relation, object), ...]"""
+    return _extract_regex_triples(text)
 
 
 def wthread_extract_llm(text: str, existing_regex: list = None) -> list:
@@ -145,8 +138,8 @@ def wthread_extract_llm(text: str, existing_regex: list = None) -> list:
 def _clean_entity(text: str) -> str:
     """清洗提取的实体——去掉语气词/连词前缀"""
     text = text.strip()
-    # 去掉句首的 了/着/过/的/是/在/和/与/或
-    text = re.sub(r'^[了着过的和在或与已已]', '', text)
+    # 去掉句首的 了/着/过/的/是/在/和/与/或/已
+    text = re.sub(r'^[了着过的和在或与已]', '', text)
     # 至少2字或英文2字符
     if len(text) >= 2:
         return text
@@ -259,12 +252,16 @@ def wthread_stats() -> dict:
     _ensure_table()
     conn = sqlite3.connect(_DB, timeout=10)
     total = conn.execute("SELECT COUNT(*) FROM wthread_triples").fetchone()[0]
-    entities = conn.execute("SELECT COUNT(DISTINCT subject) + COUNT(DISTINCT object) FROM wthread_triples").fetchone()
+    entities = conn.execute(
+        "SELECT COUNT(*) FROM (SELECT subject AS e FROM wthread_triples "
+        "UNION SELECT object AS e FROM wthread_triples)"
+    ).fetchone()[0]
     relations = conn.execute("SELECT relation, COUNT(*) as c FROM wthread_triples GROUP BY relation ORDER BY c DESC").fetchall()
     conn.close()
     return {
         "total_triples": total,
-        "relations": [(r, c) for r, c in relations]
+        "total_entities": entities,
+        "relations": [(r, c) for r, c in relations],
     }
 
 def wthread_to_weave(entity: str = "user") -> list:

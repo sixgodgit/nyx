@@ -25,6 +25,16 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+def _cosine(a: list[float], b: list[float]) -> float:
+    """余弦相似度（长度不等或空向量返回 0）。"""
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b))
+    na = math.sqrt(sum(x * x for x in a)) or 1.0
+    nb = math.sqrt(sum(x * x for x in b)) or 1.0
+    return dot / (na * nb)
+
+
 class VectorStore:
     """向量存储抽象接口。"""
 
@@ -71,19 +81,12 @@ class JsonVectorStore(VectorStore):
     def _save(self):
         try:
             os.makedirs(os.path.dirname(self._path), exist_ok=True)
-            with open(self._path, 'w', encoding='utf-8') as f:
+            tmp = self._path + ".tmp"
+            with open(tmp, 'w', encoding='utf-8') as f:
                 json.dump(self._data, f, ensure_ascii=False)
+            os.replace(tmp, self._path)  # 原子替换，避免写坏主文件
         except Exception as e:
             logger.warning("[JsonVectorStore] 保存失败: %s", e)
-
-    @staticmethod
-    def _cosine(a: list[float], b: list[float]) -> float:
-        if not a or not b or len(a) != len(b):
-            return 0.0
-        dot = sum(x * y for x, y in zip(a, b))
-        na = math.sqrt(sum(x * x for x in a)) or 1.0
-        nb = math.sqrt(sum(x * x for x in b)) or 1.0
-        return dot / (na * nb)
 
     def upsert(self, memory_id: str, embedding: list[float]) -> None:
         self._data[memory_id] = embedding
@@ -99,7 +102,7 @@ class JsonVectorStore(VectorStore):
             return []
         scored = []
         for mid, emb in self._data.items():
-            sim = self._cosine(query_embedding, emb)
+            sim = _cosine(query_embedding, emb)
             scored.append((mid, sim))
         scored.sort(key=lambda x: x[1], reverse=True)
         return scored[:top_k]
@@ -173,22 +176,13 @@ class SqliteVecStore(VectorStore):
             scored = []
             for mid, emb_json in rows:
                 emb = json.loads(emb_json)
-                sim = self._cosine(query_embedding, emb)
+                sim = _cosine(query_embedding, emb)
                 scored.append((mid, sim))
             scored.sort(key=lambda x: x[1], reverse=True)
             return scored[:top_k]
         except Exception as e:
             logger.warning("[SqliteVecStore] search 失败: %s", e)
             return []
-
-    @staticmethod
-    def _cosine(a: list[float], b: list[float]) -> float:
-        if not a or not b or len(a) != len(b):
-            return 0.0
-        dot = sum(x * y for x, y in zip(a, b))
-        na = math.sqrt(sum(x * x for x in a)) or 1.0
-        nb = math.sqrt(sum(x * x for x in b)) or 1.0
-        return dot / (na * nb)
 
     def delete(self, memory_id: str) -> None:
         if self._conn:

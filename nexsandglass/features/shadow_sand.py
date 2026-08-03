@@ -8,6 +8,7 @@ NexSandglass — 影子沙 (Shadow Sand)
 import sqlite3
 import os
 import re
+import threading
 from collections import defaultdict
 
 from nexsandglass.core.sandglass_paths import _NB
@@ -53,8 +54,9 @@ _ENTITY_RE = re.compile(
 )
 
 _conn = None
-
 _commit_pending = 0
+_db_lock = threading.Lock()  # 共享连接由 SearchRouter 多线程并发访问——需要外部锁
+
 
 def _get_conn():
     global _conn
@@ -76,6 +78,11 @@ def _maybe_commit():
 
 def shadow_search(query: str, limit: int = 10) -> list:
     """影子沙优先搜索。返回 [(行号, 信任分), ...]"""
+    with _db_lock:
+        return _shadow_search_unlocked(query, limit)
+
+
+def _shadow_search_unlocked(query: str, limit: int = 10) -> list:
     db = _get_conn()
     words = [w for w in re.findall(r'\w+', query.lower()) if len(w) > 1]
     # 方法1: 实体名匹配（最快）
@@ -119,102 +126,108 @@ def shadow_boost(candidate_lines: set, limit: int = 10) -> list:
     返回 [(行号, 信任分), ...]"""
     if not candidate_lines:
         return []
-    db = _get_conn()
-    placeholders = ",".join("?" * len(candidate_lines))
-    rows = db.execute(
-        f"SELECT line_num, score FROM trust WHERE line_num IN ({placeholders})",
-        list(candidate_lines)
-    ).fetchall()
-    trust_map = {r[0]: r[1] for r in rows}
-    scored = [(trust_map.get(ln, 0.5), ln) for ln in candidate_lines]
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return scored[:limit]
+    with _db_lock:
+        db = _get_conn()
+        placeholders = ",".join("?" * len(candidate_lines))
+        rows = db.execute(
+            f"SELECT line_num, score FROM trust WHERE line_num IN ({placeholders})",
+            list(candidate_lines)
+        ).fetchall()
+        trust_map = {r[0]: r[1] for r in rows}
+        scored = [(trust_map.get(ln, 0.5), ln) for ln in candidate_lines]
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return scored[:limit]
 
 
 # ═══════════════════ 写入（落沙后同步） ═══════════════════
 
 def shadow_index(text: str, category: str = "general", tags: str = "", line_num: int = 0) -> None:
+    """落沙后同步——调用方传入实际行号，避免COUNT(*)偏移。"""
     try:
         from nexsandglass.features.sandglass_think import scene_mode
-        if scene_mode() == 'exam': category = 'exam_' + category
-    except: pass
-    """落沙后同步——调用方传入实际行号，避免COUNT(*)偏移。"""
-    db = _get_conn()
-    # 行号由调用方传入（sandglass_log 写入后传实际行号）
-    if line_num <= 0:
-        line_num = db.execute("SELECT COUNT(*) FROM trust").fetchone()[0] + 1
+        if scene_mode() == 'exam':
+            category = 'exam_' + category
+    except Exception:
+        pass
+    with _db_lock:
+        db = _get_conn()
+        # 行号由调用方传入（sandglass_log 写入后传实际行号）
+        if line_num <= 0:
+            line_num = db.execute("SELECT COUNT(*) FROM trust").fetchone()[0] + 1
 
-    # 提取实体
-    for m in _ENTITY_RE.finditer(text):
-        name = m.group(1) or m.group(2) or m.group(3) or ""
-        name = name.strip()
-        if name and len(name) > 1:
-            row = db.execute(
-                "SELECT line_nums FROM entities WHERE name = ?", (name,)
-            ).fetchone()
-            if row:
-                nums = set(row[0].split(",")) | {str(line_num)}
-                db.execute(
-                    "UPDATE entities SET line_nums = ? WHERE name = ?",
-                    (",".join(sorted(nums, key=int)), name)
-                )
-            else:
-                db.execute(
-                    "INSERT INTO entities (name, line_nums) VALUES (?, ?)",
-                    (name, str(line_num))
-                )
+        # 提取实体
+        for m in _ENTITY_RE.finditer(text):
+            name = m.group(1) or m.group(2) or m.group(3) or ""
+            name = name.strip()
+            if name and len(name) > 1:
+                row = db.execute(
+                    "SELECT line_nums FROM entities WHERE name = ?", (name,)
+                ).fetchone()
+                if row:
+                    nums = set(row[0].split(",")) | {str(line_num)}
+                    db.execute(
+                        "UPDATE entities SET line_nums = ? WHERE name = ?",
+                        (",".join(sorted(nums, key=int)), name)
+                    )
+                else:
+                    db.execute(
+                        "INSERT INTO entities (name, line_nums) VALUES (?, ?)",
+                        (name, str(line_num))
+                    )
 
-    # 写入信任记录
-    db.execute(
-        "INSERT OR IGNORE INTO trust (line_num, score) VALUES (?, 0.5)",
-        (line_num,)
-    )
-
-    # 写入标签
-    if category != "general" or tags:
+        # 写入信任记录
         db.execute(
-            "INSERT OR REPLACE INTO fact_tags (line_num, category, tags) VALUES (?, ?, ?)",
-            (line_num, category, tags)
+            "INSERT OR IGNORE INTO trust (line_num, score) VALUES (?, 0.5)",
+            (line_num,)
         )
 
-    _maybe_commit()
+        # 写入标签
+        if category != "general" or tags:
+            db.execute(
+                "INSERT OR REPLACE INTO fact_tags (line_num, category, tags) VALUES (?, ?, ?)",
+                (line_num, category, tags)
+            )
+
+        _maybe_commit()
 
 
 # ═══════════════════ 反馈 ═══════════════════
 
 def shadow_feedback(line_num: int, helpful: bool) -> dict:
     """信任评分反馈。"""
-    db = _get_conn()
-    row = db.execute(
-        "SELECT score, helpful, unhelpful FROM trust WHERE line_num = ?",
-        (line_num,)
-    ).fetchone()
-    if not row:
-        db.execute("INSERT INTO trust (line_num, score) VALUES (?, 0.5)", (line_num,))
-        old_score = 0.5
-    else:
-        old_score = row[0]
+    with _db_lock:
+        db = _get_conn()
+        row = db.execute(
+            "SELECT score, helpful, unhelpful FROM trust WHERE line_num = ?",
+            (line_num,)
+        ).fetchone()
+        if not row:
+            db.execute("INSERT INTO trust (line_num, score) VALUES (?, 0.5)", (line_num,))
+            old_score = 0.5
+        else:
+            old_score = row[0]
 
-    delta = 0.05 if helpful else -0.10
-    new_score = max(0.0, min(1.0, old_score + delta))
-    col = "helpful" if helpful else "unhelpful"
+        delta = 0.05 if helpful else -0.10
+        new_score = max(0.0, min(1.0, old_score + delta))
+        col = "helpful" if helpful else "unhelpful"
 
-    db.execute(
-        f"UPDATE trust SET score = ?, {col} = {col} + 1, updated_at = datetime('now') WHERE line_num = ?",
-        (new_score, line_num)
-    )
-    _maybe_commit()
-    return {"line_num": line_num, "old_trust": old_score, "new_trust": new_score}
+        db.execute(
+            f"UPDATE trust SET score = ?, {col} = {col} + 1, updated_at = datetime('now') WHERE line_num = ?",
+            (new_score, line_num)
+        )
+        _maybe_commit()
+        return {"line_num": line_num, "old_trust": old_score, "new_trust": new_score}
 
 
 def shadow_retrieval_bump(line_nums: list) -> None:
     """标记检索——增加retrievals计数。"""
     if not line_nums:
         return
-    db = _get_conn()
-    placeholders = ",".join("?" * len(line_nums))
-    db.execute(
-        f"UPDATE trust SET retrievals = retrievals + 1 WHERE line_num IN ({placeholders})",
-        line_nums
-    )
-    _maybe_commit()
+    with _db_lock:
+        db = _get_conn()
+        placeholders = ",".join("?" * len(line_nums))
+        db.execute(
+            f"UPDATE trust SET retrievals = retrievals + 1 WHERE line_num IN ({placeholders})",
+            line_nums
+        )
+        _maybe_commit()

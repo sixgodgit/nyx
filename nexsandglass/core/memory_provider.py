@@ -38,6 +38,9 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# 偏移方向中文标签（system_prompt_block / prefetch 共用）
+_OFFSET_LABELS = {"frugal": "省钱", "spend": "愿投", "drift": "放弃"}
+
 # ══════════════════════════════════════════════════════════
 # 工具方法——把 sandglass 函数暴露给 Hermes 模型调用
 # ══════════════════════════════════════════════════════════
@@ -175,8 +178,7 @@ class NexSandglassProvider(MemoryProvider):
             mood = "平稳" if ent < 0.5 else ("波动" if ent < 1.0 else "高熵")
 
             # 偏移方向
-            dirs = {"frugal": "省钱", "spend": "愿投", "drift": "放弃"}
-            off_label = dirs.get(off.get('direction', ''), '平稳')
+            off_label = _OFFSET_LABELS.get(off.get('direction', ''), '平稳')
             off_pct = off.get('offset', 0)
 
             blocks = []
@@ -233,8 +235,6 @@ class NexSandglassProvider(MemoryProvider):
             # 最近决策
             decisions = []
             try:
-                import json
-                import os
                 from nexsandglass.core.sandglass_paths import _NB
                 dlog = os.path.join(_NB, "persona", "decision-log.jsonl")
                 if os.path.exists(dlog):
@@ -342,8 +342,7 @@ class NexSandglassProvider(MemoryProvider):
             off = comprehensive_offset()
             ent = _emotional_entropy()
             mood = "平稳" if ent < 0.5 else ("波动" if ent < 1.0 else "高熵")
-            dirs = {"frugal": "省钱", "spend": "愿投", "drift": "放弃"}
-            off_d = dirs.get(off.get('direction',''), '平稳')
+            off_d = _OFFSET_LABELS.get(off.get('direction', ''), '平稳')
             return (
                 f"## 当前\n"
                 f"偏移: {off_d}({off.get('offset',0):+d}%) | 情绪: {mood}\n"
@@ -376,7 +375,7 @@ class NexSandglassProvider(MemoryProvider):
     def _handle_fact_store(self, args: dict) -> str:
         try:
             from nexsandglass.features.sandglass_vault import search as vault_search
-            from nexsandglass.features.shadow_sand import shadow_search as _ss, shadow_feedback
+            from nexsandglass.features.shadow_sand import shadow_search as _ss
             action = args.get("action", "search")
 
             if action == "add":

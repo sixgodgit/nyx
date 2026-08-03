@@ -4,7 +4,7 @@
 
 NexSandglass 是 Hermes Agent 的记忆基础设施，在 Hermes 原生 memory 工具关闭时接管全部跨会话记忆、事实存储、联想检索和 déjà vu 检测。
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-3.0.0-blue)
+![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-3.4.1-blue)
 
 ---
 
@@ -21,13 +21,11 @@ NexSandglass 是 Hermes Agent 的记忆基础设施，在 Hermes 原生 memory �
 | 🔍 **语义检索** | `core/embedding_provider.py`, `core/vector_search.py` | 真正的向量语义检索（本地多语言模型 + RRF 混合，v3.4.0） |
 | 🤖 **LLM 图谱抽取** | `core/llm_extract.py`, `features/weavethread.py` | 可选 LLM 知识图谱补充抽取 + 实体归一化（可降级，v3.4.0） |
 | 🔌 **MCP 接口** | `interfaces/sandglass_mcp.py`, `interfaces/nyx.py` | MCP 工具接入 Hermes / Claude |
-| 🔍 **语义检索** | `core/embedding_provider.py`, `core/vector_search.py` | 真正的向量语义检索（Task 1，本地免费模型 + RRF 混合） |
 | 🧬 **记忆加工** | `engram/types.py`, `engram/decay.py` | Tulving 四类记忆 + Ebbinghaus 衰减（EngramTide 融合） |
 | 🧬 **差异化写入** | `engram/writer.py` | semantic 覆盖 / emotional 强化 / procedural 去重 / episodic 直插 |
 | 🧬 **Constitutional** | `engram/context.py` | 记忆融入 system prompt 隐性影响（自然无痕） |
 | 🔄 **记忆自我演化** | `engram/evolve.py`, `engram/loops/` | 四闭环：事实↔图谱、梦境→加工、画像→上下文、召回→重要性 |
 | 🌙 **梦境管线** | `engram/dream_pipeline.py`, `engram/prompts/` | hypnos 三女神融合：浅睡总结→深睡内化→灵感联结 |
-| 🤖 **LLM 抽取** | `core/llm_extract.py`, `features/weavethread.py` | 可选 LLM 知识图谱补充抽取（Task 2，可降级） |
 
 ---
 

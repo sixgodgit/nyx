@@ -6,6 +6,8 @@ results = sandglass_vault.search("关键词")
 latest = sandglass_vault.recent(5)
 """
 
+from __future__ import annotations
+
 import logging
 import mmap
 import os
@@ -18,7 +20,6 @@ _SANDGLASS = os.path.join(_NB, "sandglass.txt")
 _IDX = os.path.join(_NB, "sandglass.idx")
 
 logger = logging.getLogger(__name__)
-
 
 def set_idx_path(path: str):
     """重定向投石问路索引路径——基准测试用。"""
@@ -260,47 +261,20 @@ def _legacy_search(query, limit, month):
 
 
 def recent(n: int = 10) -> list:
-    """最近 N 条。[(行号, 时间, 明文), ...]。V2.3.9: seek逆向流式，O(N)内存。"""
+    """最近 N 条。[(行号, 时间, 明文), ...]。
+
+    返回物理行号（与 search/FTS5 的 id 一致），从文件尾部取最后 N 条有效消息。
+    """
     try:
         if n <= 0 or not os.path.exists(_SANDGLASS):
             return []
-        
-        # 逆向读取文件尾部——只加载最后几KB，不读全文件
-        chunk_size = 4096
-        with open(_SANDGLASS, "rb") as f:
-            f.seek(0, 2)  # 跳到文件末尾
-            file_size = f.tell()
-            
-            lines_found = []
-            buffer = b""
-            pos = file_size
-            
-            while pos > 0 and len(lines_found) < n:
-                read_size = min(chunk_size, pos)
-                pos -= read_size
-                f.seek(pos)
-                chunk = f.read(read_size)
-                buffer = chunk + buffer
-                lines_found = buffer.split(b"\n")
-                # 保留最后N+1行
-                if len(lines_found) > n + 1:
-                    lines_found = lines_found[-(n + 1):]
-                # 保留第一行残片到下次循环（跨chunk长行）
-                buffer = b"" if len(lines_found) == 1 and not lines_found[0] else (lines_found[0] if pos > 0 else b"")
-            
-            # 取最后n行非空行
-            lines_found = [l for l in lines_found if l.strip()][-n:]
-        
-        total = count()  # 用已有count()函数，不重复数文件
         results = []
-        for i, line in enumerate(lines_found):
-            decoded = line.decode("utf-8", errors="ignore").strip()
-            ts, sender, text = _parse_line(decoded)
-            if not ts:
-                continue
-            ln = total - len(lines_found) + i + 1
-            results.append((ln, ts, text))
-        return results
+        with open(_SANDGLASS, "r", encoding="utf-8", errors="ignore") as f:
+            for ln, line in enumerate(f, 1):
+                ts, sender, text = _parse_line(line)
+                if ts:
+                    results.append((ln, ts, text))
+        return results[-n:]
     except Exception:
         logger.warning("sandglass: recent(%d) failed", n, exc_info=True)
         return []
@@ -477,12 +451,12 @@ def _import_sandglass(source_path: str) -> tuple:
             
             # 追加到沙漏
             try:
-                import sandglass_log
+                from nexsandglass.core.sandglass_log import log_message as _log_message
                 parts = line.split(" | ", 2)
                 if len(parts) >= 3:
                     sender = parts[1].strip()
                     text = parts[2].strip()
-                    sandglass_log.log_message(text, sender)
+                    _log_message(text, sender)
                     existing_ts.add(ts)
                     imported += 1
             except Exception:
@@ -523,9 +497,9 @@ def _import_json_convo(source_path: str, fmt: str) -> tuple:
     
     for role, text in messages:
         try:
-            import sandglass_log
+            from nexsandglass.core.sandglass_log import log_message as _log_message
             sender = "user" if role in ("user", "human") else "agent"
-            sandglass_log.log_message(text, sender)
+            _log_message(text, sender)
             imported += 1
         except Exception:
             skipped += 1
@@ -543,8 +517,8 @@ def _import_plain(source_path: str) -> tuple:
             if not line:
                 continue
             try:
-                import sandglass_log
-                sandglass_log.log_message(line, "user")
+                from nexsandglass.core.sandglass_log import log_message as _log_message
+                _log_message(line, "user")
                 imported += 1
             except Exception:
                 skipped += 1

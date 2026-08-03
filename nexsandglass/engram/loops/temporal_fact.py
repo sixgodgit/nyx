@@ -17,10 +17,13 @@ engram/loops/temporal_fact.py — 时序事实冲突处理（Task 5）
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 # 关系类型：地点/状态类关系需要时效性处理
@@ -133,30 +136,6 @@ def resolve_temporal_conflict(
     return report
 
 
-def _insert_fact(
-    db_path: str,
-    subject: str,
-    relation: str,
-    obj: str,
-    source_line: int,
-    source: str,
-    now_str: str,
-) -> None:
-    """写入新事实（带 valid_from）。"""
-    conn = sqlite3.connect(db_path, timeout=10)
-    try:
-        conn.execute(
-            """
-            INSERT INTO wthread_triples (subject, relation, object, source_line, source, valid_from, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (subject, relation, obj, source_line, source, now_str, now_str),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-
 def ensure_temporal_columns(db_path: str) -> None:
     """确保 wthread_triples 表有 valid_from / valid_until 列（兼容旧表）。"""
     conn = sqlite3.connect(db_path, timeout=10)
@@ -167,7 +146,3 @@ def ensure_temporal_columns(db_path: str) -> None:
             pass  # 列已存在
     conn.commit()
     conn.close()
-
-
-import logging
-logger = logging.getLogger(__name__)

@@ -133,7 +133,7 @@ def night_watch() -> str:
         ok.append("✅ 人格画像存在")
 
     try:
-        import sandglass_think
+        from nexsandglass.features.sandglass_think import comprehensive_offset
         ok.append("✅ 第三层可用")
     except Exception as e:
         alerts.append(f"🔴 第三层异常：{e}")

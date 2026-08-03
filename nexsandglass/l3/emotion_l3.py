@@ -24,10 +24,9 @@ try:
         _fail_open, _llm, _three_d_ready, _latest_annotation,
         _should_synthesize, _synthesize_3d, comprehensive_offset,
         _emotional_entropy, shadow_chart, stage_brief,
-        weave_graph,
+        weave_graph, _3D_ANNOTATIONS,
     )
     from nexsandglass.l3.persona_l3 import _WAVE_THRESHOLDS
-    _3D_ANNOTATIONS = __import__('sandglass_think')._3D_ANNOTATIONS
 except:
     _fail_open = lambda d: lambda f: f
     _llm = None

@@ -23,11 +23,14 @@ engram/dream_pipeline.py — 梦境管线（hypnos × engram 融合）
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
 from .types import Memory, MemoryType
+
+logger = logging.getLogger(__name__)
 from .loops.dream_engram import (
     dream_reclassify,
     dream_consolidate,
@@ -56,6 +59,17 @@ class DreamPipelineReport:
     recall: RecallFeedbackReport = field(default_factory=RecallFeedbackReport)
     inspiration: list[str] = field(default_factory=list)
     summary: dict = field(default_factory=dict)
+
+
+def _extract_persona_from_memories(memories: list[Memory]) -> list[str]:
+    """从记忆中提取画像条目（semantic/procedural 稳定事实），供演化协调器 Loop 3 使用。"""
+    entries: list[str] = []
+    for mem in memories:
+        if mem.type in (MemoryType.SEMANTIC.value, MemoryType.PROCEDURAL.value):
+            content = (mem.content or "").strip()
+            if content and content not in entries:
+                entries.append(content)
+    return entries[:50]
 
 
 # ── Phase 1：Mnemosyne 浅睡总结（规则式辅助提取）───────────────
@@ -187,14 +201,33 @@ def run_dream_pipeline(
     # Phase 3
     report.inspiration = prometheus_inspire(memories, llm_connect)
 
-    # Phase 4: 关系写图谱（Loop 2 → Loop 1 联动）
-    if thread_store:
-        for subj, rel, obj in report.dream.relations_found:
-            thread_store(subj, rel, obj)
-
-    # Phase 4: 老化降权（Loop 4）
-    evolved, recall = age_and_demote(memories)
-    report.recall = recall
+    # Phase 4: 通过 evolve 协调器执行四闭环（避免逻辑分叉）
+    try:
+        from .evolve import run_evolution_pass
+        # persona_entries 参数由调用方注入；thread_store 用于 Loop 1 图谱同步
+        persona = _extract_persona_from_memories(memories)
+        evolved, evo_report = run_evolution_pass(
+            memories=memories,
+            persona_entries=persona,
+            thread_store=thread_store,
+        )
+        report.recall = evo_report.recall
+        report.summary.update({
+            "reclassified": evo_report.summary.get("reclassified", 0),
+            "consolidated_groups": evo_report.summary.get("consolidated_groups", 0),
+            "relations_found": evo_report.summary.get("relations_found", 0),
+            "demoted": evo_report.summary.get("demoted", 0),
+            "archive_candidates": evo_report.summary.get("archive_candidates", 0),
+            "persona_boosted": evo_report.summary.get("persona_boosted", 0),
+        })
+    except Exception:
+        logger.warning("[run_dream_pipeline] 演化协调器失败，回退到直接加工", exc_info=True)
+        # Fail-safe: 回退到直接调用（不依赖 evolve 协调器）
+        if thread_store:
+            for subj, rel, obj in report.dream.relations_found:
+                thread_store(subj, rel, obj)
+        evolved, recall = age_and_demote(memories)
+        report.recall = recall
 
     report.summary = {
         "new_facts": len(report.mnemosyne.new_facts),

@@ -3,19 +3,12 @@ l3_search_core — 高级检索核心。
 
 SimHash 去重、语义风向计算与情感分析。
 """
-#!/usr/bin/env python3
-"""
-NexSandglass L3 — 搜索核心模块
-_synonym_expand / _tfidf_search / composite_rerank / _search_with_fallback
-_sentiment_wind / sentiment_rerank / simhash / simhash_search + _SYNONYMS 词表
-
-V2.0.1: +SimHash语义搜索(零依赖纯Python)
-"""
-
-import re
-import math
-import os
 import hashlib
+import logging
+import math
+import re
+
+logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════
@@ -48,7 +41,7 @@ def _tokenize_for_density(text: str) -> set:
                 prev_cjk = None
     if lang in ("en", "mixed"):
         # 英文整词 + 2-3gram
-        for w in __import__('re').findall(r'[a-zA-Z]+', text.lower()):
+        for w in re.findall(r'[a-zA-Z]+', text.lower()):
             if len(w) >= 2:
                 tokens.add(w)
                 for n in (2, 3):
@@ -261,7 +254,6 @@ _SYNONYMS = {
     "日志": ["记录", "log", "跟踪", "历史", "痕迹"],
     "依赖": ["需要", "library", "库", "包", "前置"],
     "query": ["question", "ask", "request", "prompt", "input"],
-    "context": ["background", "environment", "setting", "scope"],
     "history": ["past", "record", "log", "timeline", "archive"],
     "compare": ["contrast", "diff", "versus", "match", "balance"],
 }
@@ -464,57 +456,42 @@ def sentiment_rerank(results, wind: float):
 _EMOTION_SYN_FED = False  # 只注入一次
 
 def _feed_emotion_to_synonyms():
-    """情绪词库高频词 → 注入同义词表。只跑一次。"""
+    """情绪词库 → 注入同义词表（同一情绪下的词互为同义词）。只跑一次。"""
     global _EMOTION_SYN_FED
     if _EMOTION_SYN_FED:
         return
     _EMOTION_SYN_FED = True
     try:
-        from nexsandglass.core.sandglass_paths import _NB
-        import os
-        import json
-        ev = os.path.join(_NB, "emotion_vocab.json")
-        if not os.path.exists(ev):
-            return
-        # 读情绪词库，取频次最高的词
-        emotion_words = {}
-        with open(ev, "r", encoding="utf-8") as f:
-            for line in f:
-                try:
-                    e = json.loads(line)
-                    w = e.get("word", "")
-                    if w and len(w) >= 2:
-                        emotion_words[w] = emotion_words.get(w, 0) + 1
-                except: pass
-        # 频次≥2的情绪词注入同义词
-        top = [w for w, c in sorted(emotion_words.items(), key=lambda x: x[1], reverse=True)[:30] if c >= 2]
-        for w in top:
-            if w not in _SYNONYMS:
-                _SYNONYMS[w] = []
-            # 情绪词关联到相关语义
-            related = {
-                "太棒了": ["好", "不错", "满意"],
-                "终于": ["完成", "搞定", "成功"],
-                "烦死了": ["麻烦", "困难", "问题"],
-                "算了": ["放弃", "不管", "随它"],
-                "哇塞": ["惊喜", "意外", "厉害"],
-            }
-            if w in related:
-                for r in related[w]:
+        from nexsandglass.core.emotion_vocab import load_vocab
+        vocab = load_vocab()
+        # 硬编码关联：高频情绪词 → 语义相近词
+        related = {
+            "太棒了": ["好", "不错", "满意"],
+            "终于": ["完成", "搞定", "成功"],
+            "烦死了": ["麻烦", "困难", "问题"],
+            "算了": ["放弃", "不管", "随它"],
+            "哇塞": ["惊喜", "意外", "厉害"],
+        }
+        injected = 0
+        for mood, data in vocab.items():
+            if not isinstance(data, dict):
+                continue
+            words = [w for w in (data.get("zh", []) + data.get("en", [])) if w and len(w) >= 2]
+            for w in words:
+                _SYNONYMS.setdefault(w, [])
+                # 同情绪词互为同义词
+                for other in words:
+                    if other != w and other not in _SYNONYMS[w]:
+                        _SYNONYMS[w].append(other)
+                # 硬编码语义关联
+                for r in related.get(w, []):
                     if r not in _SYNONYMS[w]:
                         _SYNONYMS[w].append(r)
-        if top:
-            import logging
-            logging.getLogger(__name__).info(f"情绪→同义词桥注入{len(top)}词")
+                injected += 1
+        if injected:
+            logger.info("情绪→同义词桥注入 %d 词", injected)
     except Exception:
-        pass
+        logger.debug("情绪→同义词桥失败", exc_info=True)
 
 
 # ======================== V2.8: sand density + dynamic expand + lang detect ========================
-
-def _detect_lang(query: str) -> str:
-    has_cjk = any(chr(0x4e00) <= c <= chr(0x9fff) for c in query)
-    has_alpha = any(c.isascii() and c.isalpha() for c in query)
-    if has_cjk and has_alpha: return 'mixed'
-    elif has_cjk: return 'zh'
-    else: return 'en'

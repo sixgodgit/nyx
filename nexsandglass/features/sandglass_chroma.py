@@ -4,10 +4,10 @@ NexSandglass ChromaDB 语义搜索后端
 与现有 TF-IDF 并存，不替换。
 使用持久化 ChromaDB 存储沙粒嵌入，支持语义搜索。
 """
-import os, json, logging
-from datetime import datetime
+import logging
+import os
 
-from sandglass_paths import _NB
+from nexsandglass.core.sandglass_paths import _NB
 
 _CHROMA_DIR = os.path.join(_NB, "chroma_sand")
 _COLLECTION_NAME = "nexsandglass_sands"
@@ -90,6 +90,7 @@ def delete_all() -> bool:
     """清空 ChromaDB 索引（用于重新导入）"""
     try:
         global _client, _collection
+        import chromadb
         client = chromadb.PersistentClient(path=_CHROMA_DIR)
         try:
             client.delete_collection(_COLLECTION_NAME)

@@ -2,14 +2,19 @@
 迁移脚本：将 sandglass.db 中的沙粒导入 ChromaDB 语义索引。
 用法：python migrate_to_chromadb.py
 """
-import sys, os
+import os
+import sys
 
-# 确保能导入 NexSandglass 模块
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# 让脚本可在仓库内直接运行（包安装后无需此行）
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sandglass_paths import _NB
-from sandglass_chroma import _get_collection, count as chroma_count, delete_all
-from sandglass_sqlite import _get_db
+from nexsandglass.core.sandglass_paths import _NB
+from nexsandglass.core.sandglass_sqlite import _get_db
+from nexsandglass.features.sandglass_chroma import (
+    _get_collection,
+    count as chroma_count,
+    delete_all,
+)
 
 
 def migrate(force: bool = False) -> int:

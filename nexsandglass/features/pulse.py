@@ -11,11 +11,9 @@ import random
 import logging
 from datetime import datetime
 
-logger = logging.getLogger(__name__)
-
-sys_path = os.path.dirname(os.path.abspath(__file__))
-import sys; sys.path.insert(0, sys_path)
 from nexsandglass.core.sandglass_paths import _NB
+
+logger = logging.getLogger(__name__)
 
 
 def pulse(user_message: str = "") -> str:
@@ -175,33 +173,10 @@ def pulse(user_message: str = "") -> str:
                 )
 
     # ═══════════════════════════════════════════════
-    # 第三层：跨会话待办自动提醒 ──
-    # ═══════════════════════════════════════════════
-    try:
-        from nexsandglass.features.sandglass_think import task_pending
-        tasks = task_pending()
-        if tasks:
-            count = len(tasks)
-            signals.append(f"📋 待办提醒: {count}项未完成")
-            for t in tasks[:3]:
-                signals.append(f"  ⏳ {t.get('task', '')[:80]}")
-    except Exception as e:
-        logger.error(f"待办提醒失败: {e}")
-
-    # ═══════════════════════════════════════════════
     # 第三层：提醒（待办 + 里程碑）──
     # ═══════════════════════════════════════════════
 
     try:
-        from nexsandglass.features.sandglass_think import task_pending
-
-        tasks = task_pending()
-        if tasks:
-            if len(tasks) == 1:
-                signals.append(f"📋 提醒：{tasks[0].get('task','')}")
-            else:
-                signals.append(f"📋 提醒：{len(tasks)}项待办未完成")
-
         # 里程碑——沙子量级触发系统演化
         total = sv_count()
         _MILESTONE_FLAG = os.path.join(_NB, f".milestone_{total}")

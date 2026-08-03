@@ -23,11 +23,14 @@ engram/dream_pipeline.py — 梦境管线（hypnos × engram 融合）
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
 from .types import Memory, MemoryType
+
+logger = logging.getLogger(__name__)
 from .loops.dream_engram import (
     dream_reclassify,
     dream_consolidate,
@@ -56,6 +59,17 @@ class DreamPipelineReport:
     recall: RecallFeedbackReport = field(default_factory=RecallFeedbackReport)
     inspiration: list[str] = field(default_factory=list)
     summary: dict = field(default_factory=dict)
+
+
+def _extract_persona_from_memories(memories: list[Memory]) -> list[str]:
+    """从记忆中提取画像条目（semantic/procedural 稳定事实），供演化协调器 Loop 3 使用。"""
+    entries: list[str] = []
+    for mem in memories:
+        if mem.type in (MemoryType.SEMANTIC.value, MemoryType.PROCEDURAL.value):
+            content = (mem.content or "").strip()
+            if content and content not in entries:
+                entries.append(content)
+    return entries[:50]
 
 
 # ── Phase 1：Mnemosyne 浅睡总结（规则式辅助提取）───────────────
@@ -207,6 +221,7 @@ def run_dream_pipeline(
             "persona_boosted": evo_report.summary.get("persona_boosted", 0),
         })
     except Exception:
+        logger.warning("[run_dream_pipeline] 演化协调器失败，回退到直接加工", exc_info=True)
         # Fail-safe: 回退到直接调用（不依赖 evolve 协调器）
         if thread_store:
             for subj, rel, obj in report.dream.relations_found:

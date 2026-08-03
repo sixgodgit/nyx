@@ -9,17 +9,13 @@ V2.8.6: 统一搜索入口 — search_semantic 委托 SearchRouter
        密度计算与IDX/TF-IDF同源(_query_tokens)
        删除重复 _simhash / _simhash_density_decay
 """
-import os, mmap, re, concurrent.futures, math
-from nexsandglass.features.sandglass_vault import _SANDGLASS, _parse_line
+import concurrent.futures
+import math
+import mmap
+import os
+
+from nexsandglass.features.sandglass_vault import _SANDGLASS, _parse_line, _query_tokens
 from nexsandglass.l3.l3_search_core import simhash as _l3_simhash
-from nexsandglass.features.sandglass_vault import _query_tokens
-
-
-def _detect_lang(text: str) -> str:
-    cjk = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
-    eng = sum(1 for c in text if c.isascii() and c.isalpha())
-    if cjk and eng: return "mixed"
-    return "zh" if cjk >= eng else "en"
 
 
 def simhash_rerank(candidates, query) -> list:
@@ -111,14 +107,11 @@ class IdxSearch:
 
     def search(self, query: str, limit: int = 30) -> list:
         try:
-            from nexsandglass.features.sandglass_vault import _sync_index, _query_tokens
+            from nexsandglass.features.sandglass_vault import _sync_index, _query_tokens, rebuild_index
             idx = _sync_index()
             if not idx:
-                try:
-                    from nexsandglass.features.sandglass_vault import rebuild_index
-                    rebuild_index()
-                    idx = _sync_index()
-                except: return []
+                rebuild_index()
+                idx = _sync_index()
             if not idx: return []
             tokens = _query_tokens(query)
             candidates = {}
@@ -128,7 +121,7 @@ class IdxSearch:
                         candidates[ln] = candidates.get(ln, 0) + 1
             if not candidates: return []
             results = []
-            with open(_SANDGLASS, "r", encoding="utf-8") as f:
+            with open(self.sandfile or _SANDGLASS, "r", encoding="utf-8") as f:
                 for n, line in enumerate(f, 1):
                     if n in candidates:
                         ts, sender, text = _parse_line(line)
@@ -156,18 +149,18 @@ class TfidfSearch:
                         if ts and text:
                             all_lines.append((n, ts, text))
             if not all_lines: return []
+            # 一次 lowercase，一次遍历算文档频率
+            lowered = [(ln, ts, text, text.lower()) for ln, ts, text in all_lines]
+            doc_has = [{t for t in tokens if t in ltext} for _, _, _, ltext in lowered]
             N = len(all_lines)
-            df = {}
-            for token in tokens:
-                df[token] = sum(1 for _, _, text in all_lines if token in text.lower())
+            df = {t: sum(1 for hits in doc_has if t in hits) for t in tokens}
             scored = []
-            for ln, ts, text in all_lines:
+            for (ln, ts, text, ltext), hits in zip(lowered, doc_has):
                 score = 0
-                for token in tokens:
-                    if token in text.lower():
-                        tf = text.lower().count(token) / max(len(text), 1)
-                        idf = math.log((N + 1) / (df.get(token, 0) + 1))
-                        score += tf * idf
+                for token in hits:
+                    tf = ltext.count(token) / max(len(text), 1)
+                    idf = math.log((N + 1) / (df.get(token, 0) + 1))
+                    score += tf * idf
                 if score > 0:
                     scored.append((score, ln, ts, text))
             scored.sort(key=lambda x: x[0], reverse=True)
@@ -246,7 +239,8 @@ class SearchRouter:
             try:
                 from nexsandglass.features.shadow_sand import shadow_retrieval_bump
                 shadow_retrieval_bump([ln for _, ln in shadow_hits[:limit]])
-            except: pass
+            except Exception:
+                pass
         all_candidates = []
         seen = set()
         for hits in [fts5_hits, idx_hits, tfidf_hits]:
@@ -284,22 +278,27 @@ class SearchRouter:
 
     def _vector_boost(self, ranked: list, vector_hits: list, query: str) -> list:
         """
-        向量语义 boosting：对与向量检索结果语义相似的候选提升排名。
-        
-        策略：计算候选文本与 query 的语义相似度（通过向量检索结果中的
-        memory_id 集合做近似判断），对命中的候选提升 density score。
+        向量语义 boosting：与向量检索结果命中的行号提升到前列。
+
+        向量存储的 id 与沙漏行号一致时（如 sandglass_chroma 按行号索引），
+        将语义命中的候选提前；id 非数字时忽略该路结果。
         """
         if not vector_hits or not ranked:
             return ranked
-        # vector_hits: [(memory_id, score), ...]
-        # 由于 memory_id 与 line_num 不直接对应，使用简化策略：
-        # 如果向量检索返回了结果（说明 query 有语义匹配），
-        # 对现有候选中 shadow 来源的项小幅加分（shadow 通常更相关）
-        boost_set = {mid for mid, _ in vector_hits[:5]}
-        if not boost_set:
+        boost: dict = {}
+        for mid, score in vector_hits[:10]:
+            try:
+                ln = int(mid)
+            except (TypeError, ValueError):
+                continue
+            if score > 0:
+                boost[ln] = max(boost.get(ln, 0.0), float(score))
+        if not boost:
             return ranked
-        boosted = []
-        for item in ranked:
-            # 保持原始格式，不做结构修改（避免破坏下游）
-            boosted.append(item)
-        return ranked
+        boosted_items = [it for it in ranked if boost.get(it[0], 0.0) > 0]
+        if not boosted_items:
+            return ranked
+        boosted_items.sort(key=lambda it: boost[it[0]], reverse=True)
+        seen = {it[0] for it in boosted_items}
+        rest = [it for it in ranked if it[0] not in seen]
+        return boosted_items + rest

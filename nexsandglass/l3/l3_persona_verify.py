@@ -22,6 +22,16 @@ _VAULT = _NB
 _PERSONA_DIR = os.path.join(_VAULT, "persona")
 
 
+def _line_text_hash(line: str) -> str:
+    """与写入端一致：对消息文本前 300 字符取 SHA256 前 8 位（项链溯源）。"""
+    text = line.strip()
+    if " | " in text:
+        parts = text.split(" | ", 2)
+        if len(parts) >= 3:
+            text = parts[2].strip()
+    return hashlib.sha256(text[:300].encode()).hexdigest()[:8]
+
+
 def persona_trace(claim: str) -> list:
     """给定人格声明，搜索 sandglass 找到来源行并验证 SHA256 hash。"""
     from nexsandglass.features.sandglass_vault import search
@@ -39,7 +49,7 @@ def persona_trace(claim: str) -> list:
             with open(sg, "r", encoding="utf-8") as f:
                 for i, line in enumerate(f, 1):
                     if i == line_num:
-                        actual_hash = hashlib.sha256(line.strip().encode()).hexdigest()[:8]
+                        actual_hash = _line_text_hash(line)
                         if actual_hash == expected_hash:
                             return [{"line": line_num, "verified": True, "text": line.strip()[:100]}]
                         else:
@@ -81,7 +91,7 @@ def persona_verify() -> dict:
         expected_hash = m.group(1)
         line_num = int(m.group(2))
         if line_num in sg_lines:
-            actual_hash = hashlib.sha256(sg_lines[line_num][:300].encode()).hexdigest()[:8]
+            actual_hash = _line_text_hash(sg_lines[line_num])
             if actual_hash == expected_hash:
                 verified += 1
                 details.append({"line": line_num, "status": "ok", "hash": expected_hash})
