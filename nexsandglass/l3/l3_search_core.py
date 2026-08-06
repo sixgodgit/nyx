@@ -401,21 +401,37 @@ def _search_with_fallback(expanded, vs, limit=10, weights=None):
 
 
 def _sentiment_wind() -> float:
-    """20条EMA加权情绪风向。越近权重越高。>0正面 <0负面。"""
-    from nexsandglass.features.sandglass_vault import recent
-    from nexsandglass.core.emotion_vocab import detect as emotion_detect
-    sands = recent(20)
-    if not sands: return 0.0
-    mood_scores = {"开心": 1, "意外": 0.5, "困惑": -0.5,
-                   "悲伤": -1, "焦虑": -1, "愤怒": -1, "放弃": -1}
-    scores = []
-    for i, (_, _, text) in enumerate(sands):
-        det = emotion_detect(text)
-        if det.get("mood"):
-            weight = (i + 1) / len(sands)  # 最近权重最高
-            scores.append(mood_scores.get(det["mood"], 0) * weight)
-    return round(sum(scores) / max(len(scores), 1), 2)
-
+    """回音折——读取累积情绪历史，返回当前情感风向（-1 悲观 ~ +1 乐观）。"""
+    import json
+    import os
+    _elog = os.path.join(_NB, "emotion_log.jsonl") if "_NB" in globals() else os.path.join(os.path.dirname(__file__), "..", "..", "..", "nexsandglass", "emotion_log.jsonl")
+    # prefer real base dir
+    try:
+        from nexsandglass.core.sandglass_paths import _NB as _NB2
+        _elog = os.path.join(_NB2, "emotion_log.jsonl")
+    except Exception:
+        pass
+    if not os.path.exists(_elog):
+        return 0.0
+    scores = {
+        "开心": 1, "高兴": 0.9, "兴奋": 0.8, "放松": 0.5, "意外": 0.3, "惊讶": 0.2,
+        "困惑": -0.3, "紧张": -0.5, "焦虑": -0.7, "委屈": -0.6, "难过": -0.8,
+        "沮丧": -0.8, "悲伤": -1, "生气": -1, "愤怒": -1,
+    }
+    vals = []
+    try:
+        for line in open(_elog, encoding="utf-8").readlines()[-80:]:
+            line = line.strip()
+            if not line:
+                continue
+            m = json.loads(line).get("mood", "")
+            if m:
+                vals.append(scores.get(m, 0))
+    except Exception:
+        pass
+    if not vals:
+        return 0.0
+    return round(sum(vals) / len(vals), 2)
 
 def sentiment_rerank(results, wind: float):
     """情感重排——正面风推正面内容，负面风推中性内容。"""

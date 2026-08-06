@@ -30,6 +30,29 @@ try:
 except:
     _fail_open = lambda d: lambda f: f
     _llm = None
+
+def _get_weave_graph():
+    """Lazy-resolve weave_graph — direct import, no module-global dependency."""
+    try:
+        from nexsandglass.features.sandglass_think import weave_graph as _real_wg
+        if _real_wg is not None:
+            return _real_wg
+    except Exception:
+        pass
+    return lambda *a, **kw: {}
+
+def _get_llm():
+    """Resolve _llm lazily — sandglass_think may not be fully loaded
+    when emotion_l3 is first imported (circular import order)."""
+    global _llm
+    if _llm is None:
+        try:
+            from nexsandglass.features.sandglass_think import _llm as _real_llm
+            if _real_llm is not None:
+                _llm = _real_llm
+        except Exception:
+            pass
+    return _llm
     _three_d_ready = lambda: False
     _latest_annotation = lambda: {}
     _should_synthesize = lambda: (False, "")
@@ -78,7 +101,7 @@ def entropy_mirror(question: str) -> dict:
             with open(dp_path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
             # 关键词匹配
-            keywords = set(question.lower().split())
+            keywords = set(re.findall(r'[\u4e00-\u9fff]{2,4}', question.lower())) | set(w for w in re.findall(r'[a-zA-Z]{2,}', question.lower()) if len(w) > 1)
             matches = []
             for line in lines[-100:]:
                 if any(kw in line.lower() for kw in keywords if len(kw) > 1):
@@ -125,7 +148,7 @@ def entropy_mirror(question: str) -> dict:
                 "一句话，15字以内。"
             )
 
-            llm_result = _llm(
+            llm_result = _get_llm()(
                 system,
                 f"问题：{question}\n画像：{persona_text}\n趋势：{result['current_trend']}\n\n过去类似决策：\n{past_summary}",
                 max_tokens=60,
@@ -187,7 +210,7 @@ def entropy_ghost(question: str) -> dict:
 
     # ② 查因果链（weave_graph 多跳追溯）
     try:
-        graph = weave_graph(question[:20])
+        graph = _get_weave_graph()(question[:20])
         if graph.get("chains"):
             result["causal_chain"] = [
                 f"{n['depth']}跳: {n['keyword']}" for n in graph["chains"][:5]
@@ -213,7 +236,7 @@ def entropy_ghost(question: str) -> dict:
             )
 
     # ④ LLM 增强（200分）
-    if _LLM_KEY and result["similar_patterns"]:
+    if _LLM_KEY:  # 即使无历史模式也允许 LLM 推演（平行时空）
         try:
             persona_text = ""
             if os.path.exists(_PERSONA):
@@ -223,7 +246,7 @@ def entropy_ghost(question: str) -> dict:
             past = "\n".join(
                 f"- {p['ts']}: {p['options']} → {p['choice']} ({p['direction']})"
                 for p in result["similar_patterns"]
-            )
+            ) or "（暂无高度相似的历史决策）"
 
             system = (
                 "你是幽灵决策推演师——模拟'如果当时选了另一个选项会怎样'。"
@@ -232,7 +255,7 @@ def entropy_ghost(question: str) -> dict:
                 "标注这是纯虚拟推演。一句话，30字以内。"
             )
 
-            llm_result = _llm(
+            llm_result = _get_llm()(
                 system,
                 f"问题：{question}\n画像：{persona_text}\n历史类似决策：\n{past}\n本地推断：{result['inference']}",
                 max_tokens=80,
@@ -393,7 +416,7 @@ def memo_mode() -> str:
     if _LLM_KEY:
         try:
             ctx = "\n".join(lines)
-            result = _llm(
+            result = _get_llm()(
                 "你是记忆展示助手。用户想看沙漏记住了什么。总结一下画像+影子+阶段的关联。一句话，20字以内。",
                 ctx[:3000], max_tokens=60)
             if result:

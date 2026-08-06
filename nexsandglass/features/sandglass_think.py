@@ -1411,38 +1411,35 @@ def _synthesize_3d(force: bool = False, trigger: str = "") -> dict:
         return {}
 
 def _emotional_entropy(recent_n: int = 10) -> float:
-    """
-    香农熵----量化情绪波动程度。
-    0 = 完全平静（全是同一种情绪）
-    ~1.95 = 高熵（7种情绪均匀分布，波动大）
-    """
+    """情绪熵（香农熵）——基于累积情绪日志计算，波动越大熵越高。"""
+    import json
     import math
-    from nexsandglass.core.emotion_vocab import detect as emotion_detect
-    from nexsandglass.features.sandglass_vault import recent
-
-    sands = recent(recent_n + 5)  # 多取几条，过滤空
-    if not sands:
+    import os
+    try:
+        from nexsandglass.core.sandglass_paths import _NB as _nb
+    except Exception:
+        _nb = "/root/.hermes/nexsandglass"
+    _elog = os.path.join(_nb, "emotion_log.jsonl")
+    moods = []
+    if os.path.exists(_elog):
+        try:
+            for line in open(_elog, encoding="utf-8").readlines()[-recent_n:]:
+                line = line.strip()
+                if line:
+                    m = json.loads(line).get("mood", "")
+                    if m:
+                        moods.append(m)
+        except Exception:
+            pass
+    if not moods:
         return 0.0
-
-    # 收集最近消息的情绪标签
-    mood_counts = {}
-    total = 0
-    for _, _, text in sands[-recent_n:]:
-        if not text: continue
-        det = emotion_detect(text)
-        if det.get("mood"):
-            mood_counts[det["mood"]] = mood_counts.get(det["mood"], 0) + 1
-            total += 1
-
-    if total == 0:
-        return 0.0
-
-    # H = -Σ p_i × log(p_i)
+    from collections import Counter
+    counts = Counter(moods)
+    total = len(moods)
     entropy = 0.0
-    for count in mood_counts.values():
-        p = count / total
-        if p > 0:
-            entropy -= p * math.log(p)
+    for c in counts.values():
+        p = c / total
+        entropy -= p * math.log(p)
     return round(entropy, 2)
 
 def entropy_chart(recent_n: int = 10) -> str:
