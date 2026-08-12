@@ -32,10 +32,13 @@ def _handle_tool(name, args, request_id):
             })
 
         elif name == "sandglass_search":
-            from nexsandglass.features.sandglass_vault import search
-            r = search(args.get("query", ""), limit=args.get("limit", 10))
+            from nexsandglass.runtime.orchestrator import get_orchestrator
+            orch = get_orchestrator()
+            rr = orch.recall(args.get("query", ""), token_budget=args.get("limit", 10) * 200)
+            texts = rr.strings[: args.get("limit", 10)]
             return _rpc_response(request_id, [
-                {"line": ln, "ts": ts, "text": txt[:200]} for ln, ts, txt, *_ in r
+                {"text": t[:200], "id": rr.memory_ids[i] if i < len(rr.memory_ids) else t}
+                for i, t in enumerate(texts)
             ])
 
         elif name == "sandglass_semantic":
@@ -133,19 +136,21 @@ def _handle_tool(name, args, request_id):
             from nexsandglass.features.shadow_sand import shadow_search as _ss
 
             if action == "add":
-                from nexsandglass.core.sandglass_log import log_message
-                log_message(args.get("content", ""), "fact_store")
-                return _rpc_response(request_id, {"status": "added"})
+                from nexsandglass.runtime.orchestrator import get_orchestrator
+                orch = get_orchestrator()
+                fr = orch.observe(args.get("content", ""), source="fact_store")
+                return _rpc_response(request_id, {"status": "added" if fr.ok else "failed", "id": fr.memory_id})
 
             if action == "search":
-                results = vs(args.get("query", ""), limit=10)
-                shadow_hits = _ss(args.get("query", ""), limit=10)
+                from nexsandglass.runtime.orchestrator import get_orchestrator
+                orch = get_orchestrator()
+                rr = orch.recall(args.get("query", ""), token_budget=2000)
                 return _rpc_response(request_id, {
-                    "fts_results": [{"line": ln, "text": txt[:200]} for ln, _, txt in results],
-                    "shadow_boosted": [{"line": ln, "trust": score} for score, ln in shadow_hits],
+                    "results": [{"text": t[:200]} for t in rr.strings[:10]],
                 })
 
             if action == "probe":
+                from nexsandglass.features.shadow_sand import shadow_search as _ss
                 shadow_hits = _ss(args.get("entity", ""), limit=20)
                 return _rpc_response(request_id,
                                      [{"line": ln, "trust": score} for score, ln in shadow_hits])
@@ -166,6 +171,37 @@ def _handle_tool(name, args, request_id):
             if action == "hunt":
                 return _rpc_response(request_id, nyx_hunt(query))
             return _rpc_response(request_id, nyx_sense(query))
+
+        # ═══════ v7.0：统一记忆入口（observe/recall/feedback/forget） ═══════
+        elif name == "memory_observe":
+            from nexsandglass.runtime.orchestrator import get_orchestrator
+            orch = get_orchestrator()
+            fr = orch.observe(args.get("content", ""), source=args.get("source", "mcp"))
+            return _rpc_response(request_id, {
+                "ok": fr.ok, "memory_id": fr.memory_id, "type": fr.memory_type,
+                "lifecycle": fr.lifecycle_state,
+            })
+
+        elif name == "memory_recall":
+            from nexsandglass.runtime.orchestrator import get_orchestrator
+            orch = get_orchestrator()
+            mc = orch.recall(args.get("query", ""), token_budget=args.get("budget", 1500))
+            mi = getattr(mc, "meta_intent", None)
+            return _rpc_response(request_id, {
+                "results": [{"text": t[:300]} for t in mc.strings[: args.get("limit", 10)]],
+                "strategy": getattr(mi, "strategy", None) if mi else None,
+                "reasons": getattr(mi, "reasons", []) if mi else [],
+            })
+
+        elif name == "memory_feedback":
+            from nexsandglass.runtime.facade import feedback
+            result = feedback(args)
+            return _rpc_response(request_id, result)
+
+        elif name == "memory_forget":
+            from nexsandglass.runtime.facade import forget
+            result = forget(args)
+            return _rpc_response(request_id, result)
 
         else:
             return _rpc_error(request_id, -32601, f"Unknown tool: {name}")

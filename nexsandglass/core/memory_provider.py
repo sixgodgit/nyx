@@ -161,8 +161,13 @@ class NexSandglassProvider(MemoryProvider):
             from nexsandglass.core.sandglass_paths import validate
             validate()
             rebuild_index()
+            # Cognitive Memory OS feature flag：NYX_USE_FACADE=1 时走稳定门面（默认关）
+            self._use_facade = os.environ.get("NYX_USE_FACADE", "0") == "1"
             self._initialized = True
-            logger.info("NexSandglass MemoryProvider initialized")
+            if self._use_facade:
+                logger.info("NexSandglass MemoryProvider initialized (facade mode: ON)")
+            else:
+                logger.info("NexSandglass MemoryProvider initialized")
 
     def system_prompt_block(self) -> str:
         """V2.9.8: 四层问答式注入 — 你是谁→往哪走→怎么变成这样→还没做完"""
@@ -327,10 +332,30 @@ class NexSandglassProvider(MemoryProvider):
                     layer4.extend(f"  {i+1}. {r}" for i, r in enumerate(rules))
                 blocks.append("\n".join(layer4))
 
-            # ═══════ 尾部 ═══════
-            blocks.append(f"沙漏: {total}条 | 阶段: {stage}")
+            # ═══════ 合并两套出口：四层块 → MemoryBundle 槽位 ═══════
+            # layer1(你是谁)/layer2(往哪走)/layer4(还没做完) 作为 Bundle 槽位
+            persona_layer = "\n".join(layer1) if layer1 else ""
+            offset_layer = "\n".join(layer2) if layer2 else ""
+            open_loops_layer = "\n".join(layer4) if layer4 else ""
 
-            return "\n\n".join(blocks).strip()
+            # 经 orchestrator 构建 MemoryBundle（记忆核心 + Provider 槽位合一）
+            try:
+                from nexsandglass.runtime.orchestrator import get_orchestrator
+                orch = get_orchestrator()
+                bundle = orch.recall_bundle(
+                    "",
+                    max_tokens=1500,
+                    persona_layer=persona_layer,
+                    offset_layer=offset_layer,
+                    open_loops=open_loops,
+                )
+                body = bundle.render()
+            except Exception:
+                # 降级：仅 Provider 层块（保可用性）
+                body = "\n\n".join(blocks).strip()
+
+            tail = f"沙漏: {total}条 | 阶段: {stage}"
+            return (body + "\n\n" + tail).strip()
         except Exception:
             logger.warning("system_prompt_block 整体失败", exc_info=True)
             return "NexSandglass记忆系统已就绪。使用sandglass_search搜索记忆。"
@@ -355,16 +380,47 @@ class NexSandglassProvider(MemoryProvider):
         pass
 
     def sync_turn(self, user_msg: str, assistant_msg: str, **kwargs) -> None:
-        """每轮对话后落沙。"""
+        """每轮对话后：raw 落沙（审计日志）+ 候选晋升（只写值得长期记住的）。
+
+        替代默认整轮 dump：
+          - 每条消息先落沙 sandglass（保留作审计日志）
+          - 用 PromotionEngine 判断是否晋升长期（Promote/SessionOnly/Drop）
+          - 只对 promote 的候选经 orchestrator 写长期 engram/fact
+        """
         try:
-            from nexsandglass.core.sandglass_log import log_message
-            if user_msg:
-                log_message(user_msg, "user")
-            if assistant_msg:
-                log_message(assistant_msg, "agent")
+            from nexsandglass.runtime.orchestrator import get_orchestrator
+            from nexsandglass.runtime.promotion import PromotionEngine
+            orch = get_orchestrator()
+            eng = PromotionEngine(use_llm=False, timeout=2.0)
+
+            for msg in (user_msg, assistant_msg):
+                if not msg:
+                    continue
+                # 1. raw 落沙（审计日志，始终保留）
+                try:
+                    from nexsandglass.core.sandglass_log import log_message
+                    log_message(msg, "user" if msg == user_msg else "agent")
+                except Exception:
+                    pass
+                # 2. 候选晋升判断
+                try:
+                    cand = eng.observe(msg)
+                    if cand.disposition == "promote":
+                        orch.observe(msg, source="user" if msg == user_msg else "assistant")
+                except Exception:
+                    pass
             self._turn_count += 1
         except Exception:
-            pass
+            # 降级：orchestrator 不可用时回退到直连落沙（保持可用性）
+            try:
+                from nexsandglass.core.sandglass_log import log_message
+                if user_msg:
+                    log_message(user_msg, "user")
+                if assistant_msg:
+                    log_message(assistant_msg, "agent")
+                self._turn_count += 1
+            except Exception:
+                pass
 
     def shutdown(self) -> None:
         """清理。"""
@@ -374,24 +430,21 @@ class NexSandglassProvider(MemoryProvider):
 
     def _handle_fact_store(self, args: dict) -> str:
         try:
-            from nexsandglass.features.sandglass_vault import search as vault_search
             from nexsandglass.features.shadow_sand import shadow_search as _ss
             action = args.get("action", "search")
 
             if action == "add":
-                from nexsandglass.core.sandglass_log import log_message
-                content = args.get("content", "")
-                category = args.get("category", "general")
-                log_message(content, "fact_store")
-                return json.dumps({"status": "added", "content": content[:100]})
+                from nexsandglass.runtime.orchestrator import get_orchestrator
+                orch = get_orchestrator()
+                fr = orch.observe(args.get("content", ""), source="fact_store")
+                return json.dumps({"status": "added" if fr.ok else "failed", "id": fr.memory_id})
 
             if action == "search":
-                query = args.get("query", "")
-                results = vault_search(query, limit=10)
-                shadow_hits = _ss(query, limit=10)
+                from nexsandglass.runtime.orchestrator import get_orchestrator
+                orch = get_orchestrator()
+                rr = orch.recall(args.get("query", ""), token_budget=2000)
                 return json.dumps({
-                    "fts_results": [{"line": ln, "text": txt[:200]} for ln, _, txt in results],
-                    "shadow_boosted": [{"line": ln, "trust": score} for score, ln in shadow_hits],
+                    "results": [{"text": t[:200]} for t in rr.strings[:10]],
                 }, ensure_ascii=False)
 
             if action == "probe":
@@ -450,10 +503,11 @@ class NexSandglassProvider(MemoryProvider):
     def handle_tool_call(self, name: str, args: Dict[str, Any]) -> str:
         try:
             if name == "sandglass_search":
-                from nexsandglass.features.sandglass_vault import search
-                results = search(args.get("query", ""), limit=args.get("limit", 10))
+                from nexsandglass.runtime.orchestrator import get_orchestrator
+                orch = get_orchestrator()
+                rr = orch.recall(args.get("query", ""), token_budget=args.get("limit", 10) * 200)
                 return json.dumps(
-                    [{"line": ln, "ts": ts, "text": txt[:200]} for ln, ts, txt in results],
+                    [{"text": t[:200], "id": rr.memory_ids[i] if i < len(rr.memory_ids) else t} for i, t in enumerate(rr.strings[: args.get("limit", 10)])],
                     ensure_ascii=False,
                 )
 
@@ -498,15 +552,15 @@ class NexSandglassProvider(MemoryProvider):
             pass
 
     def on_pre_compress(self, messages: List[Dict[str, Any]]) -> Optional[str]:
-        """上下文压缩前提取关键记忆。"""
+        """上下文压缩前提取关键记忆。经 orchestrator 统一召回。"""
         try:
-            from nexsandglass.features.sandglass_vault import search as vs
-            # 提取最后一轮对话的关键词搜索
+            from nexsandglass.runtime.orchestrator import get_orchestrator
+            orch = get_orchestrator()
             if messages:
                 last = messages[-1].get("content", "")[:100]
                 if last:
-                    results = vs(last, limit=3)
-                    return "\n".join(txt[:200] for _, _, txt in results)
+                    rr = orch.recall(last, token_budget=600)
+                    return "\n".join(t[:200] for t in rr.strings[:3])
         except Exception:
             pass
         return None

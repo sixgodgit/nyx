@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Engram 认知记忆接入桥接层。
+"""Engram 认知记忆接入桥接层 + 双向映射。
 
 将 engram 的认知记忆机制（四类记忆分类）接入 Nyx 主流程：
 在消息落沙时对用户内容做记忆类型分类并写入 engram 记忆库，
 使 engram 真正参与主流程（而非孤立模块）。
+
+V3.5.0: 增加 Canonical MemoryObject 双向映射 —— 在 Sandglass 行 /
+shadow 记录 / engram Memory / MemoryObject 之间建立可逆映射，旧数据保持可读。
 """
 import json
 import os
@@ -15,7 +18,10 @@ try:
 except Exception:
     _NB = "/root/.hermes/nexsandglass"
 
+from nexsandglass.engram.types import MemoryObject
+
 _STORE = os.path.join(_NB, "engram_store.jsonl")
+_SANDGLASS = os.path.join(_NB, "sandglass.txt")
 
 # 记忆类型分类规则
 _PROCEDURAL = re.compile(r"(怎么|如何|步骤|教程|部署|配置|安装|运行|启动|操作|流程|方法)")
@@ -88,3 +94,96 @@ def recent(n: int = 10) -> list:
         except Exception:
             pass
     return out
+
+
+# ══════════════════════════════════════════════════════════
+# Canonical MemoryObject 双向映射（V3.5.0）
+# ══════════════════════════════════════════════════════════
+
+# Sandglass 行格式: "ts | sender | text"
+_LINE_SEP = " | "
+
+
+def sandglass_line_to_dict(line: str) -> dict | None:
+    """解析一条 Sandglass 行为 dict；非标准行返回 None。旧数据可读。"""
+    if _LINE_SEP not in line:
+        return None
+    parts = line.strip().split(_LINE_SEP, 2)
+    if len(parts) < 3:
+        return None
+    return {"ts": parts[0], "sender": parts[1], "text": parts[2].strip()}
+
+
+def sandglass_line_to_object(line: str) -> "MemoryObject":
+    """Sandglass 行 → MemoryObject（source_id 用行号或 ts）。"""
+    parsed = sandglass_line_to_dict(line)
+    if parsed is None:
+        return MemoryObject(content=line, type="semantic")
+    return MemoryObject(
+        content=parsed["text"],
+        type=classify_memory_type(parsed["text"]),
+        created_at=parsed["ts"],
+        source_id=f"sandglass:{parsed['ts']}",
+        provenance="sandglass",
+        status="observed",
+    )
+
+
+def object_to_sandglass_line(obj: "MemoryObject") -> str:
+    """MemoryObject → Sandglass 行。"""
+    ts = obj.created_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    sender = "hermes"
+    return f"{ts}{_LINE_SEP}{sender}{_LINE_SEP}{obj.content}"
+
+
+def engram_row_to_object(row: dict) -> "MemoryObject":
+    """engram_store.jsonl 旧行（{ts, content, type}）→ MemoryObject。旧数据可读。"""
+    return MemoryObject(
+        content=row.get("content", ""),
+        type=row.get("type", "semantic"),
+        created_at=row.get("ts", ""),
+        source_id=f"engram:{row.get('ts', '')}",
+        provenance="engram_store",
+        status="observed",
+    )
+
+
+def object_to_engram_row(obj: "MemoryObject") -> dict:
+    """MemoryObject → engram_store.jsonl 行（兼容旧格式）。"""
+    return {
+        "ts": obj.created_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "content": obj.content,
+        "type": obj.type,
+    }
+
+
+def shadow_row_to_object(line_num: int, text: str, score: float = 0.5) -> "MemoryObject":
+    """shadow 记录（line_num + 信任分）→ MemoryObject。"""
+    return MemoryObject(
+        content=text,
+        type=classify_memory_type(text),
+        source_id=f"shadow:{line_num}",
+        provenance="shadow_sand",
+        confidence=min(max(score, 0.0), 1.0),
+        status="observed",
+    )
+
+
+def object_to_shadow_row(obj: "MemoryObject", line_num: int, score: float = 0.5) -> dict:
+    """MemoryObject → shadow 记录（写入 trust 表的行）。"""
+    return {
+        "line_num": line_num,
+        "content": obj.content,
+        "score": min(max(score, 0.0), 1.0),
+        "created_at": obj.created_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
+def memory_to_object(mem) -> "MemoryObject":
+    """现有 engram Memory dataclass → MemoryObject（字段升级）。"""
+    return MemoryObject.from_memory(mem)
+
+
+def object_to_memory(obj: "MemoryObject"):
+    """MemoryObject → 现有 engram Memory dataclass（字段降级）。"""
+    return obj.to_memory()

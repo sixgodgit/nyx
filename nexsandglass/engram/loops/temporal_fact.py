@@ -146,3 +146,78 @@ def ensure_temporal_columns(db_path: str) -> None:
             pass  # 列已存在
     conn.commit()
     conn.close()
+
+
+# ══════════════════════════════════════════════════════════
+# 查询 API（v6.0 融合补充）：get_current / as_of / history_of / evolution_chain
+# ══════════════════════════════════════════════════════════
+
+def _connect(db_path: str):
+    conn = sqlite3.connect(db_path, timeout=10)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def get_current(db_path: str, subject: str = None, predicate: str = None) -> list:
+    """当前有效事实（只取 valid_until IS NULL 的 active）。"""
+    ensure_temporal_columns(db_path)
+    conn = _connect(db_path)
+    try:
+        sql = "SELECT * FROM wthread_triples WHERE valid_until IS NULL"
+        params: list = []
+        if subject:
+            sql += " AND (subject=? OR object=?)"
+            params += [subject, subject]
+        if predicate:
+            sql += " AND relation=?"
+            params.append(predicate)
+        sql += " ORDER BY id DESC"
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def as_of(db_path: str, timestamp: str) -> list:
+    """某时刻的有效事实快照（valid_from <= t 且 [valid_until IS NULL 或 >= t]）。"""
+    ensure_temporal_columns(db_path)
+    conn = _connect(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT * FROM wthread_triples WHERE "
+            "valid_from <= ? AND (valid_until IS NULL OR valid_until >= ?) "
+            "ORDER BY id DESC",
+            (timestamp, timestamp),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def history_of(db_path: str, subject: str, predicate: str = None) -> list:
+    """演变链：按时间倒序（最新在前）。"""
+    ensure_temporal_columns(db_path)
+    conn = _connect(db_path)
+    try:
+        sql = "SELECT * FROM wthread_triples WHERE subject=?"
+        params = [subject]
+        if predicate:
+            sql += " AND relation=?"
+            params.append(predicate)
+        sql += " ORDER BY valid_from DESC, id DESC"
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def evolution_chain(db_path: str, subject: str, predicate: str = None, limit: int = 8) -> str:
+    """压缩的演变链文本（供 history intent 注入）。"""
+    hist = history_of(db_path, subject, predicate)
+    if not hist:
+        return f"{subject}: 无历史记录"
+    parts = []
+    for h in hist[:limit]:
+        status = "当前" if h.get("valid_until") is None else ("曾" + (h.get("valid_until") or "")[:10])
+        parts.append(f"[{status}] {h['subject']} {h['relation']} {h['object']}")
+    return "\n".join(parts)
