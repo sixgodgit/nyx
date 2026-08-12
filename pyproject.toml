@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
-    {name = "sixgod", email = "sixgod@hvh.expert"}
+    {name = "sixgod", email = "REDACTED_EMAIL"}
 ]
 keywords = ["memory", "agent", "ai", "knowledge-graph", "dejavu"]
 classifiers = [

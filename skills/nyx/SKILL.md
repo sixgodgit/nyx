@@ -69,9 +69,9 @@ Nyx 的架构演进遵循这一原则：
 
 ## 关键环境注意
 
-- **CF API Key** 在 Hermes 输出中被脱敏。完整 Key 在 `/root/.hermes/.credentials`，提取方式：
+- **CF API Key** 在 Hermes 输出中被脱敏。完整 Key 在 `REDACTED_CREDENTIALS_PATH`，提取方式：
 ```bash
-grep "^CLOUDFLARE_API_KEY=" /root/.hermes/.credentials | cut -d= -f2-
+（凭据文件路径已脱敏，按需从安全存储读取）
 ```
 
 - **⚠️ 输出压缩（ccr）**：终端和 `read_file`/`skill_view` 的大段内容会被环境压缩为 `<<ccr:...>>` 格式，无法直接阅读。
@@ -105,7 +105,7 @@ grep "^CLOUDFLARE_API_KEY=" /root/.hermes/.credentials | cut -d= -f2-
    5. 最后才是 "我不确定，需要你告诉我"
 ```
 
-**例**：用户说"发到我的 QQ 邮箱" → 不能凭记忆回答 → 直接调 sandglass_search / dejavu → 查到 10537543@qq.com
+**例**：用户说"发到我的 QQ 邮箱" → 不能凭记忆回答 → 直接调 sandglass_search / dejavu → 查到 REDACTED_EMAIL
 
 ---
 
@@ -302,14 +302,14 @@ session_search(query="发件邮箱 enfys", limit=3)
 ### 4. 需要存储一个新事实 → 走 **Fact Store**
 
 ```
-fact_store(action='add', content='默认发件邮箱是 enfys@hvh.expert', category='preferences')
+fact_store(action='add', content='默认发件邮箱是 REDACTED_EMAIL', category='preferences')
 ```
 
 ### 5. 需要关联实体关系 → 走 **织线图谱**
 
 ```
 mcp_pre_gateway_dispatch_sandglass_thread(entity='enfys', relation='used_for')
-mcp_pre_gateway_dispatch_sandglass_thread_add(subject='enfys', relation='send_email', object='10537543@qq.com')
+mcp_pre_gateway_dispatch_sandglass_thread_add(subject='enfys', relation='send_email', object='REDACTED_EMAIL')
 ```
 
 ---
@@ -532,11 +532,11 @@ evolved, report = run_dream_pipeline(
 
 以下是用 `fact_store` 或 `sandglass` 存储的高优先级事实：
 
-- **QQ 邮箱（只收件）**：`10537543@qq.com`
-- **默认发件邮箱【铁律】**：`enfys@hvh.expert`（密码见 himalaya config，永远不得使用其他邮箱发送）
-- **发件备选邮箱（只能用 enfys，除非用户明确指定）**：`sixgod@hvh.expert`（密码含中文，SMTP AUTH 可能失败）、`talmewhy@gmail.com`（Gmail 应用密码）
+- **QQ 邮箱（只收件）**：`REDACTED_EMAIL`
+- **默认发件邮箱【铁律】**：`REDACTED_EMAIL`（密码见 himalaya config，永远不得使用其他邮箱发送）
+- **发件备选邮箱（只能用 enfys，除非用户明确指定）**：`REDACTED_EMAIL`（密码含中文，SMTP AUTH 可能失败）、`REDACTED_EMAIL`（Gmail 应用密码）
 - **用户偏好**：记忆工具已关，必须依赖 Nyx 工具链
-- **邮件纪律（铁律，不得违反）**：永远以 enfys@hvh.expert 发送，永远不要用 talmewhy@gmail.com 或 sixgod@hvh.expert 发送，除非用户说"这次用xxx发"
+- **邮件纪律（铁律，不得违反）**：永远以 REDACTED_EMAIL 发送，永远不要用 REDACTED_EMAIL 或 REDACTED_EMAIL 发送，除非用户说"这次用xxx发"
 
 ---
 
@@ -561,6 +561,6 @@ evolved, report = run_dream_pipeline(
 |------|------|------|
 | 调用了 `memory()` | 肌肉记忆 | 触发词检测：发现 `memory` → 自动替换为 `sandglass_search` |
 | 不知道 QQ 邮箱 | 没走 déjà vu | 第一反应调 `sandglass_dejavu(action='check', query='QQ邮箱')` |
-| 用了错误发件邮箱 | 没查偏好 | 默认用 `enfys@hvh.expert`，除非用户明确指定 |
+| 用了错误发件邮箱 | 没查偏好 | 默认用 `REDACTED_EMAIL`，除非用户明确指定 |
 | 附件发成 bin 文件 | MIME 编码问题 | Content-Type 强制设为 `application/pdf`，filename 用 UTF-8 编码 |
 | 新会话进来忘记查上下文 | 没有自动触发 | 启动检查阶段全部做完再回用户第一条消息 |

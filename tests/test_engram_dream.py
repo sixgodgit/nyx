@@ -60,7 +60,7 @@ def _mem(mid, mtype, content, arousal=0.0, weight=1.0, created="2026-07-01T00:00
 def test_mnemosyne_extracts_facts():
     day_log = (
         "用户说：我住在海牙。\n"
-        "用户说：我的邮箱是 enfys@hvh.expert。\n"
+        "用户说：我的邮箱是 user@example.com。\n"
         "用户问：Odido 什么时候来装光纤？\n"
     )
     summary = mnemosyne_summarize(day_log)

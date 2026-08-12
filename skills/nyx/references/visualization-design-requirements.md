@@ -65,7 +65,7 @@ For complex visualization tasks, delegate to a subagent with a detailed spec rat
 ## Deployment
 
 - URL: `https://nyx.hvh.expert/`
-- Server: 小宝 (162.0.225.252)
+- Server: 小宝 (REDACTED_IP)
 - Nginx serves `/var/www/nyx/index.html` with Let's Encrypt SSL
 - Cloudflare: DNS-only (grey cloud), no proxy
 - Update: scp to server + `nginx -s reload`

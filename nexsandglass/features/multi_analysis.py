@@ -89,7 +89,7 @@ def _resolve_key(key_env: str) -> str:
     if not key_env:
         return ""
     # keys.json
-    keys_path = Path("/root/thalamus/keys.json")
+    keys_path = Path("REDACTED_PATH_KEYS")
     try:
         if keys_path.exists():
             raw = json.loads(keys_path.read_text())

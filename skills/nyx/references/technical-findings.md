@@ -1,9 +1,9 @@
 # Technical Findings
 
 ## Token173 API Key Status
-- **Display**: config.yaml shows `sk-USh...R4tB` (masked/truncated appearance)
+- **Display**: config.yaml shows `REDACTED_API_KEY` (masked/truncated appearance)
 - **Reality**: The actual key is 51 characters, fully functional
-- **Location**: `/root/thalamus/keys.json` under `中转` and `中转海外`
+- **Location**: `REDACTED_PATH_KEYS` under `中转` and `中转海外`
 - **Endpoint**: `https://token173.com/v1/chat/completions`
 - **Available models**: gpt-4o-mini (supports 识图/vision), gpt-3.5-turbo, deepseek-v4-flash, etc.
 - **Total models**: 141+ vision-capable models available

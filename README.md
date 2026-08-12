@@ -26,6 +26,55 @@ NexSandglass 是 Hermes Agent 的记忆基础设施，在 Hermes 原生 memory �
 | 🧬 **Constitutional** | `engram/context.py` | 记忆融入 system prompt 隐性影响（自然无痕） |
 | 🔄 **记忆自我演化** | `engram/evolve.py`, `engram/loops/` | 四闭环：事实↔图谱、梦境→加工、画像→上下文、召回→重要性 |
 | 🌙 **梦境管线** | `engram/dream_pipeline.py`, `engram/prompts/` | hypnos 三女神融合：浅睡总结→深睡内化→灵感联结 |
+| 🎛️ **热路径收编** | `runtime/orchestrator.py` | NyxOrchestrator：写入/召回统一入口，包住底层引擎 |
+| 🧭 **意图召回** | `runtime/intent.py` | MemoryIntent 自适应召回（v5.0），语义/时间/领域/关系感知排序 |
+| 📦 **记忆 Bundle** | `runtime/bundle.py` | MemoryBundle 合并两套出口（Constitutional + system_prompt），10 槽位 |
+| 🌱 **候选晋升** | `runtime/promotion.py` | "什么值得记住"——Observation→Extract→Score→Type→Promote/Session/Drop |
+| 🕰️ **时序事实** | `engram/loops/temporal_fact.py` | current_only / as_of / history_of 演变链，不静默覆盖 |
+| 🌙 **Consolidation Engine** | `runtime/consolidation.py` | Dream 生产化：Proposal→Validator→Apply/Quarantine + 快照回滚 |
+| 🧭 **Cognitive OS 端到端** | `runtime/eval.py`, `orchestrator.cognitive_recall` | Formation→Store→Dream→Intent→Bundle→Context→Agent 全链路 |
+
+---
+
+## ✨ 新增能力（Phase 0-7, v4-v7）
+
+> 在原有记忆基础设施之上，新增的"认知记忆"层次，解决 **What to remember / What to recall now / How memory changed** 三问。
+
+### 🎛️ 稳定门面 + 热路径收编（Phase 0-1）
+- `runtime/facade.py`：四个稳定操作 `observe / recall / feedback / forget`，对外不暴露实现细节
+- `runtime/orchestrator.py`：`NyxOrchestrator` 收编所有热路径——写入经 `FormationRouter`，读取经 `RecallPlanner`
+- 禁止新代码直写内部表（dev escape hatch 打日志）；MCP 工具仍可暴露但内部转 orchestrator
+
+### 🧭 意图感知自适应召回（Phase 4, v5.0）
+- `runtime/intent.py`：`MemoryIntent` 解析 entities / temporal / domain / relation / types / current|history
+- 策略路由：ownership+vehicle+previous → 多源；熟悉但搜不到 → nyx_hunt；generic → SearchRouter 混合
+- 多因子排序：semantic / temporal_validity / importance / confidence / recency / lifecycle_penalty / trust
+- 意图失败自动降级 generic_semantic；**包住而非替换** SearchRouter
+
+### 📦 MemoryBundle 合并出口（Phase 3）
+- `runtime/bundle.py`：把 engram Constitutional + Provider system_prompt 两套出口统一为 10 槽位 Bundle
+- `core_facts / preferences / current_thread / historical_events / related_memories / contradictions / confidence_summary / temporal_state / persona_layer / offset_layer / open_loops`
+- 流水线：candidates → score → temporal → budget → compress → render；`utility = relevance/token_cost`
+
+### 🌱 候选晋升（Phase 4 记忆选择）
+- `runtime/promotion.py`：替代默认"整轮 dump"，只晋升值得长期记住的
+- 复用 engram.writer 差异化策略（override/reinforce/dedup/insert）
+- 重复→reinforce 不双写；冲突→conflict candidate 不静默覆盖；闲聊/OTP 不晋升
+
+### 🕰️ 时序事实（Phase 5, v6.0）
+- `engram/loops/temporal_fact.py`：`get_current / as_of / history_of / evolution_chain`
+- 写入新值 → 旧值 valid_until=now + historical，新值 active + 链接；禁止静默覆盖
+- Golden：2025 Tesla → 2026 Geely，现在 vs 以前答案不同
+
+### 🌙 Dream 生产化（Phase 6, v6.5）
+- `runtime/consolidation.py`：所有变更 → DreamProposal → Validator → Apply/Quarantine
+- 保留 provenance（source memory ids）；destructive merge 可回滚快照
+- 压缩/抽象/关系/冲突/衰减；冲突写入 Bundle.contradictions；异步调度不阻塞热路径
+
+### 🧭 Cognitive OS 端到端（Phase 7, v7.0）
+- `orchestrator.cognitive_recall()`：Formation→Store/Graph→Dream async→Intent Recall→Bundle→Context→Agent
+- `runtime/eval.py`：formation P/R、temporal accuracy、token utility、p95 latency
+- MCP 统一入口 `memory_observe / memory_recall / memory_feedback / memory_forget`（旧工具保留作适配层）
 
 ---
 
@@ -146,6 +195,10 @@ memory:
 | `soul_export/merge` | 灵魂差分导出/合并 |
 | `fact_store` | 事实增删查（信任评分） |
 | `fact_feedback` | 信任评分反馈 |
+| `memory_observe` | 🆕 统一记忆写入入口（经 PromotionEngine 晋升） |
+| `memory_recall` | 🆕 统一记忆召回入口（经 MemoryIntent 自适应） |
+| `memory_feedback` | 🆕 统一反馈入口 |
+| `memory_forget` | 🆕 统一遗忘入口 |
 
 ---
 
@@ -186,6 +239,39 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 ---
 
 ## 📝 更新日志
+
+### v7.0 (2026-08-12) — Cognitive Memory OS 全链路
+
+- 🧭 **Cognitive OS 端到端**：Formation→Store/Graph→Dream async→Intent Recall→Bundle→Context→Agent
+- 🧭 **评测框架** `runtime/eval.py`：formation P/R、temporal accuracy、token utility、p95 latency
+- 🎛️ MCP 统一入口 `memory_observe/recall/feedback/forget`（旧工具保留适配层）
+
+### v6.5 (2026-08-12) — Dream 生产化
+
+- 🌙 `runtime/consolidation.py`：DreamProposal→Validator→Apply/Quarantine + 快照回滚
+- 🌙 冲突写入 Bundle.contradictions；异步调度不阻塞 observe/recall
+
+### v6.0 (2026-08-12) — 时序事实
+
+- 🕰️ `engram/loops/temporal_fact.py` 融合查询 API：current_only / as_of / history_of / evolution_chain
+- 🕰️ 不静默覆盖：旧值 historical + 新值 active + supersedes 链接
+
+### v5.0 (2026-08-12) — 意图自适应召回
+
+- 🧭 `runtime/intent.py`：MemoryIntent 解析 + 策略路由 + 多因子排序
+- 🧭 意图失败降级 generic_semantic；包住 SearchRouter
+
+### v4.0 (2026-08-12) — 候选晋升
+
+- 🌱 `runtime/promotion.py`：Observation→Extract→Score→Type→Promote/SessionOnly/Drop
+- 🌱 重复→reinforce；冲突→conflict candidate；闲聊/OTP 不晋升
+
+### v3.5.0 (2026-08-12) — 稳定门面 + 热路径收编
+
+- 🎛️ `runtime/facade.py`：observe/recall/feedback/forget 稳定门面
+- 🎛️ `runtime/orchestrator.py`：NyxOrchestrator 收编热路径（FormationRouter/RecallPlanner）
+- 📦 `runtime/bundle.py`：MemoryBundle 合并两套出口
+- 🧬 `engram/types.py`：MemoryObject canonical schema + lifecycle 状态机
 
 ### v3.4.1 (2026-08-01) — 评测框架补全
 

@@ -106,7 +106,7 @@ def fact_to_thread(
     新事实入库后调用：提取三元组写入图谱，检测冲突。
 
     Args:
-        fact_text: 事实内容（如 "用户邮箱是 enfys@hvh.expert"）
+        fact_text: 事实内容（如 "用户邮箱是 REDACTED_EMAIL"）
         thread_store: 写入图谱的回调 (subject, relation, object) -> None
         thread_query: 查询图谱的回调 (entity, relation, limit) -> list[dict]
         source: 来源标记

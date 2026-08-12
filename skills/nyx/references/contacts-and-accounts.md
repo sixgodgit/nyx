@@ -7,23 +7,23 @@
 
 | 角色 | 地址 | 用途 |
 |------|------|------|
-| 主人收件 | 10537543@qq.com | 只收件，禁止发件 |
-| 默认发件 | enfys@hvh.expert | 主要发件人 |
-| 备选发件 | sixgod@hvh.expert | SMTP AUTH 可能失败（中文密码） |
-| 备选发件 | talmewhy@gmail.com | Gmail 应用密码 |
+| 主人收件 | REDACTED_EMAIL | 只收件，禁止发件 |
+| 默认发件 | REDACTED_EMAIL | 主要发件人 |
+| 备选发件 | REDACTED_EMAIL | SMTP AUTH 可能失败（中文密码） |
+| 备选发件 | REDACTED_EMAIL | Gmail 应用密码 |
 
 ## 服务器
 
 | 名称 | IP | 位置 | 凭据 |
 |------|-----|------|------|
-| 美服（小宝/老公） | 162.0.225.252 | 🇺🇸 | root / kJ7yl60If3C0eBN1Nx |
-| 荷兰 Oracle | 92.5.229.177 | 🇳🇱 阿姆斯特丹 | 未存储 |
-| 阿姆斯特丹宝塔面板 | 141.148.226.89 | 🇳🇱 | 未存储 |
+| 美服（小宝/老公） | REDACTED_IP | 🇺🇸 | root / REDACTED_PASSWORD |
+| 荷兰 Oracle | REDACTED_IP | 🇳🇱 阿姆斯特丹 | 未存储 |
+| 阿姆斯特丹宝塔面板 | REDACTED_IP | 🇳🇱 | 未存储 |
 
 ## 邮件发送规则
 
-1. **默认发件人**：enfys@hvh.expert
-2. **收件人**：10537543@qq.com（主人）
+1. **默认发件人**：REDACTED_EMAIL
+2. **收件人**：REDACTED_EMAIL（主人）
 3. **SMTP**：mail.privateemail.com:587 (STARTTLS)
 4. **附件**：必须显式设置 Content-Type 和 UTF-8 filename
 5. **发送前**：必须通过 Nyx 检索确认收件人地址

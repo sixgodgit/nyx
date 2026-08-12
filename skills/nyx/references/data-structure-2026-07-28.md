@@ -3,13 +3,13 @@
 ## Data Sources (confirmed 2026-07-28)
 
 ### Sandglass Storage
-- **File**: `/root/.hermes/nexsandglass/sandglass.txt`
+- **File**: `${NEXSANDBASE_HOME}/sandglass.txt`
 - **Format**: `{timestamp} | {sender} | {text}` (pipe-delimited, one entry per line)
 - **Scale**: ~36,000 entries over ~1,800 days
 - **Size**: ~1.8 MB
 
 ### Session Database
-- **File**: `/root/.hermes/state.db` (SQLite)
+- **File**: `${HERMES_HOME}/state.db` (SQLite)
 - **Tables**: `sessions`, `messages`
 - **Session columns**: id, source, user_id, model, model_config, ended_at, input_tokens, reasoning_tokens, cwd, billing_mode, cost_source, handoff_state, handoff_error, archived, git_branch, git_repo_root
 - **Message columns**: (full schema via `PRAGMA table_info(messages)`)
@@ -26,22 +26,22 @@
 | weixin | ~1 |
 
 ### Memory Layers
-- **Directory**: `/root/.hermes/memory_layers/`
+- **Directory**: `${HERMES_HOME}/memory_layers/`
 - **Files**: L0 identity, L1 facts, Persona, AAA-K compressed
 
 ### Archives
-- **Directory**: `/root/.hermes/nexsandglass/archive/`
-- **Chroma**: `/root/.hermes/nexsandglass/chroma_sand/` (semantic search index)
+- **Directory**: `${NEXSANDBASE_HOME}/archive/`
+- **Chroma**: `${NEXSANDBASE_HOME}/chroma_sand/` (semantic search index)
 
 ### Dreams
-- **Directory**: `/root/.hermes/dreams/`
+- **Directory**: `${HERMES_HOME}/dreams/`
 - **Count**: ~40 files
 
 ## Quick Stats Query
 
 ```python
 import sqlite3
-conn = sqlite3.connect('file:/root/.hermes/state.db?mode=ro', uri=True)
+conn = sqlite3.connect('file:${HERMES_HOME}/state.db?mode=ro', uri=True)
 c = conn.cursor()
 c.execute("SELECT source, COUNT(*) FROM sessions GROUP BY source ORDER BY COUNT(*) DESC")
 print(c.fetchall())

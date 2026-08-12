@@ -15,7 +15,7 @@ from __future__ import annotations
 
 # ── 基础记忆库（模拟已存储的记忆）──────────────────────────────
 BASE_MEMORIES = [
-    {"id": "email", "text": "用户邮箱是 enfys@hvh.expert", "type": "semantic"},
+    {"id": "email", "text": "用户邮箱是 user@example.com", "type": "semantic"},
     {"id": "city", "text": "用户住在海牙", "type": "semantic"},
     {"id": "model", "text": "用户使用 DeepSeek V4 Flash 模型", "type": "semantic"},
     {"id": "car", "text": "用户买了 Geely Starray EM-i Max+ 汽车", "type": "semantic"},

@@ -1,7 +1,7 @@
 # Nyx Data Locations & Schema
 
 ## Sandglass Log
-**Path**: `/root/.hermes/nexsandglass/sandglass.txt`
+**Path**: `${NEXSANDBASE_HOME}/sandglass.txt`
 **Format**: pipe-delimited text
 ```
 YYYY-MM-DD HH:MM:SS | sender | text content
@@ -9,8 +9,8 @@ YYYY-MM-DD HH:MM:SS | sender | text content
 **Stats** (as of 2026-07): ~36K entries, ~1804 days, ~20 entries/day avg
 
 ## Sessions Database
-**Path**: `/root/.hermes/state.db` (SQLite)
-**Access**: `sqlite3 "file:/root/.hermes/state.db?mode=ro"` (read-only)
+**Path**: `${HERMES_HOME}/state.db` (SQLite)
+**Access**: `sqlite3 "file:${HERMES_HOME}/state.db?mode=ro"` (read-only)
 
 ### sessions table
 | Column | Type | Description |
@@ -34,19 +34,19 @@ YYYY-MM-DD HH:MM:SS | sender | text content
 | content | TEXT | Message body |
 
 ## Memory Layers
-**Path**: `/root/.hermes/memory_layers/`
+**Path**: `${HERMES_HOME}/memory_layers/`
 - `l0_identity.md` — core identity (~321 bytes)
 - `l1_facts.aaak` — compressed facts (~1.6 KB)
 - `persona_combined.md` — persona data (~3.5 KB)
 
 ## Dreams
-**Path**: `/root/.hermes/dreams/`
+**Path**: `${HERMES_HOME}/dreams/`
 **Format**: `YYYY-MM-DD.md` (one file per day)
 **Stats**: ~40 files
 
 ## Chroma Semantic Index
-**Path**: `/root/.hermes/nexsandglass/chroma_sand/`
+**Path**: `${NEXSANDBASE_HOME}/chroma_sand/`
 **Size**: ~1.14 MB
 
 ## WeaveThread (Knowledge Graph)
-**Path**: `/root/.hermes/nexsandglass/weavethread/`
+**Path**: `${NEXSANDBASE_HOME}/weavethread/`

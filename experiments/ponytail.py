@@ -37,7 +37,7 @@ KEYS = {}
 
 def _load_keys():
     global KEYS
-    keys_path = Path("/root/thalamus/keys.json")
+    keys_path = Path("REDACTED_PATH_KEYS")
     try:
         if keys_path.exists():
             with open(keys_path) as f:

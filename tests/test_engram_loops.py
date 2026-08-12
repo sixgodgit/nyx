@@ -84,11 +84,11 @@ def _mem(mid, mtype, content, arousal=0.0, weight=1.0, created="2026-07-01T00:00
 # ── Loop 1: Thread ↔ Fact Store ───────────────────────────────
 
 def test_extract_triples():
-    triples = extract_triples("用户邮箱是 enfys@hvh.expert")
+    triples = extract_triples("用户邮箱是 user@example.com")
     assert len(triples) >= 1, f"应提取到三元组, got {triples}"
     subj, rel, obj = triples[0]
     assert subj == "user" or subj == "用户"
-    assert obj == "enfys@hvh.expert"
+    assert obj == "user@example.com"
 
 
 def test_fact_to_thread_stores():
@@ -123,10 +123,10 @@ def test_fact_to_thread_conflict():
 def test_thread_validate_fact():
     def thread_query(e, r, l):
         if r == "邮箱":
-            return [{"object": "enfys@hvh.expert"}]
+            return [{"object": "user@example.com"}]
         return []
 
-    report = thread_validate_fact("用户邮箱是 enfys@hvh.expert", thread_query)
+    report = thread_validate_fact("用户邮箱是 user@example.com", thread_query)
     verdicts = [v["verdict"] for v in report.validations]
     assert "confirm" in verdicts, f"应确认已有事实, got {verdicts}"
 
@@ -165,8 +165,8 @@ def test_dream_relation_discovery():
 # ── Loop 3: Persona ↔ Context ─────────────────────────────────
 
 def test_persona_weight_context():
-    mems = [_mem("s1", "semantic", "用户邮箱是 enfys@hvh.expert", weight=0.5)]
-    updated, report = persona_weight_context(mems, ["邮箱 enfys@hvh.expert"])
+    mems = [_mem("s1", "semantic", "用户邮箱是 user@example.com", weight=0.5)]
+    updated, report = persona_weight_context(mems, ["邮箱 user@example.com"])
     assert len(report.boosted_ids) >= 1
     assert updated[0].decay_weight > 0.5, "画像确认事实应加权"
 
