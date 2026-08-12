@@ -4,7 +4,7 @@
 
 NexSandglass 是 Hermes Agent 的记忆基础设施，在 Hermes 原生 memory 工具关闭时接管全部跨会话记忆、事实存储、联想检索和 déjà vu 检测。
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-3.4.1-blue)
+![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.1-blue)
 
 ---
 
@@ -239,6 +239,18 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 ---
 
 ## 📝 更新日志
+
+### v7.1 (2026-08-12) — runtime 脚手架修复（B0 契约 + 7 阻断 bug）
+
+- 🛠️ **Bug1** `system_prompt_block` open_loops NameError → 不再静默 fallback 旧拼接（改用 `open_loops_layer`）
+- 🛠️ **Bug2** `cognitive_recall` 误调 `intent.history_context` 实例方法 → 改用模块级函数
+- 🛠️ **Bug3** `sandglass_mcp` tools/list 补声明 `memory_observe/recall/feedback/forget` 四工具
+- 🛠️ **Bug4** `RecallPlanner._adapt_nyx` 对齐 `nyx_sense/hunt` 真实返回结构（phantom whisper + 熟悉度）
+- 🛠️ **Bug5** `sync_turn` 与 FormationRouter 双写 sandglass → 加 `raw_already_logged` 参数，审计日志一行一次
+- 🛠️ **Bug6** `facade.feedback` 传空 memories 名存实亡 → 加载匹配行并回写权重（helpful 提升 / weaken 降低）
+- 🛠️ **Bug7** 删除 `skills/nyx/scripts/` 与主包分叉的 22 个副本，单一事实来源归 `nexsandglass/`
+- 📄 新增 `RUNTIME.md`（B0 唯一对外 API + MemoryContext/MemoryObject 契约）+ `PR_BUGFIX.md`
+- ✅ 新增 `tests/test_runtime_{api,b1,b2,b3,bugfixes}.py`；全量 19 个测试文件独立运行全绿
 
 ### v7.0 (2026-08-12) — Cognitive Memory OS 全链路
 
