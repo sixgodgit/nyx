@@ -45,6 +45,7 @@ class MemoryBundle:
     # ── Provider 四层块的映射槽位 ──
     persona_layer: str = ""                                    # 【你是谁】
     offset_layer: str = ""                                     # 【你在往哪走】
+    thread_layer: str = ""                                     # 【你怎么变成这样】（织线）
     open_loops: str = ""                                       # 【还没做完】
 
     # ── 元信息 ──
@@ -74,9 +75,11 @@ class MemoryBundle:
         if self.temporal_state:
             blocks.append("【时间】" + self.temporal_state)
         if self.persona_layer:
-            blocks.append("【你是谁】" + self.persona_layer)
+            blocks.append("【你是谁】\n" + self.persona_layer)
         if self.offset_layer:
-            blocks.append("【你在往哪走】" + self.offset_layer)
+            blocks.append("【你在往哪走】\n" + self.offset_layer)
+        if self.thread_layer:
+            blocks.append("【你怎么变成这样】\n" + self.thread_layer)
         if self.open_loops:
             blocks.append("【还没做完】" + self.open_loops)
 
@@ -198,6 +201,7 @@ def build_bundle(
     budget: int = 1500,
     persona_layer: str = "",
     offset_layer: str = "",
+    thread_layer: str = "",
     open_loops: str = "",
 ) -> MemoryBundle:
     """核心流水线：candidates → score → temporal → budget → compress → render。
@@ -214,6 +218,7 @@ def build_bundle(
         # 空记忆 → 稳定模板（Persona/offset 仍注入，保持 Provider 输出稳定）
         bundle.persona_layer = persona_layer
         bundle.offset_layer = offset_layer
+        bundle.thread_layer = thread_layer
         bundle.open_loops = open_loops
         bundle.confidence_summary = "（无记忆）"
         return bundle
@@ -264,6 +269,7 @@ def build_bundle(
     # Provider 四层块 → Bundle 槽位
     bundle.persona_layer = persona_layer
     bundle.offset_layer = offset_layer
+    bundle.thread_layer = thread_layer
     bundle.open_loops = open_loops
 
     return bundle

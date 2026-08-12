@@ -142,12 +142,10 @@ cd /root/nyx-repo && git remote -v
 
 ### 2. 同步技能层副本
 ```bash
-# 仓库 → 技能
-cp -r nexsandglass/engram skills/nyx/scripts/
-cp tests/test_engram_*.py skills/nyx/scripts/
-# 技能 → 仓库
-cp -r /root/.hermes/skills/memory/nyx/scripts/engram nexsandglass/
-cp /root/.hermes/skills/memory/nyx/scripts/test_engram_*.py tests/
+# 单一事实来源在 nexsandglass/（scripts 已废弃删除）
+# 技能引用直接指向主包；需要时从主包拷贝到 Hermes 技能目录
+cp -r nexsandglass/engram /root/.hermes/skills/memory/nyx/scripts/engram
+cp tests/test_engram_*.py /root/.hermes/skills/memory/nyx/scripts/
 ```
 
 ### 3. 更新 README
@@ -317,7 +315,7 @@ mcp_pre_gateway_dispatch_sandglass_thread_add(subject='enfys', relation='send_em
 ## 🧬 EngramTide 融合层（记忆加工）
 
 > 设计文档见 [`references/engram-fusion-design.md`](references/engram-fusion-design.md)。
-> 代码模块：`scripts/engram/`（types / decay / writer / context），测试 `scripts/test_engram_fusion.py`。
+> 代码模块：`nexsandglass/engram/`（types / decay / writer / context），测试 `tests/test_engram_fusion.py`。
 
 Nyx 已融合 EngramTide 的认知科学记忆机制：**Tulving 四类记忆 + Ebbinghaus 衰减 + Constitutional 上下文**。
 
@@ -365,7 +363,7 @@ Nyx 已融合 EngramTide 的认知科学记忆机制：**Tulving 四类记忆 + 
 ### 代码调用示例
 
 ```python
-# 从脚本层使用（路径：scripts/engram/）
+# 从脚本层使用（路径：nexsandglass/engram/）
 from engram import write_memory_classified, compute_decay_multiplier, build_constitutional_context
 
 # 分类写入：semantic 覆盖 / emotional 强化 / procedural 去重 / episodic 直插
@@ -433,8 +431,8 @@ git push origin main
 | 场景 | 以前的做法（已禁用） | 现在的做法（Nyx） |
 |------|---------------------|------------------|
 > 设计文档见 [`references/engram-evolution-design.md`](references/engram-evolution-design.md)。
-> 代码：`scripts/engram/loops/`（四个闭环）+ `scripts/engram/evolve.py`（协调器）。
-> 测试：`scripts/test_engram_loops.py`（15 项）。
+> 代码：`nexsandglass/engram/loops/`（四个闭环）+ `nexsandglass/engram/evolve.py`（协调器）。
+> 测试：`tests/test_engram_loops.py`（15 项）。
 
 Nyx 核心竞争力：**记忆能够自我演化**。四个闭环让模块互为输入输出：
 
@@ -477,8 +475,8 @@ fact_pass(fact_text, thread_store, thread_query)
 ### 🌙 梦境管线（hypnos × engram 融合）
 
 > 设计文档见 [`references/engram-dream-fusion.md`](references/engram-dream-fusion.md)。
-> 代码：`scripts/engram/dream_pipeline.py` + `scripts/engram/prompts/`（三女神 prompt）。
-> 测试：`scripts/test_engram_dream.py`（7 项）。
+> 代码：`nexsandglass/engram/dream_pipeline.py` + `nexsandglass/engram/prompts/`（三女神 prompt）。
+> 测试：`tests/test_engram_dream.py`（7 项）。
 
 hypnos-dream-system 的三女神流程已并入 Nyx 梦境，消除重叠：
 

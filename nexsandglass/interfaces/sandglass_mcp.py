@@ -304,6 +304,23 @@ def main():
                     _tool("sandglass_dejavu", "Déjà Vu 模糊感知——check/stats/hunt",
                           {"action": {"type": "string", "description": "check/stats/hunt"},
                            "query": {"type": "string", "description": "查询内容"}}),
+                    _tool("memory_observe", "统一记忆写入入口——观察事件并晋升长期记忆",
+                          {"content": {"type": "string", "description": "事件内容"},
+                           "source": {"type": "string", "description": "来源(mcp/user/assistant)"}},
+                          ["content"]),
+                    _tool("memory_recall", "统一记忆召回入口——意图自适应召回相关记忆",
+                          {"query": {"type": "string", "description": "查询"},
+                           "budget": {"type": "integer", "description": "token 预算"},
+                           "limit": {"type": "integer", "description": "返回条数"}},
+                          ["query"]),
+                    _tool("memory_feedback", "统一反馈入口——标记召回结果是否有帮助",
+                          {"memory_ids": {"type": "array", "items": {"type": "string"},
+                                          "description": "召回记忆 id 列表"},
+                           "helpful": {"type": "boolean", "description": "是否有帮助"}}),
+                    _tool("memory_forget", "统一遗忘入口——按 selector 遗忘记忆",
+                          {"memory_id": {"type": "string", "description": "记忆 id"},
+                           "source_id": {"type": "string", "description": "来源 id"},
+                           "all": {"type": "boolean", "description": "清空全部(谨慎)"}}),
                 ]
                 print(_rpc_response(tid, {"tools": tools}), flush=True)
 

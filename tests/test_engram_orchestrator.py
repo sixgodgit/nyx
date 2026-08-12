@@ -54,14 +54,14 @@ def check(name, cond, detail=""):
 def test_formation():
     print("[formation 写入统一入口]")
     orch = get_orchestrator()
-    fr = orch.observe("用户今天去试驾了 Geely", source="test-formation")
+    fr = orch.observe("用户今天去试驾了 Geely", source="test-formation", force_promote=True)
     check("observe 成功", fr.ok)
     check("observe 类型合法", fr.memory_type in ("semantic", "episodic", "emotional", "procedural"))
     check("写入 sandglass 路由", "sandglass" in fr.routes_written)
     check("写入 engram 路由", "engram" in fr.routes_written)
     check("写入 shadow 路由", "shadow" in fr.routes_written)
     check("memory_id 非空", bool(fr.memory_id))
-    check("lifecycle=observed", fr.lifecycle_state == "observed")
+    check("lifecycle 有效", fr.lifecycle_state in ("observed", "validated", "active"))
     # 空事件
     fr_empty = orch.observe("")
     check("空事件拒绝", not fr_empty.ok)

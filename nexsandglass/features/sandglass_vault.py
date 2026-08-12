@@ -21,6 +21,40 @@ _IDX = os.path.join(_NB, "sandglass.idx")
 
 logger = logging.getLogger(__name__)
 
+# ═══════ B1 直写治理：NYX_ENFORCE_RUNTIME=1 时检测非 orchestrator 直写 ═══════
+_ALLOWED_DIRECT = ("orchestrator", "runtime", "facade", "sandglass_mcp", "memory_provider",
+                   "shadow_sand", "weavethread", "bridge", "recall_writer", "search_router",
+                   "sandglass_vault", "sandglass_log", "sandglass_think", "sandglass_sqlite",
+                   "temporal_fact", "consolidation", "promotion", "intent", "bundle")
+
+
+def _enforce_runtime(entry: str) -> None:
+    """开发模式直写治理：检测调用栈，非 orchestrator 直写则 warning/metrics。
+
+    NYX_ENFORCE_RUNTIME=1 时生效；不阻断（仅告警），CI 可 grep 告警日志发现新增直写。
+    """
+    if os.environ.get("NYX_ENFORCE_RUNTIME") != "1":
+        return
+    try:
+        import inspect
+        stack = inspect.stack()
+        # 向上找第一个非本模块的调用者
+        for frame in stack[1:]:
+            mod = frame.filename
+            caller = ""
+            for part in mod.replace("\\", "/").split("/"):
+                if part.endswith(".py"):
+                    caller = part[:-3]
+                    break
+            if caller and caller not in _ALLOWED_DIRECT:
+                logger.warning(
+                    "[B1 直写治理] %s 被非 orchestrator 模块直写: %s (NYX_ENFORCE_RUNTIME=1)",
+                    entry, caller,
+                )
+                return
+    except Exception:
+        pass
+
 def set_idx_path(path: str):
     """重定向投石问路索引路径——基准测试用。"""
     global _IDX
@@ -228,6 +262,7 @@ def _sync_index() -> dict:
 def search(query: str, limit: int = 10, month: str = "") -> list:
     """搜索沙漏。返回 [(行号, 时间, 明文), ...]。
     委托给 SearchRouter 三层架构——影子沙→投石问路→mmap。"""
+    _enforce_runtime("vault.search")
     try:
         from nexsandglass.core.search_router import SearchRouter, ShadowSearch, Fts5Search, IdxSearch, TfidfSearch, MmapFallback
         router = SearchRouter(
@@ -261,6 +296,7 @@ def _legacy_search(query, limit, month):
 
 
 def recent(n: int = 10) -> list:
+    _enforce_runtime("vault.recent")
     """最近 N 条。[(行号, 时间, 明文), ...]。
 
     返回物理行号（与 search/FTS5 的 id 一致），从文件尾部取最后 N 条有效消息。

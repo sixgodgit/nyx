@@ -187,3 +187,86 @@ def memory_to_object(mem) -> "MemoryObject":
 def object_to_memory(obj: "MemoryObject"):
     """MemoryObject → 现有 engram Memory dataclass（字段降级）。"""
     return obj.to_memory()
+
+
+# ═══════ B3：差异化写入（Memory 是形成的，不是整轮 dump）═══════
+def ingest_classified(
+    text: str,
+    action: str = "INSERT",
+    mem_type: str | None = None,
+    supersede_id: str | None = None,
+    weight_delta: float = 0.0,
+) -> dict:
+    """差异化持久化到 engram_store。
+
+    - INSERT   : 追加新行（带 action 标记）
+    - REINFORCE: 找到同内容行，更新 decay_weight/access_count，不新插
+    - DEDUP    : 找到同内容行，只 touch（access_count+1），不新插
+    - OVERRIDE : 旧行标记 superseded_by，追加新 active 行
+    - CONFLICT : 追加到 contradictions 源（不静默覆盖）
+    返回 {status, id, matched_id?}
+    """
+    import json as _json
+    mtype = mem_type or classify_memory_type(text)
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    os.makedirs(os.path.dirname(_STORE), exist_ok=True)
+
+    # 读现有行
+    rows = []
+    if os.path.exists(_STORE):
+        with open(_STORE, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        rows.append(_json.loads(line))
+                    except Exception:
+                        rows.append({"_raw": line})
+
+    # REINFORCE / DEDUP：找同内容行
+    if action in ("REINFORCE", "DEDUP"):
+        for r in rows:
+            if r.get("content") == text:
+                r["access_count"] = r.get("access_count", 0) + 1
+                if action == "REINFORCE":
+                    r["decay_weight"] = min(r.get("decay_weight", 1.0) + 0.1, 1.0)
+                r["action"] = action
+                r["last_accessed"] = ts
+                _write_rows(rows)
+                return {"status": action.lower(), "matched_id": f"engram:{r.get('ts','')}"}
+        # 没找到 → 退化为 INSERT
+        action = "INSERT"
+
+    # OVERRIDE：标记旧行 superseded
+    if action == "OVERRIDE" and supersede_id:
+        for r in rows:
+            if f"engram:{r.get('ts','')}" == supersede_id:
+                r["superseded_by"] = ts
+                r["status"] = "historical"
+
+    # CONFLICT：写入 contradictions
+    if action == "CONFLICT":
+        rows.append({
+            "ts": ts, "content": text[:300], "type": "contradiction",
+            "status": "conflict_candidate", "action": "conflict",
+        })
+        _write_rows(rows)
+        return {"status": "conflict", "id": f"engram:{ts}"}
+
+    # INSERT / OVERRIDE(新值)
+    rows.append({
+        "ts": ts, "content": text[:300], "type": mtype,
+        "action": action, "status": "active",
+        "decay_weight": 1.0, "access_count": 0, "created_at": ts,
+    })
+    _write_rows(rows)
+    return {"status": "insert", "id": f"engram:{ts}"}
+
+
+def _write_rows(rows: list) -> None:
+    """写回 engram_store.jsonl。"""
+    import json as _json
+    os.makedirs(os.path.dirname(_STORE), exist_ok=True)
+    with open(_STORE, "w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(_json.dumps(r, ensure_ascii=False) + "\n")

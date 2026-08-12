@@ -156,8 +156,8 @@ def test_facade():
     bridge._STORE = os.path.join(tmpdir, "engram_store.jsonl")
 
     # observe
-    r = facade.observe("测试观察事件", source="test")
-    check("observe ok", r.ok and r.lifecycle_state == "observed")
+    r = facade.observe("测试观察事件：用户是餐厅老板，经营十年", source="test", force_promote=True)
+    check("observe ok", r.ok and r.lifecycle_state in ("observed", "validated", "active"))
     check("observe 类型", r.memory_type in ("semantic", "episodic", "emotional", "procedural"))
     check("observe 落盘", os.path.exists(bridge._STORE))
 

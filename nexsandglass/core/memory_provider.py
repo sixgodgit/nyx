@@ -222,13 +222,12 @@ class NexSandglassProvider(MemoryProvider):
                 except Exception:
                     pass
 
-            if persona_text or scene_text:
-                layer1 = ["【你是谁】"]
-                if persona_text:
-                    layer1.append(persona_text)
-                if scene_text:
-                    layer1.append(f"📍 {scene_text}")
-                blocks.append("\n".join(layer1))
+            persona_parts = []
+            if persona_text:
+                persona_parts.append(persona_text)
+            if scene_text:
+                persona_parts.append(f"📍 {scene_text}")
+            persona_layer = "\n".join(persona_parts)
 
             # ═══════ 第二层：你在往哪走 ═══════
             layer2 = ["【你在往哪走】"]
@@ -280,7 +279,7 @@ class NexSandglassProvider(MemoryProvider):
             if mood != "平稳":
                 layer2.append(f"🎭 情绪：{mood}")
 
-            blocks.append("\n".join(layer2))
+            offset_layer = "\n".join(layer2[1:]) if len(layer2) > 1 else ""
 
             # ═══════ 第三层：你怎么变成这样 ═══════
             try:
@@ -289,7 +288,7 @@ class NexSandglassProvider(MemoryProvider):
                 if stats["total_triples"] >= 20:
                     thread = wthread_weave(limit=3)
                     if thread and thread != "织线因果:":
-                        blocks.append(f"【你怎么变成这样】\n{thread[:200]}")
+                        thread_layer = thread[:200]
             except Exception:
                 logger.debug("织线失败", exc_info=True)
 
@@ -330,29 +329,34 @@ class NexSandglassProvider(MemoryProvider):
                         layer4.append(header)
                     layer4.append("纪律：")
                     layer4.extend(f"  {i+1}. {r}" for i, r in enumerate(rules))
-                blocks.append("\n".join(layer4))
+                open_loops_layer = "\n".join(layer4[1:]) if len(layer4) > 1 else ""
+            else:
+                open_loops_layer = ""
 
-            # ═══════ 合并两套出口：四层块 → MemoryBundle 槽位 ═══════
-            # layer1(你是谁)/layer2(往哪走)/layer4(还没做完) 作为 Bundle 槽位
-            persona_layer = "\n".join(layer1) if layer1 else ""
-            offset_layer = "\n".join(layer2) if layer2 else ""
-            open_loops_layer = "\n".join(layer4) if layer4 else ""
-
-            # 经 orchestrator 构建 MemoryBundle（记忆核心 + Provider 槽位合一）
+            # ═══════ B2：唯一出口 MemoryBundle → render ═══════
+            # persona/offset/thread/open_loops 作为槽位输入；body 仅由 bundle.render() 产出
+            thread_layer = locals().get("thread_layer", "")
             try:
                 from nexsandglass.runtime.orchestrator import get_orchestrator
                 orch = get_orchestrator()
                 bundle = orch.recall_bundle(
                     "",
-                    max_tokens=1500,
+                    max_tokens=self._bundle_max_tokens(),
                     persona_layer=persona_layer,
                     offset_layer=offset_layer,
-                    open_loops=open_loops,
+                    thread_layer=thread_layer,
+                    open_loops=open_loops_layer,
                 )
                 body = bundle.render()
-            except Exception:
-                # 降级：仅 Provider 层块（保可用性）
-                body = "\n\n".join(blocks).strip()
+            except Exception as e:
+                # 降级仅在 orch 真正不可用时触发，并打 warning
+                logger.warning("system_prompt_block Bundle 路径失败，fallback: %s", e)
+                fb = []
+                if persona_layer: fb.append("【你是谁】\n" + persona_layer)
+                if offset_layer: fb.append("【你在往哪走】\n" + offset_layer)
+                if thread_layer: fb.append("【你怎么变成这样】\n" + thread_layer)
+                if open_loops_layer: fb.append("【还没做完】\n" + open_loops_layer)
+                body = "\n\n".join(fb).strip()
 
             tail = f"沙漏: {total}条 | 阶段: {stage}"
             return (body + "\n\n" + tail).strip()
@@ -400,18 +404,23 @@ class NexSandglassProvider(MemoryProvider):
                 try:
                     from nexsandglass.core.sandglass_log import log_message
                     log_message(msg, "user" if msg == user_msg else "agent")
-                except Exception:
-                    pass
-                # 2. 候选晋升判断
+                except Exception as e:
+                    logger.warning("sync_turn raw 落沙失败: %s", e)
+                # 2. 候选晋升判断（raw 已在上方落过 → raw_already_logged=True 防双写）
                 try:
                     cand = eng.observe(msg)
                     if cand.disposition == "promote":
-                        orch.observe(msg, source="user" if msg == user_msg else "assistant")
-                except Exception:
-                    pass
+                        orch.observe(
+                            msg,
+                            source="user" if msg == user_msg else "assistant",
+                            raw_already_logged=True,
+                        )
+                except Exception as e:
+                    logger.warning("sync_turn 晋升失败: %s", e)
             self._turn_count += 1
-        except Exception:
-            # 降级：orchestrator 不可用时回退到直连落沙（保持可用性）
+        except Exception as e:
+            # 降级：orchestrator 不可用时回退到直连落沙（保持可用性），打 warning
+            logger.warning("sync_turn 主路径失败，fallback 直连落沙: %s", e)
             try:
                 from nexsandglass.core.sandglass_log import log_message
                 if user_msg:
@@ -419,8 +428,15 @@ class NexSandglassProvider(MemoryProvider):
                 if assistant_msg:
                     log_message(assistant_msg, "agent")
                 self._turn_count += 1
-            except Exception:
-                pass
+            except Exception as e2:
+                logger.warning("sync_turn fallback 落沙失败: %s", e2)
+
+    def _bundle_max_tokens(self) -> int:
+        """Bundle 默认预算（NYX_BUNDLE_MAX_TOKENS 可配，默认 1500）。"""
+        try:
+            return int(os.environ.get("NYX_BUNDLE_MAX_TOKENS", "1500"))
+        except ValueError:
+            return 1500
 
     def shutdown(self) -> None:
         """清理。"""
@@ -476,15 +492,16 @@ class NexSandglassProvider(MemoryProvider):
             return tool_error(f"fact_feedback error: {e}")
 
     def on_session_end(self, messages: List[Dict[str, Any]]) -> None:
-        """会话结束——蒸馏 + 偏移检查。"""
+        """会话结束——蒸馏 + 偏移检查。经 orchestrator 落最后一轮（B1）。"""
         try:
-            # 落最后一轮对话
+            from nexsandglass.runtime.orchestrator import get_orchestrator
+            orch = get_orchestrator()
+            # 落最后一轮对话（经 Formation，带 raw_already_logged 避免重复逻辑）
             for msg in messages[-5:]:
                 role = msg.get("role", "user")
                 content = msg.get("content", "")
                 if content:
-                    from nexsandglass.core.sandglass_log import log_message
-                    log_message(str(content)[:500], role)
+                    orch.observe(str(content)[:500], source=role, raw_already_logged=True)
 
             # 触发偏移检查 + 织造
             from nexsandglass.features.sandglass_think import comprehensive_offset
@@ -512,10 +529,11 @@ class NexSandglassProvider(MemoryProvider):
                 )
 
             if name == "sandglass_recent":
-                from nexsandglass.features.sandglass_vault import recent
-                results = recent(args.get("n", 10))
+                from nexsandglass.runtime.orchestrator import get_orchestrator
+                orch = get_orchestrator()
+                objs = orch.recent(args.get("n", 10))
                 return json.dumps(
-                    [{"line": ln, "ts": ts, "text": txt[:200]} for ln, ts, txt in results],
+                    [{"id": o.memory_id, "text": o.content[:200]} for o in objs],
                     ensure_ascii=False,
                 )
 

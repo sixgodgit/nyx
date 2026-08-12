@@ -363,6 +363,12 @@ class PromotionStats:
     def promote_rate(self) -> float:
         return (self.promoted / self.total_observed) if self.total_observed else 0.0
 
+    def drop_rate(self) -> float:
+        return (self.dropped / self.total_observed) if self.total_observed else 0.0
+
+    def reinforce_rate(self) -> float:
+        return (self.reinforced / self.promoted) if self.promoted else 0.0
+
     def report(self) -> dict:
         return {
             "total": self.total_observed,
@@ -372,6 +378,8 @@ class PromotionStats:
             "reinforced": self.reinforced,
             "conflicts": self.conflicts,
             "promote_rate": round(self.promote_rate(), 3),
+            "drop_rate": round(self.drop_rate(), 3),
+            "reinforce_rate": round(self.reinforce_rate(), 3),
             "mean_score": round(self.mean_score, 3),
         }
 

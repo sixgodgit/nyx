@@ -145,6 +145,7 @@ class FormationResult:
     memory_type: str = "semantic"
     lifecycle_state: str = "observed"
     routes_written: list[str] = field(default_factory=list)
+    errors: dict = field(default_factory=dict)   # {route: err} 单路失败记录
     message: str = ""
 
 
@@ -158,6 +159,7 @@ class FormationRouter:
     def __init__(self, policy: Optional[PolicyEngine] = None):
         self.policy = policy or PolicyEngine()
         self._intent_mod = None
+        self._promotion = None
 
     def _get_intent(self):
         if self._intent_mod is None:
@@ -165,13 +167,27 @@ class FormationRouter:
             self._intent_mod = im
         return self._intent_mod
 
+    def _get_promotion(self):
+        if self._promotion is None:
+            from nexsandglass.runtime.promotion import PromotionEngine
+            self._promotion = PromotionEngine(use_llm=False, timeout=2.0)
+        return self._promotion
+
     def observe(
         self,
         event: str,
         mem_type: str | None = None,
         source: str | None = None,
+        raw_already_logged: bool = False,
+        force_promote: bool = False,
     ) -> FormationResult:
-        """观察一个事件并写入各底层 store。"""
+        """观察一个事件并写入各底层 store（B3：Memory 是形成的）。
+
+        固定流水线：Observation → Extract → Score → Type → Promote|SessionOnly|Drop。
+        只有 promote 才差异化写长期 engram（REINFORCE/DEDUP/OVERRIDE/INSERT）。
+        raw sandglass 始终保留作审计日志。force_promote 是内部逃生口（测试/已决策），
+        默认关闭，MCP memory_observe 也走同一门禁。
+        """
         fr = FormationResult()
         if not event:
             fr.message = "empty event"
@@ -182,53 +198,109 @@ class FormationRouter:
             from nexsandglass.engram import bridge
             from nexsandglass.features.shadow_sand import shadow_index
 
-            # 1. 分类
-            mtype = mem_type or bridge.classify_memory_type(event)
+            # 1. 落沙（原始审计日志）——除非调用方已落
+            if not raw_already_logged:
+                try:
+                    sandglass_log.log_message(event, sender=source or "agent")
+                    fr.routes_written.append("sandglass")
+                except Exception as e:
+                    fr.errors["sandglass"] = str(e)
+                    logger.warning("[Formation] sandglass 写入失败: %s", e)
+
+            # 2. Promotion 决策（B3：Memory 是形成的）
+            promotion = self._get_promotion()
+            cand = promotion.observe(event, source=source or "user")
+
+            # force_promote 逃生口（测试/已决策，显式跳过门禁）
+            if force_promote:
+                cand.disposition = "promote"
+
+            # 3. 处置
+            if cand.disposition == "drop":
+                # 闲聊/OTP：只落 raw 审计，不进长期
+                fr.ok = True
+                fr.lifecycle_state = "observed"
+                fr.memory_type = cand.mem_type
+                fr.message = "dropped:" + cand.mem_type
+                return fr
+
+            if cand.disposition == "session_only":
+                # 一次性/临时：只落 raw 审计，不进长期 engram
+                fr.ok = True
+                fr.lifecycle_state = "observed"
+                fr.memory_type = cand.mem_type
+                fr.message = "session_only:" + cand.mem_type
+                return fr
+
+            # promote → 差异化写入长期（REINFORCE/DEDUP/OVERRIDE/INSERT）
+            mtype = mem_type or cand.mem_type or bridge.classify_memory_type(event)
             fr.memory_type = mtype
 
-            # 2. 落沙（原始事件日志）
+            # 差异化决策（复用 writer.classify_write 语义，加载已有记忆做重复/冲突判断）
             try:
-                sandglass_log.log_message(event, sender="agent")
-                fr.routes_written.append("sandglass")
-            except Exception as e:
-                logger.debug("[Formation] sandglass 写入失败: %s", e)
+                from nexsandglass.engram.types import Memory as _Mem
+                recent_rows = bridge.recent(n=50)
+                existing = [
+                    _Mem(memory_id=f"engram:{r.get('ts','')}",
+                         type=r.get("type", "semantic"),
+                         content=r.get("content", ""))
+                    for r in recent_rows if isinstance(r, dict) and r.get("content")
+                ]
+                write_action, decision = promotion.classify_promotion(cand, existing)
+                write_action = write_action.value if hasattr(write_action, "value") else str(write_action)
+                if decision.get("decision") == "conflict_candidate":
+                    write_action = "conflict"
+            except Exception:
+                write_action = cand.meta.get("write_action", "insert")
+                if write_action == "noop":
+                    write_action = "insert"
 
-            # 3. engram store（分类写入）
+            # 落差异化 engram
             try:
-                bridge.ingest(event)
+                res = bridge.ingest_classified(
+                    event,
+                    action=write_action.upper(),
+                    mem_type=mtype,
+                )
                 fr.routes_written.append("engram")
+                fr.memory_id = res.get("id") or f"engram:{event[:20]}"
+                if write_action in ("reinforce", "dedup"):
+                    fr.message = f"{write_action}:" + cand.mem_type
+                else:
+                    fr.message = "promoted:" + cand.mem_type
             except Exception as e:
-                logger.debug("[Formation] engram 写入失败: %s", e)
+                fr.errors["engram"] = str(e)
+                logger.warning("[Formation] engram 差异化写入失败: %s", e)
 
-            # 4. shadow 索引（信任/实体索引）
+            # shadow 索引（信任/实体）
             try:
                 line_num = _last_sandglass_line()
                 shadow_index(event, category=mtype, line_num=line_num)
                 fr.routes_written.append("shadow")
             except Exception as e:
-                logger.debug("[Formation] shadow 索引失败: %s", e)
+                fr.errors["shadow"] = str(e)
+                logger.warning("[Formation] shadow 索引失败: %s", e)
 
-            # 5. 织线三元组（规则级抽取）
+            # 织线三元组
             try:
                 from nexsandglass.features.weavethread import wthread_store
                 wthread_store(event, line_num=_last_sandglass_line(), subject="user")
                 fr.routes_written.append("wthread")
             except Exception as e:
-                logger.debug("[Formation] wthread 写入失败: %s", e)
+                fr.errors["wthread"] = str(e)
+                logger.warning("[Formation] wthread 写入失败: %s", e)
 
-            # MemoryObject canonical 表示
             obj = MemoryObject(
                 content=event,
                 type=mtype,
                 created_at=_now(),
                 source_id=source,
                 provenance="orchestrator.formation",
-                status=LifecycleState.OBSERVED.value,
+                status=LifecycleState.VALIDATED.value if write_action == "insert" else LifecycleState.ACTIVE.value,
             )
-            fr.memory_id = obj.memory_id or obj._fallback_id()
+            fr.memory_id = fr.memory_id or (obj.memory_id or obj._fallback_id())
             fr.lifecycle_state = obj.status
             fr.ok = True
-            fr.message = "written:" + ",".join(fr.routes_written)
             return fr
 
         except Exception as e:
@@ -314,15 +386,38 @@ class RecallPlanner:
         from nexsandglass.interfaces.nyx import nyx_sense, nyx_hunt
         objs = []
         sense = nyx_sense(query) or {}
-        if isinstance(sense, dict) and sense.get("familiar"):
-            objs.append(_make_obj("nyx", f"[熟悉度 {sense['familiar']}] {query}", "nyx", confidence=0.5))
+        familiar = sense.get("familiar_ratio", 0.0)
+        if isinstance(sense, dict) and familiar > 0:
+            known = sense.get("known_tokens") or []
+            objs.append(_make_obj(
+                "nyx", f"[熟悉度 {familiar}] {query}",
+                "nyx", confidence=min(0.9, 0.4 + familiar * 0.5)))
+            for tok in known[:3]:
+                objs.append(_make_obj(f"nyx:{tok}", f"[已知实体] {tok}", "nyx", confidence=0.6))
         hunt = nyx_hunt(query, limit=self.policy.limit("nyx")) or {}
-        items = hunt.get("matches") or hunt.get("results") or []
-        if isinstance(items, list):
-            for it in items[: self.policy.limit("nyx")]:
-                text = it.get("text") if isinstance(it, dict) else str(it)
-                if text:
-                    objs.append(_make_obj("nyx", text[:300], "nyx", confidence=0.5))
+        phantoms = hunt.get("phantoms") or []
+        if isinstance(phantoms, list):
+            for p in phantoms[: self.policy.limit("nyx")]:
+                if not isinstance(p, dict):
+                    continue
+                token = p.get("token", "")
+                whisper = p.get("whisper", "")
+                sightings = p.get("sightings", 0)
+                text = whisper or f"[鬼影] {token} (×{sightings})"
+                objs.append(_make_obj(f"nyx:{token}", text[:300], "nyx",
+                                      confidence=min(0.9, 0.3 + 0.1 * sightings)))
+        return objs
+
+    def recent(self, n: int = 10) -> list:
+        """最近 n 条原始沙漏记忆（adapter：sandglass_vault.recent）。返回 MemoryObject 列表。"""
+        objs: list = []
+        try:
+            from nexsandglass.features.sandglass_vault import recent as _recent
+            rows = _recent(n)
+            for ln, ts, txt in rows:
+                objs.append(_make_obj(f"sandglass:{ln}", str(txt)[:200], "sandglass", confidence=0.5))
+        except Exception as e:
+            logger.warning("[RecallPlanner.recent] 失败: %s", e)
         return objs
 
     def recall(self, query: str, token_budget: int = 1500) -> MemoryContext:
@@ -413,15 +508,32 @@ class RecallPlanner:
 
     @staticmethod
     def _to_memory_context(result: RecallResult) -> MemoryContext:
-        """将 RecallResult 转成 MemoryContext（对外统一接口）。"""
+        """将 RecallResult 转成 MemoryContext（B0 结构化，text 可直进 system prompt）。"""
+        objects = result.objects or []
+        strings = [o.content for o in objects if o.content]
+        ids = [o.memory_id or o.content for o in objects]
+        im = None
+        strategy = "generic_semantic"
+        reasons = []
+        degraded = any(not t.ok for t in result.traces) or not objects
+        intent = getattr(result, "meta_intent", None)
+        if intent is not None:
+            strategy = getattr(intent, "strategy", "generic_semantic") or "generic_semantic"
+            reasons = list(getattr(intent, "reasons", []) or [])
         mc = MemoryContext(
             query=result.query,
             token_budget=result.token_budget,
-            strings=[o.content for o in result.objects if o.content],
-            memory_ids=[o.memory_id or o.content for o in result.objects],
+            strings=strings,
+            memory_ids=ids,
+            objects=objects,
+            traces=list(result.traces),
             est_tokens=result.est_tokens,
+            strategy_used=strategy,
+            reasons=reasons,
+            degraded=degraded,
         )
-        mc.meta_intent = getattr(result, "meta_intent", None)
+        mc.text = "\n".join(strings)
+        mc.meta_intent = intent
         return mc
 
 
@@ -554,6 +666,7 @@ class ContextBuilder:
         max_tokens: int = 1500,
         persona_layer: str = "",
         offset_layer: str = "",
+        thread_layer: str = "",
         open_loops: str = "",
     ):
         """从 MemoryContext 候选构建 MemoryBundle。"""
@@ -568,6 +681,7 @@ class ContextBuilder:
             budget=max_tokens,
             persona_layer=persona_layer,
             offset_layer=offset_layer,
+            thread_layer=thread_layer,
             open_loops=open_loops,
         )
 
@@ -592,8 +706,9 @@ class NyxOrchestrator:
         self.context = ContextBuilder()
 
     # ── 写入热路径 ──
-    def observe(self, event: str, mem_type: str | None = None, source: str | None = None) -> FormationResult:
-        return self.formation.observe(event, mem_type, source)
+    def observe(self, event: str, mem_type: str | None = None, source: str | None = None,
+                raw_already_logged: bool = False, force_promote: bool = False) -> FormationResult:
+        return self.formation.observe(event, mem_type, source, raw_already_logged, force_promote)
 
     # ── 读取热路径 ──
     def recall(self, query: str, token_budget: int = 1500) -> MemoryContext:
@@ -604,6 +719,10 @@ class NyxOrchestrator:
         """召回 + 构建 MemoryBundle（合并出口）。"""
         mc = self.recall_planner.recall(query, max_tokens)
         return self.context.build_bundle(mc, max_tokens, **layers)
+
+    def recent(self, n: int = 10) -> list:
+        """最近 n 条原始记忆（adapter：sandglass_vault.recent）。"""
+        return self.recall_planner.recent(n)
 
     def recall_text(self, query: str, max_tokens: int = 1500, **layers) -> str:
         mc = self.recall_planner.recall(query, max_tokens)
@@ -617,11 +736,15 @@ class NyxOrchestrator:
         # 1. Intent Recall（自适应）
         intent = self._parse_intent(query)
         mc = self.recall_planner.recall(query, max_tokens)
-        # 2. 若 history intent，补充演变链
+        # 2. 若 history intent，补充演变链（通过模块函数）
         if intent and intent.history:
-            hctx = intent.history_context(intent)
-            if hctx and mc.strings:
-                mc.strings = mc.strings + ["[历史演变]"] + hctx.split("\n")
+            try:
+                from nexsandglass.runtime import intent as im
+                hctx = im.history_context(intent)
+                if hctx:
+                    mc.strings = list(mc.strings) + ["[历史演变]"] + hctx.split("\n")
+            except Exception as e:
+                logger.warning("cognitive_recall history_context 失败: %s", e)
         # 3. Bundle 构建 + 渲染
         bundle = self.context.build_bundle(mc, max_tokens, **layers)
         return bundle.render()
