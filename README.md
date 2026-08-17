@@ -240,6 +240,18 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 
 ## 📝 更新日志
 
+### v7.2 (2026-08-18) — DoD 收尾：5 golden scenarios + 单一事实来源
+
+- ✅ **DoD#7** 新增 5 个 golden scenarios 自动化验收（`tests/test_engram_cognitive_os.py`）：
+  A. "还是按照之前那个方案" → 找回决策/约束/结论；B. 跨 session 偏好演化（Tesla→Geely）；
+  C. 闲聊不污染长期记忆（Formation 门禁）；D. token_budget 受限保留铁律/关键事实；E. 单源失败降级不崩
+- ✅ 每个 golden 场景使用独立临时数据目录（`NEXSANDBASE_HOME`），不污染生产记忆、场景间不串扰
+- ✅ **DoD#9** `skills/memory/nyx/SKILL.md` 收敛单一事实来源：删除历史 `scripts/engram` 副本残留引用，
+  代码路径统一指向 `nexsandglass/engram`，移除"双向同步拷贝"铁律
+- ✅ `test_engram_cognitive_os.py` 全绿（21 项检查 PASS）
+- ✅ 9 条 Definition of Done 全部达标：唯一 API / 经 Promotion / Intent-Rank 召回 / Bundle 唯一出口 /
+  temporal current vs history / Dream Proposal / golden scenarios / 无双写与 NameError / 无第二套实现
+
 ### v7.1 (2026-08-12) — runtime 脚手架修复（B0 契约 + 7 阻断 bug）
 
 - 🛠️ **Bug1** `system_prompt_block` open_loops NameError → 不再静默 fallback 旧拼接（改用 `open_loops_layer`）
