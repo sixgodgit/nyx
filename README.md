@@ -4,7 +4,7 @@
 
 NexSandglass 是 Hermes Agent 的记忆基础设施，在 Hermes 原生 memory 工具关闭时接管全部跨会话记忆、事实存储、联想检索和 déjà vu 检测。
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.1-blue)
+![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.3-blue)
 
 ---
 
@@ -239,6 +239,22 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 ---
 
 ## 📝 更新日志
+
+### v7.3 (2026-08-27) — 3 个引擎缺陷修复（Windows 沙盒测试发现）
+
+- 🛠️ **缺陷1** `shadow_sand` 批提交策略导致同库直写死锁：`_maybe_commit` 每累积 3 次写才 commit，
+  持久连接在操作间隙仍持有 `shadow_sand.db` 写锁，阻塞同库其他连接（`resolve_temporal_conflict`
+  直连 `weavethread._DB`）→ `database is locked`、写入被吞。改为**每次写操作结束立即 commit**
+  + `_get_conn` 加 `timeout=10` + `PRAGMA journal_mode=WAL`，移除 `_commit_pending` 计数器
+- 🛠️ **缺陷2** `_Mist` 连接跨线程崩坏导致 phantom 数据静默丢失：`_drift()` 建持久连接未设
+  `check_same_thread=False`，跨线程用（SearchRouter/MCP）在 Python 3.11+ 抛 `ProgrammingError`
+  被 `except` 吞掉。改为 `check_same_thread=False` + `_Mist` 加 `threading.RLock` 保护
+  `haunt/stalk/census` 及 `nyx_forget/cleanup/reindex` 全部 DB 操作
+- 🛠️ **缺陷3** `temporal_fact` 隐藏依赖外部建表：`wthread_triples` 的 DDL 只在 `weavethread._ensure_table()`
+  定义，第三方直接使用 temporal API（全新空库/未触发 weavethread）→ `no such table` 静默失败、
+  读路径直接崩溃。新增参数化 `_ensure_table(db_path)` 并在 `resolve_temporal_conflict` 与
+  `ensure_temporal_columns` 内调用，使模块**自足建表**；并为 `TEMPORAL_RELATIONS` 补语义 docstring
+- ✅ 3 项均以独立 ad-hoc 验证脚本复现+验证（缺陷1 5/5、缺陷2 4/4、缺陷3 6/6）；全量 19 测试文件逐文件独立运行全绿
 
 ### v7.2 (2026-08-18) — DoD 收尾：5 golden scenarios + 单一事实来源
 

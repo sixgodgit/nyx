@@ -21,6 +21,7 @@ import logging
 import os
 import re
 import sqlite3
+import threading
 from datetime import datetime
 
 from nexsandglass.core.sandglass_paths import _NB
@@ -111,78 +112,89 @@ class _Mist:
 
     def __init__(self):
         self._con = None
+        # RLock: 连接 + 所有 DB 操作跨线程共享。`_drift()` 会被
+        # haunt/stalk 等内部再调用，需可重入锁；同时保证并发写不交错。
+        self._lock = threading.RLock()
 
     def _drift(self):
         """漂入迷雾。"""
-        if self._con is not None:
+        with self._lock:
+            if self._con is not None:
+                return self._con
+            # check_same_thread=False: 连接可能被 SearchRouter / MCP 等
+            # 不同线程访问。缺省 True 时跨线程用会在 3.11+ 抛
+            # ProgrammingError，被外层 except 吞掉 → phantom 数据静默丢失。
+            self._con = sqlite3.connect(_MIST_PATH, timeout=10,
+                                        check_same_thread=False)
+            self._con.execute("PRAGMA journal_mode=WAL")
+            self._con.execute("PRAGMA busy_timeout=5000")
+            self._con.execute("""CREATE TABLE IF NOT EXISTS phantoms (
+                token         TEXT PRIMARY KEY,
+                born          TEXT NOT NULL,
+                last_spotted  TEXT NOT NULL,
+                sightings     INTEGER DEFAULT 1,
+                traces        TEXT DEFAULT '',
+                whisper       TEXT DEFAULT '',
+                updated_at    TEXT DEFAULT (datetime('now'))
+            )""")
+            self._con.commit()
             return self._con
-        self._con = sqlite3.connect(_MIST_PATH, timeout=10)
-        self._con.execute("PRAGMA journal_mode=WAL")
-        self._con.execute("PRAGMA busy_timeout=5000")
-        self._con.execute("""CREATE TABLE IF NOT EXISTS phantoms (
-            token         TEXT PRIMARY KEY,
-            born          TEXT NOT NULL,
-            last_spotted  TEXT NOT NULL,
-            sightings     INTEGER DEFAULT 1,
-            traces        TEXT DEFAULT '',
-            whisper       TEXT DEFAULT '',
-            updated_at    TEXT DEFAULT (datetime('now'))
-        )""")
-        self._con.commit()
-        return self._con
 
     def haunt(self, token: str, moment: str, trace: int, snippet: str):
         """铭刻一道鬼影。"""
-        db = self._drift()
-        now = moment or datetime.now().isoformat()
-        row = db.execute(
-            "SELECT sightings, traces, whisper FROM phantoms WHERE token=?", (token,)
-        ).fetchone()
-        if row:
-            count = row[0] + 1
-            old = (row[1] or "").split(",")
-            lines = set(old) | {str(trace)}
-            new_traces = ",".join(sorted(lines, key=int)[-50:])
-            prev_whisper = row[2] or snippet
-            db.execute(
-                """UPDATE phantoms SET last_spotted=?, sightings=?, traces=?,
-                   whisper=?, updated_at=datetime('now') WHERE token=? """,
-                (now, count, new_traces, prev_whisper, token)
-            )
-        else:
-            db.execute(
-                """INSERT INTO phantoms (token, born, last_spotted, sightings, traces, whisper)
-                   VALUES (?, ?, ?, 1, ?, ?) """,
-                (token, now, now, str(trace), snippet)
-            )
-        db.commit()
+        with self._lock:
+            db = self._drift()
+            now = moment or datetime.now().isoformat()
+            row = db.execute(
+                "SELECT sightings, traces, whisper FROM phantoms WHERE token=?", (token,)
+            ).fetchone()
+            if row:
+                count = row[0] + 1
+                old = (row[1] or "").split(",")
+                lines = set(old) | {str(trace)}
+                new_traces = ",".join(sorted(lines, key=int)[-50:])
+                prev_whisper = row[2] or snippet
+                db.execute(
+                    """UPDATE phantoms SET last_spotted=?, sightings=?, traces=?,
+                       whisper=?, updated_at=datetime('now') WHERE token=? """,
+                    (now, count, new_traces, prev_whisper, token)
+                )
+            else:
+                db.execute(
+                    """INSERT INTO phantoms (token, born, last_spotted, sightings, traces, whisper)
+                       VALUES (?, ?, ?, 1, ?, ?) """,
+                    (token, now, now, str(trace), snippet)
+                )
+            db.commit()
 
     def stalk(self, fragment: str, limit: int = 5) -> list:
         """追踪——按片段检索鬼影。"""
-        db = self._drift()
-        rows = db.execute(
-            """SELECT token, born, last_spotted, sightings, whisper
-               FROM phantoms WHERE token LIKE ?
-               ORDER BY sightings DESC LIMIT ? """,
-            (f"%{fragment}%", limit)
-        ).fetchall()
-        return [
-            {"token": r[0], "born": r[1], "last_spotted": r[2],
-             "sightings": r[3], "whisper": (r[4] or "")[:80]}
-            for r in rows
-        ]
+        with self._lock:
+            db = self._drift()
+            rows = db.execute(
+                """SELECT token, born, last_spotted, sightings, whisper
+                   FROM phantoms WHERE token LIKE ?
+                   ORDER BY sightings DESC LIMIT ? """,
+                (f"%{fragment}%", limit)
+            ).fetchall()
+            return [
+                {"token": r[0], "born": r[1], "last_spotted": r[2],
+                 "sightings": r[3], "whisper": (r[4] or "")[:80]}
+                for r in rows
+            ]
 
     def census(self) -> dict:
         """凝视迷雾——统计。"""
-        db = self._drift()
-        total = db.execute("SELECT COUNT(*) FROM phantoms").fetchone()[0]
-        top = db.execute(
-            "SELECT token, sightings, last_spotted FROM phantoms ORDER BY sightings DESC LIMIT 10"
-        ).fetchall()
-        return {
-            "total": total,
-            "restless": [{"token": r[0], "sightings": r[1], "last_spotted": r[2]} for r in top]
-        }
+        with self._lock:
+            db = self._drift()
+            total = db.execute("SELECT COUNT(*) FROM phantoms").fetchone()[0]
+            top = db.execute(
+                "SELECT token, sightings, last_spotted FROM phantoms ORDER BY sightings DESC LIMIT 10"
+            ).fetchall()
+            return {
+                "total": total,
+                "restless": [{"token": r[0], "sightings": r[1], "last_spotted": r[2]} for r in top]
+            }
 
 
 # ═══════════════════ 第三层：Nyx 公共接口 ═══════════════════
@@ -335,22 +347,23 @@ def nyx_forget(token: str) -> dict:
     """
     _awaken()
     try:
-        db = _mist._drift()
-        token_lower = token.lower().strip()
-        row = db.execute(
-            "SELECT token, born, last_spotted, sightings FROM phantoms WHERE token=?",
-            (token_lower,)
-        ).fetchone()
-        if row is None:
-            return {"forgotten": False, "token": token, "reason": "not_found"}
-        removed = {
-            "token": row[0],
-            "born": row[1],
-            "last_spotted": row[2],
-            "sightings": row[3]
-        }
-        db.execute("DELETE FROM phantoms WHERE token=?", (token_lower,))
-        db.commit()
+        with _mist._lock:
+            db = _mist._drift()
+            token_lower = token.lower().strip()
+            row = db.execute(
+                "SELECT token, born, last_spotted, sightings FROM phantoms WHERE token=?",
+                (token_lower,)
+            ).fetchone()
+            if row is None:
+                return {"forgotten": False, "token": token, "reason": "not_found"}
+            removed = {
+                "token": row[0],
+                "born": row[1],
+                "last_spotted": row[2],
+                "sightings": row[3]
+            }
+            db.execute("DELETE FROM phantoms WHERE token=?", (token_lower,))
+            db.commit()
         logger.info(f"nyx: forgot phantom '{token_lower}' ({removed['sightings']} sightings)")
         return {"forgotten": True, "token": token_lower, "removed": removed}
     except Exception as e:
@@ -372,19 +385,20 @@ def nyx_cleanup(days: int = 90) -> dict:
     """
     _awaken()
     try:
-        db = _mist._drift()
-        rows = db.execute(
-            """SELECT token, last_spotted, sightings FROM phantoms
-               WHERE julianday('now') - julianday(substr(last_spotted,1,10)) > ?""",
-            (days,)
-        ).fetchall()
-        if not rows:
-            return {"purged": 0, "threshold_days": days, "detail": []}
-        detail = [{"token": r[0], "last_spotted": r[1], "sightings": r[2]} for r in rows]
-        tokens = [r[0] for r in rows]
-        placeholders = ",".join("?" * len(tokens))
-        db.execute(f"DELETE FROM phantoms WHERE token IN ({placeholders})", tokens)
-        db.commit()
+        with _mist._lock:
+            db = _mist._drift()
+            rows = db.execute(
+                """SELECT token, last_spotted, sightings FROM phantoms
+                   WHERE julianday('now') - julianday(substr(last_spotted,1,10)) > ?""",
+                (days,)
+            ).fetchall()
+            if not rows:
+                return {"purged": 0, "threshold_days": days, "detail": []}
+            detail = [{"token": r[0], "last_spotted": r[1], "sightings": r[2]} for r in rows]
+            tokens = [r[0] for r in rows]
+            placeholders = ",".join("?" * len(tokens))
+            db.execute(f"DELETE FROM phantoms WHERE token IN ({placeholders})", tokens)
+            db.commit()
         logger.info(f"nyx: cleanup purged {len(tokens)} phantoms (> {days}d dormant)")
         return {"purged": len(tokens), "threshold_days": days, "detail": detail}
     except Exception as e:
@@ -404,13 +418,14 @@ def nyx_reindex():
     """
     _awaken()
     try:
-        db = _mist._drift()
-        veil_before = _veil.density
-        mist_count = db.execute("SELECT COUNT(*) FROM phantoms").fetchone()[0]
-        # Rebuild Veil from Mist: clear and re-touch
-        _veil._bits = bytearray((_VEIL_BITS + 7) // 8)
-        _veil._count = 0
-        rows = db.execute("SELECT token FROM phantoms").fetchall()
+        with _mist._lock:
+            db = _mist._drift()
+            veil_before = _veil.density
+            mist_count = db.execute("SELECT COUNT(*) FROM phantoms").fetchone()[0]
+            # Rebuild Veil from Mist: clear and re-touch
+            _veil._bits = bytearray((_VEIL_BITS + 7) // 8)
+            _veil._count = 0
+            rows = db.execute("SELECT token FROM phantoms").fetchall()
         for (token,) in rows:
             _veil.touch(token)
         _veil.rest(_VEIL_PATH)

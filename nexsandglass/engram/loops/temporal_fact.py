@@ -27,6 +27,9 @@ logger = logging.getLogger(__name__)
 
 
 # 关系类型：地点/状态类关系需要时效性处理
+# 语义约定：只有本集合内的 relation 才做「冲突→旧值失效+写新值」的时序覆盖；
+# 集合外的 relation（如"座驾"、"喜欢"）走非时序直插分支，不查冲突、直接写。
+# 集成者如需对某 relation 做时序覆盖，须先加入此集合，否则仅直插。
 TEMPORAL_RELATIONS = frozenset({
     "住在", "位于", "使用", "常用", "主要用",
     "邮箱", "电话", "地址", "住址",
@@ -66,6 +69,8 @@ def resolve_temporal_conflict(
     now_str = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     expired_ids = []
 
+    # 自足建表：消除对 weavethread 写入口的隐藏依赖（全新空库可直接用）
+    _ensure_table(db_path)
     conn = sqlite3.connect(db_path, timeout=10)
 
     # 非时效关系：直接写入
@@ -136,16 +141,60 @@ def resolve_temporal_conflict(
     return report
 
 
-def ensure_temporal_columns(db_path: str) -> None:
-    """确保 wthread_triples 表有 valid_from / valid_until 列（兼容旧表）。"""
+def _ensure_table(db_path: str) -> None:
+    """确保 wthread_triples 表存在（temporal_fact 自足，不依赖外部建表）。
+
+    表 DDL 原本只存在于 `weavethread._ensure_table()`，且仅在 weavethread
+    的写入口被调用。第三方若直接使用本模块的 temporal API 而未先触发
+    weavethread 初始化（全新空库 / 按 README 直接集成），`wthread_triples`
+    不存在 → `no such table`，写路径被吞 → 数据静默丢失，读路径直接崩溃。
+
+    这里在模块内复制建表 + 索引 + 时序列迁移，使 temporal_fact 独立可用。
+    """
     conn = sqlite3.connect(db_path, timeout=10)
-    for col, typ in [("valid_from", "TEXT"), ("valid_until", "TEXT")]:
-        try:
-            conn.execute(f"ALTER TABLE wthread_triples ADD COLUMN {col} {typ}")
-        except Exception:
-            pass  # 列已存在
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS wthread_triples (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subject TEXT NOT NULL,
+                relation TEXT NOT NULL,
+                object TEXT NOT NULL,
+                source_line INTEGER,
+                confidence REAL DEFAULT 0.5,
+                source TEXT DEFAULT 'regex',
+                valid_from TEXT,
+                valid_until TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_wthread_subject ON wthread_triples(subject)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_wthread_relation ON wthread_triples(relation)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_wthread_object ON wthread_triples(object)")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def ensure_temporal_columns(db_path: str) -> None:
+    """确保 wthread_triples 表有 valid_from / valid_until 列（兼容旧表）。
+
+    先 `_ensure_table` 建表（若无），再 ALTER 补列——老表可能缺时序列。
+    """
+    _ensure_table(db_path)
+    conn = sqlite3.connect(db_path, timeout=10)
+    try:
+        for col, typ in [("valid_from", "TEXT"), ("valid_until", "TEXT")]:
+            try:
+                conn.execute(f"ALTER TABLE wthread_triples ADD COLUMN {col} {typ}")
+            except Exception:
+                pass  # 列已存在
+        conn.commit()
+    finally:
+        conn.close()
 
 
 # ══════════════════════════════════════════════════════════

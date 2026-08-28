@@ -54,24 +54,34 @@ _ENTITY_RE = re.compile(
 )
 
 _conn = None
-_commit_pending = 0
 _db_lock = threading.Lock()  # 共享连接由 SearchRouter 多线程并发访问——需要外部锁
 
 
 def _get_conn():
     global _conn
     if _conn is None:
-        _conn = sqlite3.connect(_SHADOW_DB, check_same_thread=False)
+        _conn = sqlite3.connect(_SHADOW_DB, timeout=10, check_same_thread=False)
+        # WAL 模式：允许读写并发，显著降低同库多连接时的锁竞争
+        try:
+            _conn.execute("PRAGMA journal_mode=WAL")
+        except Exception:
+            pass
         _conn.executescript(_SCHEMA)
         _conn.commit()
     return _conn
 
 def _maybe_commit():
-    global _commit_pending
-    _commit_pending += 1
-    if _commit_pending >= 3:
-        _get_conn().commit()
-        _commit_pending = 0
+    """每次写操作结束立即提交，释放 SQLite 写锁。
+
+    原实现按『累积 3 次写才 commit 一次』批提交，导致持久连接 `_conn`
+    在两次操作之间的空闲期仍持有 shadow_sand.db 的未提交写事务锁，
+    阻塞同库其他连接（如 weavethread 直写、resolve_temporal_conflict）
+    写入 → `database is locked`，写入被吞掉、数据静默丢失。
+
+    改为每次写操作后立即 commit：单操作内多次写仍在一个事务里（原子），
+    操作结束即释放写锁，不跨操作持锁。`_commit_pending` 计数器随之移除。
+    """
+    _get_conn().commit()
 
 
 # ═══════════════════ 查询（脱口而出层） ═══════════════════
