@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { api } from '../api.js'
+import MbIcon from '../components/MbIcon.vue'
 
 const memories = ref([])
 const loading = ref(true)
@@ -15,7 +16,6 @@ onMounted(async () => {
     ])
     memories.value = memRes.items
     emotions.value = emoRes.items
-    // 按日期分组
     const map = {}
     for (const m of memRes.items) {
       const day = (m.ts || m.created_at || '').slice(0, 10)
@@ -24,11 +24,8 @@ onMounted(async () => {
       map[day].push(m)
     }
     groups.value = Object.entries(map).sort(([a], [b]) => b.localeCompare(a))
-  } catch (e) {
-    console.error(e)
-  } finally {
-    loading.value = false
-  }
+  } catch (e) { console.error(e) }
+  finally { loading.value = false }
 })
 
 function emotionOnDay(day) {
@@ -38,19 +35,21 @@ function emotionOnDay(day) {
 
 <template>
   <div>
-    <h1 style="margin-bottom: 16px">⏱️ 故事线</h1>
-    <div v-if="loading" class="muted">加载中…</div>
+    <div v-if="loading" class="loading"><span class="spin"></span>加载中</div>
     <div v-else-if="!groups.length" class="muted">暂无记忆</div>
     <div v-else>
-      <div v-for="([day, items], gi) in groups" :key="gi" class="card">
-        <h3 style="display: flex; align-items: center; gap: 10px">
-          <span>📅 {{ day }}</span>
-          <span v-for="(emo, ei) in emotionOnDay(day)" :key="ei"
-                style="font-size: 14px; color: var(--accent)">🌊 {{ emo.mood }}</span>
-        </h3>
-        <div v-for="(item, mi) in items" :key="mi" class="list-item" style="padding-left: 20px">
+      <div v-for="([day, items], gi) in groups" :key="gi" class="card tl-day">
+        <span class="tl-node"></span>
+        <div class="tl-head">
+          <MbIcon name="clock" :size="15" style="color: var(--accent-deep)" />
+          <h3 style="margin: 0; font-size: 16px; font-family: var(--mono)">{{ day }}</h3>
+          <span v-for="(emo, ei) in emotionOnDay(day)" :key="ei" class="tag emotional">
+            {{ emo.mood }}
+          </span>
+        </div>
+        <div v-for="(item, mi) in items" :key="mi" class="list-item">
           <span v-if="item.type" class="tag" :class="item.type">{{ item.type }}</span>
-          <span>{{ item.content || item.text }}</span>
+          <span class="body">{{ item.content || item.text }}</span>
         </div>
       </div>
     </div>
