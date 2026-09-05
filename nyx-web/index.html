@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nyx 记忆书</title>
+</head>
+<body>
+  <div id="app"></div>
+  <script>
+    // 全局错误显示器：JS 崩溃时把错误画在页面上，避免白屏
+    (function () {
+      var shown = false;
+      function show(msg) {
+        if (shown) return; shown = true;
+        var app = document.getElementById('app');
+        if (app) app.innerHTML =
+          '<div style="max-width:640px;margin:60px auto;padding:24px;font-family:monospace;'
+          + 'background:#161b22;color:#ff7b72;border-radius:12px;white-space:pre-wrap;word-break:break-all;">'
+          + '⚠️ 前端出错了，把下面的信息发给 Hermes：\n\n' + msg + '</div>';
+      }
+      window.addEventListener('error', function (e) {
+        show((e.message || 'Script error') + '\n' + (e.filename || '') + ':' + (e.lineno || ''));
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        show('Promise 拒绝: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)));
+      });
+    })();
+  </script>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
