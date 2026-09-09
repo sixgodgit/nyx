@@ -124,9 +124,43 @@ nexsandglass/
 
 ---
 
+## 📊 Benchmark
+
+基于 `tests/eval/run_eval.py` 运行的记忆系统评测（测试集 60 条，top-k=5）：
+
+| 指标 | 结果 |
+|------|------|
+| 词法检索召回率 | 75.00% |
+| Episodic 记忆 30 天衰减后权重 | 22.31% |
+| 评测脚本 | `tests/eval/run_eval.py` |
+
+>注：混合检索（词法+RRF向量）需要安装 `[vector]` 或 `[chroma]` 额外依赖后运行。
+
+---
+
 ## 🚀 安装
 
-### 方式一：直接安装
+### 方式一：pip 安装（推荐）
+
+```bash
+pip install nyx-memory
+```
+
+带 MCP 支持：
+
+```bash
+pip install "nyx-memory[mcp]"
+```
+
+带向量语义检索：
+
+```bash
+pip install "nyx-memory[vector,chroma]"
+```
+
+> 包名 `nyx-memory`（PyPI）；Python 模块名仍为 `nexsandglass`（`import nexsandglass`）。
+
+### 方式二：直接安装
 
 ```bash
 # Linux / macOS
@@ -136,13 +170,13 @@ nexsandglass/
 install.bat
 ```
 
-### 方式二：Docker
+### 方式三：Docker
 
 ```bash
 docker compose up -d
 ```
 
-### 方式三：作为 Hermes 技能
+### 方式四：作为 Hermes 技能
 
 技能文件位于 `skills/nyx/`，复制到 Hermes 技能目录即可自动加载：
 
