@@ -296,6 +296,121 @@ def wthread_to_weave(entity: str = "user") -> list:
     }
 
 
+def _typed_link_from_relation(relation: str) -> tuple[str, float]:
+    """将 nyx 的 relation 映射到 OpenViking 风格的类型化 link_type。
+
+    返回 (link_type, weight_multiplier)
+    """
+    belongs = ("使用", "安装", "依赖")
+    evolved = ("替换为", "迁移")
+    contradicts = ("对比", "放弃", "反感")
+    caused = ("导致", "引起")
+    derived = ("派生", "继承")
+    if relation in belongs:
+        return "belongs_to", 1.0
+    if relation in evolved:
+        return "evolved_from", 1.0
+    if relation in contradicts:
+        return "contradicts", 1.0
+    if relation in caused:
+        return "caused_by", 1.0
+    if relation in derived:
+        return "derived_from", 1.0
+    return "related_to", 1.0
+
+
+def wthread_links(entity: str = "user") -> list[dict]:
+    """将 wthread_triples 转为类型化 links/backlinks，供 PPR 图增强使用。
+
+    每条记录包含 from/to entity、link_type、weight、relation。
+    """
+    triples = wthread_query(entity=entity, limit=1000)
+    links = []
+    for t in triples:
+        lt, _ = _typed_link_from_relation(t["relation"])
+        links.append({
+            "from": t["subject"],
+            "to": t["object"],
+            "link_type": lt,
+            "relation": t["relation"],
+            "weight": float(t.get("confidence", 0.5)),
+        })
+    return links
+
+
+def wthread_ppr(
+    seeds: dict[str, float],
+    max_depth: int = 2,
+    damping: float = 0.85,
+    min_link_weight: float = 0.0,
+    min_score: float = 0.001,
+    max_iter: int = 20,
+) -> list[tuple[str, float]]:
+    """基于 wthread_triples 的简化 PPR 图增强。
+
+    seeds: {entity: score}
+    返回排序后的 (entity, score) 列表（不含 seeds 本身）。
+    """
+    from collections import defaultdict
+
+    # 配置表：(link_type, direction) -> weight_mult
+    cfg = {
+        ("contradicts", "out"): 0.8, ("contradicts", "in"): 0.8,
+        ("belongs_to", "out"): 0.7, ("belongs_to", "in"): 0.7,
+        ("caused_by", "out"): 0.5, ("caused_by", "in"): 0.3,
+        ("derived_from", "out"): 0.2, ("derived_from", "in"): 0.6,
+        ("evolved_from", "out"): 0.3, ("evolved_from", "in"): 0.9,
+        ("related_to", "out"): 0.4, ("related_to", "in"): 0.4,
+    }
+
+    # 加载全部三元组并构建图
+    all_triples = wthread_query(limit=10000)
+    out_edges: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    in_edges: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    for t in all_triples:
+        lt, _ = _typed_link_from_relation(t["relation"])
+        link = {"to": t["object"], "weight": float(t.get("confidence", 0.5)), "relation": t["relation"]}
+        out_edges[(t["subject"], lt)].append(link)
+        in_edges[(t["object"], lt)].append({
+            "to": t["subject"], "weight": link["weight"], "relation": t["relation"]
+        })
+
+    total = sum(seeds.values()) or 1.0
+    scores = {k: v / total for k, v in seeds.items()}
+
+    for _ in range(max_iter):
+        new_scores = defaultdict(float)
+        for node, score in scores.items():
+            # teleport 保留
+            new_scores[node] += (1 - damping) * score
+            # 出边
+            for (src, lt), links in out_edges.items():
+                if src != node:
+                    continue
+                mult = cfg.get((lt, "out"), 0.3)
+                for lk in links:
+                    if lk["weight"] < min_link_weight:
+                        continue
+                    new_scores[lk["to"]] += score * damping * lk["weight"] * mult
+            # 入边（backlinks）
+            for (dst, lt), links in in_edges.items():
+                if dst != node:
+                    continue
+                mult = cfg.get((lt, "in"), 0.3)
+                for lk in links:
+                    if lk["weight"] < min_link_weight:
+                        continue
+                    new_scores[lk["to"]] += score * damping * lk["weight"] * mult
+        # 每轮归一，避免数值爆炸
+        s = sum(new_scores.values()) or 1.0
+        scores = {k: v / s for k, v in new_scores.items() if v / s >= min_score}
+
+    # 排除 seeds
+    result = [(k, v) for k, v in scores.items() if k not in seeds]
+    result.sort(key=lambda x: x[1], reverse=True)
+    return result
+
+
 def wthread_weave(limit: int = 3) -> str:
     """快捷桥接：返回织布机可注入的因果摘要。
     用于 session_context 或 system_prompt_block 注入。
