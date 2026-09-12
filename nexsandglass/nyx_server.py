@@ -16,11 +16,35 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # ── 数据目录 ──────────────────────────────────────────────
-NEXSANDBASE = Path(os.environ.get("NEXSANDBASE_HOME", "/root/.hermes/nexsandglass"))
-SANDGLASS_TXT = NEXSANDBASE / "sandglass.txt"
-PERSONA_MD    = NEXSANDBASE / "persona" / "persona.md"
-ENGRAm_STORE  = NEXSANDBASE / "engram_store.jsonl"
-EMOTION_LOG   = NEXSANDBASE / "emotion_log.jsonl"
+# 惰性解析：每次访问都读当前 NEXSANDBASE_HOME，而不是 import 时固化。
+#
+# 固化版本的坑（实测踩到）：测试用 monkeypatch 换掉 NEXSANDBASE_HOME 后，
+# 即使 del sys.modules[...] 再重新 import，父包 nexsandglass 仍持有旧模块
+# 对象，`from nexsandglass import nyx_server` 拿回的是旧实例 —— 于是
+# 写入端(memid，已惰性)和读取端(本模块，固化)指向不同目录，
+# /api/memories 永远读不到刚写进去的日记。
+# 惰性化之后无需重载，同进程切换数据目录天然安全。
+
+_DEFAULT_NB = "/root/.hermes/nexsandglass"
+
+
+def _nb() -> Path:
+    return Path(os.environ.get("NEXSANDBASE_HOME") or _DEFAULT_NB)
+
+
+def __getattr__(name: str):
+    # PEP 562：模块级属性按需计算，保持 NEXSANDBASE / SANDGLASS_TXT 等旧名字可用
+    if name == "NEXSANDBASE":
+        return _nb()
+    if name == "SANDGLASS_TXT":
+        return _nb() / "sandglass.txt"
+    if name == "PERSONA_MD":
+        return _nb() / "persona" / "persona.md"
+    if name == "ENGRAm_STORE":
+        return _nb() / "engram_store.jsonl"
+    if name == "EMOTION_LOG":
+        return _nb() / "emotion_log.jsonl"
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 app = FastAPI(title="Nyx Memory Book", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -29,12 +53,17 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 # ── 内部读取工具 ──────────────────────────────────────────
 
 def _read_sandglass(limit: int = 20, since: Optional[datetime] = None) -> list[dict]:
-    """读 sandglass.txt，按 (ts,text) 去重后返回最近 limit 条（或 since 之后全部）。"""
+    """读 sandglass.txt，按 (ts,text) 去重后返回最近 limit 条（或 since 之后全部）。
+
+    已脱敏的记录直接跳过：它们的正文已经被删除，剩下的 `[REDACTED ... reason=...]`
+    不是记忆，而且把它返回出去等于对外公布「用户在什么时候删了什么」——
+    泄漏删除行为本身。
+    """
     lines: list[dict] = []
-    if not SANDGLASS_TXT.exists():
+    if not (_nb() / 'sandglass.txt').exists():
         return lines
     seen = set()
-    with open(SANDGLASS_TXT, encoding="utf-8", errors="replace") as f:
+    with open(_nb() / 'sandglass.txt', encoding="utf-8", errors="replace") as f:
         for raw in f:
             raw = raw.rstrip("\n")
             if not raw:
@@ -43,6 +72,8 @@ def _read_sandglass(limit: int = 20, since: Optional[datetime] = None) -> list[d
             if len(parts) < 3:
                 continue
             ts_str, sender, text = parts[0], parts[1], parts[2]
+            if text.lstrip().startswith("[REDACTED"):
+                continue
             try:
                 ts = datetime.fromisoformat(ts_str.replace(" ", "T", 1))
             except ValueError:
@@ -59,10 +90,10 @@ def _read_sandglass(limit: int = 20, since: Optional[datetime] = None) -> list[d
 
 def _read_engram_store() -> list[dict]:
     """读 engram_store.jsonl 全量。"""
-    if not ENGRAm_STORE.exists():
+    if not (_nb() / 'engram_store.jsonl').exists():
         return []
     rows = []
-    for raw in open(ENGRAm_STORE, encoding="utf-8"):
+    for raw in open(_nb() / 'engram_store.jsonl', encoding="utf-8"):
         raw = raw.strip()
         if not raw:
             continue
@@ -75,10 +106,10 @@ def _read_engram_store() -> list[dict]:
 
 def _read_emotion_log(limit: int = 50) -> list[dict]:
     """读 emotion_log.jsonl 最后 limit 条。"""
-    if not EMOTION_LOG.exists():
+    if not (_nb() / 'emotion_log.jsonl').exists():
         return []
     lines = []
-    for raw in open(EMOTION_LOG, encoding="utf-8"):
+    for raw in open(_nb() / 'emotion_log.jsonl', encoding="utf-8"):
         raw = raw.strip()
         if not raw:
             continue
@@ -91,9 +122,9 @@ def _read_emotion_log(limit: int = 50) -> list[dict]:
 
 def _read_persona() -> str:
     """读 persona.md 原文。"""
-    if not PERSONA_MD.exists():
+    if not (_nb() / 'persona' / 'persona.md').exists():
         return ""
-    return PERSONA_MD.read_text(encoding="utf-8")
+    return (_nb() / 'persona' / 'persona.md').read_text(encoding="utf-8")
 
 
 def _get_open_loops(engram_rows: list[dict]) -> list[dict]:
@@ -158,18 +189,21 @@ STAMPS = {
 
 def _append_to_sandglass(text: str, sender: str = "user") -> int:
     """直接追加一行到 sandglass.txt，返回新行号（从0计）。"""
-    line = f"{datetime.now():%Y-%m-%d %H:%M:%S} | {sender} | {text}\n"
-    with open(SANDGLASS_TXT, "a", encoding="utf-8") as f:
-        f.write(line)
-    # 返回行号（简略，读全文计数）
-    with open(SANDGLASS_TXT, encoding="utf-8", errors="replace") as f:
-        return sum(1 for _ in f) - 1  # 0-indexed
+    # 走 ID 中枢。原实现自己拼行、自己 open("a")、再重读全文数行号：
+    # 没有锁（并发写会交错），不进中枢（verify 立刻红），
+    # 数行号还要把整个文件读一遍（59463 行）。Step 2 修掉的毛病它占全了。
+    from nexsandglass.core import memid
+    mem_id = memid.allocate(text, sender=sender)
+    if not mem_id:
+        raise RuntimeError("写入沙漏失败（锁超时或中枢拒绝）")
+    rec = memid.get(mem_id)
+    return (rec["line_start"] - 1) if rec else -1  # 0-indexed，与旧返回一致
 
 
 def _append_to_emotion_log(mood: str, ts: Optional[str] = None):
     """追加到 emotion_log.jsonl。"""
     record = {"ts": ts or datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "mood": mood}
-    with open(EMOTION_LOG, "a", encoding="utf-8") as f:
+    with open(_nb() / 'emotion_log.jsonl', "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
@@ -197,7 +231,7 @@ def _try_shadow_index(text: str, line_num: int = 0):
 @app.get("/api/health")
 def health():
     """健康检查。"""
-    return {"status": "ok", "base": str(NEXSANDBASE), "time": datetime.now(timezone.utc).isoformat()}
+    return {"status": "ok", "base": str(_nb()), "time": datetime.now(timezone.utc).isoformat()}
 
 
 @app.get("/api/today", response_model=TodayPage)

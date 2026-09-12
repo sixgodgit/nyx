@@ -146,9 +146,22 @@ def _clean_entity(text: str) -> str:
     return ""
 
 
-def wthread_store(text: str, line_num: int = 0, subject: str = "user") -> int:
-    """提取并存储三元组。返回存储数量"""
+def wthread_store(text: str, line_num: int = 0, subject: str = "user",
+                  mem_id: str = None) -> int:
+    """提取并存储三元组。返回存储数量。
+
+    mem_id 由 ID 中枢给出。历史上调用方一律传 line_num=0，导致 99 条三元组里
+    93 条 source_line=0 —— 知识图谱完全无法回溯来源。
+    """
     _ensure_table()
+    try:
+        _c = sqlite3.connect(_DB, timeout=10)
+        if "source_mem_id" not in [r[1] for r in _c.execute("PRAGMA table_info(wthread_triples)")]:
+            _c.execute("ALTER TABLE wthread_triples ADD COLUMN source_mem_id TEXT")
+            _c.commit()
+        _c.close()
+    except Exception:
+        pass
     if os.environ.get("WTHREAD_LLM_EXTRACTION"):
         triples_with_source = wthread_extract_with_source(text, line_num)
     else:
@@ -170,8 +183,9 @@ def wthread_store(text: str, line_num: int = 0, subject: str = "user") -> int:
         if exists:
             continue
         conn.execute(
-            "INSERT INTO wthread_triples (subject, relation, object, source_line, source, created_at) VALUES (?,?,?,?,?,?)",
-            (subj, rel, obj, line_num, src_tag, now)
+            "INSERT INTO wthread_triples (subject, relation, object, source_line,"
+            " source, created_at, source_mem_id) VALUES (?,?,?,?,?,?,?)",
+            (subj, rel, obj, line_num, src_tag, now, mem_id)
         )
         count += 1
     conn.commit()

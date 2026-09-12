@@ -19,6 +19,10 @@ from nexsandglass.l3.l3_search_core import simhash as _l3_simhash
 
 
 def simhash_rerank(candidates, query) -> list:
+    """⚠ 已从检索管线中移除，仅为兼容保留。理由见 SearchRouter.search 内注释。
+
+    不要重新接回管线：它会用汉明距离覆盖 density×trust 排序。
+    """
     q_fp = _l3_simhash(query)
     if q_fp == -1:
         return candidates
@@ -43,12 +47,18 @@ def sand_density(candidates, query_tokens, query) -> list:
     except Exception:
         pass
     scored = []
+    nq = max(len(query_tokens), 1)
     for item in candidates:
         ln = item[0]
         text = item[2] if len(item) > 2 else ""
-        text_tokens = _query_tokens(text)
-        matched = len(query_tokens & text_tokens)
-        density = matched / max(len(query_tokens), 1)
+        # 直接做子串判断，不要对整条记忆重新分词。
+        # _query_tokens(text) 产出的就是 text 的 n-gram 集合，求交集等价于
+        # 「这个 query token 是否出现在 text 里」—— 但前者要把几 KB 正文
+        # 全量切成 2/3/4 字窗口。Step 3 之后候选从"单行"变成"整条记忆"，
+        # 这一步的成本放大了近一个数量级，实测合并排序占了单次查询 2.5s 中的 1.9s。
+        low = text.lower()
+        matched = sum(1 for t in query_tokens if t in low)
+        density = matched / nq
         trust = trust_scores.get(ln, 0.5)
         fp = _l3_simhash(text[:500])
         if fp == -1:
@@ -67,9 +77,10 @@ def dynamic_expand(candidates, tokens, limit: int) -> list:
         return candidates[:limit]
     expanded = candidates[:]
     seen = {c[0] if len(c) > 0 else 0 for c in expanded}
+    low_tokens = [t.lower() for t in tokens]
     for item in candidates[limit:]:
-        text = item[2] if len(item) > 2 else ""
-        if any(t.lower() in text.lower() for t in tokens):
+        low = (item[2] if len(item) > 2 else "").lower()
+        if any(t in low for t in low_tokens):
             if item[0] not in seen:
                 expanded.append(item)
                 seen.add(item[0])
@@ -100,7 +111,11 @@ class Fts5Search:
 
 
 class IdxSearch:
-    """IDX倒排索引搜索—中文子串+英文模糊。独立可测。"""
+    """IDX倒排索引搜索—中文子串+英文模糊。独立可测。
+
+    倒排现在把 token 映射到**记录首行号**，正文经 sandglass_sqlite.get_records
+    取整条记忆 —— 不再 open(file).readlines()[ln-1] 只拿首行。
+    """
     def __init__(self, sandfile=None, idx_path=None):
         self.sandfile = sandfile
         self.idx_path = idx_path
@@ -108,59 +123,89 @@ class IdxSearch:
     def search(self, query: str, limit: int = 30) -> list:
         try:
             from nexsandglass.features.sandglass_vault import _sync_index, _query_tokens, rebuild_index
+            from nexsandglass.core.sandglass_sqlite import get_records, sync_incremental
             idx = _sync_index()
             if not idx:
                 rebuild_index()
                 idx = _sync_index()
             if not idx: return []
             tokens = _query_tokens(query)
+            from nexsandglass.core.sandglass_sqlite import count as _cnt
             candidates = {}
-            for token in tokens:
-                if token in idx:
-                    for ln in idx[token]:
-                        candidates[ln] = candidates.get(ln, 0) + 1
+            for token, postings in _usable_postings(idx, tokens, max(_cnt(), 1)):
+                for ln in postings:
+                    candidates[ln] = candidates.get(ln, 0) + 1
             if not candidates: return []
-            results = []
-            with open(self.sandfile or _SANDGLASS, "r", encoding="utf-8") as f:
-                for n, line in enumerate(f, 1):
-                    if n in candidates:
-                        ts, sender, text = _parse_line(line)
-                        if ts and text:
-                            results.append((n, ts, text, candidates[n]))
-            results.sort(key=lambda x: x[3], reverse=True)
-            return [(r[0], r[1], r[2]) for r in results[:limit]]
+            sync_incremental()
+            # 先按命中 token 数排序截断，再取记录正文。
+            # 高频 n-gram 会命中几千条，之前是全部取出整条正文再截断 —— 纯浪费。
+            top = sorted(candidates.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+            recs = get_records([ln for ln, _ in top])
+            return [(ln, recs[ln][0], recs[ln][2]) for ln, _ in top if ln in recs]
         except Exception:
             return []
 
 
+# 高 DF 剪枝阈值：出现在超过这个比例的文档里的 token，IDF≈0，
+# 对排序没有贡献，却会把候选集撑到几千条。小语料不剪（下限 50 篇）。
+_HIGH_DF_RATIO = 0.30
+_HIGH_DF_FLOOR = 50
+
+
+def _usable_postings(idx: dict, tokens, n_docs: int):
+    """(token, postings) 列表，已剔除高 DF 的噪音 n-gram。"""
+    cap = max(_HIGH_DF_FLOOR, int(n_docs * _HIGH_DF_RATIO))
+    out = [(t, idx[t]) for t in tokens if t in idx and len(idx[t]) <= cap]
+    if not out:      # 全被剪掉（query 全是高频片段）→ 退回不剪
+        out = [(t, idx[t]) for t in tokens if t in idx]
+    return out
+
+
 class TfidfSearch:
+    """TF-IDF 检索。文档单位是**一条记忆**。
+
+    不做全表扫描：候选和 DF 都从倒排索引取，只对入围的少数记录读正文算 TF。
+    旧实现把全部 8852 条记忆读进内存逐条打分，其中绝大多数 score=0 会被丢弃 ——
+    纯浪费，而且 Step 3 之后正文变成整条记忆，成本又放大了一个数量级。
+    """
     def __init__(self, sandfile=None):
         self.sandfile = sandfile or _SANDGLASS
+
     def search(self, query: str, limit: int = 30) -> list:
         try:
-            from nexsandglass.features.sandglass_vault import _query_tokens
+            from nexsandglass.features.sandglass_vault import _query_tokens, _sync_index, rebuild_index
+            from nexsandglass.core.sandglass_sqlite import get_records, count, sync_incremental
             tokens = _query_tokens(query)
             if not tokens: return []
-            all_lines = []
-            with open(self.sandfile, "r", encoding="utf-8") as f:
-                for n, line in enumerate(f, 1):
-                    if " | " in line:
-                        ts, sender, text = _parse_line(line)
-                        if ts and text:
-                            all_lines.append((n, ts, text))
-            if not all_lines: return []
-            # 一次 lowercase，一次遍历算文档频率
-            lowered = [(ln, ts, text, text.lower()) for ln, ts, text in all_lines]
-            doc_has = [{t for t in tokens if t in ltext} for _, _, _, ltext in lowered]
-            N = len(all_lines)
-            df = {t: sum(1 for hits in doc_has if t in hits) for t in tokens}
+            sync_incremental()
+            idx = _sync_index()
+            if not idx:
+                rebuild_index(); idx = _sync_index()
+            if not idx: return []
+            N = max(count(), 1)
+
+            # 一阶段：用 IDF 之和粗选候选
+            rough = {}
+            for t, postings in _usable_postings(idx, tokens, N):
+                idf = math.log((N + 1) / (len(postings) + 1))
+                for ln in postings:
+                    rough[ln] = rough.get(ln, 0.0) + idf
+            if not rough: return []
+            short = sorted(rough.items(), key=lambda kv: kv[1], reverse=True)[:max(limit * 3, 30)]
+
+            # 二阶段：只对入围的读正文，算真正的 tf×idf
+            recs = get_records([ln for ln, _ in short])
+            df = {t: len(p) for t, p in _usable_postings(idx, tokens, N)}
             scored = []
-            for (ln, ts, text, ltext), hits in zip(lowered, doc_has):
-                score = 0
-                for token in hits:
-                    tf = ltext.count(token) / max(len(text), 1)
-                    idf = math.log((N + 1) / (df.get(token, 0) + 1))
-                    score += tf * idf
+            for ln, _ in short:
+                if ln not in recs: continue
+                ts, _sender, text = recs[ln]
+                low = text.lower()
+                score = 0.0
+                for t in tokens:
+                    c = low.count(t)
+                    if c:
+                        score += (c / max(len(text), 1)) * math.log((N + 1) / (df.get(t, 0) + 1))
                 if score > 0:
                     scored.append((score, ln, ts, text))
             scored.sort(key=lambda x: x[0], reverse=True)
@@ -190,6 +235,10 @@ class MmapFallback:
                             parts = decoded.split(" | ", 2)
                             if len(parts) < 3: continue
                             ts, sender, text = parts
+                            # mmap 直接扫原始日志，绕过所有索引层的过滤 ——
+                            # 已抹除的记录必须在这里也挡住，否则它是最后一个漏点。
+                            if text.lstrip().startswith("[REDACTED"):
+                                continue
                             if query.lower() in text.lower():
                                 results.append((ln, ts, text[:300]))
                                 if len(results) >= limit: break
@@ -250,18 +299,26 @@ class SearchRouter:
                     seen.add(ln)
                     all_candidates.append(item)
         if shadow_hits:
-            with open(_SANDGLASS, "r", encoding="utf-8") as f:
-                lines = f.readlines()
+            from nexsandglass.core.sandglass_sqlite import get_records
+            want = [ln for _, ln in shadow_hits[:limit] if ln not in seen]
+            recs = get_records(want)
             for score, ln in shadow_hits[:limit]:
-                if ln not in seen and 0 < ln <= len(lines):
-                    ts, sender, text = _parse_line(lines[ln - 1])
+                if ln not in seen and ln in recs:
+                    ts, sender, text = recs[ln]
                     if ts and text:
                         seen.add(ln)
                         all_candidates.append((ln, ts, text))
         if all_candidates:
             tokens = _query_tokens(query)
             ranked = sand_density(all_candidates, tokens, query)
-            ranked = simhash_rerank(ranked, query)
+            # 这里曾经还有一句 `ranked = simhash_rerank(ranked, query)`。
+            # 它把候选全部按「与 query 的汉明距离」重新排序，把上一行精心算出的
+            # density×trust 分数整个洗掉 —— 而 simhash 本来就已经作为 sim_bonus
+            # 计入 sand_density 的公式里了，再排一次纯属破坏。
+            # 实测：正确记录在候选中排第 0，density 排序后仍是第 0，
+            # 被 simhash_rerank 扔到第 30，top5 全是 token 碰撞的假阳性。
+            # simhash 是近重复检测用的，拿短 query 和长文档比汉明距离没有意义，
+            # 而且文档越长罚得越狠 —— 恰好把最有价值的长记忆排到最后。
             # 向量语义 boosting（第五路融合）
             if vector_hits:
                 ranked = self._vector_boost(ranked, vector_hits, query)

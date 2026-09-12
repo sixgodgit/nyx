@@ -30,8 +30,9 @@ def _on_message(event, **_kw) -> None:
         os.makedirs(os.path.dirname(_SANDGLASS), exist_ok=True)
         sender = getattr(event.source, "user_id", "?") or "?"
         text = getattr(event, "text", "") or "(media)"
-        with open(_SANDGLASS, "a", encoding="utf-8") as f:
-            f.write(f"{datetime.now():%Y-%m-%d %H:%M:%S} | {sender} | {text}\n")
+        # 走 ID 中枢，不再直写（同 interfaces/plugin.py）
+        from nexsandglass.core.sandglass_log import log_message
+        log_message(text, sender=sender)
     except Exception:
         logger.exception("sandglass: FAILED")
         try:
@@ -42,6 +43,12 @@ def _on_message(event, **_kw) -> None:
 
 
 def register(ctx) -> None:
+    """注册消息钩子。与 interfaces/plugin.py 共用同一个钩子守卫 ——
+    这两份插件是同一段逻辑的两个副本，谁先注册谁生效，绝不能都挂上去。"""
+    from nexsandglass.core.sandglass_log import claim_hook
+    if not claim_hook("pre_gateway_dispatch"):
+        logger.warning("sandglass: pre_gateway_dispatch 已被认领，本次注册忽略")
+        return
     ctx.register_hook("pre_gateway_dispatch", _on_message)
 
 

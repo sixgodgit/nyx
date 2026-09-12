@@ -38,3 +38,9 @@ Thumbs.db
 *.idx
 *.bin
 *.jsonl
+
+# 备份残留（临时快照，勿提交）
+*.bak
+*.bak.*
+*.bak-*
+*.new.*

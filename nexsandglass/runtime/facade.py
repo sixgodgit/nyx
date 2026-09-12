@@ -229,65 +229,49 @@ def feedback(outcome: dict) -> dict:
 
 
 def forget(selector: dict) -> dict:
-    """遗忘选中的记忆。
+    """遗忘选中的记忆 —— **真删，不是只打个标记**。
 
     selector 支持:
-      - {"memory_id": "..."}   按记忆 id
-      - {"source_id": "..."}   按来源（如 sandglass:ts / shadow:line）
-      - {"all": true}          清空 engram_store（谨慎）
-    返回处理报告。
+      - {"mem_id": "m_..."} / {"mem_ids": [...]}
+      - {"seq": N} / {"seqs": [...]}
+      - {"contains": "子串"}   正文精确子串匹配
+      - {"all": true}          清空（谨慎）
+      - {"source_id": "..."}   兼容旧形态，经 memid.resolve 解析
+      - {"dry_run": true}      只列出会删什么，不动任何东西
+
+    旧实现只遍历 engram_store.jsonl，而召回路径读的是 sandglass.txt ——
+    于是 forget 返回 ok、内容原封不动、下一轮照样被召回。
+    现在委托 erasure.forget()，级联覆盖 7 处：中枢 / 日志正文 / FTS5 /
+    倒排 / 影子沙 / 知识图谱 / engram，并留墓碑防止重建时复活。
     """
-    report = {"ok": False, "action": "noop", "removed": 0}
     try:
-        from nexsandglass.engram import bridge
+        from nexsandglass.core import erasure, memid
 
-        store = bridge._STORE
-        if not os.path.exists(store):
-            report["ok"] = True
-            return report
+        sel = dict(selector or {})
+        dry = bool(sel.pop("dry_run", False))
+        reason = sel.pop("reason", "user_forget")
 
-        all_flag = bool(selector.get("all"))
-        target_id = selector.get("memory_id")
-        target_source = selector.get("source_id")
+        # 兼容旧调用：source_id 可能是 "engram:<ts>" / "shadow:<line>" / 裸行号
+        src = sel.pop("source_id", None)
+        if src is not None:
+            mid = memid.resolve(src)
+            if mid:
+                sel.setdefault("mem_ids", []).append(mid)
 
-        kept: list[str] = []
-        removed = 0
-        with open(store, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                if all_flag:
-                    removed += 1
-                    continue
-                try:
-                    import json
-                    row = json.loads(line)
-                except Exception:
-                    kept.append(line)  # 无法解析的行保留
-                    continue
-                # 匹配 memory_id 或 source_id（engram 旧数据用 ts 作 source）
-                row_source = f"engram:{row.get('ts', '')}"
-                row_id = f"engram:{row.get('ts', '')}"
-                if target_id and row_id == target_id:
-                    removed += 1
-                    continue
-                if target_source and (row_source == target_source or row.get("ts") == target_source):
-                    removed += 1
-                    continue
-                kept.append(line)
-
-        with open(store, "w", encoding="utf-8") as f:
-            f.write("\n".join(kept) + ("\n" if kept else ""))
-
-        report["ok"] = True
-        report["action"] = "forget"
-        report["removed"] = removed
+        rep = erasure.forget(sel, reason=reason, apply=not dry)
+        return {
+            "ok": True,
+            "action": "dry_run" if dry else "erased",
+            "removed": rep["hub"],
+            "selected": rep["selected"],
+            "found": rep["found"],
+            "preview": rep["preview"],
+            "detail": {k: rep[k] for k in
+                       ("journal_lines", "fts", "idx", "shadow", "engram", "vectors")},
+        }
     except Exception as e:
-        logger.debug("[facade.forget] 失败: %s", e)
-        report["detail"] = {"error": str(e)}
-    return report
-
+        logger.error("[facade.forget] 失败: %s", e)
+        return {"ok": False, "action": "error", "removed": 0, "error": str(e)}
 
 def consolidate(*, tag: str = "consolidation") -> dict:
     """维护/异步入口：运行 Dream 生产化 Consolidation（B0）。

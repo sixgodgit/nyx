@@ -13,6 +13,8 @@ NexSandglass 是 Hermes Agent 的记忆基础设施，在 Hermes 原生 memory �
 | 能力 | 模块 | 说明 |
 |------|------|------|
 | 🧠 **沙漏 Sandglass** | `core/sandglass_sqlite.py` | 长期记忆存储、全文搜索、语义搜索 |
+| 🆔 **ID 中枢** | `core/memid.py` | 记忆唯一标识（mem_id）+ 物理行号跨度（line_start/line_end）+ 墓碑（v7.4） |
+| 🗑️ **擦除级联** | `core/erasure.py` | 一次删除贯通中枢/日志正文/FTS/倒排/影子/engram/向量，可独立验收（v7.4） |
 | 🕸️ **织线 Thread** | `features/weavethread.py` | 知识图谱（实体关系三元组），支持时间窗口查询 |
 | 👻 **Déjà Vu (Veil)** | `interfaces/nyx.py` | 模糊感知——"感觉聊过但检索不到"的 Bloom Filter 检测 + 寻回（nyx_hunt） |
 | 🏜️ **影子沙 Fact Store** | `features/shadow_sand.py` | 结构化事实存储（带信任评分） |
@@ -83,6 +85,8 @@ NexSandglass 是 Hermes Agent 的记忆基础设施，在 Hermes 原生 memory �
 ```
 nexsandglass/
 ├── core/                        # 基础设施
+│   ├── memid.py                     # 🆔 ID 中枢：记忆唯一标识 + 行号跨度 + 墓碑（v7.4）
+│   ├── erasure.py                   # 🗑️ 擦除级联：中枢/日志/FTS/索引/影子/向量（v7.4）
 │   ├── embedding_provider.py        # 语义向量后端（本地/外部 API，Task 1）
 │   ├── vector_store.py              # 向量存储（JSON/sqlite-vec，Task 1）
 │   ├── vector_search.py             # 向量语义检索 + RRF 融合（Task 1）
@@ -273,6 +277,43 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 ---
 
 ## 📝 更新日志
+
+### v7.4 (2026-09-13) — ID 中枢落地 + 数据目录解析修复
+
+**新增**
+- 🆔 `core/memid.py`：记忆唯一标识中枢。一条记忆 ≠ 一个物理行——
+  日志按「时间戳 | 发送者 | 正文」切分为**逻辑记忆**，多行消息记 `line_start`/`line_end` 跨度；
+  不再依赖「行号 = 记忆」这一在 1590 条多行消息面前失效的假设。
+  提供 `allocate / resolve / get / tombstone / verify / repair_from_journal / health`
+- 🗑️ `core/erasure.py`：擦除级联。一次 `forget` 贯通中枢墓碑 → 日志正文原地抹除（保持行数）
+  → FTS → 倒排 → 影子(trust/fact_tags/entities/triples) → engram → 向量；
+  `verify_erasure` 独立验收「内容真的没了」；`forget(apply=False)` 默认 dry-run
+- 🩺 `scripts/nyx_healthcheck.py`：六项体检（hub_vs_journal / fts_index / erasure_integrity /
+  inverted_index / write_amplification / entity_index），OK/WARN/BAD 三态
+- ✅ 新增测试 6 个文件：`test_memid` `test_step2_writepath` `test_step3_indexing`
+  `test_step4_repair` `test_step5_erasure` `test_step7_leaks`
+
+**修复**
+- 🛠️ **缺陷1 数据目录在 import 时固化** `core/memid.py`：`_DB`/`_SANDGLASS` 在导入时求值并永久固定，
+  之后 `NEXSANDBASE_HOME` 改变也不生效。跨目录场景（测试隔离、多租户、同进程切换数据目录）下
+  **写入端与读取端指向不同目录**，`/api/memories` 永远读不到刚写入的日记。
+  改为惰性解析（`_db_path()` / `_journal_path()` / `_lock_path()` 每次读环境）
+- 🛠️ **缺陷2 路径覆盖跨环境泄漏** `core/memid.py`：`set_db_path()` 建立的覆盖永不失效，
+  A 测试留下的覆盖会污染 B 测试。新增「覆盖归属目录」判定——环境换目录即自动作废；
+  同时支持直接 `setattr` 的场景（按路径自身所在目录比对）
+- 🛠️ **缺陷3 模块级路径固化 + 父包持有旧模块引用** `nyx_server.py`：
+  `del sys.modules[...]` 后重新 import 拿到的仍是旧模块对象（父包 `nexsandglass` 仍持有引用），
+  重载形同虚设。改用 PEP 562 `__getattr__` 惰性属性，**无需重载**即可跟随数据目录
+- 🔗 `core/erasure.py` 跟进上述惰性化（原先引用 `memid._SANDGLASS` 模块属性）
+
+**教训（写入 README 以免重蹈）**
+- ⚠️ **按 `line_start` 抹除日志前，必须先验证行号语义**。本版清理测试夹具时，
+  中枢里存在**伪行号**记录（测试写到临时 journal，算出 line_start=1,2,3…），
+  而生产日志的第 1、2、3 行是真实对话——一次 `forget` 误抹 345 行真实记忆。
+  **这类污染不能按行号抹除**，须以「重建中枢」（从日志重新分配 mem_id）方式处理；
+  修复缺陷1/2 正是为了不再产生新的伪行号记录
+- ⚠️ 破坏性操作前先备份，且 dry-run 需人工核对「目标行号在生产日志里究竟指向什么」，
+  仅看「选中 N 条」是不够的
 
 ### v7.3 (2026-08-27) — 3 个引擎缺陷修复（Windows 沙盒测试发现）
 
