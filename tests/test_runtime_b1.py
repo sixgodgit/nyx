@@ -78,8 +78,9 @@ def test_direct_write_governance():
     import subprocess, tempfile
     # 独立脚本模拟非 orchestrator 直写
     script = '''import sys, os
-sys.path.insert(0, "/root/.hermes/NexSandglass")
-os.environ["NEXSANDBASE_HOME"] = "/root/.hermes/nexsandglass"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+os.environ.setdefault("NEXSANDBASE_HOME",
+                      os.path.join(os.path.expanduser("~"), ".nyx"))
 os.environ["NYX_ENFORCE_RUNTIME"] = "1"
 import logging, io
 h = logging.StreamHandler(io.StringIO())

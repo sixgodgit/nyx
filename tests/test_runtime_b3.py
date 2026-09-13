@@ -41,7 +41,8 @@ def check(name, cond, detail=""):
 
 def test_formations_golden():
     print("[B3: Formation 走 Promotion 门禁]")
-    os.environ["NEXSANDBASE_HOME"] = "/root/.hermes/nexsandglass"
+    os.environ.setdefault("NEXSANDBASE_HOME",
+                      os.path.join(os.path.expanduser("~"), ".nyx"))
     from nexsandglass.runtime.orchestrator import get_orchestrator
     orch = get_orchestrator()
     # Golden 1: 身份 → promote

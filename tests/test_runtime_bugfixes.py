@@ -133,7 +133,8 @@ def test_adapt_nyx_reads_phantoms():
 # ══════════════════════════════════════════════════════════
 def test_sync_turn_single_raw_log():
     print("[Bug5: sync_turn 单次 raw log]")
-    os.environ["NEXSANDBASE_HOME"] = "/root/.hermes/nexsandglass"
+    os.environ.setdefault("NEXSANDBASE_HOME",
+                      os.path.join(os.path.expanduser("~"), ".nyx"))
     from nexsandglass.core.sandglass_log import _SANDGLASS
     from nexsandglass.core.memory_provider import NexSandglassProvider
 
@@ -154,7 +155,8 @@ def test_sync_turn_single_raw_log():
 def test_feedback_reinforces_persisted_memory():
     print("[Bug6: feedback 持久化权重]")
     import tempfile, json
-    os.environ["NEXSANDBASE_HOME"] = "/root/.hermes/nexsandglass"
+    os.environ.setdefault("NEXSANDBASE_HOME",
+                      os.path.join(os.path.expanduser("~"), ".nyx"))
     from nexsandglass.engram import bridge
     from nexsandglass.runtime.facade import feedback
 
