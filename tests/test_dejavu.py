@@ -294,3 +294,45 @@ def test_scent_consistent_across_contexts():
 def test_scent_empty():
     assert scent("") == []
     assert scent(None or "") == []
+
+# ── refs 存储契约（内嵌串，非规范化表）─────────────────────
+# 曾尝试把 refs 规范化到独立表，实测更差（同数据量磁盘 518 vs 151 B/token，
+# 写入慢 5 倍），已回退。这些测试锁定回退后的行为，防止再犯。
+
+def test_refs_dedup_and_sightings(dv):
+    """同一 key 重复 imprint 不计两次引用，但 sightings 累加。"""
+    dv.imprint("k1", "张老板 川菜馆")
+    dv.imprint("k1", "张老板 川菜馆")
+    ph = dv.hunt("张老板")
+    assert ph, "应能寻回"
+    top = max(ph, key=lambda x: x.sightings)
+    assert top.refs.count("k1") == 1, f"refs 未去重: {top.refs}"
+    assert top.sightings >= 2
+
+
+def test_refs_capped_at_max_refs(tmp_path):
+    """refs 数量不超过 MAX_REFS，且保留的是最近的。"""
+    from nexsandglass.dejavu.mist import MAX_REFS
+    d = DejaVu(str(tmp_path / "dv"))
+    for i in range(MAX_REFS + 15):
+        d.imprint(f"key-{i}", "张老板 川菜馆")
+    ph = d.hunt("张老板")
+    top = max(ph, key=lambda x: x.sightings)
+    assert len(top.refs) == MAX_REFS, f"{len(top.refs)} != {MAX_REFS}"
+    assert f"key-{MAX_REFS + 14}" in top.refs, "应保留最近的引用"
+    assert "key-0" not in top.refs, "最旧的应被挤出"
+    d.close()
+
+
+def test_no_normalized_refs_table(tmp_path):
+    """schema 里不应出现 refs 表（规范化方案已回退）。"""
+    import sqlite3
+    d = DejaVu(str(tmp_path / "dv"))
+    d.imprint("k1", "任意内容")
+    con = sqlite3.connect(os.path.join(d.storage_dir, "mist.db"))
+    tables = {r[0] for r in con.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'")}
+    con.close()
+    d.close()
+    assert "refs" not in tables, f"遗留 refs 表: {tables}"
+    assert "phantoms" in tables
