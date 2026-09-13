@@ -16,7 +16,7 @@ from datetime import datetime
 try:
     from nexsandglass.core.sandglass_paths import _NB
 except Exception:
-    _NB = "/root/.hermes/nexsandglass"
+    _NB = os.path.join(os.path.expanduser("~"), ".nyx")
 
 from nexsandglass.engram.types import MemoryObject
 

@@ -24,7 +24,8 @@ from pathlib import Path
 
 # ─── 配置 ───
 
-LOG_PATH = Path(os.environ.get("THALAMUS_LOG", "/root/.hermes/logs/thalamus.log"))
+LOG_PATH = Path(os.environ.get("THALAMUS_LOG",
+                               str(Path.home() / ".nyx" / "logs" / "thalamus.log")))
 
 # 会诊角色（3 个视角互补）
 PERSONAS = [
@@ -106,7 +107,8 @@ def _resolve_key(key_env: str) -> str:
         return val
     # .env
     try:
-        env_path = Path("/root/.hermes/.env")
+        env_path = Path(os.environ.get("NYX_ENV_FILE",
+                                       str(Path.home() / ".nyx" / ".env")))
         if env_path.exists():
             for line in env_path.read_text().splitlines():
                 if line.startswith(key_env) and "=" in line:

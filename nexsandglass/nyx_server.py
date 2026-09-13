@@ -25,7 +25,7 @@ from pydantic import BaseModel
 # /api/memories 永远读不到刚写进去的日记。
 # 惰性化之后无需重载，同进程切换数据目录天然安全。
 
-_DEFAULT_NB = "/root/.hermes/nexsandglass"
+_DEFAULT_NB = os.path.join(os.path.expanduser("~"), ".nyx")
 
 
 def _nb() -> Path:

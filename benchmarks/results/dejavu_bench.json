@@ -1,0 +1,272 @@
+{
+  "meta": {
+    "timestamp": "2026-09-13 08:40:20",
+    "python": "3.11.15",
+    "veil_bits": 1048576,
+    "veil_hashes": 7,
+    "quick_mode": false,
+    "tokenizer": "cjk 2-gram (fixed boundary) + ascii words",
+    "total_seconds": 314.3
+  },
+  "tokenizer_baseline": {
+    "sample": "高师傅评估了菜单定价俜啺含丬唡卙专唵吴僓哂偁偢咙丒優事偛匓亯厨咱侷僝，下周再碰一次",
+    "tokens": 38,
+    "avg_tokens_per_memory": 37.74,
+    "unique_tokens_at_1k": 24158,
+    "unique_tokens_at_10k": 230844
+  },
+  "recall_gap": {
+    "rows": [
+      {
+        "target_key": "t1",
+        "kind": "实体改写+同义",
+        "target_text": "上周三和张老板聊了川菜馆的事，他说要换厨师",
+        "query": "张总 上次说的 那家做麻辣的店",
+        "fts5_found": false,
+        "sense_familiar": false,
+        "sense_score": 0.0,
+        "hunt_phantoms": 0,
+        "hunt_found_target": false,
+        "dejavu_lifted_miss": false
+      },
+      {
+        "target_key": "t2",
+        "kind": "实体改写+同义",
+        "target_text": "跟李经理确认了冷库维修的报价，预算控制在两万内",
+        "query": "冷藏设备 检修 花费 上限",
+        "fts5_found": false,
+        "sense_familiar": true,
+        "sense_score": 0.1429,
+        "hunt_phantoms": 1,
+        "hunt_found_target": false,
+        "dejavu_lifted_miss": true
+      },
+      {
+        "target_key": "t3",
+        "kind": "同义表述",
+        "target_text": "陈师傅反映后厨排班表需要调整，周末人手不够",
+        "query": "厨师长 提过 值班安排 的问题",
+        "fts5_found": false,
+        "sense_familiar": true,
+        "sense_score": 0.0909,
+        "hunt_phantoms": 1,
+        "hunt_found_target": false,
+        "dejavu_lifted_miss": true
+      },
+      {
+        "target_key": "t4",
+        "kind": "同义表述",
+        "target_text": "赵顾问建议把菜单定价重新评估一遍",
+        "query": "餐饮顾问 提的 价格策略 意见",
+        "fts5_found": false,
+        "sense_familiar": true,
+        "sense_score": 0.1,
+        "hunt_phantoms": 1,
+        "hunt_found_target": false,
+        "dejavu_lifted_miss": true
+      }
+    ],
+    "noise": [
+      {
+        "query": "量子计算对密码学的影响",
+        "familiar": false,
+        "score": 0.0,
+        "phantoms": 0
+      },
+      {
+        "query": "南极洲企鹅的迁徙路线",
+        "familiar": false,
+        "score": 0.0,
+        "phantoms": 0
+      },
+      {
+        "query": "拜占庭帝国的金币铸造工艺",
+        "familiar": false,
+        "score": 0.0,
+        "phantoms": 0
+      }
+    ],
+    "summary": {
+      "n_targets": 4,
+      "fts5_found": 0,
+      "sense_detected_familiar": 3,
+      "hunt_found_target": 0,
+      "dejavu_lifted_miss": 3,
+      "noise_queries": 3,
+      "noise_false_familiar": 0,
+      "corpus": {
+        "background": 500,
+        "targets": 4,
+        "filler": 1000
+      }
+    }
+  },
+  "false_positive_capacity": [
+    {
+      "unique_tokens": 1000,
+      "measured_fp": 0.0,
+      "theoretical_fp": 0.0,
+      "estimated_fp": 0.0,
+      "fill_ratio": 0.00665,
+      "veil_bytes": 131072,
+      "fill_seconds": 0.03,
+      "probes": 100000
+    },
+    {
+      "unique_tokens": 10000,
+      "measured_fp": 0.0,
+      "theoretical_fp": 0.0,
+      "estimated_fp": 0.0,
+      "fill_ratio": 0.064569,
+      "veil_bytes": 131072,
+      "fill_seconds": 0.662,
+      "probes": 100000
+    },
+    {
+      "unique_tokens": 100000,
+      "measured_fp": 0.00659,
+      "theoretical_fp": 0.006501,
+      "estimated_fp": 0.006451,
+      "fill_ratio": 0.48651,
+      "veil_bytes": 131072,
+      "fill_seconds": 3.365,
+      "probes": 100000
+    },
+    {
+      "unique_tokens": 1000000,
+      "measured_fp": 0.99086,
+      "theoretical_fp": 0.991205,
+      "estimated_fp": 0.990824,
+      "fill_ratio": 0.998684,
+      "veil_bytes": 131072,
+      "fill_seconds": 30.146,
+      "probes": 100000
+    }
+  ],
+  "false_positive_e2e": [
+    {
+      "memories": 1000,
+      "unique_tokens": 37781,
+      "measured_fp": 0.0,
+      "theoretical_fp": 2.7e-05,
+      "seconds": 42.1,
+      "ms_per_memory": 42.104
+    },
+    {
+      "memories": 10000,
+      "unique_tokens": 377821,
+      "measured_fp": 0.185,
+      "theoretical_fp": 0.556657,
+      "seconds": 97.78,
+      "ms_per_memory": 9.778
+    }
+  ],
+  "knee_curve": [
+    {
+      "tokens": 20000,
+      "measured_fp": 0.0,
+      "theoretical_fp": 0.0,
+      "estimated_fp": 0.0,
+      "fill_ratio": 0.124969
+    },
+    {
+      "tokens": 40000,
+      "measured_fp": 5e-05,
+      "theoretical_fp": 3.9e-05,
+      "estimated_fp": 3.9e-05,
+      "fill_ratio": 0.234371
+    },
+    {
+      "tokens": 60000,
+      "measured_fp": 0.0005,
+      "theoretical_fp": 0.000427,
+      "estimated_fp": 0.000428,
+      "fill_ratio": 0.330203
+    },
+    {
+      "tokens": 80000,
+      "measured_fp": 0.0018,
+      "theoretical_fp": 0.002077,
+      "estimated_fp": 0.002084,
+      "fill_ratio": 0.41399
+    },
+    {
+      "tokens": 100000,
+      "measured_fp": 0.00685,
+      "theoretical_fp": 0.006501,
+      "estimated_fp": 0.006526,
+      "fill_ratio": 0.487313
+    },
+    {
+      "tokens": 120000,
+      "measured_fp": 0.01465,
+      "theoretical_fp": 0.01545,
+      "estimated_fp": 0.015558,
+      "fill_ratio": 0.551707
+    },
+    {
+      "tokens": 140000,
+      "measured_fp": 0.0309,
+      "theoretical_fp": 0.030452,
+      "estimated_fp": 0.030701,
+      "fill_ratio": 0.607966
+    },
+    {
+      "tokens": 160000,
+      "measured_fp": 0.0559,
+      "theoretical_fp": 0.052471,
+      "estimated_fp": 0.052724,
+      "fill_ratio": 0.656796
+    },
+    {
+      "tokens": 180000,
+      "measured_fp": 0.0815,
+      "theoretical_fp": 0.081776,
+      "estimated_fp": 0.082085,
+      "fill_ratio": 0.699673
+    },
+    {
+      "tokens": 200000,
+      "measured_fp": 0.11815,
+      "theoretical_fp": 0.117971,
+      "estimated_fp": 0.118478,
+      "fill_ratio": 0.737331
+    }
+  ],
+  "knee_points": {
+    "fp_1pct_at": 120000,
+    "fp_5pct_at": 160000,
+    "fp_10pct_at": 200000
+  },
+  "latency": {
+    "memory_count": 10000,
+    "imprint": {
+      "p50_ms": 3.2007,
+      "p95_ms": 5.2938,
+      "mean_ms": 3.3649,
+      "reps": 2000
+    },
+    "sense": {
+      "p50_ms": 0.0849,
+      "p95_ms": 0.106,
+      "mean_ms": 0.1099,
+      "reps": 2000
+    },
+    "hunt": {
+      "p50_ms": 0.134,
+      "p95_ms": 0.2291,
+      "mean_ms": 0.1793,
+      "reps": 2000
+    }
+  },
+  "footprint": {
+    "memories": 10000,
+    "veil_bytes": 131093,
+    "mist_bytes": 65753088,
+    "total_disk_bytes": 70284181,
+    "rss_after_construct_kb": 0,
+    "rss_after_fill_kb": 0,
+    "veil_items": 377821,
+    "mist_total": 230844
+  }
+}

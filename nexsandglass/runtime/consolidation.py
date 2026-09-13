@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 
 # 快照目录（可回滚）
 _SNAPSHOT_DIR = os.path.join(
-    os.environ.get("NEXSANDBASE_HOME", "/root/.hermes/nexsandglass"),
+    os.environ.get("NEXSANDBASE_HOME",
+                   os.path.join(os.path.expanduser("~"), ".nyx")),
     "consolidation_snapshots",
 )
 

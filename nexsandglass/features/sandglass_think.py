@@ -1418,7 +1418,7 @@ def _emotional_entropy(recent_n: int = 10) -> float:
     try:
         from nexsandglass.core.sandglass_paths import _NB as _nb
     except Exception:
-        _nb = "/root/.hermes/nexsandglass"
+        _nb = os.path.join(os.path.expanduser("~"), ".nyx")
     _elog = os.path.join(_nb, "emotion_log.jsonl")
     moods = []
     if os.path.exists(_elog):

@@ -1,10 +1,47 @@
 # NexSandglass / Nyx（夜神）
 
-> **夜神 Nyx — Hermes Agent 的跨会话记忆感知系统**
+> **Nyx — 把「检索失败」也当作一类信号的记忆系统**
 
-NexSandglass 是 Hermes Agent 的记忆基础设施，在 Hermes 原生 memory 工具关闭时接管全部跨会话记忆、事实存储、联想检索和 déjà vu 检测。
+![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.5-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.3-blue)
+## 别的记忆系统回答「找到了什么」，Nyx 还回答「我是不是见过」
+
+用户说「我们聊过的那家川菜馆」，检索返回空。agent 只能答「我没有相关记忆」——
+但用户确实聊过，只是当时的说法和现在不一样。
+
+**这是 recall 系统的一类系统性失败：** 没发生过，和发生过但没找到，
+在所有主流检索器里返回的是同一个东西 —— 空。
+
+| | 向量检索 | BM25 / FTS | **Nyx Déjà Vu** |
+|---|---|---|---|
+| 没发生过 | top-k 非空但全是噪音 | 0 命中 | **陌生**（明确信号）|
+| 发生过但找不到 | top-k 非空但全是噪音 | 0 命中 | **熟悉 + 找回痕迹** |
+| 能否区分这两者 | ✗ | ✗ | ✓ |
+
+Nyx 不去和向量库比召回率 —— 它不降 miss 率。它做的事是**把 miss 分成两类**，
+让上层知道什么时候该说「没聊过」，什么时候该说「好像聊过，我再找找」。
+
+```python
+from nexsandglass.dejavu import DejaVu      # 零依赖，stdlib + sqlite3
+
+dv = DejaVu("./my_memory")
+dv.imprint("msg-1", "上周三和张老板聊了川菜馆的事")
+
+dv.sense("我们聊过的那家川菜馆")   # -> 熟悉 0.22（普通检索在这里返回空）
+dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg-1'], ...)]
+```
+
+两层结构：**Veil**（Bloom Filter，128 KiB）回答「这个词见过没有」，
+**Mist**（SQLite）记录它何时、何地、几次出现过。
+
+> ⚠️ **它不是什么**：不替代检索器，不提高召回质量。
+> 实测中 `sense()` 能正确标出「熟悉」的场景，`hunt()` 往往找不回细节 ——
+> **分类有效，寻回有限**。完整实测数据见 [`benchmarks/dejavu_bench.py`](benchmarks/dejavu_bench.py)，
+> 设计取舍见 [`docs/dejavu.md`](docs/dejavu.md)。
+
+**和 mem0 / cognee / Zep 的差别**：那些系统在「如何在找得到的时候找得更准」上竞争
+（更好的 embedding、更好的图结构、更好的重排）。Nyx 的 Déjà Vu 处理的是
+它们都不返回的那一格 —— 检索失败本身。两者的关系是互补而非替代。
 
 ---
 
@@ -12,11 +49,11 @@ NexSandglass 是 Hermes Agent 的记忆基础设施，在 Hermes 原生 memory �
 
 | 能力 | 模块 | 说明 |
 |------|------|------|
+| 👻 **Déjà Vu** | `dejavu/`（独立子包） | **「感觉聊过但搜不到」** —— Veil(Bloom) + Mist(SQLite)，零依赖，可单独安装使用 |
 | 🧠 **沙漏 Sandglass** | `core/sandglass_sqlite.py` | 长期记忆存储、全文搜索、语义搜索 |
 | 🆔 **ID 中枢** | `core/memid.py` | 记忆唯一标识（mem_id）+ 物理行号跨度（line_start/line_end）+ 墓碑（v7.4） |
 | 🗑️ **擦除级联** | `core/erasure.py` | 一次删除贯通中枢/日志正文/FTS/倒排/影子/engram/向量，可独立验收（v7.4） |
 | 🕸️ **织线 Thread** | `features/weavethread.py` | 知识图谱（实体关系三元组），支持时间窗口查询 |
-| 👻 **Déjà Vu (Veil)** | `interfaces/nyx.py` | 模糊感知——"感觉聊过但检索不到"的 Bloom Filter 检测 + 寻回（nyx_hunt） |
 | 🏜️ **影子沙 Fact Store** | `features/shadow_sand.py` | 结构化事实存储（带信任评分） |
 | 📊 **情绪/画像** | `core/emotion_vocab.py`, `l3/persona_l3.py` | 用户状态追踪、偏移率计算、回音折 |
 | 🌙 **梦境 Dream** | `dream/` | 夜间多阶段复盘：记忆整理、反思成长、创造联结 |
@@ -277,6 +314,43 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 ---
 
 ## 📝 更新日志
+
+### v7.5.0 (2026-09-13) — Déjà Vu 独立子包 + 性能修复
+
+**新增**
+- 👻 `nexsandglass/dejavu/`：Déjà Vu 从 `interfaces/nyx.py` 抽出为**独立子包**，
+  零外部依赖（stdlib + sqlite3），可单独安装使用
+  - `DejaVu(storage_dir)` 显式传目录，不再假设 `~/.hermes` 或任何路径
+  - `imprint(key, text, ts)` —— `key` 为调用方任意字符串，不再假设是沙漏行号
+  - `sense(text) -> FamiliarityResult`（dataclass）、`hunt() -> list[Phantom]`
+  - `persist / reindex / forget / cleanup / gaze`，支持上下文管理器
+- 📊 `benchmarks/dejavu_bench.py`：全量实测基准（假阳性率、拐点、延迟、占用、
+  「熟悉但检索不到」对照实验），结果落 `benchmarks/results/dejavu_bench.json`
+- 🔁 `benchmarks/render_docs.py`：文档数字**自动渲染**自基准结果，不手抄
+- 📄 `docs/dejavu.md` / `docs/dejavu.en.md`：对外技术文章（中英）
+- 🧪 `tests/test_dejavu.py`：30 项独立测试
+- 🚀 `examples/dejavu_minimal.py`：30 行可跑 demo
+
+**修复**
+- ⚡ **imprint 慢 17 倍**：原先每个 token 一次 `commit()`（fsync 密集），
+  实测 66 ms/条。改为整条记忆一次事务提交 → **3.98 ms/条**
+- ⚡ **hunt 慢 3000 倍**：`stalk` 用 `LIKE '%x%'` 子串匹配，前导通配符无法走索引，
+  23 万行时单次 30-105ms；且 hunt 对每个候选 token 各降级一次。
+  改为**先精确匹配**（走主键索引 0.01ms）+ 整体降级一次 → **406ms → 0.13ms**
+- 🛠️ **基准单节运行覆盖整个 JSON**：`--section fp` 会抹掉 B/C/D 的历史结果，
+  导致文档数字失准。改为合并写盘
+- 📉 `MAX_REFS` 50 → 20（实测省 32% 磁盘、快 20%；50 个引用是过度设计）
+
+**记录在案的失败尝试**
+- ⚠️ `refs` 规范化到独立表 —— 实测**更差**（磁盘 518 B/token vs 内嵌 151 B/token，
+  写入慢 5 倍），已回退。原因：内嵌串每 token 一行，规范化后每 (token,key) 一行，
+  行数放大 N 倍，SQLite 每行固定开销吃掉收益。代码中保留了这段说明
+
+**实测结论（诚实报告）**
+- 假阳性率实测与理论吻合到小数点后三位（验证实现正确）
+- 1M bits 位图在真实中文场景约 **1.8 万条记忆**达到 1% 假阳性（非标称的百万）
+- 对照实验：FTS5 找回 **0/4**，`sense()` 判熟悉 **3/4**，`hunt()` 找回 **0/4**
+  → **分类有效，寻回有限**，这是「零依赖」契约的必然代价，已在文档中写明
 
 ### v7.4 (2026-09-13) — ID 中枢落地 + 数据目录解析修复
 

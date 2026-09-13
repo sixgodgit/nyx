@@ -176,7 +176,7 @@ def _demo() -> None:
         ),
         Memory(
             memory_id="epi_x", type="episodic",
-            content="昨天部署了马维斯服务器", access_count=9,  # 非 procedural, 应被跳过
+            content="昨天部署了一台新服务器", access_count=9,  # 非 procedural, 应被跳过
         ),
     ]
     cands = distill_procedural_skills(demo_mems, candidate_dir=DEFAULT_CANDIDATE_DIR)
