@@ -17,6 +17,33 @@ _ERROR = os.path.join(_VAULT, ".sandglass_error")
 _PERSONA = os.path.join(_VAULT, "persona", "persona.md")
 
 
+def _shadow_would_resurrect(shadow_path: str) -> bool:
+    """影子副本里是否还留着已经被删除的记忆正文。
+
+    判据是墓碑：中枢里每一条 tombstone 都对应日志里一条已脱敏的记录。
+    如果影子副本在同样的行号上**不是**脱敏标记，那它保存的就是原文。
+    """
+    try:
+        from nexsandglass.core import memid
+        conn = memid.get_conn()
+        rows = conn.execute(
+            "SELECT m.line_start FROM memories m JOIN tombstones t ON t.mem_id = m.mem_id"
+        ).fetchall()
+        if not rows:
+            return False
+        want = {r[0] for r in rows if r[0]}
+        if not want:
+            return False
+        with open(shadow_path, "r", encoding="utf-8", errors="replace") as f:
+            for n, line in enumerate(f, 1):
+                if n in want and memid.REDACTED_PREFIX not in line:
+                    return True
+    except Exception:
+        # 查不出来就按最坏情况算 —— 宁可拒绝恢复，也不能把删掉的内容放回去。
+        return True
+    return False
+
+
 def night_watch() -> str:
     """全系统守夜人检查。返回状态报告。如有告急，立即告知主人。"""
     import hashlib
@@ -73,11 +100,25 @@ def night_watch() -> str:
             master_lines = current_lines
             backup_lines = sum(1 for _ in open(_SHADOW, "rb"))
             if master_lines < backup_lines:
-                import shutil
-                shutil.copy2(_SHADOW, _SANDGLASS)
-                alerts.append(f"🟡 主沙漏被截断（{master_lines}→{backup_lines}行），已从阴影副本恢复")
+                # 还原之前必须先问一句：影子里有没有用户已经删掉的内容？
+                # 脱敏是原地改写、行数不变，所以影子完全可能停在脱敏之前。
+                # 那样这一下 copy2 就把用户删掉的记忆整个恢复回来了 ——
+                # 「已删除」变回「还在」，而且没有任何人会收到通知。
+                if _shadow_would_resurrect(_SHADOW):
+                    alerts.append(
+                        f"🔴 主沙漏被截断（{master_lines}→{backup_lines}行），"
+                        f"但阴影副本里仍有已删除记忆的正文 —— **拒绝自动恢复**。"
+                        f"请人工处理：先对 {_SHADOW} 补做脱敏，再恢复。")
+                else:
+                    import shutil
+                    shutil.copy2(_SHADOW, _SANDGLASS)
+                    alerts.append(f"🟡 主沙漏被截断（{master_lines}→{backup_lines}行），已从阴影副本恢复")
             elif master_lines == backup_lines:
-                ok.append("✅ 阴影副本同步")
+                # 行数相等不等于内容相同 —— 脱敏恰恰是「改内容不改行数」。
+                if _shadow_would_resurrect(_SHADOW):
+                    alerts.append("🔴 阴影副本行数相同但仍含已删除记忆的正文（脱敏没同步过去）")
+                else:
+                    ok.append("✅ 阴影副本同步")
             # master_lines > backup_lines → 正常累积，pulse 会同步
 
     if os.path.exists(_ERROR):
@@ -133,7 +174,7 @@ def night_watch() -> str:
         ok.append("✅ 人格画像存在")
 
     try:
-        import sandglass_think
+        from nexsandglass.features.sandglass_think import comprehensive_offset
         ok.append("✅ 第三层可用")
     except Exception as e:
         alerts.append(f"🔴 第三层异常：{e}")

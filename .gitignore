@@ -29,3 +29,18 @@ Thumbs.db
 # Old archives
 *.zip
 *.tar.gz
+
+# 运行时数据库与状态（勿提交）
+*.db
+*.sqlite
+*.db-wal
+*.db-shm
+*.idx
+*.bin
+*.jsonl
+
+# 备份残留（临时快照，勿提交）
+*.bak
+*.bak.*
+*.bak-*
+*.new.*

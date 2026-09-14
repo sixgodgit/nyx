@@ -3,16 +3,13 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "nexsandglass"
-version = "3.0.0"
-description = "夜神 Nyx — 跨会话记忆感知系统"
+name = "nyx-memory"
+dynamic = ["version"]
+description = "夜神 Nyx — 跨会话记忆感知系统。把「检索失败」也当作一类信号：Déjà Vu 告诉 agent 它是否曾经见过。"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
-authors = [
-    {name = "sixgod", email = "sixgod@hvh.expert"}
-]
-keywords = ["memory", "agent", "ai", "knowledge-graph", "dejavu"]
+keywords = ["memory", "agent", "ai", "knowledge-graph", "dejavu", "bloom-filter", "llm"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -28,6 +25,13 @@ classifiers = [
 [project.optional-dependencies]
 mcp = ["mcp>=0.9.0"]
 test = ["pytest>=7.0"]
+vector = ["sentence-transformers>=2.0", "numpy>=1.20"]
+api = ["httpx>=0.24"]
+chroma = ["chromadb>=0.4"]
+sqlitevec = ["sqlite-vec>=0.1"]
+
+[tool.setuptools.dynamic]
+version = {attr = "nexsandglass.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["nexsandglass*"]

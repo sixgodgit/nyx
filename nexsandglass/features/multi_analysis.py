@@ -1,3 +1,8 @@
+"""
+multi_analysis — 多模型并行分析。
+
+同时调用多个 LLM 对同一问题生成观点并汇总。
+"""
 #!/usr/bin/env python3
 """
 Multi-Analysis — 多模型会诊模块（由 Thalamus 调度）
@@ -19,7 +24,8 @@ from pathlib import Path
 
 # ─── 配置 ───
 
-LOG_PATH = Path(os.environ.get("THALAMUS_LOG", "/root/.hermes/logs/thalamus.log"))
+LOG_PATH = Path(os.environ.get("THALAMUS_LOG",
+                               str(Path.home() / ".nyx" / "logs" / "thalamus.log")))
 
 # 会诊角色（3 个视角互补）
 PERSONAS = [
@@ -84,7 +90,7 @@ def _resolve_key(key_env: str) -> str:
     if not key_env:
         return ""
     # keys.json
-    keys_path = Path("/root/thalamus/keys.json")
+    keys_path = Path("REDACTED_PATH_KEYS")
     try:
         if keys_path.exists():
             raw = json.loads(keys_path.read_text())
@@ -101,7 +107,8 @@ def _resolve_key(key_env: str) -> str:
         return val
     # .env
     try:
-        env_path = Path("/root/.hermes/.env")
+        env_path = Path(os.environ.get("NYX_ENV_FILE",
+                                       str(Path.home() / ".nyx" / ".env")))
         if env_path.exists():
             for line in env_path.read_text().splitlines():
                 if line.startswith(key_env) and "=" in line:

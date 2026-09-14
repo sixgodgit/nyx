@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
 """
 NexSandglass TTY Wrapper — 任何终端 Agent 自动落沙
-===================================================
+==================================================
 用法：python nexsandglass.py wrap [agent-command]
       python nexsandglass.py wrap claude
       python nexsandglass.py wrap codex
@@ -12,17 +11,16 @@ NexSandglass TTY Wrapper — 任何终端 Agent 自动落沙
 """
 
 import os
-import sys
-import re
 import platform
-from datetime import datetime
+import re
+import sys
 
-# 确保能 import sandglass_log
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# 确保能 import sandglass_log（包安装后可用；直接运行脚本时降级为 no-op）
 try:
     from nexsandglass.core.sandglass_log import log_message
 except ImportError:
-    def log_message(text, sender="agent"): return False
+    def log_message(text, sender="agent"):
+        return False
 
 
 def _strip_ansi(text):
@@ -45,7 +43,10 @@ def wrap_command():
         print("   - MCP 工具调用自动落沙")
         sys.exit(1)
 
-    import pty, select, tty, termios
+    import pty
+    import select
+    import tty
+    import termios
     cmd = sys.argv[2:]
     print(f"🧵 NexSandglass: 已启动 {cmd[0]}，自动落沙中...")
     print(f"   (Ctrl+D 或 exit 退出)")

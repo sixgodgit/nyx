@@ -9,7 +9,8 @@ NexSandglass — L0 短期记忆缓冲区
   l0_remember("用户说了一句重要的话")
   context = l0_context()  # 返回最近5轮的上下文
 """
-import os, json
+import os
+import json
 from datetime import datetime
 from nexsandglass.core.sandglass_paths import _NB
 

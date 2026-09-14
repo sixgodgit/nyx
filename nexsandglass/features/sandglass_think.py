@@ -514,7 +514,7 @@ def _tokenize_for_density(query: str) -> set:
                 prev_cjk = c
             else: prev_cjk = None
     if lang in ("en", "mixed"):
-        for w in __import__('re').findall(r'[a-zA-Z]+', query.lower()):
+        for w in re.findall(r'[a-zA-Z]+', query.lower()):
             if len(w) >= 2:
                 tokens.add(w)
                 for n in (2, 3):
@@ -524,37 +524,27 @@ def _tokenize_for_density(query: str) -> set:
 
 from nexsandglass.l3.l3_search_core import sand_density
 
-def simhash_rerank(query: str, candidates: list) -> dict:
-    """SimHash语义重排：对所有候选集计算汉明距离，返回{line_num: bonus}"""
-    try:
-        from nexsandglass.l3.l3_search_core import simhash, _hamming
-        q_fp = simhash(query)
-        if q_fp == -1: return {}
-        scores = {}
-        for ln, ts, text in candidates:
-            d_fp = simhash(text[:500])
-            if d_fp == -1: continue
-            dist = _hamming(q_fp, d_fp)
-            if dist <= 55:
-                scores[ln] = max(0, (55 - dist) / 55 * 0.5)
-        return scores
-    except: return {}
-
-def dynamic_expand(hit_line: int, query_tokens: set, all_lines: list, max_ctx: int = 15, threshold: float = 0.2):
-    """沙子密度衰减扩窗：遇到密度断崖就停"""
-    start, end = hit_line, hit_line
-    for i in range(hit_line - 1, max(0, hit_line - max_ctx), -1):
-        _, _, text = __import__('sandglass_vault')._parse_line(all_lines[i]) if callable(getattr(__import__('sandglass_vault'), '_parse_line', None)) else (None, None, all_lines[i])
-        if text and sand_density(text, query_tokens) >= threshold: start = i
-        else: break
-    for i in range(hit_line + 1, min(len(all_lines), hit_line + max_ctx)):
-        _, _, text = __import__('sandglass_vault')._parse_line(all_lines[i]) if callable(getattr(__import__('sandglass_vault'), '_parse_line', None)) else (None, None, all_lines[i])
-        if text and sand_density(text, query_tokens) >= threshold: end = i
-        else: break
-    return all_lines[start:end+1]
-def search_semantic(query: str, limit: int = 10) -> list:
+def search_semantic(query: str, limit: int = 10, backend: str = "tfidf") -> list:
     """V2.8.7: SearchRouter 统一搜索入口 + 密度元数据输出。
-    search_filter 扩展关键词 → SearchRouter → 密度标注 → 情感重排。"""
+    search_filter 扩展关键词 → SearchRouter(或ChromaDB) → 密度标注 → 情感重排。
+    backend 参数：'tfidf'（默认）/'chromadb'。
+    """
+    if backend == "chromadb":
+        try:
+            from nexsandglass.features.sandglass_chroma import search as chroma_search
+            results = chroma_search(query, limit)
+            if not results:
+                return []
+            query_tokens = _tokenize_for_density(query)
+            enriched = []
+            for item in results:
+                ln, ts, text = item[0], item[1], item[2]
+                density = sand_density(text, query_tokens)
+                enriched.append((ln, ts, text, f"sand:{density:.2f}"))
+            return sentiment_rerank(enriched, _sentiment_wind())
+        except Exception as e:
+            logger.warning(f"ChromaDB backend failed, falling back to tfidf: {e}")
+
     expanded_query = query
     try:
         filt = search_filter(query)
@@ -686,8 +676,8 @@ def search_filter(query: str) -> dict:
 
     # ── 影子沙注入（脱口而出层的实体标签 → 搜索权重）──
     try:
-        from nexsandglass.features.shadow_sand import shadow_search
-        db = __import__('shadow_sand')._get_conn()
+        from nexsandglass.features.shadow_sand import _get_conn, shadow_search
+        db = _get_conn()
         sh = shadow_search(query, 5)
         if sh:
             line_nums = [ln for _, ln in sh[:3]]
@@ -1421,38 +1411,35 @@ def _synthesize_3d(force: bool = False, trigger: str = "") -> dict:
         return {}
 
 def _emotional_entropy(recent_n: int = 10) -> float:
-    """
-    香农熵----量化情绪波动程度。
-    0 = 完全平静（全是同一种情绪）
-    ~1.95 = 高熵（7种情绪均匀分布，波动大）
-    """
+    """情绪熵（香农熵）——基于累积情绪日志计算，波动越大熵越高。"""
+    import json
     import math
-    from nexsandglass.core.emotion_vocab import detect as emotion_detect
-    from nexsandglass.features.sandglass_vault import recent
-
-    sands = recent(recent_n + 5)  # 多取几条，过滤空
-    if not sands:
+    import os
+    try:
+        from nexsandglass.core.sandglass_paths import _NB as _nb
+    except Exception:
+        _nb = os.path.join(os.path.expanduser("~"), ".nyx")
+    _elog = os.path.join(_nb, "emotion_log.jsonl")
+    moods = []
+    if os.path.exists(_elog):
+        try:
+            for line in open(_elog, encoding="utf-8").readlines()[-recent_n:]:
+                line = line.strip()
+                if line:
+                    m = json.loads(line).get("mood", "")
+                    if m:
+                        moods.append(m)
+        except Exception:
+            pass
+    if not moods:
         return 0.0
-
-    # 收集最近消息的情绪标签
-    mood_counts = {}
-    total = 0
-    for _, _, text in sands[-recent_n:]:
-        if not text: continue
-        det = emotion_detect(text)
-        if det.get("mood"):
-            mood_counts[det["mood"]] = mood_counts.get(det["mood"], 0) + 1
-            total += 1
-
-    if total == 0:
-        return 0.0
-
-    # H = -Σ p_i × log(p_i)
+    from collections import Counter
+    counts = Counter(moods)
+    total = len(moods)
     entropy = 0.0
-    for count in mood_counts.values():
-        p = count / total
-        if p > 0:
-            entropy -= p * math.log(p)
+    for c in counts.values():
+        p = c / total
+        entropy -= p * math.log(p)
     return round(entropy, 2)
 
 def entropy_chart(recent_n: int = 10) -> str:
@@ -1478,7 +1465,8 @@ def memory_migrate(output_path: str = "") -> str:
     
     不打包代码----只打包记忆本身。
     """
-    import tarfile, os
+    import tarfile
+    import os
     
     if not output_path:
         desktop = os.path.join(os.path.expanduser("~"), "Desktop")

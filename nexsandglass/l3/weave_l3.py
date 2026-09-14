@@ -1,6 +1,14 @@
+"""
+weave_l3 — 画像织线。
+
+用户画像与知识图谱的关联推理与因果链生成。
+"""
 import importlib
 """NexSandglass L3 — weave_l3"""
-import os, re, json, logging
+import os
+import re
+import json
+import logging
 from nexsandglass.core.sandglass_paths import _NB
 from datetime import datetime, timezone
 from nexsandglass.features.sandglass_vault import _tokenize

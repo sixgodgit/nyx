@@ -1,3 +1,8 @@
+"""
+l3_persona — 画像表示与持久化。
+
+用户画像的结构化存储、演化与加载。
+"""
 #!/usr/bin/env python3
 """
 NexSandglass L3 — 影子灵魂模块

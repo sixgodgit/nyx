@@ -3,7 +3,9 @@ NexSandglass V2.1.1 — 冷热分层存储
 热沙(sandglass.txt): 最近30天完整对话
 冷沙(archive/): 超过30天，按月分文件，AI低价值丢弃
 """
-import os, re, shutil
+import os
+import re
+import shutil
 from nexsandglass.core.sandglass_paths import _NB
 from datetime import datetime, timedelta
 

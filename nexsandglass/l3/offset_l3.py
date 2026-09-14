@@ -1,6 +1,18 @@
+"""
+offset_l3 — 偏移率分析。
+
+用户决策方向趋势（省钱/愿投/放弃）的量化追踪。
+"""
 import importlib
 """NexSandglass L3 — offset_l3"""
-import os, re, json, hashlib, logging, math, statistics, shutil
+import os
+import re
+import json
+import hashlib
+import logging
+import math
+import statistics
+import shutil
 from datetime import datetime, timezone
 from nexsandglass.features.sandglass_vault import _tokenize
 from nexsandglass.features.sandglass_vault import recent as sv_recent, search as sv_search, count as sv_count

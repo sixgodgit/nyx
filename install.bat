@@ -1,48 +1,33 @@
 @echo off
 chcp 65001 >nul
 echo ╔══════════════════════════════════╗
-echo ║  NexSandglass V2.9.9 安装程序    ║
-echo ║  极简注入 · 五大支柱 · 零依赖    ║
+echo ║  NexSandglass V3.4.1 安装程序    ║
+echo ║  沙漏记忆 · 跨会话 · 零外部依赖  ║
 echo ╚══════════════════════════════════╝
 echo.
-echo 正在部署沙漏记忆系统...
 
-:: 1. 创建目录
-mkdir "%USERPROFILE%\.neurobase\scripts" 2>nul
-mkdir "%USERPROFILE%\.neurobase\persona" 2>nul
-mkdir "%USERPROFILE%\.neurobase\archive" 2>nul
-mkdir "%LOCALAPPDATA%\hermes\plugins\memory\nexsandglass" 2>nul
-mkdir "%LOCALAPPDATA%\hermes\plugins\sandglass" 2>nul
+:: 1. 创建数据目录
+if not exist "%USERPROFILE%\.neurobase\scripts" mkdir "%USERPROFILE%\.neurobase\scripts"
+if not exist "%USERPROFILE%\.neurobase\persona" mkdir "%USERPROFILE%\.neurobase\persona"
+if not exist "%USERPROFILE%\.neurobase\archive" mkdir "%USERPROFILE%\.neurobase\archive"
+if not exist "%LOCALAPPDATA%\hermes\plugins\memory\nexsandglass" mkdir "%LOCALAPPDATA%\hermes\plugins\memory\nexsandglass"
+if not exist "%LOCALAPPDATA%\hermes\plugins\sandglass" mkdir "%LOCALAPPDATA%\hermes\plugins\sandglass"
+echo ✅ 数据目录已创建
 
-:: 2. 复制核心模块 (33个)
-for %%f in (
-    sandglass_paths.py
-    sandglass_vault.py sandglass_sqlite.py sandglass_log.py sandglass.py
-    sandglass_think.py sandglass_archive.py sandglass_mcp.py
-    nexsandglass.py nightwatch.py pulse.py heartbeat.py
-    persona_l3.py offset_l3.py emotion_l3.py scene_l3.py weave_l3.py
-    weavethread.py
-    l3_tasks.py l3_persona_verify.py l3_search_core.py l3_persona.py
-    discipline.py offset_signals.py
-    decision_particles.py emotion_vocab.py
-    shadow_sand.py search_router.py l0_buffer.py
-    soul_diff.py plugin.py migrate_v2_4.py
-) do (
-    if exist "%%~dp0%%f" copy /Y "%%~dp0%%f" "%USERPROFILE%\.neurobase\scripts\%%f" >nul
+:: 2. 安装 Python 包
+python -m pip install "%~dp0"
+if errorlevel 1 (
+    echo ⚠️ pip 安装失败，请手动执行：python -m pip install "%~dp0"
+) else (
+    echo ✅ NexSandglass Python 包已安装
 )
 
-:: 3. MemoryProvider插件
-if exist "%%~dp0memory_provider.py" copy /Y "%%~dp0memory_provider.py" "%LOCALAPPDATA%\hermes\plugins\memory\nexsandglass\__init__.py" >nul
-
-:: 4. Gateway插件
-if exist "%%~dp0plugin.py" copy /Y "%%~dp0plugin.py" "%LOCALAPPDATA%\hermes\plugins\sandglass\__init__.py" >nul
+:: 3. 部署 Hermes 插件
+copy /Y "%~dp0nexsandglass\core\memory_provider.py" "%LOCALAPPDATA%\hermes\plugins\memory\nexsandglass\__init__.py" >nul 2>&1
+copy /Y "%~dp0nexsandglass\interfaces\plugin.py" "%LOCALAPPDATA%\hermes\plugins\sandglass\__init__.py" >nul 2>&1
+echo ✅ Hermes 插件已部署（memory_provider + gateway）
 
 echo.
-echo ✅ NexSandglass V2.9.9 安装完成！
-echo.
-echo 📂 33模块 + MemoryProvider插件
-echo 🔐 明文存储 — OS层全盘加密保护
-echo 💉 四层问答式注入 — 236字符/59token
 echo 🚀 重启 Hermes Gateway 即可自动落沙
 echo.
 pause

@@ -1,0 +1,38 @@
+# sdist 内容控制
+#
+# 背景：setuptools 默认会把 tests/ 打进 sdist。本项目的测试文件含
+# 部署机的硬编码路径与个人化的夹具字符串，不应随包分发。
+# 生产包也不需要测试 —— 需要测试的用户请从仓库获取。
+
+include LICENSE
+include README.md
+include pyproject.toml
+include RUNTIME.md
+include docs/*.md
+
+# 只打包真正的库代码
+recursive-include nexsandglass *.py
+recursive-include nexsandglass *.md
+recursive-include nexsandglass *.json
+
+# 明确排除：测试、基准、示例、技能文档、实验脚本
+prune tests
+prune benchmarks
+prune experiments
+prune scripts
+prune skills
+prune demo
+prune nyx-web
+
+# 排除构建/缓存/运行时产物
+global-exclude *.py[cod]
+global-exclude __pycache__/*
+global-exclude *.bak
+global-exclude *.bak.*
+global-exclude *.db
+global-exclude *.db-wal
+global-exclude *.db-shm
+global-exclude *.idx
+global-exclude *.bin
+global-exclude *.jsonl
+global-exclude .DS_Store

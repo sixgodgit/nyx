@@ -2,7 +2,8 @@
 NexSandglass L3 — 纪律因子 (V2.9.6: 权重计数)
 从 sandglass_think.py 拆分。
 """
-import os, json
+import os
+import json
 from collections import Counter
 
 from nexsandglass.core.sandglass_paths import _NB
