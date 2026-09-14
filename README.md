@@ -53,17 +53,22 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 | 🧠 **沙漏 Sandglass** | `core/sandglass_sqlite.py` | 长期记忆存储、全文搜索、语义搜索 |
 | 🆔 **ID 中枢** | `core/memid.py` | 记忆唯一标识（mem_id）+ 物理行号跨度（line_start/line_end）+ 墓碑（v7.4） |
 | 🗑️ **擦除级联** | `core/erasure.py` | 一次删除贯通中枢/日志正文/FTS/倒排/影子/engram/向量，可独立验收（v7.4） |
-| 🕸️ **织线 Thread** | `features/weavethread.py` | 知识图谱（实体关系三元组），支持时间窗口查询 |
+| 🧬 **Skill Distiller** | `features/skill_distiller.py` | 过程记忆 → 技能候选自动蒸馏，观察反复出现的工作流并生成可复用 skill 草案（v7.5） |
+| 🕸️ **织线 Thread** | `features/weavethread.py` | 知识图谱（实体关系三元组），支持 OpenViking Memory Link 类型化 links + PPR 图增强 |
 | 🏜️ **影子沙 Fact Store** | `features/shadow_sand.py` | 结构化事实存储（带信任评分） |
 | 📊 **情绪/画像** | `core/emotion_vocab.py`, `l3/persona_l3.py` | 用户状态追踪、偏移率计算、回音折 |
 | 🌙 **梦境 Dream** | `dream/` | 夜间多阶段复盘：记忆整理、反思成长、创造联结 |
+| 📚 **记忆书 NyxBook** | `nyx-web/` | 「纸质晨光」主题的可视化记忆浏览 / 写日记 / 盖章 UI（FastAPI + Vue3） |
+| 🕸️ **类型化 Memory Link** | `features/weavethread.py` | 支持 OpenViking Memory Link 关系类型（belongs_to / evolved_from / contradicts / related_to …）+ PPR 图增强 |
 | 🔍 **语义检索** | `core/embedding_provider.py`, `core/vector_search.py` | 真正的向量语义检索（本地多语言模型 + RRF 混合，v3.4.0） |
 | 🤖 **LLM 图谱抽取** | `core/llm_extract.py`, `features/weavethread.py` | 可选 LLM 知识图谱补充抽取 + 实体归一化（可降级，v3.4.0） |
 | 🔌 **MCP 接口** | `interfaces/sandglass_mcp.py`, `interfaces/nyx.py` | MCP 工具接入 Hermes / Claude |
 | 🧬 **记忆加工** | `engram/types.py`, `engram/decay.py` | Tulving 四类记忆 + Ebbinghaus 衰减（EngramTide 融合） |
 | 🧬 **差异化写入** | `engram/writer.py` | semantic 覆盖 / emotional 强化 / procedural 去重 / episodic 直插 |
 | 🧬 **Constitutional** | `engram/context.py` | 记忆融入 system prompt 隐性影响（自然无痕） |
-| 🔄 **记忆自我演化** | `engram/evolve.py`, `engram/loops/` | 四闭环：事实↔图谱、梦境→加工、画像→上下文、召回→重要性 |
+| 🧩 **Canon 集成** | `runtime/intent.py` / `features/skill_distiller.py` | 与 Canon 技能生态联动：意图召回时确定是否需要某个 skill，反复出现的工作流自动蒸馏为 skill 候选 |
+| 🕸️ **类型化 Memory Link** | `features/weavethread.py` | 吸收 OpenViking Memory Link，支持 belongs_to / evolved_from / contradicts / related_to 等关系类型 + PPR 图增强 |
+| 🔄 **记忆自我演化** | `engram/evolve.py`, `engram/loops/` | 四闭环：事实↔图谱、梦境↔加工、画像↔上下文、召回↔重要性 |
 | 🌙 **梦境管线** | `engram/dream_pipeline.py`, `engram/prompts/` | hypnos 三女神融合：浅睡总结→深睡内化→灵感联结 |
 | 🎛️ **热路径收编** | `runtime/orchestrator.py` | NyxOrchestrator：写入/召回统一入口，包住底层引擎 |
 | 🧭 **意图召回** | `runtime/intent.py` | MemoryIntent 自适应召回（v5.0），语义/时间/领域/关系感知排序 |
