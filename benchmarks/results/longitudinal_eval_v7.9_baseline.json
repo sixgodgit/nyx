@@ -1,5 +1,5 @@
 {
-  "version": "7.10.0-pre (understand.py frozen md5 4c67d81fdd8a3ac7e91e09bcfa751539)",
+  "version": "7.9.0",
   "seeds": 35,
   "days": 180,
   "track_a": {
@@ -3872,15 +3872,15 @@
     "dev": {
       "scores": {
         "current": [
-          420,
+          0,
           420
         ],
         "known_at": [
-          420,
+          0,
           420
         ],
         "as_of": [
-          1085,
+          0,
           1104
         ],
         "abstain": [
@@ -3889,24 +3889,24 @@
         ]
       },
       "extraction": {
-        "events": 555,
-        "hit": 546,
-        "facts": 555,
-        "correct": 546
+        "events": 0,
+        "hit": 0,
+        "facts": 0,
+        "correct": 0
       }
     },
     "holdout": {
       "scores": {
         "current": [
-          270,
+          0,
           420
         ],
         "known_at": [
-          270,
+          0,
           420
         ],
         "as_of": [
-          731,
+          0,
           1104
         ],
         "abstain": [
@@ -3915,12 +3915,11 @@
         ]
       },
       "extraction": {
-        "events": 555,
-        "hit": 396,
-        "facts": 441,
-        "correct": 396
+        "events": 0,
+        "hit": 0,
+        "facts": 0,
+        "correct": 0
       }
     }
-  },
-  "note": "留出数字来自冻结版本；之后看过留出结果修过一条有害错误（「过一阵」），修复后的留出数字不再无偏，未报告。"
+  }
 }

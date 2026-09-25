@@ -40,6 +40,10 @@ import tempfile
 from datetime import datetime, timedelta
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# --repo 指向历史版本（git worktree）时，端到端轨道可以对旧代码跑出可比基线
+for _i, _a in enumerate(sys.argv):
+    if _a == "--repo" and _i + 1 < len(sys.argv):
+        REPO = os.path.abspath(sys.argv[_i + 1])
 sys.path.insert(0, REPO)
 
 T0 = datetime(2026, 1, 1, 9, 0, 0)
@@ -73,6 +77,15 @@ class Ev:
         return self.v if self.stated else self.told
 
 
+def _midnight_stated(v, lo, told):
+    """陈述的起点取整到当天零点（自然语言里说的是"哪天"，不是几点几分）。
+    取整后越过下界就顺延一天；顺延后晚于说出时刻，就放弃陈述（按假设处理）。"""
+    d = datetime(v.year, v.month, v.day)
+    if d < lo:
+        d += timedelta(days=1)
+    return (d, True) if d <= told else (v, False)
+
+
 def gen_world(rng: random.Random) -> list:
     evs = []
     for rel, pool in POOLS.items():
@@ -80,6 +93,8 @@ def gen_world(rng: random.Random) -> list:
         cur = rng.choice(pool)
         stated = rng.random() < 0.5
         v = t - timedelta(days=rng.randint(40, 400)) if stated else t - timedelta(days=rng.randint(0, 30))
+        if stated:
+            v, stated = _midnight_stated(v, v - timedelta(days=1), t)
         seq.append(Ev(rel, cur, v, t, stated, "initial"))
         while True:
             t = t + timedelta(days=max(8, int(rng.gauss(VOLATILITY[rel], VOLATILITY[rel] / 3))),
@@ -99,6 +114,7 @@ def gen_world(rng: random.Random) -> list:
             lo = seq[-1].v + timedelta(hours=1)
             if stated:
                 v = max(lo, t - timedelta(days=rng.randint(1, 30)))
+                v, stated = _midnight_stated(v, lo, t)
             else:
                 v = max(lo, t - timedelta(days=rng.randint(0, 10)))
                 v = min(v, t)
@@ -109,6 +125,7 @@ def gen_world(rng: random.Random) -> list:
             first = seq[0]
             old = rng.choice([o for o in pool if o != first.obj])
             vh = first.v - timedelta(days=rng.randint(60, 300))
+            vh = datetime(vh.year, vh.month, vh.day)
             told = T0 + timedelta(days=rng.randint(60, DAYS - 5), hours=3)
             seq.append(Ev(rel, old, vh, told, True, "late_history"))
         # 更正：很久以后才说清「其实中间那段我在 Y」（插进一个已有终点的区间）
@@ -119,9 +136,12 @@ def gen_world(rng: random.Random) -> list:
             lo, hi = a.start_known, b.v
             if (hi - lo) > timedelta(days=4):
                 vc = lo + (hi - lo) / 2
+                vc = datetime(vc.year, vc.month, vc.day) + timedelta(days=1)
+                if not (lo < vc < hi):
+                    vc = None
                 objc = rng.choice([o for o in pool if o not in (a.obj, b.obj)])
                 told = max(b.told, changes[i + 2].told) + timedelta(days=rng.randint(1, 20))
-                if told < T0 + timedelta(days=DAYS - 1):
+                if vc and told < T0 + timedelta(days=DAYS - 1):
                     seq.append(Ev(rel, objc, vc, told, True, "correction"))
         evs += seq
     return sorted(evs, key=lambda e: e.told)
@@ -309,6 +329,142 @@ def track_a(seed: int) -> dict:
 
 
 # ══════════════════════════════════════════════════════════
+# 5b. 轨道 C：端到端（自然语句 → 真实管线：observe → 理解 → 存储）
+# ══════════════════════════════════════════════════════════
+
+def _date_phrase(rng, v, told, style):
+    """把陈述的起点写成自然的中文日期。只用能**精确还原到天**的写法。"""
+    n = (datetime(told.year, told.month, told.day) - v).days
+    opts = []
+    if style == "dev":
+        opts.append(f"{v.year}年{v.month}月{v.day}日")
+        if 0 < n <= 300 and v.year == told.year:
+            opts.append(f"{v.month}月{v.day}号")
+        if 1 <= n <= 60:
+            opts.append(f"{n}天前")
+    else:
+        opts.append(f"{v.year}-{v.month:02d}-{v.day:02d}")
+        if 0 < n <= 300 and v.year == told.year:
+            opts.append(f"{v.month}月{v.day}日")
+        if n == 1:
+            opts.append("昨天")
+        if 2 <= n <= 60:
+            opts.append(f"{n}天之前")
+    return rng.choice(opts)
+
+
+# 开发句式：写规则时看着的
+DEV_TEMPLATES = {
+    ("住在", "assumed"): ["我现在住在{o}", "跟你说一声，我搬到{o}了", "我们家现在在{o}"],
+    ("住在", "stated"): ["我{d}搬到了{o}，现在住那边", "从{d}起我就住在{o}", "我{d}就搬去{o}了"],
+    ("住在", "past"): ["想起来了，我{d}那时候住在{o}", "我{d}那会儿住过{o}"],
+    ("使用", "assumed"): ["我现在开的是{o}", "我换成{o}了，新车开着挺顺", "最近改开{o}了"],
+    ("使用", "stated"): ["我{d}就换成{o}了，现在还开着", "{d}提了辆{o}，一直开到现在"],
+    ("使用", "past"): ["我{d}那会儿开过{o}", "以前{d}的时候我开的是{o}"],
+    ("公司", "assumed"): ["我现在在{o}上班", "我跳槽到{o}了", "我入职了{o}"],
+    ("公司", "stated"): ["我{d}入职了{o}", "从{d}开始我在{o}工作"],
+    ("公司", "past"): ["我{d}那时候在{o}工作过", "以前{d}的时候我在{o}上班"],
+    ("邮箱", "assumed"): ["我的邮箱换成{o}了", "以后发邮件到{o}"],
+    ("邮箱", "stated"): ["{d}起我的邮箱改成{o}", "我从{d}开始用{o}这个邮箱"],
+    ("邮箱", "past"): ["我{d}那时候用的邮箱是{o}", "以前{d}的时候我的邮箱是{o}"],
+}
+
+
+# 留出句式：**规则冻结之后**才写的（understand.py 冻结时的 md5 记在 README 里）。
+# 措辞、句式、日期写法都与开发句式不同。今后不许拿它调规则 —— 否则它就不再是留出集。
+HOLDOUT_TEMPLATES = {
+    ("住在", "assumed"): ["最近搬家了，新家在{o}", "现在人在{o}住着", "我们搬来{o}了"],
+    ("住在", "stated"): ["{d}那天我们搬进了{o}的新房子，住到现在", "打{d}起一直住在{o}"],
+    ("住在", "past"): ["{d}的时候我住{o}，那是好久之前的事了", "早年{d}我在{o}住过一阵"],
+    ("使用", "assumed"): ["新车到手了，是{o}", "现在代步用的是{o}", "把老车卖了，买了{o}"],
+    ("使用", "stated"): ["{d}把车换成了{o}，开到现在", "自{d}起我开{o}"],
+    ("使用", "past"): ["{d}那阵子我开的是{o}，后来卖了", "当年{d}开过一辆{o}"],
+    ("公司", "assumed"): ["换工作了，新东家是{o}", "目前供职于{o}", "现在给{o}打工"],
+    ("公司", "stated"): ["{d}正式加入了{o}", "{d}到{o}报到，一直干到现在"],
+    ("公司", "past"): ["{d}那段时间我在{o}干过", "早些年{d}我在{o}上过班"],
+    ("邮箱", "assumed"): ["新邮箱：{o}", "邮件请发{o}，老邮箱不用了"],
+    ("邮箱", "stated"): ["{d}开始改用{o}收邮件", "自{d}起邮箱变更为{o}"],
+    ("邮箱", "past"): ["{d}那会儿我用{o}收邮件", "以前{d}用的是{o}这个邮箱"],
+}
+
+def render_natural(e, rng, templates, style):
+    kind = "past" if e.kind in ("late_history", "correction") else (
+        "stated" if e.stated else "assumed")
+    t = rng.choice(templates[(e.rel, kind)])
+    d = _date_phrase(rng, e.v, e.told, style) if kind != "assumed" else ""
+    txt = t.format(o=e.obj, d=d)
+    if e.kind == "correction":
+        txt = "更正一下，" + txt
+    return txt
+
+
+def track_c(seed: int, templates: dict, style: str) -> dict:
+    from nexsandglass.core import clock
+    from nexsandglass.engram.loops.temporal_fact import as_of, get_current
+    from nexsandglass.features import weavethread
+    from nexsandglass.runtime.orchestrator import get_orchestrator
+
+    rng = random.Random(seed)
+    home = tempfile.mkdtemp(prefix=f"nyx_long_c_{seed}_")
+    setup_nyx(home)
+    db = weavethread._DB
+    evs = gen_world(random.Random(seed))
+    orch = get_orchestrator()
+    try:
+        from nexsandglass.core.understand import extract as _ex
+    except Exception:
+        _ex = None
+
+    scores = {k: [0, 0] for k in ("current", "known_at", "as_of", "abstain")}
+    ext = {"events": 0, "hit": 0, "facts": 0, "correct": 0}
+    texts = []
+
+    def cur(rel, known=None):
+        rows = [r for r in get_current(db, "user", rel, known_at=known) if r["subject"] == "user"]
+        return rows[0]["object"] if len(rows) == 1 else (None if not rows else "__MULTI__")
+
+    live = {}
+    cps = [T0 + timedelta(days=d) for d in CHECKPOINTS]
+    queue = list(evs)
+    while queue or cps:
+        if queue and (not cps or queue[0].told <= cps[0]):
+            e = queue.pop(0)
+            txt = render_natural(e, rng, templates, style)
+            texts.append((e, txt))
+            with clock.frozen(e.told):
+                orch.observe(txt, source="user")
+            if _ex is not None:
+                facts = [f for f in _ex(txt, now=e.told) if f.relation in POOLS]
+                ext["events"] += 1
+                ext["facts"] += len(facts)
+                good = [f for f in facts if f.relation == e.rel and f.object == e.obj]
+                ext["hit"] += int(bool(good))
+                ext["correct"] += len(good)
+            continue
+        k = cps.pop(0)
+        for rel in POOLS:
+            want = truth_current(evs, rel, k)
+            live[(rel, k)] = want
+            scores["current"][0] += int(cur(rel) == want)
+            scores["current"][1] += 1
+        scores["abstain"][0] += int(cur("职位") is None)
+        scores["abstain"][1] += 1
+    for (rel, k), want in live.items():
+        scores["known_at"][0] += int(cur(rel, known=k) == want)
+        scores["known_at"][1] += 1
+    for rel in POOLS:
+        for obj, st, en in truth_windows(evs, rel):
+            for q in (st + timedelta(hours=2), st + (en - st) / 2):
+                rows = [r for r in as_of(db, q, subject="user", predicate=rel)
+                        if r["subject"] == "user"]
+                got = rows[0]["object"] if len(rows) == 1 else None
+                scores["as_of"][0] += int(got == obj)
+                scores["as_of"][1] += 1
+    return {"seed": seed, "scores": scores, "extraction": ext,
+            "samples": [t for _, t in texts[:6]]}
+
+
+# ══════════════════════════════════════════════════════════
 # 5. 轨道 B：来源与投毒（真实管线）
 # ══════════════════════════════════════════════════════════
 
@@ -419,6 +575,7 @@ def pct(a):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, default=5)
+    ap.add_argument("--repo", help="对历史版本跑（git worktree 路径）；在 import 之前已生效")
     ap.add_argument("--json")
     args = ap.parse_args()
 
@@ -439,6 +596,19 @@ def main():
                 cp_agg[cp][who][1] += v[who][1]
     b = track_b()
 
+    c = {}
+    for name, tpl in (("dev", DEV_TEMPLATES), ("holdout", HOLDOUT_TEMPLATES)):
+        sc = {k: [0, 0] for k in ("current", "known_at", "as_of", "abstain")}
+        ex = {"events": 0, "hit": 0, "facts": 0, "correct": 0}
+        for seed in range(args.seeds):
+            r = track_c(seed, tpl, name)
+            for k, v in r["scores"].items():
+                sc[k][0] += v[0]
+                sc[k][1] += v[1]
+            for k, v in r["extraction"].items():
+                ex[k] += v
+        c[name] = {"scores": sc, "extraction": ex}
+
     import nexsandglass
     print(f"nyx {nexsandglass.__version__} — 纵向评测（{args.seeds} 个种子 × {DAYS} 天）\n")
     print("轨道 A：时间与信念                 nyx                 单时间轴对照")
@@ -449,6 +619,14 @@ def main():
     print("\n  按租期（检查点上的 现在/不知道/忘掉 三类合计）")
     for cp in CHECKPOINTS:
         print(f"  第 {cp:>3} 天          {pct(cp_agg[cp]['nyx']):>22}   {pct(cp_agg[cp]['base']):>22}")
+    print("\n轨道 C：端到端（自然语句 → observe → 理解 → 存储）     开发句式            留出句式")
+    for k, name in (("current", "现在是什么"), ("known_at", "当时我以为是什么"),
+                    ("as_of", "过去某刻是什么"), ("abstain", "没说过 → 不知道")):
+        print(f"  {name:<16} {pct(c['dev']['scores'][k]):>22}   {pct(c['holdout']['scores'][k]):>22}")
+    for name in ("dev", "holdout"):
+        ex = c[name]["extraction"]
+        if ex["events"]:
+            print(f"  抽取（{name}）：召回 {ex['hit']}/{ex['events']}，精确 {ex['correct']}/{ex['facts']}")
     s = b["summary"]
     print("\n轨道 B：来源与投毒（真实管线）")
     print(f"  别人关于你的说法没改写你的事实   {s['received_ok']}/{s['received']}")
@@ -470,7 +648,8 @@ def main():
                        "track_a": {"aggregate": agg, "by_checkpoint": cp_agg,
                                    "runs": [{k: v for k, v in r.items() if k != "scores"}
                                             | {"scores": r["scores"]} for r in runs]},
-                       "track_b": b}, f, ensure_ascii=False, indent=2, default=str)
+                       "track_b": b, "track_c": c}, f, ensure_ascii=False, indent=2,
+                      default=str)
 
 
 if __name__ == "__main__":
