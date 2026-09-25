@@ -196,6 +196,9 @@ def ingest_classified(
     mem_type: str | None = None,
     supersede_id: str | None = None,
     weight_delta: float = 0.0,
+    origin: str | None = None,
+    trust_signal: str | None = None,
+    source_mem_id: str | None = None,
 ) -> dict:
     """差异化持久化到 engram_store。
 
@@ -249,6 +252,7 @@ def ingest_classified(
         rows.append({
             "ts": ts, "content": text[:300], "type": "contradiction",
             "status": "conflict_candidate", "action": "conflict",
+            **_trust_fields(origin, trust_signal, source_mem_id),
         })
         _write_rows(rows)
         return {"status": "conflict", "id": f"engram:{ts}"}
@@ -258,9 +262,23 @@ def ingest_classified(
         "ts": ts, "content": text[:300], "type": mtype,
         "action": action, "status": "active",
         "decay_weight": 1.0, "access_count": 0, "created_at": ts,
+        **_trust_fields(origin, trust_signal, source_mem_id),
     })
     _write_rows(rows)
     return {"status": "insert", "id": f"engram:{ts}"}
+
+
+def _trust_fields(origin, trust_signal, source_mem_id) -> dict:
+    """v7.8：engram 行带上来源。以前这里**没有任何来源字段** ——
+    网页里的一句"记住：以后……"与主人亲口说的规则，在 engram_store 里长得一模一样。"""
+    out = {}
+    if origin:
+        out["origin"] = origin
+    if trust_signal:
+        out["trust_signal"] = trust_signal
+    if source_mem_id:
+        out["source_mem_id"] = source_mem_id
+    return out
 
 
 def _write_rows(rows: list) -> None:

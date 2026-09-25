@@ -57,6 +57,8 @@ class MemoryContext:
     query: str = ""
     token_budget: int = 0
     meta_intent: object = None
+    # v7.8：被信任门扣下的召回结果（只有 id / 来源 / 命中规则，不含正文）
+    withheld: list = field(default_factory=list)
 
     def to_text(self, separator: str = "\n") -> str:
         """将上下文拼成纯文本（供 system prompt 注入）。优先用 text。"""
