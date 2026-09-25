@@ -2,7 +2,7 @@
 
 > **Nyx — 把「检索失败」也当作一类信号的记忆系统**
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.6-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.7-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 ## 别的记忆系统回答「找到了什么」，Nyx 还回答「我是不是见过」
 
@@ -75,7 +75,7 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 | 🧭 **意图召回** | `runtime/intent.py` | MemoryIntent 自适应召回（v5.0），语义/时间/领域/关系感知排序 |
 | 📦 **记忆 Bundle** | `runtime/bundle.py` | MemoryBundle 合并两套出口（Constitutional + system_prompt），10 槽位 |
 | 🌱 **候选晋升** | `runtime/promotion.py` | "什么值得记住"——Observation→Extract→Score→Type→Promote/Session/Drop |
-| 🕰️ **时序事实** | `engram/loops/temporal_fact.py` | current_only / as_of / history_of 演变链，不静默覆盖 |
+| 🕰️ **双时态事实** | `engram/loops/temporal_fact.py` | 「何时为真」与「何时得知」分两条轴：`as_of` 问世界、`known_at` 问当时的信念、`belief_timeline` 问看法怎么变的；假设的时间不冒充陈述的时间（v7.7） |
 | 🌙 **Consolidation Engine** | `runtime/consolidation.py` | Dream 生产化：Proposal→Validator→Apply/Quarantine + 快照回滚 |
 | 🧭 **Cognitive OS 端到端** | `runtime/eval.py`, `orchestrator.cognitive_recall` | Formation→Store→Dream→Intent→Bundle→Context→Agent 全链路 |
 
@@ -320,6 +320,64 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 ---
 
 ## 📝 更新日志
+
+### v7.7 (2026-09-26) — 双时态事实：「何时为真」与「何时得知」分开
+
+**动机**
+v7.6 及以前只有一条时间轴，而且那条轴上填的是另一条轴的值：`valid_from = now`、
+`valid_until = now` —— 把"写进库的那一刻"当成了"事情发生的那一刻"。
+用户说「我去年就搬到伦敦了」，系统记下的是「今天起住伦敦」；
+「我 3 月的时候以为你住哪、后来为什么改了看法」根本没有数据可以回答。
+
+一个陪人一辈子的记忆系统，珍贵的恰恰是后者。这也是来源追踪 / 投毒防御的地基：
+污染发生在「知道」的那一刻，不在「为真」的那一刻。
+
+**新增**（`engram/loops/temporal_fact.py`）
+
+| 问题 | API |
+|---|---|
+| 你现在住哪 | `get_current(db, s, p)` |
+| 2024 年 6 月你住哪（有效时间） | `as_of(db, "2024-06")` |
+| 我 3 月的时候以为你住哪（记录时间） | `get_current(db, s, p, known_at="2026-03")` / `known_at(db, t)` |
+| 我什么时候开始这么以为、什么时候改了主意 | `belief_timeline(db, s, p)` |
+
+- 新列：`recorded_at`（何时得知）/ `closed_at`（何时得知它结束）/ `retracted_at`（何时整条撤回）/
+  `valid_basis`（`stated` 陈述的 vs `assumed` 假设的）
+- **假设的时间不冒充陈述的时间**：没陈述生效时间的事实标 `assumed`，注入文本里只说
+  「得知于 …，起始时间未陈述」，不说「自 … 起」
+- 单值关系的四种写入：截断（搬家）/ 乱序到达（旧消息不顶掉现任）/
+  更正（改写有终点的区间 → 版本化，更正前的信念仍可重建）/ 精化（assumed → stated）
+- 标准情形就地截断、不复制行（v6.0 的存储形状与测试全部保持）
+- `wthread_add(..., valid_from=)`：Agent 补录时往往恰好知道生效时间，这是陈述时间最自然的入口
+- `normalize_ts`：库里历史上混着 `2026-09-25 10:00:00` 与 `2026-09-25T10:00:00Z`，
+  而比较全靠字符串序（`' ' < 'T'`）—— 统一格式，解析不了就抛，不猜
+- 旧库自动迁移：全部回填为 `assumed`（旧代码的生效时间从来不是陈述出来的）
+- `repair_open_conflicts(db, apply=False)`：修复存量"多个现任"，只截断不删除，
+  用 `known_at(修复前)` 仍能看到修复前的信念
+
+**修掉的既存缺陷（比新功能更重要）**
+- ⚠️ **生产写入口从未走过时序逻辑**。`wthread_store`（每条用户消息都经过它）直接 INSERT：
+  不写 `valid_from` → `as_of` 永远 0 行；不做冲突处理 → 「最终用特斯拉」「后来改用吉利」之后
+  `get_current` **同时返回两者**。README v6.0 的 Tesla→Geely 黄金场景只在直接调用
+  `resolve_temporal_conflict` 的测试里成立，真实的 observe 路径一次都没走过。
+  `wthread_store` / `wthread_add` 现在都经 `record_fact`
+- ⚠️ `runtime/eval.py` 的 **temporal accuracy 指标从没跑通过**：import 了不存在的
+  `nexsandglass.features.temporal_facts`，一调就 `ModuleNotFoundError`。已修，并且现在
+  "多个现任"判为错（即使第一个碰巧对）
+- ⚠️ `tests/test_engram_temporal.py` 往**真实数据目录**（`~/.neurobase/shadow_sand.db`）写测试数据，
+  且 `check()` 只 print 不 assert —— 在 pytest 下**无论实现对错永远是绿的**。已改为临时库 + 真断言
+
+**实测**
+- `tests/test_bitemporal.py` 25 项；全量 341 项，逐文件独立 + 单进程整体两种方式全绿
+- 经 `runtime.observe` 端到端：切换后 `get_current` 只剩一个现任，演变链如实标注起始时间未陈述
+- v7.6 事故演练（`benchmarks/forget_restore_drill.py`）仍全部通过
+
+**已知局限（如实记录）**
+- 正则抽取的实体边界很粗：「改用吉利了」抽出的对象是「吉利了」。这是 `weavethread` 正则的
+  既有局限（`shadow_sand.py` 里已承认"正则做不了中文实体抽取"），时序逻辑正确但对象文本有噪声
+- `使用` 属于单值时序关系，而正则把泛化的「用了 X」也归为 `使用` —— 「用了 Python」
+  之后「用了 Docker」会被当作切换。这是关系本体的问题，留给后续（词典 / LLM 抽取）
+- `MemoryObject` 尚未携带 `recorded_at`，双时态目前只在事实层（三元组）生效
 
 ### v7.6 (2026-09-25) — 遗忘隔离区：可反悔的删除
 

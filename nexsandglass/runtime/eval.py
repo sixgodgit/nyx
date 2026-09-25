@@ -47,16 +47,25 @@ def eval_formation(golden: list[tuple[str, str]]) -> dict:
             "precision": round(precision, 3), "recall": round(recall, 3)}
 
 
-def eval_temporal(pairs: list[tuple]) -> float:
+def eval_temporal(pairs: list[tuple], db_path: str = None) -> float:
     """temporal accuracy：current_only 是否正确返回最新值。
 
     pairs: [(subject, predicate, 期望当前值), ...]
+
+    v7.7 以前这里 import 的是不存在的 `nexsandglass.features.temporal_facts`，
+    README 列出的「temporal accuracy」指标从来没有跑通过一次 —— 一调就 ModuleNotFoundError。
+
+    判定要求**唯一**现任：get_current 同时返回新旧两个值时，即使第一个碰巧对，
+    也算错 —— 那正是「多个现任」缺陷的形状，不能被排序巧合掩盖。
     """
-    from nexsandglass.features.temporal_facts import get_current
+    from nexsandglass.engram.loops.temporal_fact import get_current
+    if db_path is None:
+        from nexsandglass.features import weavethread
+        db_path = weavethread._DB
     correct = 0
     for subject, predicate, expected in pairs:
-        cur = get_current(subject, predicate)
-        if cur and cur[0]["object"] == expected:
+        cur = [r for r in get_current(db_path, subject, predicate) if r["subject"] == subject]
+        if len(cur) == 1 and cur[0]["object"] == expected:
             correct += 1
     return correct / len(pairs) if pairs else 0.0
 

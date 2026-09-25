@@ -39,6 +39,15 @@ from .temporal_fact import (
     ensure_temporal_columns,
     TEMPORAL_RELATIONS,
     TemporalFactReport,
+    record_fact,
+    get_current,
+    as_of,
+    known_at,
+    history_of,
+    belief_timeline,
+    evolution_chain,
+    repair_open_conflicts,
+    normalize_ts,
 )
 
 __all__ = [
@@ -64,4 +73,14 @@ __all__ = [
     "ensure_temporal_columns",
     "TEMPORAL_RELATIONS",
     "TemporalFactReport",
+    # Bitemporal (v7.7)
+    "record_fact",
+    "get_current",
+    "as_of",
+    "known_at",
+    "history_of",
+    "belief_timeline",
+    "evolution_chain",
+    "repair_open_conflicts",
+    "normalize_ts",
 ]
