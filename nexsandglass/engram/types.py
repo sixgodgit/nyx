@@ -58,6 +58,7 @@ class Memory:
     unresolved: bool = False                 # 未解决标记（浮现优先级 +1）
     tags: list[str] = field(default_factory=list)
     superseded_by: str | None = None         # 被哪条新记忆覆盖
+    trust_signal: str = ""                   # v7.8 trusted / unverified / tainted；空 = 未知
 
     def mem_type_label(self) -> str:
         """中文类型标签（供格式化输出用）。"""
@@ -211,6 +212,8 @@ class MemoryObject:
     # ── 来源与关系 ──
     source_id: str | None = None                 # 来源沙粒/会话 ID（兼容 Memory）
     provenance: str = ""                         # 来源说明（channel/工具名）
+    origin: str = ""                             # v7.8 写入时绑定的 sender（user/agent/tool…）
+    trust_signal: str = ""                       # v7.8 trusted / unverified / tainted；空 = 未知（旧对象）
     relations: list[dict] = field(default_factory=list)      # [{type, target_id, ...}]
 
     # ── 统计与检索 ──

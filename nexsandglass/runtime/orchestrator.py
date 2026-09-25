@@ -125,6 +125,7 @@ class RecallResult:
     token_budget: int = 0
     est_tokens: int = 0
     meta_intent: object = None   # MemoryIntent（v5.0）
+    withheld: list = field(default_factory=list)   # v7.8 信任门扣下的（无正文）
 
     def to_context(self, separator: str = "\n") -> str:
         """拼成纯文本（供 system prompt 注入）。"""
@@ -147,6 +148,9 @@ class FormationResult:
     routes_written: list[str] = field(default_factory=list)
     errors: dict = field(default_factory=dict)   # {route: err} 单路失败记录
     message: str = ""
+    # v7.8 来源信任：trusted / unverified / tainted，以及命中的特征
+    trust_signal: str = ""
+    trust_flags: list = field(default_factory=list)
 
 
 class FormationRouter:
@@ -195,21 +199,47 @@ class FormationRouter:
 
         try:
             from nexsandglass.core import sandglass_log
+            from nexsandglass.core import provenance as _prov
             from nexsandglass.engram import bridge
             from nexsandglass.features.shadow_sand import shadow_index
 
+            # 来源只认一个：落沙时绑定的 sender。以前落沙用 `source or "agent"`、
+            # 晋升用 `source or "user"` —— 同一条事件在审计日志里是 agent 说的，
+            # 在晋升判断里却被当成主人说的。
+            origin = source or "agent"
+
             # 1. 落沙（原始审计日志）——除非调用方已落
+            raw_mem_id = ""
             if not raw_already_logged:
                 try:
-                    sandglass_log.log_message(event, sender=source or "agent")
+                    raw_mem_id = sandglass_log.log_message(event, sender=origin,
+                                                           return_id=True) or ""
                     fr.routes_written.append("sandglass")
                 except Exception as e:
                     fr.errors["sandglass"] = str(e)
                     logger.warning("[Formation] sandglass 写入失败: %s", e)
 
+            # 1.5 来源信任：优先取写入时绑定的那份，没有（调用方已落沙）再现场评估
+            prov = (_prov.get(raw_mem_id) if raw_mem_id else None) or _prov.assess(event, origin)
+            fr.trust_signal, fr.trust_flags = prov.signal, [f["rule"] for f in prov.flags]
+
+            # tainted：只留审计日志，不进长期记忆的任何一路（engram / 影子 / 图谱）。
+            # 这道门在 force_promote 之前，也不受它控制 —— 安全门不设布尔逃生口。
+            if prov.signal == _prov.TAINTED:
+                fr.ok = True
+                fr.lifecycle_state = "observed"
+                fr.memory_type = "tainted"
+                fr.message = "withheld:tainted:" + ",".join(fr.trust_flags)
+                return fr
+
             # 2. Promotion 决策（B3：Memory 是形成的）
             promotion = self._get_promotion()
-            cand = promotion.observe(event, source=source or "user")
+            cand = promotion.observe(event, source=origin)
+            # 规则与身份只能由主人亲口确立 —— 在任何处置分支之前降级，
+            # 否则 session_only / drop 的早返回会把降级前的类型报给调用方
+            demoted = ""
+            if not prov.may_instruct and cand.mem_type in ("procedural", "identity"):
+                demoted, cand.mem_type = cand.mem_type, "semantic"
 
             # force_promote 逃生口（测试/已决策，显式跳过门禁）
             if force_promote:
@@ -234,6 +264,10 @@ class FormationRouter:
 
             # promote → 差异化写入长期（REINFORCE/DEDUP/OVERRIDE/INSERT）
             mtype = mem_type or cand.mem_type or bridge.classify_memory_type(event)
+            # 规则与身份只能由主人亲口确立。非主人来源的"记住：以后……"降为普通信息：
+            # 可以被召回（带来源标注），但永远进不了「动态行为修正案」。
+            if not prov.may_instruct and mtype in ("procedural", "identity"):
+                demoted, mtype = demoted or mtype, "semantic"
             fr.memory_type = mtype
 
             # 差异化决策（复用 writer.classify_write 语义，加载已有记忆做重复/冲突判断）
@@ -261,6 +295,9 @@ class FormationRouter:
                     event,
                     action=write_action.upper(),
                     mem_type=mtype,
+                    origin=origin,
+                    trust_signal=prov.signal,
+                    source_mem_id=raw_mem_id or None,
                 )
                 fr.routes_written.append("engram")
                 fr.memory_id = res.get("id") or f"engram:{event[:20]}"
@@ -268,6 +305,8 @@ class FormationRouter:
                     fr.message = f"{write_action}:" + cand.mem_type
                 else:
                     fr.message = "promoted:" + cand.mem_type
+                if demoted:
+                    fr.message += f"|demoted:{demoted}->semantic(origin={origin})"
             except Exception as e:
                 fr.errors["engram"] = str(e)
                 logger.warning("[Formation] engram 差异化写入失败: %s", e)
@@ -281,14 +320,18 @@ class FormationRouter:
                 fr.errors["shadow"] = str(e)
                 logger.warning("[Formation] shadow 索引失败: %s", e)
 
-            # 织线三元组
-            try:
-                from nexsandglass.features.weavethread import wthread_store
-                wthread_store(event, line_num=_last_sandglass_line(), subject="user")
-                fr.routes_written.append("wthread")
-            except Exception as e:
-                fr.errors["wthread"] = str(e)
-                logger.warning("[Formation] wthread 写入失败: %s", e)
+            # 织线三元组：抽出来的主语是 "user"，也就是「关于主人的事实」。
+            # 只有主人亲口说的才能写成关于主人的事实 —— 以前网页正文里的
+            # "改用 X" 会变成「user 使用 X」。
+            if prov.origin_class == _prov.PRINCIPAL:
+                try:
+                    from nexsandglass.features.weavethread import wthread_store
+                    wthread_store(event, line_num=_last_sandglass_line(), subject="user",
+                                  mem_id=raw_mem_id or None)
+                    fr.routes_written.append("wthread")
+                except Exception as e:
+                    fr.errors["wthread"] = str(e)
+                    logger.warning("[Formation] wthread 写入失败: %s", e)
 
             obj = MemoryObject(
                 content=event,
@@ -296,6 +339,8 @@ class FormationRouter:
                 created_at=_now(),
                 source_id=source,
                 provenance="orchestrator.formation",
+                origin=origin,
+                trust_signal=prov.signal,
                 status=LifecycleState.VALIDATED.value if write_action == "insert" else LifecycleState.ACTIVE.value,
             )
             fr.memory_id = fr.memory_id or (obj.memory_id or obj._fallback_id())
@@ -362,7 +407,8 @@ class RecallPlanner:
         from nexsandglass.features.shadow_sand import shadow_search
         hits = shadow_search(query, limit=self.policy.limit("shadow"))
         # hits 形如 [(score, line_num), ...] 或 [(line_num, score)]
-        return [_make_obj(f"shadow:{ln}", _shadow_text(ln), "shadow", confidence=score)
+        return [_make_obj(f"shadow:{ln}", _shadow_text(ln), "shadow", confidence=score,
+                          line=ln)
                 for score, ln in _normalize_shadow(hits)]
 
     def _adapt_wthread(self, query: str) -> list[MemoryObject]:
@@ -370,9 +416,17 @@ class RecallPlanner:
         objs = []
         triples = wthread_query(entity=query, limit=self.policy.limit("wthread"))
         for t in triples:
+            if isinstance(t, dict) and t.get("retracted_at"):
+                continue                     # 已被更精确版本取代的旧版本，不是现在的信念
             text = _triple_text(t)
-            if text:
-                objs.append(_make_obj("wthread", text, "wthread", confidence=0.6))
+            if not text:
+                continue
+            if isinstance(t, dict) and t.get("valid_until"):
+                text = f"（曾，至 {str(t['valid_until'])[:10]}）{text}"
+            # memory_id 必须逐条唯一：以前全部叫 "wthread"，聚合去重时只会留下第一条
+            tid = t.get("id") if isinstance(t, dict) else None
+            objs.append(_make_obj(f"wthread:{tid or text}", text, "wthread", confidence=0.6,
+                                  line=t.get("source_line") if isinstance(t, dict) else None))
         return objs
 
     def _adapt_persona(self, query: str) -> list[MemoryObject]:
@@ -495,6 +549,9 @@ class RecallPlanner:
         # v5.0：意图感知排序（包住而非替换——在聚合结果之上重排，再截断）
         if ordered and intent.strategy != "generic_semantic":
             ordered = im.rank_objects(ordered, intent, query=query)
+        # v7.8 信任门：tainted 不出库，unverified 带来源标注且降为信息（不能当规则）
+        ordered, withheld = _apply_trust(ordered)
+        result.withheld = withheld
         result.objects = ordered[: token_budget // 10 if token_budget else 20]
         result.est_tokens = sum(len(o.content) // 4 for o in result.objects)
         # hits 仅 debug（不暴露给上层）
@@ -533,6 +590,7 @@ class RecallPlanner:
             degraded=degraded,
         )
         mc.text = "\n".join(strings)
+        mc.withheld = list(getattr(result, "withheld", []) or [])
         mc.meta_intent = intent
         return mc
 
@@ -545,10 +603,12 @@ def _from_search_item(item, source: str) -> MemoryObject:
     else:
         text = str(item)
         line = None
-    return _make_obj(f"{source}:{line}" if line else source, text, source)
+    return _make_obj(f"{source}:{line}" if line else source, text, source, line=line)
 
 
-def _make_obj(mid: str, text: str, source: str, confidence: float = 0.5) -> MemoryObject:
+def _make_obj(mid: str, text: str, source: str, confidence: float = 0.5,
+              line=None) -> MemoryObject:
+    """line：日志行号（= 中枢 line_start）。召回侧靠它找回写入时绑定的来源。"""
     return MemoryObject(
         memory_id=mid,
         content=text,
@@ -556,7 +616,46 @@ def _make_obj(mid: str, text: str, source: str, confidence: float = 0.5) -> Memo
         provenance=source,
         confidence=confidence,
         status=LifecycleState.OBSERVED.value,
+        source_id=str(line) if line is not None and str(line).isdigit() else None,
     )
+
+
+def _apply_trust(objs: list) -> tuple:
+    """按写入时绑定的来源给召回结果定性。返回 (放行的对象, 扣下的摘要)。
+
+      tainted     扣下，不出库；摘要里只有 id 与命中规则，**不含正文**
+      unverified  正文前加来源标注（"（未经证实·来源:tool）"），类型降为 semantic ——
+                  它可以作为信息被读到，但永远不会被渲染成规则
+      trusted     原样放行
+
+    找不到来源的对象（画像、Déjà Vu 熟悉度这类系统生成物，或 v7.8 之前的旧库）
+    不改动、不标注 —— 它们的信任传播是下一步的事，这里不假装已经做到。
+    """
+    from nexsandglass.core import provenance as _prov
+    kept, withheld = [], []
+    for o in objs:
+        prov = None
+        if o.source_id and str(o.source_id).isdigit():
+            try:
+                prov = _prov.for_line(int(o.source_id))
+            except Exception:
+                prov = None
+        if prov is None:
+            kept.append(o)
+            continue
+        o.origin, o.trust_signal = prov.origin, prov.signal
+        if prov.signal == _prov.TAINTED:
+            withheld.append({"memory_id": o.memory_id, "origin": prov.origin,
+                             "flags": [f["rule"] for f in prov.flags]})
+            continue
+        if prov.signal != _prov.TRUSTED:
+            label = prov.label()
+            if label and not o.content.startswith(label):
+                o.content = label + o.content
+            if o.type in ("procedural", "identity"):
+                o.type = "semantic"
+        kept.append(o)
+    return kept, withheld
 
 
 def _normalize_shadow(hits) -> list[tuple[float, int]]:
@@ -586,7 +685,9 @@ def _shadow_text(line_num: int) -> str:
 def _triple_text(t) -> str:
     if isinstance(t, dict):
         s = t.get("subject", "")
-        p = t.get("predicate", "")
+        # 库里的列叫 relation。以前只读 predicate —— 每条三元组都渲染成空串被丢掉，
+        # 知识图谱这一路召回从来没有返回过任何东西。
+        p = t.get("predicate") or t.get("relation", "")
         o = t.get("object", "")
         if s and p and o:
             return f"{s} {p} {o}"

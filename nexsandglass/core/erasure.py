@@ -50,7 +50,7 @@ import sqlite3
 from datetime import datetime
 from typing import Iterable, Optional
 
-from nexsandglass.core import memid
+from nexsandglass.core import memid, quarantine
 from nexsandglass.core.sandglass_paths import _NB
 
 logger = logging.getLogger(__name__)
@@ -339,15 +339,30 @@ def _purge_vectors(mem_ids: list) -> int:
 
 
 def forget(selector: dict, reason: str = "user_forget", apply: bool = False,
-           journal_path: str = None) -> dict:
+           journal_path: str = None, mode: str = "quarantine",
+           retention_days: int = None) -> dict:
     """真正的删除：中枢 + 日志正文 + 全部索引。
 
     apply=False（默认）只列出会删什么，不动任何东西。
 
-    返回报告 dict。删除是不可逆的（日志正文被原地抹除），
-    所以调用方应当先跑一次 apply=False 看清楚。
+    两种 mode（检索侧的效果**完全一样**，区别只在能不能反悔）：
+
+      mode="quarantine"（默认）
+          删除前先把原文与派生行留进隔离区（`core/quarantine.py`），
+          保留 N 天（默认 30，`NYX_FORGET_RETENTION_DAYS`）。
+          期间 `restore(mem_id)` 可逐字节还原；到期由 `purge()` 物理擦除。
+      mode="purge"
+          不留隔离区，当场不可逆 —— v7.4 之前的老行为。
+          给「现在就必须没有」的场合（法务、他人隐私、误粘贴的凭据）。
+
+    为什么默认改成隔离区：v7.4 有一次 `forget` 误抹了 345 行真实对话，
+    而同一个仓库里风险更低的 dream 破坏性合并反而有快照可回滚。
+    详见 `core/quarantine.py` 的模块文档（含隔离期内原文仍在磁盘上的诚实声明）。
     """
     journal_path = journal_path or memid._journal_path()
+    mode = (mode or "quarantine").strip().lower()
+    if mode not in ("quarantine", "purge"):
+        raise ValueError("mode 只能是 quarantine / purge，收到 %r" % mode)
     mem_ids = _select(selector)
     conn = memid.get_conn()
 
@@ -366,17 +381,39 @@ def forget(selector: dict, reason: str = "user_forget", apply: bool = False,
                      "text": r[6][:60].replace("\n", " ⏎ ")} for r in rows[:10]],
         "hub": 0, "journal_lines": 0, "fts": 0, "idx": 0,
         "shadow": {}, "engram": 0, "vectors": 0, "backup": {},
+        "mode": mode, "quarantined": 0, "purge_after": "", "recoverable": False,
     }
     if not apply or not rows:
         report["ok"] = True
         report["removed"] = 0
         report["action"] = "dry_run" if not apply else "nothing_matched"
         report["problems"] = []
+        if not apply:
+            # 预演也要说清楚「删完还能不能反悔」—— 这是用户按下确认前最该知道的事
+            days = quarantine.retention_days() if retention_days is None else retention_days
+            report["retention_days"] = days
+            report["recoverable"] = mode == "quarantine" and days > 0
         return report
 
     line_starts = [r[1] for r in rows]
     ids = [r[0] for r in rows]
     ts_list = [r[3] for r in rows]
+
+    # 隔离区**先于**级联清除 —— 先留副本再动手。
+    # 反过来的话，级联中途失败就会留下「正文已抹、副本没留」的不可恢复状态。
+    if mode == "quarantine":
+        held = quarantine.hold(
+            rows, reason=reason, journal_path=journal_path,
+            engram_path=os.path.join(_NB, "engram_store.jsonl"),
+            days=retention_days)
+        report["quarantined"] = held["held"]
+        report["purge_after"] = held["purge_after"]
+        report["retention_days"] = held["days"]
+        report["recoverable"] = held["held"] > 0
+        if held["skipped"]:
+            # 抓不下来的那几条会变成不可逆删除，不能静默
+            report.setdefault("warnings", []).append(
+                "%d 条未能进隔离区，删除后不可恢复" % held["skipped"])
 
     # 顺序有讲究：先抹日志正文（真相来源），再清各索引。
     # 反过来的话，中途失败会留下"索引没了但正文还在"——那还是能被搜到。
@@ -429,6 +466,16 @@ def verify_erasure(needles: Iterable[str], journal_path: str = None) -> dict:
 
     这是删除唯一的验收方式 —— 调 delete 返回 ok 不算数，
     生产上那次 `forget` 就是返回了 ok 而内容原封不动。
+
+    三个返回字段，**刻意不合并成一个**：
+
+      clean          任何检索路径都摸不到（召回/搜索/索引/正文/影子副本）
+      in_quarantine  隔离区里还留着（可 restore，到期 purge）
+      fully_purged   clean 且隔离区里也没有 —— 「从磁盘上真的没了」
+
+    `clean=True, fully_purged=False` 是隔离期内的正常状态：
+    用户读不到了，但还能反悔。把这一格并进 clean 会让"可恢复"和"已彻底删除"
+    返回同一个答案 —— 那正是 Déjà Vu 在讲的那类错误。
     """
     journal_path = journal_path or memid._journal_path()
     needles = [n for n in needles if n]
@@ -499,7 +546,38 @@ def verify_erasure(needles: Iterable[str], journal_path: str = None) -> dict:
                     if nd in line:
                         hit("engram", line.strip())
 
-    return {"clean": not found, "needles": list(needles), "found_in": found}
+    try:
+        q_hits = quarantine.find_text(needles)
+    except Exception as e:
+        q_hits = {}
+        logger.warning("[erasure] 隔离区扫描失败: %s", e)
+
+    return {"clean": not found, "needles": list(needles), "found_in": found,
+            "in_quarantine": q_hits, "fully_purged": (not found) and not q_hits}
+
+
+# ══════════════════════════════════════════════════════════
+# 反悔与到期擦除（门面在此，实现在 core/quarantine.py）
+# ══════════════════════════════════════════════════════════
+
+def restore(mem_id: str, journal_path: str = None) -> dict:
+    """把一条被"忘记"的记忆从隔离区完整还原（逐字节写回日志正文）。
+
+    只在隔离期内有效；purge 之后隔离区那份已经没了，返回 found=False。
+    """
+    return quarantine.restore(
+        mem_id, journal_path=journal_path or memid._journal_path(),
+        engram_path=os.path.join(_NB, "engram_store.jsonl"))
+
+
+def purge(mem_ids: list = None, apply: bool = False, older_than: bool = True) -> dict:
+    """隔离区到期擦除。默认只清已过期的；apply=False 只预演。"""
+    return quarantine.purge(mem_ids, older_than=older_than, apply=apply)
+
+
+def quarantine_list(limit: int = 200) -> list:
+    """隔离区清单（含 purge_after，供人核对还剩几天可反悔）。"""
+    return quarantine.list_all(limit=limit)
 
 
 def tombstoned_seqs() -> set:

@@ -168,28 +168,29 @@ def wthread_store(text: str, line_num: int = 0, subject: str = "user",
         triples_with_source = [(s, r, o, "regex") for s, r, o in wthread_extract(text, line_num)]
     if not triples_with_source:
         return 0
-    
+
+    # 必须走 temporal_fact.record_fact，不能直接 INSERT。
+    # v7.6 以前这里直接插行：不写 valid_from（as_of 永远查不到）、不做冲突处理
+    # （「最终用特斯拉」「后来改用吉利」之后 get_current 同时返回两者）——
+    # README 的 Tesla→Geely 黄金场景只在直接调 resolve_temporal_conflict 的测试里成立，
+    # 真实的 observe → log_message → 这里，一次都没走过时序逻辑。
+    from nexsandglass.engram.loops.temporal_fact import ensure_temporal_columns, record_fact
+    ensure_temporal_columns(_DB)
     conn = sqlite3.connect(_DB, timeout=10)
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = datetime.now(timezone.utc)
     count = 0
-    for subj, rel, obj, src_tag in triples_with_source:
-        if subj == "subject":
-            subj = subject
-        # 去重检查
-        exists = conn.execute(
-            "SELECT id FROM wthread_triples WHERE subject=? AND relation=? AND object=?",
-            (subj, rel, obj)
-        ).fetchone()
-        if exists:
-            continue
-        conn.execute(
-            "INSERT INTO wthread_triples (subject, relation, object, source_line,"
-            " source, created_at, source_mem_id) VALUES (?,?,?,?,?,?,?)",
-            (subj, rel, obj, line_num, src_tag, now, mem_id)
-        )
-        count += 1
-    conn.commit()
-    conn.close()
+    try:
+        for subj, rel, obj, src_tag in triples_with_source:
+            if subj == "subject":
+                subj = subject
+            rep = record_fact(conn, subj, rel, obj, now=now, source_line=line_num,
+                              source=src_tag, source_mem_id=mem_id,
+                              dedup_non_temporal=True)
+            if rep.inserted:
+                count += 1
+        conn.commit()
+    finally:
+        conn.close()
     return count
 
 
@@ -434,24 +435,24 @@ def wthread_weave(limit: int = 3) -> str:
     for rel, targets in result["grouped"].items():
         lines.append(f"  {rel}: " + ", ".join(targets[:limit]))
     return "\n".join(lines)
-def wthread_add(subject: str, relation: str, object: str, source_line: int = 0, source: str = "regex") -> bool:
+def wthread_add(subject: str, relation: str, object: str, source_line: int = 0,
+                source: str = "regex", valid_from=None) -> bool:
     """LLM 手动补漏——Agent 发现正则漏抓的关系时，通过 MCP 工具补入。
     返回 True 表示写入成功或已存在。
+
+    valid_from：事实**何时开始为真**（"我 2023 年起住海牙" → "2023"）。
+    给了就记为 stated；不给只能假设 = 写入时刻（assumed）。
+    Agent 补录时往往恰好知道这个时间 —— 这是陈述时间最自然的入口。
     """
     _ensure_table()
+    from nexsandglass.engram.loops.temporal_fact import ensure_temporal_columns, record_fact
+    ensure_temporal_columns(_DB)
     conn = sqlite3.connect(_DB, timeout=10)
-    exists = conn.execute(
-        "SELECT id FROM wthread_triples WHERE subject=? AND relation=? AND object=?",
-        (subject, relation, object)
-    ).fetchone()
-    if exists:
+    try:
+        record_fact(conn, subject, relation, object, valid_from=valid_from,
+                    source_line=source_line, source=source or "regex",
+                    dedup_non_temporal=True)
+        conn.commit()
+    finally:
         conn.close()
-        return True
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    conn.execute(
-        "INSERT INTO wthread_triples (subject, relation, object, source_line, source, created_at) VALUES (?,?,?,?,?,?)",
-        (subject, relation, object, source_line, source or 'regex', now)
-    )
-    conn.commit()
-    conn.close()
     return True

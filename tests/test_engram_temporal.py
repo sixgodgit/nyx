@@ -33,9 +33,11 @@ from nexsandglass.engram.loops.temporal_fact import (
     history_of,
     evolution_chain,
 )
-from nexsandglass.features import weavethread
+import tempfile
 
-_DB = weavethread._DB
+# 以前这里是 `_DB = weavethread._DB` —— 测试直接往**真实数据目录**
+# （~/.neurobase/shadow_sand.db，生产上就是用户的记忆库）里写"用户xxxx 住在 阿姆斯特丹"。
+_DB = os.path.join(tempfile.mkdtemp(prefix="nyx_temporal_"), "shadow_sand.db")
 
 
 def put_fact(subject, predicate, object, confidence=0.7, source="temporal", source_line=0):
@@ -54,12 +56,14 @@ PASS = 0
 
 
 def check(name, cond, detail=""):
+    """以前只 print 不 assert —— 在 pytest 下这个文件**永远是绿的**，无论实现对错。"""
     global PASS
     if cond:
         PASS += 1
         print(f"  PASS {name}")
     else:
         print(f"  FAIL {name} — {detail}")
+        raise AssertionError(f"{name} — {detail}")
 
 
 def test_temporal():

@@ -57,6 +57,8 @@ class MemoryContext:
     query: str = ""
     token_budget: int = 0
     meta_intent: object = None
+    # v7.8：被信任门扣下的召回结果（只有 id / 来源 / 命中规则，不含正文）
+    withheld: list = field(default_factory=list)
 
     def to_text(self, separator: str = "\n") -> str:
         """将上下文拼成纯文本（供 system prompt 注入）。优先用 text。"""
@@ -238,6 +240,8 @@ def forget(selector: dict) -> dict:
       - {"all": true}          清空（谨慎）
       - {"source_id": "..."}   兼容旧形态，经 memid.resolve 解析
       - {"dry_run": true}      只列出会删什么，不动任何东西
+      - {"purge_now": true}    不留隔离区，当场不可逆（法务 / 他人隐私 / 误粘贴凭据）
+      - {"retention_days": N}  覆盖本次的隔离期天数
 
     旧实现只遍历 engram_store.jsonl，而召回路径读的是 sandglass.txt ——
     于是 forget 返回 ok、内容原封不动、下一轮照样被召回。
@@ -250,6 +254,8 @@ def forget(selector: dict) -> dict:
         sel = dict(selector or {})
         dry = bool(sel.pop("dry_run", False))
         reason = sel.pop("reason", "user_forget")
+        mode = "purge" if sel.pop("purge_now", False) else "quarantine"
+        days = sel.pop("retention_days", None)
 
         # 兼容旧调用：source_id 可能是 "engram:<ts>" / "shadow:<line>" / 裸行号
         src = sel.pop("source_id", None)
@@ -258,7 +264,8 @@ def forget(selector: dict) -> dict:
             if mid:
                 sel.setdefault("mem_ids", []).append(mid)
 
-        rep = erasure.forget(sel, reason=reason, apply=not dry)
+        rep = erasure.forget(sel, reason=reason, apply=not dry, mode=mode,
+                             retention_days=days)
         return {
             "ok": True,
             "action": "dry_run" if dry else "erased",
@@ -266,12 +273,52 @@ def forget(selector: dict) -> dict:
             "selected": rep["selected"],
             "found": rep["found"],
             "preview": rep["preview"],
+            # 调用方（以及最终的用户）必须能看到「还能不能反悔、能反悔到哪天」，
+            # 否则"删了"和"删了但还能救"在返回值里长得一模一样。
+            "recoverable": rep.get("recoverable", False),
+            "purge_after": rep.get("purge_after", ""),
             "detail": {k: rep[k] for k in
                        ("journal_lines", "fts", "idx", "shadow", "engram", "vectors")},
         }
     except Exception as e:
         logger.error("[facade.forget] 失败: %s", e)
         return {"ok": False, "action": "error", "removed": 0, "error": str(e)}
+
+
+def restore(mem_id: str) -> dict:
+    """把一条被 forget 的记忆从隔离区还原（隔离期内有效）。
+
+    这是 B0 契约的第五个操作。加它的理由只有一条：
+    v7.4 那次误抹 345 行真实对话之后，仓库里**没有任何一条路径能把它们拿回来**。
+    """
+    try:
+        from nexsandglass.core import erasure
+        rep = erasure.restore(mem_id)
+        return {"ok": rep["ok"], "action": "restore", "mem_id": mem_id,
+                "found": rep["found"], "problems": rep["problems"],
+                "notes": rep.get("notes", []),
+                "detail": {k: rep[k] for k in
+                           ("journal", "hub", "fts", "idx", "engram", "shadow")}}
+    except Exception as e:
+        logger.error("[facade.restore] 失败: %s", e)
+        return {"ok": False, "action": "error", "mem_id": mem_id, "error": str(e)}
+
+
+def purge_forgotten(*, apply: bool = False, mem_ids: list = None) -> dict:
+    """隔离区到期擦除（cron / 维护入口）。apply=False 只预演。
+
+    没有人跑这个，"保留 30 天"就变成"永久留着" ——
+    `memid.health()` 的 pending_purge 项正是为了让这件事不被忘记。
+    """
+    try:
+        from nexsandglass.core import erasure
+        rep = erasure.purge(mem_ids=mem_ids, apply=apply)
+        return {"ok": rep.get("ok", False), "action": rep.get("action", ""),
+                "selected": rep["selected"], "purged": rep["purged"],
+                "vacuumed": rep.get("vacuumed", False), "preview": rep["preview"]}
+    except Exception as e:
+        logger.error("[facade.purge_forgotten] 失败: %s", e)
+        return {"ok": False, "action": "error", "purged": 0, "error": str(e)}
 
 def consolidate(*, tag: str = "consolidation") -> dict:
     """维护/异步入口：运行 Dream 生产化 Consolidation（B0）。

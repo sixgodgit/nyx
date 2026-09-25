@@ -2,7 +2,7 @@
 NexSandglass Runtime —— 唯一对外 API（B0 契约冻结）。
 
 外部（Hermes / MCP / 未来认知内核）只 import 本包：
-    from nexsandglass.runtime import observe, recall, feedback, forget, consolidate
+    from nexsandglass.runtime import observe, recall, feedback, forget, restore, consolidate
 
 数据流：
     Conversation → observe(Formation) → Store
@@ -22,6 +22,8 @@ from .facade import (  # noqa: E402
     recall,
     feedback,
     forget,
+    restore,
+    purge_forgotten,
     consolidate,
     MemoryContext,
     ObserveReport,
@@ -31,7 +33,8 @@ from .bundle import MemoryBundle  # noqa: E402
 from nexsandglass.engram.types import MemoryObject  # noqa: E402
 
 __all__ = [
-    "observe", "recall", "feedback", "forget", "consolidate",
+    "observe", "recall", "feedback", "forget", "restore", "purge_forgotten",
+    "consolidate",
     "get_orchestrator",
     "MemoryContext", "ObserveReport", "MemoryBundle", "MemoryObject",
     "NYX_RUNTIME",
