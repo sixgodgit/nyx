@@ -264,15 +264,23 @@ def _retract_and_copy(conn, row_id: int, now_s: str, **override) -> int:
 def record_fact(conn: sqlite3.Connection, subject: str, relation: str, obj: str, *,
                 valid_from=None, now=None, source_line: int = 0, source: str = "regex",
                 source_mem_id: str = None, confidence: float = None,
-                dedup_non_temporal: bool = True) -> TemporalFactReport:
+                dedup_non_temporal: bool = True,
+                ongoing: Optional[bool] = None) -> TemporalFactReport:
     """在一个**已迁移**的连接上写入一条事实（不 commit，由调用方提交）。
 
     valid_from: 事实开始为真的时刻。给了 → valid_basis='stated'；
                 没给 → 只能假设 = 记录时刻，valid_basis='assumed'。
     now:        记录时刻（测试注入用；默认 UTC 当前）。
+    ongoing:    这句话说的事实**现在仍然为真**吗（话语的"体"）。
+                「很早以前我住在鹿特丹」→ False（已结束的往事）
+                「我 2 月 25 号就换成吉利了」→ True（从过去开始、至今仍真）
+                两句在存储层看来形状一样 —— 陈述的起点都早于现任的假设起点 ——
+                区别只在话语本身，所以由调用方（抽取器）传进来，存储层不猜。
+                None = 未知，按"往事"处理（v7.7 行为）。
     """
     rep = TemporalFactReport()
-    now_s = normalize_ts(now or datetime.now(timezone.utc))
+    from nexsandglass.core import clock
+    now_s = normalize_ts(now or clock.utcnow())
     stated = valid_from is not None and valid_from != ""
     vf = normalize_ts(valid_from) if stated else now_s
     basis = "stated" if stated else "assumed"
@@ -327,12 +335,18 @@ def record_fact(conn: sqlite3.Connection, subject: str, relation: str, obj: str,
         rep.conflicts.append({"expired_id": rid, "old_object": old_obj,
                               "new_object": obj, "subject": subject, "relation": relation})
 
-    if same:
-        # 同一对象在这个时刻已知为真 → 去重（但冲突方已被上面截断，保持 v6.0 的自愈行为）
+    # 至今仍真（ongoing）的新事实之后，所有**仍然开放**的冲突现任都被它取代 ——
+    # 不论新事实走的是哪条路径（落在已有终点的区间里、落在所有区间之前、落在空档里）。
+    # 单值关系不能有两个现任；最新的话胜出。
+    later_open = [r for r in believed
+                  if ongoing and r[2] > vf and r[3] is None and r[1] != obj]
+
+    if same and not later_open:
+        # 同一对象在这个时刻已知为真 → 去重（冲突方已被上面截断，保持 v6.0 的自愈行为）
         return rep
 
     if not containing:
-        # 新事实落在所有已知区间之前（或空档里）→ 终点 = 下一个区间的起点
+        # 新事实落在所有已知区间之前（或空档里）→ 默认终点 = 下一个区间的起点
         nxt = next((r for r in believed if r[2] > vf), None)
         if nxt is not None:
             if nxt[1] == obj and nxt[4] == "assumed" and stated:
@@ -345,8 +359,22 @@ def record_fact(conn: sqlite3.Connection, subject: str, relation: str, obj: str,
                     source_mem_id=source_mem_id or _row(conn, nxt[0]).get("source_mem_id"))
                 rep.inserted = True
                 return rep
-            base["valid_until"], base["closed_at"] = nxt[2], now_s
-            rep.late_arrival = True
+            if not ongoing:
+                base["valid_until"], base["closed_at"] = nxt[2], now_s
+                rep.late_arrival = True
+
+    if ongoing:
+        # 「3/1 说在开特斯拉（假设 3/1 起）→ 3/10 说 "2/25 就换成吉利了，现在还开"」
+        # 被取代的现任留一个零长度版本（在它自己的起点）：知道曾经听说过它，
+        # 但不编造一个它从未被陈述过的区间。
+        for rid, old_obj, old_vf, _, _ in later_open:
+            rep.retracted.append(rid)
+            rep.expired.append(str(rid))
+            rep.conflicts.append({"expired_id": rid, "old_object": old_obj,
+                                  "new_object": obj, "subject": subject,
+                                  "relation": relation, "reason": "superseded_by_ongoing"})
+            _retract_and_copy(conn, rid, now_s, valid_until=old_vf, closed_at=now_s)
+        base["valid_until"], base["closed_at"] = None, None
 
     rep.valid_until = base["valid_until"]
     rep.inserted_id = _insert(conn, base)
@@ -364,6 +392,7 @@ def resolve_temporal_conflict(
     now: Optional[datetime] = None,
     valid_from=None,
     source_mem_id: str = None,
+    ongoing: Optional[bool] = None,
 ) -> TemporalFactReport:
     """写入一条事实并处理时序冲突（v6.0 入口，签名向后兼容）。
 
@@ -375,7 +404,8 @@ def resolve_temporal_conflict(
     try:
         rep = record_fact(conn, subject, relation, new_object, valid_from=valid_from,
                           now=now, source_line=source_line, source=source,
-                          source_mem_id=source_mem_id, dedup_non_temporal=False)
+                          source_mem_id=source_mem_id, dedup_non_temporal=False,
+                          ongoing=ongoing)
         conn.commit()
         return rep
     except Exception as e:
@@ -571,7 +601,8 @@ def repair_open_conflicts(db_path: str, apply: bool = False, now=None) -> dict:
     仍能看到修复前的信念。apply=False 只预演。
     """
     ensure_temporal_columns(db_path)
-    now_s = normalize_ts(now or datetime.now(timezone.utc))
+    from nexsandglass.core import clock
+    now_s = normalize_ts(now or clock.utcnow())
     conn = sqlite3.connect(db_path, timeout=10)
     report = {"groups": [], "closed": 0, "applied": apply}
     try:

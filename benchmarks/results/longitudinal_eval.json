@@ -1,0 +1,3871 @@
+{
+  "version": "7.9.0",
+  "seeds": 35,
+  "days": 180,
+  "track_a": {
+    "aggregate": {
+      "current": {
+        "nyx": [
+          420,
+          420
+        ],
+        "base": [
+          375,
+          420
+        ]
+      },
+      "known_at": {
+        "nyx": [
+          420,
+          420
+        ],
+        "base": [
+          375,
+          420
+        ]
+      },
+      "as_of": {
+        "nyx": [
+          1104,
+          1104
+        ],
+        "base": [
+          523,
+          1104
+        ]
+      },
+      "abstain": {
+        "nyx": [
+          105,
+          105
+        ],
+        "base": [
+          105,
+          105
+        ]
+      },
+      "forget": {
+        "nyx": [
+          105,
+          105
+        ],
+        "base": [
+          105,
+          105
+        ]
+      },
+      "restore": {
+        "nyx": [
+          35,
+          35
+        ],
+        "base": [
+          0,
+          35
+        ]
+      }
+    },
+    "by_checkpoint": {
+      "30": {
+        "nyx": [
+          210,
+          210
+        ],
+        "base": [
+          210,
+          210
+        ]
+      },
+      "90": {
+        "nyx": [
+          210,
+          210
+        ],
+        "base": [
+          196,
+          210
+        ]
+      },
+      "180": {
+        "nyx": [
+          210,
+          210
+        ],
+        "base": [
+          179,
+          210
+        ]
+      }
+    },
+    "runs": [
+      {
+        "seed": 0,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 9,
+          "late_history": 2
+        },
+        "stated_ratio": 0.44,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              12,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              12,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              30,
+              30
+            ],
+            "base": [
+              18,
+              30
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 1,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 10,
+          "late_history": 3,
+          "correction": 1
+        },
+        "stated_ratio": 0.53,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              34,
+              34
+            ],
+            "base": [
+              16,
+              34
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 2,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 10,
+          "correction": 2
+        },
+        "stated_ratio": 0.41,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              32,
+              32
+            ],
+            "base": [
+              19,
+              32
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 3,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 8,
+          "late_history": 2
+        },
+        "stated_ratio": 0.53,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              28,
+              28
+            ],
+            "base": [
+              16,
+              28
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 4,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              4,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 8,
+          "late_history": 3,
+          "correction": 1
+        },
+        "stated_ratio": 0.65,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              32,
+              32
+            ],
+            "base": [
+              13,
+              32
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 5,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 10,
+          "late_history": 3
+        },
+        "stated_ratio": 0.5,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              34,
+              34
+            ],
+            "base": [
+              20,
+              34
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 6,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 10,
+          "correction": 1,
+          "late_history": 2
+        },
+        "stated_ratio": 0.5,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              32,
+              32
+            ],
+            "base": [
+              16,
+              32
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 7,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 8,
+          "late_history": 3,
+          "correction": 1
+        },
+        "stated_ratio": 0.53,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              32,
+              32
+            ],
+            "base": [
+              16,
+              32
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 8,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 7,
+          "late_history": 2,
+          "correction": 1
+        },
+        "stated_ratio": 0.67,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              12,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              12,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              28,
+              28
+            ],
+            "base": [
+              13,
+              28
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 9,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 8,
+          "late_history": 2,
+          "correction": 1
+        },
+        "stated_ratio": 0.62,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              30,
+              30
+            ],
+            "base": [
+              13,
+              30
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 10,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              4,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 9,
+          "correction": 2,
+          "late_history": 3
+        },
+        "stated_ratio": 0.74,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              9,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              9,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              36,
+              36
+            ],
+            "base": [
+              10,
+              36
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 11,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              4,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 7,
+          "late_history": 3
+        },
+        "stated_ratio": 0.67,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              9,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              9,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              28,
+              28
+            ],
+            "base": [
+              13,
+              28
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 12,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 9,
+          "late_history": 3,
+          "correction": 2
+        },
+        "stated_ratio": 0.63,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              36,
+              36
+            ],
+            "base": [
+              16,
+              36
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 13,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 8,
+          "late_history": 1
+        },
+        "stated_ratio": 0.5,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              12,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              12,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              26,
+              26
+            ],
+            "base": [
+              17,
+              26
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 14,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              4,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 9,
+          "correction": 2,
+          "late_history": 3
+        },
+        "stated_ratio": 0.74,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              9,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              9,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              36,
+              36
+            ],
+            "base": [
+              10,
+              36
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 15,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              4,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 10,
+          "correction": 1,
+          "late_history": 4
+        },
+        "stated_ratio": 0.7,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              9,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              9,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              36,
+              36
+            ],
+            "base": [
+              14,
+              36
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 16,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              4,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 10,
+          "late_history": 3
+        },
+        "stated_ratio": 0.5,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              34,
+              34
+            ],
+            "base": [
+              19,
+              34
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 17,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 10,
+          "late_history": 3,
+          "correction": 1
+        },
+        "stated_ratio": 0.58,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              36,
+              36
+            ],
+            "base": [
+              17,
+              36
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 18,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 8,
+          "late_history": 3
+        },
+        "stated_ratio": 0.62,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              12,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              12,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              30,
+              30
+            ],
+            "base": [
+              13,
+              30
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 19,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 9,
+          "correction": 1,
+          "late_history": 4
+        },
+        "stated_ratio": 0.53,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              36,
+              36
+            ],
+            "base": [
+              18,
+              36
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 20,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              4,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 9,
+          "correction": 2,
+          "late_history": 1
+        },
+        "stated_ratio": 0.76,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              32,
+              32
+            ],
+            "base": [
+              9,
+              32
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 21,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 8,
+          "late_history": 1,
+          "correction": 1
+        },
+        "stated_ratio": 0.6,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              12,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              12,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              28,
+              28
+            ],
+            "base": [
+              14,
+              28
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 22,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              4,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 8,
+          "late_history": 2,
+          "correction": 2
+        },
+        "stated_ratio": 0.59,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              32,
+              32
+            ],
+            "base": [
+              12,
+              32
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 23,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              4,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 6,
+          "late_history": 3,
+          "correction": 1
+        },
+        "stated_ratio": 0.53,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              28,
+              28
+            ],
+            "base": [
+              13,
+              28
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 24,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              4,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 10,
+          "late_history": 2,
+          "correction": 2
+        },
+        "stated_ratio": 0.42,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              36,
+              36
+            ],
+            "base": [
+              18,
+              36
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 25,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 9,
+          "late_history": 2
+        },
+        "stated_ratio": 0.56,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              30,
+              30
+            ],
+            "base": [
+              15,
+              30
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 26,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 8,
+          "late_history": 1,
+          "correction": 1
+        },
+        "stated_ratio": 0.6,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              28,
+              28
+            ],
+            "base": [
+              13,
+              28
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 27,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 8,
+          "late_history": 2,
+          "correction": 1
+        },
+        "stated_ratio": 0.69,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              30,
+              30
+            ],
+            "base": [
+              11,
+              30
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 28,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 7,
+          "late_history": 2,
+          "correction": 1
+        },
+        "stated_ratio": 0.67,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              12,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              12,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              28,
+              28
+            ],
+            "base": [
+              12,
+              28
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 29,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 6,
+          "late_history": 1,
+          "correction": 1
+        },
+        "stated_ratio": 0.54,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              24,
+              24
+            ],
+            "base": [
+              15,
+              24
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 30,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 8,
+          "correction": 2,
+          "late_history": 1
+        },
+        "stated_ratio": 0.5,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              30,
+              30
+            ],
+            "base": [
+              18,
+              30
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 31,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 10,
+          "late_history": 2
+        },
+        "stated_ratio": 0.65,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              32,
+              32
+            ],
+            "base": [
+              15,
+              32
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 32,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 10,
+          "late_history": 3,
+          "correction": 2
+        },
+        "stated_ratio": 0.7,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              10,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              38,
+              38
+            ],
+            "base": [
+              15,
+              38
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 33,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 10,
+          "late_history": 2,
+          "correction": 1
+        },
+        "stated_ratio": 0.5,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              12,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              12,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              34,
+              34
+            ],
+            "base": [
+              19,
+              34
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      },
+      {
+        "seed": 34,
+        "by_checkpoint": {
+          "30": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          },
+          "90": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              5,
+              6
+            ]
+          },
+          "180": {
+            "nyx": [
+              6,
+              6
+            ],
+            "base": [
+              6,
+              6
+            ]
+          }
+        },
+        "events": {
+          "initial": 5,
+          "change": 8,
+          "late_history": 2
+        },
+        "stated_ratio": 0.47,
+        "scores": {
+          "current": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "known_at": {
+            "nyx": [
+              12,
+              12
+            ],
+            "base": [
+              11,
+              12
+            ]
+          },
+          "as_of": {
+            "nyx": [
+              28,
+              28
+            ],
+            "base": [
+              17,
+              28
+            ]
+          },
+          "abstain": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "forget": {
+            "nyx": [
+              3,
+              3
+            ],
+            "base": [
+              3,
+              3
+            ]
+          },
+          "restore": {
+            "nyx": [
+              1,
+              1
+            ],
+            "base": [
+              0,
+              1
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "track_b": {
+    "received": [
+      {
+        "source": "email",
+        "ok": true
+      },
+      {
+        "source": "web",
+        "ok": true
+      },
+      {
+        "source": "tool",
+        "ok": true
+      },
+      {
+        "source": "assistant",
+        "ok": true
+      }
+    ],
+    "holdout": [
+      {
+        "marker": "HOLDOUT0001",
+        "source": "email",
+        "signal": "tainted",
+        "rule_slot": false,
+        "unlabeled": false,
+        "blocked": true
+      },
+      {
+        "marker": "HOLDOUT02",
+        "source": "email",
+        "signal": "unverified",
+        "rule_slot": false,
+        "unlabeled": false,
+        "blocked": false
+      },
+      {
+        "marker": "HOLDOUT03",
+        "source": "tool",
+        "signal": "unverified",
+        "rule_slot": false,
+        "unlabeled": false,
+        "blocked": false
+      },
+      {
+        "marker": "HOLDOUT04",
+        "source": "web",
+        "signal": "tainted",
+        "rule_slot": false,
+        "unlabeled": false,
+        "blocked": true
+      },
+      {
+        "marker": "HOLDOUT05",
+        "source": "web",
+        "signal": "unverified",
+        "rule_slot": false,
+        "unlabeled": false,
+        "blocked": false
+      },
+      {
+        "marker": "holdout06",
+        "source": "tool",
+        "signal": "unverified",
+        "rule_slot": false,
+        "unlabeled": false,
+        "blocked": false
+      },
+      {
+        "marker": "HOLDOUT07",
+        "source": "email",
+        "signal": "unverified",
+        "rule_slot": false,
+        "unlabeled": false,
+        "blocked": false
+      },
+      {
+        "marker": "HOLDOUT08",
+        "source": "web",
+        "signal": "tainted",
+        "rule_slot": false,
+        "unlabeled": false,
+        "blocked": true
+      },
+      {
+        "marker": "holdout09",
+        "source": "tool",
+        "signal": "unverified",
+        "rule_slot": false,
+        "unlabeled": false,
+        "blocked": false
+      },
+      {
+        "marker": "HOLDOUT10",
+        "source": "email",
+        "signal": "unverified",
+        "rule_slot": false,
+        "unlabeled": false,
+        "blocked": false
+      }
+    ],
+    "owner": [
+      {
+        "marker": "NL91HOLD0000001",
+        "false_positive": [],
+        "signal": "trusted"
+      },
+      {
+        "marker": "女儿生日",
+        "false_positive": [],
+        "signal": "trusted"
+      },
+      {
+        "marker": "FPCAR01",
+        "false_positive": [],
+        "signal": "trusted"
+      },
+      {
+        "marker": "FPMEET02",
+        "false_positive": [],
+        "signal": "trusted"
+      },
+      {
+        "marker": "FPPAY03",
+        "false_positive": [],
+        "signal": "trusted"
+      }
+    ],
+    "summary": {
+      "received_ok": 4,
+      "received": 4,
+      "holdout": 10,
+      "holdout_rule_slot": 0,
+      "holdout_unlabeled": 0,
+      "holdout_blocked": 3,
+      "owner": 5,
+      "owner_false_positive": 0
+    }
+  }
+}

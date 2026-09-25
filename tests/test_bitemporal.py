@@ -317,3 +317,80 @@ def test_eval_temporal_runs_and_rejects_multiple_currents(wt):
     c.close()
     assert eval_temporal([("user", "使用", "吉利")], db_path=path) == 0.0, \
         "两个现任却判对 —— 被排序巧合掩盖了"
+
+
+# ══════════════════════════════════════════════════════════
+# 8. 话语的"体"：至今仍真（ongoing）vs 往事（v7.9，纵向评测发现）
+# ══════════════════════════════════════════════════════════
+
+def test_ongoing_stated_change_beats_assumed_current(db):
+    """3/1 说在开特斯拉（起点未陈述 → 假设 3/1）；3/10 说「2/25 就换成吉利了，现在还开」。
+
+    陈述的起点早于现任的**假设**起点。存储层看起来和「很早以前开过吉利」一模一样 ——
+    区别只在话语本身是否至今仍真。
+    """
+    _put(db, "特斯拉", datetime(2026, 3, 1, 10), rel="使用")
+    r = resolve_temporal_conflict(db, "user", "使用", "吉利", now=datetime(2026, 3, 10, 10),
+                                  valid_from="2026-02-25", ongoing=True)
+    assert r.retracted and not r.late_arrival
+    assert _objs(get_current(db, "user", "使用")) == ["吉利"]
+    assert _objs(get_current(db, "user", "使用", known_at="2026-03-05")) == ["特斯拉"], \
+        "3/5 那时的信念（特斯拉）必须还能重建"
+
+
+def test_same_shape_without_ongoing_stays_history(db):
+    """对照：同样的形状，但说的是往事 → 作为历史插入，不顶掉现任（v7.7 行为不变）。"""
+    _put(db, "特斯拉", datetime(2026, 3, 1, 10), rel="使用")
+    r = resolve_temporal_conflict(db, "user", "使用", "吉利", now=datetime(2026, 3, 10, 10),
+                                  valid_from="2026-02-25")
+    assert r.late_arrival
+    assert _objs(get_current(db, "user", "使用")) == ["特斯拉"]
+
+
+def test_ongoing_inside_bounded_interval_becomes_current(db):
+    """纵向评测 seed=1 的真实失败形状：
+
+    1/8  说邮箱是 gmail（假设起点）
+    6/17 说现在邮箱是 delft（假设起点）→ gmail 被截断到 6/17
+    6/25 说「6/15 就换成 nexsand 了」，至今仍真
+
+    6/15 落在 gmail 那段**已有终点**的区间里 → 走"更正"路径，新事实会继承
+    那段的终点（6/17），于是 nexsand 被当成一段短暂的往事、delft 仍是现任。
+    """
+    _put(db, "gmail", datetime(2026, 1, 8, 9), rel="邮箱")
+    _put(db, "delft", datetime(2026, 6, 17, 18), rel="邮箱")
+    resolve_temporal_conflict(db, "user", "邮箱", "nexsand", now=datetime(2026, 6, 25, 21),
+                              valid_from="2026-06-15T19:00:00", ongoing=True)
+    assert _objs(get_current(db, "user", "邮箱")) == ["nexsand"]
+    assert _objs(as_of(db, "2026-03-01", predicate="邮箱")) == ["gmail"]
+    assert _objs(get_current(db, "user", "邮箱", known_at="2026-06-20")) == ["delft"]
+
+
+# ══════════════════════════════════════════════════════════
+# 9. 可注入时钟
+# ══════════════════════════════════════════════════════════
+
+def test_clock_drives_record_time(tmp_path, monkeypatch):
+    from nexsandglass.core import clock, memid
+    home = tmp_path / "nb"
+    home.mkdir()
+    monkeypatch.setenv("NEXSANDBASE_HOME", str(home))
+    sg = str(home / "sandglass.txt")
+    monkeypatch.setattr(memid, "_SANDGLASS", sg)
+    monkeypatch.setattr(memid, "_LOCK", sg + ".lock")
+    memid.set_db_path(str(home / "nyx.db"))
+    db = str(home / "shadow_sand.db")
+    with clock.frozen("2026-03-01 10:00:00"):
+        mid = memid.allocate("我住在海牙", sender="user", journal_path=sg)
+        r = resolve_temporal_conflict(db, "user", "住在", "海牙")
+    assert memid.get(mid)["ts"] == "2026-03-01 10:00:00"
+    assert r.recorded_at == "2026-03-01T10:00:00Z"
+    assert not clock.is_simulated(), "frozen 退出后必须还原真实时钟"
+    memid.set_db_path(str(tmp_path / "unused.db"))
+
+
+def test_clock_does_not_move_retention_promises(tmp_path, monkeypatch):
+    """模拟时钟不能挪动对用户的承诺：隔离区的到期时间按真实挂钟算。"""
+    from nexsandglass.core import clock, quarantine
+    with clock.frozen("2020-01-01 00:00:00"):
+        assert quarantine._now().startswith(str(datetime.now().year))

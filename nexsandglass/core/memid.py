@@ -448,7 +448,8 @@ def allocate(text: str, sender: str = "agent", ts: str = None,
     Raises:
         TimeoutError: 获取锁超时（调用方应重试或报错，不应静默继续）
     """
-    ts = ts or f"{datetime.now():%Y-%m-%d %H:%M:%S}"
+    from nexsandglass.core import clock
+    ts = ts or f"{clock.now():%Y-%m-%d %H:%M:%S}"
     text = text.rstrip("\n")
     # 正文里长成记录头的续行必须转义，否则重新解析日志时它会被切成一条独立记录，
     # sender 由正文作者（可能是网页、邮件）决定 —— 见 core/provenance.py「日志格式本身的伪造面」

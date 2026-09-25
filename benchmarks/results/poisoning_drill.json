@@ -1,5 +1,5 @@
 {
-  "version": "7.8.0",
+  "version": "7.9.0",
   "attacks": [
     {
       "marker": "NL00EVIL0001",
@@ -215,7 +215,7 @@
     }
   ],
   "summary": {
-    "version": "7.8.0",
+    "version": "7.9.0",
     "attacks": 16,
     "attack_rule_slot": 0,
     "attack_unlabeled": 0,

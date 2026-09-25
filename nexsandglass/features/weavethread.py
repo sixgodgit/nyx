@@ -177,7 +177,8 @@ def wthread_store(text: str, line_num: int = 0, subject: str = "user",
     from nexsandglass.engram.loops.temporal_fact import ensure_temporal_columns, record_fact
     ensure_temporal_columns(_DB)
     conn = sqlite3.connect(_DB, timeout=10)
-    now = datetime.now(timezone.utc)
+    from nexsandglass.core import clock
+    now = clock.utcnow()
     count = 0
     try:
         for subj, rel, obj, src_tag in triples_with_source:
@@ -436,13 +437,16 @@ def wthread_weave(limit: int = 3) -> str:
         lines.append(f"  {rel}: " + ", ".join(targets[:limit]))
     return "\n".join(lines)
 def wthread_add(subject: str, relation: str, object: str, source_line: int = 0,
-                source: str = "regex", valid_from=None) -> bool:
+                source: str = "regex", valid_from=None, ongoing=None) -> bool:
     """LLM 手动补漏——Agent 发现正则漏抓的关系时，通过 MCP 工具补入。
     返回 True 表示写入成功或已存在。
 
     valid_from：事实**何时开始为真**（"我 2023 年起住海牙" → "2023"）。
     给了就记为 stated；不给只能假设 = 写入时刻（assumed）。
     Agent 补录时往往恰好知道这个时间 —— 这是陈述时间最自然的入口。
+
+    ongoing：这句话说的事实**至今仍真**吗。「2 月 25 号就换成吉利了」→ True；
+    「很早以前开过吉利」→ False。陈述的起点早于现任时，只有它能区分"换了"和"往事"。
     """
     _ensure_table()
     from nexsandglass.engram.loops.temporal_fact import ensure_temporal_columns, record_fact
@@ -451,7 +455,7 @@ def wthread_add(subject: str, relation: str, object: str, source_line: int = 0,
     try:
         record_fact(conn, subject, relation, object, valid_from=valid_from,
                     source_line=source_line, source=source or "regex",
-                    dedup_non_temporal=True)
+                    dedup_non_temporal=True, ongoing=ongoing)
         conn.commit()
     finally:
         conn.close()
