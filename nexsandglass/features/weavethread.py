@@ -166,22 +166,53 @@ def wthread_store(text: str, line_num: int = 0, subject: str = "user",
         triples_with_source = wthread_extract_with_source(text, line_num)
     else:
         triples_with_source = [(s, r, o, "regex") for s, r, o in wthread_extract(text, line_num)]
-    if not triples_with_source:
+
+    # v7.10：本体内的关系（住在/使用/公司/职位/邮箱/电话/偏好/反感）由 core/understand 负责 ——
+    # 它读得出起始时间与"体"，实体边界也干净。旧正则里与本体重名的匹配让位：
+    #   偏好 / 反感 → 由 understand 接管（边界更准）
+    #   使用        → understand 只认**座驾**；旧正则泛化的「用了 X」降为多值关系「用过」，
+    #                 信息保留，但不再能把现任座驾顶掉（「用了 Python」≠ 换车）
+    from nexsandglass.core import understand, clock
+    now = clock.utcnow()
+    try:
+        facts = understand.extract(text, now=clock.now(), subject=subject)
+    except Exception as e:
+        # 理解层出错不能让这条消息的图谱写入整个丢掉 —— 退回旧正则
+        logger.warning("[wthread_store] understand 失败，退回正则: %s", e)
+        facts = []
+    legacy = []
+    for subj, rel, obj, src_tag in triples_with_source:
+        if rel in ("偏好", "反感"):
+            continue
+        if rel == "使用":
+            if any(f.relation == "使用" for f in facts):
+                continue
+            rel = "用过"
+        legacy.append((subj, rel, obj, src_tag))
+    if not facts and not legacy:
         return 0
 
     # 必须走 temporal_fact.record_fact，不能直接 INSERT。
     # v7.6 以前这里直接插行：不写 valid_from（as_of 永远查不到）、不做冲突处理
-    # （「最终用特斯拉」「后来改用吉利」之后 get_current 同时返回两者）——
-    # README 的 Tesla→Geely 黄金场景只在直接调 resolve_temporal_conflict 的测试里成立，
-    # 真实的 observe → log_message → 这里，一次都没走过时序逻辑。
+    # （「最终用特斯拉」「后来改用吉利」之后 get_current 同时返回两者）。
     from nexsandglass.engram.loops.temporal_fact import ensure_temporal_columns, record_fact
     ensure_temporal_columns(_DB)
     conn = sqlite3.connect(_DB, timeout=10)
-    from nexsandglass.core import clock
-    now = clock.utcnow()
     count = 0
     try:
-        for subj, rel, obj, src_tag in triples_with_source:
+        for f in facts:
+            if f.deferred:
+                # 往事但没给时间（「我以前住在鹿特丹」）：写成现任是错的，编一个起点更错 ——
+                # 不写。原句仍在沙漏里，可被检索
+                continue
+            rep = record_fact(conn, f.subject, f.relation, f.object, now=now,
+                              valid_from=f.valid_from, ongoing=f.ongoing,
+                              source_line=line_num, source=f"understand:{f.backend}",
+                              source_mem_id=mem_id, confidence=f.confidence,
+                              dedup_non_temporal=True)
+            if rep.inserted:
+                count += 1
+        for subj, rel, obj, src_tag in legacy:
             if subj == "subject":
                 subj = subject
             rep = record_fact(conn, subj, rel, obj, now=now, source_line=line_num,

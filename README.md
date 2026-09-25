@@ -2,7 +2,7 @@
 
 > **Nyx — 把「检索失败」也当作一类信号的记忆系统**
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.9-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.10-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 ## 别的记忆系统回答「找到了什么」，Nyx 还回答「我是不是见过」
 
@@ -55,6 +55,7 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 | 🗑️ **擦除级联** | `core/erasure.py` | 一次删除贯通中枢/日志正文/FTS/倒排/影子/engram/向量，可独立验收（v7.4） |
 | 🕯️ **遗忘隔离区** | `core/quarantine.py` | **删得掉，也救得回**：forget 两段式 —— 检索侧立刻读不到，隔离期内 `restore` 逐字节还原，到期 `purge` 不可逆（v7.6） |
 | 🛡️ **来源信任** | `core/provenance.py` | 第三类元认知信号：trusted / unverified / tainted。来源在写入时绑定、正文改不了；只有主人亲口说的能成为规则；外部信息召回时带来源标注（v7.8，防 OWASP ASI06 记忆投毒） |
+| 🗣️ **话语理解** | `core/understand.py` | 一句话 → (谁, 关系, 值, 从何时起, 是否至今仍真)：读得出「2 月 25 号就换成吉利了」里的起始时间与「体」；规则后端零依赖，LLM 后端可选且输出必须过校验（v7.10） |
 | 🧬 **Skill Distiller** | `features/skill_distiller.py` | 过程记忆 → 技能候选自动蒸馏，观察反复出现的工作流并生成可复用 skill 草案（v7.5） |
 | 🕸️ **织线 Thread** | `features/weavethread.py` | 知识图谱（实体关系三元组），支持 OpenViking Memory Link 类型化 links + PPR 图增强 |
 | 🏜️ **影子沙 Fact Store** | `features/shadow_sand.py` | 结构化事实存储（带信任评分） |
@@ -321,6 +322,64 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 ---
 
 ## 📝 更新日志
+
+### v7.10 (2026-09-26) — 话语理解：把一句话读成五元组
+
+**为什么**
+v7.9 的纵向评测把瓶颈定位得很清楚：oracle 抽取下时间与信念全对，
+**端到端的短板在理解**。本版之前，nyx 从自然对话里**一条**住址、公司、邮箱都学不到：
+
+| 轨道 C：端到端（自然语句 → observe → 理解 → 存储），35 种子 × 180 天 | v7.9 | v7.10 开发句式 | **v7.10 留出句式** |
+|---|---|---|---|
+| 现在是什么 | **0%** | 100% | **64.3%**（270/420） |
+| 第 K 天时我以为是什么 | **0%** | 100% | **64.3%**（270/420） |
+| 过去某刻是什么 | **0%** | 98.3% | **66.2%**（731/1104） |
+| 没说过 → 不知道 | 100% | 100% | 100% |
+| 抽取召回 / 精确 | — | 98.4% / 98.4% | **71.4% / 89.8%**（396/555, 396/441） |
+
+结果文件：`benchmarks/results/longitudinal_eval.json` / `longitudinal_eval_v7.9_baseline.json`
+
+**新增：`core/understand.py`**
+- 一句话 → `Fact(subject, relation, object, valid_from, ongoing, …)`
+- 关系本体：住在 / 使用（**只指座驾**）/ 公司 / 职位 / 邮箱 / 电话（单值、随时间变化）；偏好 / 反感（多值）
+- 时间表达按说话时刻换算：`2026-02-25`、`2月25号`、`三天前`、`上个月`、`去年3月`、`since …`、`3 weeks ago` …
+- 体：往事标记（以前 / 曾经 / 那时候 / 住过 …）优先于现时标记（现在 / 已经 / 换成 / 起 …）；
+  「以前住鹿特丹，现在住海牙」按子句分开判断
+- **不猜**：往事但没给时间（「我以前住在鹿特丹」）→ `deferred`，不写成现任，也不编起点
+- 规则后端零依赖（小词典只用来定边界：荷兰 / 中国 / 欧洲主要城市、常见车企）
+- LLM 后端（`NYX_UNDERSTAND_LLM=1`，经现有 OpenAI 兼容网关 `LLM_EXTRACT_API_URL`，
+  模型 `NYX_UNDERSTAND_MODEL`）：输出一律当**不可信输入** —— 本体外关系、对象或证据不是原文子串、
+  未来日期、解析不了的日期，整条丢弃；任何失败退回规则结果
+- 接入 `wthread_store`：本体内关系由 understand 负责，并把 `valid_from` / `ongoing` 传给存储层；
+  旧正则泛化的「用了 X」降为多值关系「用过」—— 信息保留，但「用了 Python」不再能把座驾顶掉；
+  理解层出错时退回旧正则，不丢写入
+
+**评测方法（留出协议）**
+- 开发句式：写规则时看着的。在它上面 100% 不说明任何问题
+- 留出句式：**规则冻结之后**才写的（冻结时 `understand.py` 的 md5 = `4c67d81fdd8a3ac7e91e09bcfa751539`），
+  措辞、句式、日期写法都不同，只跑了一次。上表的留出数字来自冻结版本
+- 对照：同一脚本用 `--repo` 对 v7.9 跑（git worktree）
+
+**如实说明**
+- **64% 才是该看的数字**。开发句式 100% 与留出 64% 之间的差，就是手写规则的过拟合代价
+- 留出集上漏掉的说法（只报告，**没有**拿来调规则）：
+  「新车到手了，是蔚来」「现在代步用的是特斯拉」「我们搬来阿姆斯特丹了」「目前供职于 Nexsand BV」
+  「现在给 Orange Logistics 打工」「到海牙川菜馆报到」「在海牙川菜馆上过班」「在乌得勒支住过一阵」——
+  这正是规则的上限，也是 LLM 后端的用途。**LLM 后端的端到端数字本版给不出**：
+  评测环境连不到网关。校验逻辑有单测，效果要在部署环境里用同一脚本测
+- 留出集里还发现一条**有害**错误：「在乌得勒支住过一阵」抽出地名「过一阵」（会把垃圾写进历史）。
+  已修（实体不会以体助词开头 —— 普遍规则），但它是**看过留出结果之后**改的：
+  修复后的留出数字不再无偏，所以不报。下一轮需要一组新的留出句式
+- 时区：相对时间按本地「今天」换算、以天为粒度存储，与 UTC 记录时间之间有几小时的时区差；天粒度语义不受影响
+
+**开发中踩到并修掉的缺陷**
+- ⚠️ 邮箱正则用了 `\w` —— Python 的 `\w` 匹配汉字，「以后发邮件到a.wen@gmail.com」整句被当成邮箱
+- ⚠️ 「现在住那边」把「那边」当地名；「我现在在海牙川菜馆上班」对象带出「在」
+- ⚠️ 子句切分在「现在」处无条件切开，把「我们家 | 现在在阿姆斯特丹」拆散 —— 改为只在与往事对比时切
+
+**测试**
+- `tests/test_understand.py` 39 项（时间、体、关系、边界、负例、LLM 校验与降级、真实写入路径）
+- 全量 414 项，逐文件独立 + 单进程整体全绿；投毒演练、事故演练全部通过；写入 1.49 ms/条
 
 ### v7.9 (2026-09-26) — 纵向评测：一个人半年的生活
 
