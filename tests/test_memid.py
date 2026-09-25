@@ -366,3 +366,42 @@ def test_verify_rejects_seq_gaps(hub):
     assert rep["memories"] == 3 and rep["journal_records"] == 4
     assert rep["gaps"], "seq 断层没被记录"
     assert rep["ok"] is False, "seq 断层却报了 ok —— 正是要防的假绿"
+
+
+# ── 连接单例：execute 与 commit 之间不许换连接 ─────────────
+
+def test_get_conn_is_actually_a_singleton(hub):
+    """回归：`get_conn` 少写了 `global _conn_path`，于是 `_conn_path = dbp`
+    赋的是局部变量，模块级永远 None —— 每次调用都判定"路径变了"，
+    关掉刚建的连接再开一个。docstring 写着"进程内单例"，实际一次都不是。
+    """
+    memid, _ = hub
+    a = memid.get_conn()
+    b = memid.get_conn()
+    assert a is b, "同一数据目录下取到了两个不同的连接对象"
+    assert memid._conn_path == memid._db_path(), "_conn_path 没被真正赋值"
+
+
+def test_pending_write_survives_reacquiring_conn(hub):
+    """在一个 get_conn() 上 execute、在下一个 get_conn() 上 commit，写必须还在。
+
+    这是上面那个缺陷的**真实后果**：中间那次换连接把未提交的事务回滚掉，
+    而 rowcount 明明返回 1 —— 静默丢写。
+    （发现于遗忘隔离区 restore：DELETE rowcount=1，行却还在。）
+    """
+    memid, _ = hub
+    memid.allocate("要被删掉的记忆", sender="user")
+    cur = memid.get_conn().execute("DELETE FROM memories WHERE seq=1")
+    assert cur.rowcount == 1
+    memid.get_conn().commit()
+    assert memid.count(include_deleted=True) == 0, "未提交的写被换连接时回滚了"
+
+
+def test_conn_still_switches_when_data_dir_changes(hub, tmp_path):
+    """修完单例之后，"数据目录真的变了就换连接"这条必须仍然成立。"""
+    memid, _ = hub
+    first = memid.get_conn()
+    memid.set_db_path(str(tmp_path / "other" / "nyx.db"))
+    second = memid.get_conn()
+    assert second is not first, "换了数据目录却还在用旧连接（会写错库）"
+    assert memid._conn_path == memid._db_path()

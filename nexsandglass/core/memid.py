@@ -197,8 +197,18 @@ def set_db_path(path: str) -> None:
 
 
 def get_conn() -> sqlite3.Connection:
-    """获取 ID 中枢库连接（进程内单例，多线程安全）。"""
-    global _conn
+    """获取 ID 中枢库连接（进程内单例，多线程安全）。
+
+    ⚠ `global _conn_path` 不是可省略的声明。缺了它，下面的 `_conn_path = dbp`
+    赋的是**局部变量**，模块级 `_conn_path` 永远是 None，于是每次调用
+    `_reset_if_path_changed()` 都判定"路径变了"→ 关掉刚建的连接再开一个。
+
+    后果不是慢一点，是**静默丢写**：调用方在一个 get_conn() 上 execute、
+    在下一个 get_conn() 上 commit 时，中间那次关闭把未提交的事务回滚掉了，
+    而 rowcount 明明返回 1。docstring 写着"进程内单例"，实际上一次都不是。
+    （发现于遗忘隔离区的 restore：DELETE rowcount=1，行却还在。）
+    """
+    global _conn, _conn_path
     with _conn_lock:
         _reset_if_path_changed()
         if _conn is None:
@@ -884,6 +894,21 @@ def health(journal_path: str = None, window_days: int = 3) -> dict:
         }
     except Exception as e:
         out["checks"]["write_amplification"] = {"ok": False, "error": str(e)}
+
+    # 隔离区：承诺保留 N 天，就该只留 N 天。
+    # 过期还躺在库里 = 没有人在跑 purge —— 用户以为删掉的东西无限期留在磁盘上，
+    # 而且**没有任何别的指标在看它**（写入放大爬了七天没被发现，就是这个形状）。
+    try:
+        from nexsandglass.core.quarantine import stats as q_stats
+        q = q_stats()
+        out["checks"]["pending_purge"] = {
+            "ok": q["overdue"] == 0,
+            "pending": q["pending"], "overdue": q["overdue"],
+            "recoverable": q["recoverable"], "next_due": q["next_due"],
+            "retention_days": q["retention_days"],
+        }
+    except Exception as e:
+        out["checks"]["pending_purge"] = {"ok": False, "error": str(e)}
 
     try:
         from nexsandglass.features.shadow_sand import entity_index_health

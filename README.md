@@ -2,7 +2,7 @@
 
 > **Nyx — 把「检索失败」也当作一类信号的记忆系统**
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.5-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.6-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 ## 别的记忆系统回答「找到了什么」，Nyx 还回答「我是不是见过」
 
@@ -53,6 +53,7 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 | 🧠 **沙漏 Sandglass** | `core/sandglass_sqlite.py` | 长期记忆存储、全文搜索、语义搜索 |
 | 🆔 **ID 中枢** | `core/memid.py` | 记忆唯一标识（mem_id）+ 物理行号跨度（line_start/line_end）+ 墓碑（v7.4） |
 | 🗑️ **擦除级联** | `core/erasure.py` | 一次删除贯通中枢/日志正文/FTS/倒排/影子/engram/向量，可独立验收（v7.4） |
+| 🕯️ **遗忘隔离区** | `core/quarantine.py` | **删得掉，也救得回**：forget 两段式 —— 检索侧立刻读不到，隔离期内 `restore` 逐字节还原，到期 `purge` 不可逆（v7.6） |
 | 🧬 **Skill Distiller** | `features/skill_distiller.py` | 过程记忆 → 技能候选自动蒸馏，观察反复出现的工作流并生成可复用 skill 草案（v7.5） |
 | 🕸️ **织线 Thread** | `features/weavethread.py` | 知识图谱（实体关系三元组），支持 OpenViking Memory Link 类型化 links + PPR 图增强 |
 | 🏜️ **影子沙 Fact Store** | `features/shadow_sand.py` | 结构化事实存储（带信任评分） |
@@ -319,6 +320,70 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 ---
 
 ## 📝 更新日志
+
+### v7.6 (2026-09-25) — 遗忘隔离区：可反悔的删除
+
+**动机（仓库里一个可以证明的设计不对称）**
+
+| 操作 | 风险 | 之前有快照吗 |
+|---|---|---|
+| Dream 破坏性合并（自动、高频、可再生） | 中 | ✅ `consolidation._snapshot` + `restore_snapshot` |
+| `forget` 抹除正文（手动、不可逆、**已误伤过一次**） | 不可逆 | ❌ 没有 |
+
+v7.4 那次误抹 **345 行真实对话**之后，修复做的是"消灭伪行号的来源"——
+治的是那一次的病因，没治这条路径本身的性质：`forget` 执行完，
+原文在这台机器上不存在于任何地方（日志被原地改写，影子副本也必须同样脱敏）。
+
+**新增**
+- 🕯️ `core/quarantine.py`：两段式删除
+  - `forget(mode="quarantine")`（**新默认**）检索侧的效果与老行为逐字节一致，
+    但原文与派生行先进隔离区，保留 N 天（默认 30，`NYX_FORGET_RETENTION_DAYS`）
+  - `restore(mem_id)` 逐字节还原：日志正文 / 中枢墓碑 / FTS / 倒排 /
+    影子沙 trust·fact_tags·entities / 知识图谱三元组 / engram jsonl
+  - `purge()` 到期物理擦除（含 `wal_checkpoint` + `VACUUM`，否则空闲页里还有正文）
+  - `forget(mode="purge")` 保留老的当场不可逆行为（法务 / 他人隐私 / 误粘贴凭据）
+- 🚪 B0 契约新增两个操作：`runtime.restore(mem_id)` / `runtime.purge_forgotten(apply=)`
+- 🩺 体检从六项到**七项**：新增 `pending_purge`（过期未清 = 承诺的 30 天变成了永久留着）
+- 🛠️ `scripts/nyx_quarantine.py`：`list` / `restore <mem_id>` / `purge [--apply]`，
+  cron 里该有 `purge --apply` —— 没人跑它，保留期就是个空话
+- 🧪 `tests/test_quarantine.py` 27 项
+
+**验收字段刻意不合并成一个布尔值**
+
+    clean          任何检索路径都摸不到（召回/搜索/索引/正文/影子副本）
+    in_quarantine  隔离区里还留着（可 restore，到期 purge）
+    fully_purged   clean 且隔离区里也没有 —— 「从磁盘上真的没了」
+
+`clean=True, fully_purged=False` 是隔离期内的正常状态。把这一格并进 `clean`，
+就是让"可恢复"和"已彻底删除"返回同一个答案 —— Déjà Vu 讲的正是这类错误。
+
+**顺手修掉的既存缺陷（发现于 restore 调试）**
+- ⚠️ `memid.get_conn()` **从来不是单例**：函数只声明了 `global _conn`，
+  漏了 `global _conn_path`，于是 `_conn_path = dbp` 赋的是局部变量、模块级永远 None，
+  每次调用 `_reset_if_path_changed()` 都判定"路径变了"→ 关掉刚建的连接再开一个。
+  后果不是慢一点，是**静默丢写**：在一个 `get_conn()` 上 execute、在下一个上 commit，
+  中间那次关闭把未提交的事务回滚掉，而 `rowcount` 明明返回 1。
+  （现场：隔离区 restore 的 `DELETE` rowcount=1，行却还在。）
+- ⚠️ 倒排索引的缓存键是**日志物理行数**，而脱敏与还原都保持行数不变 →
+  缓存永远"命中"，`_write_idx` 按旧索引整文件重写，**把别的进程刚还原的 token 抹掉**。
+  实测形状：先用 CLI 还原一条，再在本进程还原其余 149 条，第一条的 posting 全部消失。
+  现在还原前强制弃缓存（代价是多读一遍 idx 文件，还原是罕见操作，值得）。
+
+**实测（沙盒事故演练 `benchmarks/forget_restore_drill.py`，400 条含多行消息）**
+- 一次误删 150 条 → 全量 `restore` 后日志**逐字节**回到事故前，
+  中枢无残留墓碑、FTS 条数复原、倒排 posting 复原、体检全绿、隔离区清空
+- 隔离期内：被删内容在 journal/hub/fts/search 全部 0 命中，物理行数不变（别人行号不位移）
+- 开销：`forget` 0.29 → **0.79 ms/条**（+0.5 ms，抓现场的代价）；
+  隔离期内 nyx.db **+0.8 KiB/条**（还原或 purge 后释放）；`restore` 约 9 ms/条
+- 全量 316 项测试：逐文件独立运行 + 单进程整体运行，两种方式都全绿
+
+**诚实声明**
+隔离期内，被"忘记"的原文**仍然在磁盘上**（nyx.db 的 quarantine 表）。
+它读不到、搜不到、召回不到，但它在。`verify_erasure()` 会把它报出来而不是假装干净。
+需要"现在就必须没有"时用 `mode="purge"` 或 `purge([mem_id])`。
+
+**待办（本版未做）**
+- MCP 层还没有 `memory_restore` / `memory_purge` 工具，目前经 `runtime` 门面与 CLI 调用
 
 ### v7.5.0 (2026-09-13) — Déjà Vu 独立子包 + 性能修复
 
