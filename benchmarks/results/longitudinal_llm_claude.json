@@ -1,0 +1,31 @@
+{
+  "mode": "规则 + LLM",
+  "replay": "benchmarks/results/llm_replay_claude_holdout.jsonl",
+  "seeds": 35,
+  "scores": {
+    "current": [
+      420,
+      420
+    ],
+    "known_at": [
+      420,
+      420
+    ],
+    "as_of": [
+      1104,
+      1104
+    ],
+    "abstain": [
+      105,
+      105
+    ]
+  },
+  "extraction": {
+    "events": 555,
+    "hit": 555,
+    "facts": 555,
+    "correct": 555
+  },
+  "replay_hits": 1467,
+  "replay_misses": 0
+}

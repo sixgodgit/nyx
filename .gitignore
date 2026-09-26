@@ -44,3 +44,6 @@ Thumbs.db
 *.bak.*
 *.bak-*
 *.new.*
+
+# 基准结果里的录音/数据是要提交的（运行时记忆数据 *.jsonl 仍然忽略）
+!benchmarks/results/*.jsonl

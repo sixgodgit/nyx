@@ -318,7 +318,7 @@ _WORK_CTX = re.compile(r"(工作|上班|任职|入职|跳槽|加入|实习|公�
 _NOT_PLACE = re.compile(r"^(那边|这边|那里|这里|哪里|哪儿|那儿|这儿|附近|家里|宿舍|楼上|楼下|隔壁|一起|在)")
 # 实体不会以体助词开头：「在乌得勒支住过一阵」里「住」后面的「过一阵」不是地名。
 # （留出评测发现；这条是普遍规则，但它是看过留出结果后加的 —— 见 README v7.10）
-_ASPECT_HEAD = re.compile(r"^(过|了|着|一阵|一下|一段|几年|几个月|很久)")
+_ASPECT_HEAD = re.compile(r"^(过|了|着|一阵|一下|一段|几年|几个月|很久|到现在|到今天|至今|到如今|下来)")
 _NOT_COMPANY = re.compile(r"^(家|这里|那里|这|那|哪|海牙|阿姆斯特丹|鹿特丹|国内|国外)$")
 
 
@@ -501,16 +501,22 @@ def llm_enabled() -> bool:
 # ══════════════════════════════════════════════════════════
 
 def extract(text: str, now: Optional[datetime] = None, subject: str = "user") -> list:
-    """一句话 → [Fact]。规则总是跑；LLM 开启时并入它**补充**的事实（同关系同对象以规则为准）。
+    """一句话 → [Fact]。
+
+    LLM 开启且返回了**通过校验**的事实 → 以 LLM 为准；否则（关闭 / 失败 / 空）用规则。
+
+    曾经是"规则为主、LLM 补充"。留出评测里这样合并反而**比只用 LLM 差**
+    （现在是什么 92.6% vs 100%）：规则在没见过的说法上会产出错误事实
+    （「住到现在」→ 地名「到现在」，35 次），而合并策略让它和 LLM 的正确事实并存，
+    单值关系上就出现两个现任。LLM 的输出已经过"对象与证据必须是原文子串"的校验，
+    精确度高于规则 —— 两者同时开口时，该听精确的那个。
 
     同一句里同一个单值关系出现多个对象时（「以前住鹿特丹，现在住海牙」），
     全部保留 —— 由体与时间决定谁是往事、谁是现任，存储层按 ongoing / valid_from 处理。
     """
     now = now or _clock_now()
-    facts = extract_rules(text, now, subject)
     if llm_enabled():
-        have = {(f.relation, f.object) for f in facts}
-        for f in extract_llm(text, now, subject):
-            if (f.relation, f.object) not in have:
-                facts.append(f)
-    return facts
+        llm = extract_llm(text, now, subject)
+        if llm:
+            return llm
+    return extract_rules(text, now, subject)

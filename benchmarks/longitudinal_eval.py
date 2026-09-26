@@ -568,6 +568,43 @@ def track_b() -> dict:
 # 6. 汇总
 # ══════════════════════════════════════════════════════════
 
+class LLMReplay:
+    """回放录制好的 LLM 响应，走**真实**的 extract_llm → 校验 → 存储路径。
+
+    录一次网关（或任何模型）的回答，之后离线复现同一个端到端数字。
+    文件：JSONL，每行 {"today": "YYYY-MM-DD", "text": 原句, "response": [五元组, ...]}。
+    找不到录音的句子按"网关失败"处理（extract_llm 返回 []，退回规则）—— 并计数。
+    """
+
+    def __init__(self, path):
+        self.map, self.hits, self.misses = {}, 0, 0
+        for line in open(path, encoding="utf-8"):
+            if line.strip():
+                d = json.loads(line)
+                self.map[(d["today"], d["text"])] = d["response"]
+
+    def install(self, llm_only=False):
+        import re as _re
+        from nexsandglass.core import understand as U
+        os.environ["NYX_UNDERSTAND_LLM"] = "1"
+
+        def _post(url, payload, timeout):
+            prompt = payload["messages"][0]["content"]
+            today = _re.search(r"按说话日期 (\d{4}-\d{2}-\d{2})", prompt).group(1)
+            text = prompt.rsplit("句子：", 1)[1].rsplit("\nJSON:", 1)[0]
+            key = (today, text)
+            if key not in self.map:
+                self.misses += 1
+                raise KeyError("no recording")
+            self.hits += 1
+            return {"choices": [{"message": {"content": json.dumps(self.map[key],
+                                                                   ensure_ascii=False)}}]}
+
+        U._post = _post
+        if llm_only:
+            U.extract_rules = lambda *a, **k: []
+
+
 def pct(a):
     return f"{100 * a[0] / a[1]:5.1f}% ({a[0]}/{a[1]})" if a[1] else "  n/a"
 
@@ -576,8 +613,37 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, default=5)
     ap.add_argument("--repo", help="对历史版本跑（git worktree 路径）；在 import 之前已生效")
+    ap.add_argument("--llm-replay", help="回放录制的 LLM 响应（JSONL），只跑轨道 C 留出句式")
+    ap.add_argument("--llm-only", action="store_true", help="配合 --llm-replay：关掉规则，只看 LLM")
     ap.add_argument("--json")
     args = ap.parse_args()
+
+    if args.llm_replay:
+        rp = LLMReplay(args.llm_replay)
+        rp.install(llm_only=args.llm_only)
+        sc = {k: [0, 0] for k in ("current", "known_at", "as_of", "abstain")}
+        ex = {"events": 0, "hit": 0, "facts": 0, "correct": 0}
+        for seed in range(args.seeds):
+            r = track_c(seed, HOLDOUT_TEMPLATES, "holdout")
+            for k, v in r["scores"].items():
+                sc[k][0] += v[0]
+                sc[k][1] += v[1]
+            for k, v in r["extraction"].items():
+                ex[k] += v
+        mode = "仅 LLM" if args.llm_only else "规则 + LLM"
+        print(f"轨道 C 留出句式（{mode}，回放 {os.path.basename(args.llm_replay)}）")
+        for k, name in (("current", "现在是什么"), ("known_at", "当时我以为是什么"),
+                        ("as_of", "过去某刻是什么"), ("abstain", "没说过 → 不知道")):
+            print(f"  {name:<16} {pct(sc[k]):>22}")
+        print(f"  抽取：召回 {ex['hit']}/{ex['events']}，精确 {ex['correct']}/{ex['facts']}")
+        print(f"  回放命中 {rp.hits}，未录到 {rp.misses}")
+        if args.json:
+            with open(args.json, "w", encoding="utf-8") as f:
+                json.dump({"mode": mode, "replay": args.llm_replay, "seeds": args.seeds,
+                           "scores": sc, "extraction": ex,
+                           "replay_hits": rp.hits, "replay_misses": rp.misses},
+                          f, ensure_ascii=False, indent=2)
+        return
 
     agg = {k: {"nyx": [0, 0], "base": [0, 0]} for k in
            ("current", "known_at", "as_of", "abstain", "forget", "restore")}

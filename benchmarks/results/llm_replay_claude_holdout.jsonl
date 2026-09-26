@@ -1,0 +1,549 @@
+{"today": "2026-05-29", "text": "10天之前正式加入了Nexsand BV", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": "2026-05-19", "ongoing": true, "evidence": "10天之前正式加入了Nexsand BV"}]}
+{"today": "2026-04-04", "text": "10天之前那天我们搬进了海牙的新房子，住到现在", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2026-03-25", "ongoing": true, "evidence": "10天之前那天我们搬进了海牙的新房子，住到现在"}]}
+{"today": "2026-05-31", "text": "11天之前把车换成了丰田，开到现在", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2026-05-20", "ongoing": true, "evidence": "11天之前把车换成了丰田，开到现在"}]}
+{"today": "2026-06-02", "text": "11天之前那天我们搬进了阿姆斯特丹的新房子，住到现在", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": "2026-05-22", "ongoing": true, "evidence": "11天之前那天我们搬进了阿姆斯特丹的新房子，住到现在"}]}
+{"today": "2026-02-12", "text": "13天之前把车换成了蔚来，开到现在", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2026-01-30", "ongoing": true, "evidence": "13天之前把车换成了蔚来，开到现在"}]}
+{"today": "2026-05-02", "text": "16天之前把车换成了大众，开到现在", "response": [{"relation": "使用", "object": "大众", "valid_from": "2026-04-16", "ongoing": true, "evidence": "16天之前把车换成了大众，开到现在"}]}
+{"today": "2026-05-11", "text": "18天之前开始改用wen@delftrobotics.eu收邮件", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2026-04-23", "ongoing": true, "evidence": "18天之前开始改用wen@delftrobotics.eu收邮件"}]}
+{"today": "2026-02-10", "text": "18天之前把车换成了特斯拉，开到现在", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": "2026-01-23", "ongoing": true, "evidence": "18天之前把车换成了特斯拉，开到现在"}]}
+{"today": "2026-06-18", "text": "18天之前那天我们搬进了埃因霍温的新房子，住到现在", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2026-05-31", "ongoing": true, "evidence": "18天之前那天我们搬进了埃因霍温的新房子，住到现在"}]}
+{"today": "2026-06-21", "text": "2024-02-23的时候我住阿姆斯特丹，那是好久之前的事了", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": "2024-02-23", "ongoing": false, "evidence": "2024-02-23的时候我住阿姆斯特丹，那是好久之前的事了"}]}
+{"today": "2026-06-13", "text": "2024-03-29那段时间我在Delft Robotics干过", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": "2024-03-29", "ongoing": false, "evidence": "2024-03-29那段时间我在Delft Robotics干过"}]}
+{"today": "2026-06-20", "text": "2024-04-25的时候我住海牙，那是好久之前的事了", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2024-04-25", "ongoing": false, "evidence": "2024-04-25的时候我住海牙，那是好久之前的事了"}]}
+{"today": "2026-05-05", "text": "2024-05-16那阵子我开的是大众，后来卖了", "response": [{"relation": "使用", "object": "大众", "valid_from": "2024-05-16", "ongoing": false, "evidence": "2024-05-16那阵子我开的是大众，后来卖了"}]}
+{"today": "2026-06-03", "text": "2024-06-29的时候我住代尔夫特，那是好久之前的事了", "response": [{"relation": "住在", "object": "代尔夫特", "valid_from": "2024-06-29", "ongoing": false, "evidence": "2024-06-29的时候我住代尔夫特，那是好久之前的事了"}]}
+{"today": "2026-03-29", "text": "2024-08-16的时候我住代尔夫特，那是好久之前的事了", "response": [{"relation": "住在", "object": "代尔夫特", "valid_from": "2024-08-16", "ongoing": false, "evidence": "2024-08-16的时候我住代尔夫特，那是好久之前的事了"}]}
+{"today": "2026-04-18", "text": "2024-09-11那段时间我在Nexsand BV干过", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": "2024-09-11", "ongoing": false, "evidence": "2024-09-11那段时间我在Nexsand BV干过"}]}
+{"today": "2026-03-16", "text": "2024-10-06的时候我住阿姆斯特丹，那是好久之前的事了", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": "2024-10-06", "ongoing": false, "evidence": "2024-10-06的时候我住阿姆斯特丹，那是好久之前的事了"}]}
+{"today": "2026-04-20", "text": "2024-11-26那段时间我在海牙川菜馆干过", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2024-11-26", "ongoing": false, "evidence": "2024-11-26那段时间我在海牙川菜馆干过"}]}
+{"today": "2026-01-04", "text": "2024-11-30那天我们搬进了乌得勒支的新房子，住到现在", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": "2024-11-30", "ongoing": true, "evidence": "2024-11-30那天我们搬进了乌得勒支的新房子，住到现在"}]}
+{"today": "2026-06-17", "text": "2024-12-05的时候我住海牙，那是好久之前的事了", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2024-12-05", "ongoing": false, "evidence": "2024-12-05的时候我住海牙，那是好久之前的事了"}]}
+{"today": "2026-05-07", "text": "2024-12-07的时候我住埃因霍温，那是好久之前的事了", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2024-12-07", "ongoing": false, "evidence": "2024-12-07的时候我住埃因霍温，那是好久之前的事了"}]}
+{"today": "2026-01-10", "text": "2024-12-13那天我们搬进了莱顿的新房子，住到现在", "response": [{"relation": "住在", "object": "莱顿", "valid_from": "2024-12-13", "ongoing": true, "evidence": "2024-12-13那天我们搬进了莱顿的新房子，住到现在"}]}
+{"today": "2026-01-11", "text": "2024-12-16正式加入了海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2024-12-16", "ongoing": true, "evidence": "2024-12-16正式加入了海牙川菜馆"}]}
+{"today": "2026-01-12", "text": "2024-12-19开始改用wen@nexsand.nl收邮件", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2024-12-19", "ongoing": true, "evidence": "2024-12-19开始改用wen@nexsand.nl收邮件"}]}
+{"today": "2026-04-30", "text": "2024-12-26那段时间我在Orange Logistics干过", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2024-12-26", "ongoing": false, "evidence": "2024-12-26那段时间我在Orange Logistics干过"}]}
+{"today": "2026-01-03", "text": "2024-12-27把车换成了比亚迪，开到现在", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2024-12-27", "ongoing": true, "evidence": "2024-12-27把车换成了比亚迪，开到现在"}]}
+{"today": "2026-01-09", "text": "2024-12-31那天我们搬进了代尔夫特的新房子，住到现在", "response": [{"relation": "住在", "object": "代尔夫特", "valid_from": "2024-12-31", "ongoing": true, "evidence": "2024-12-31那天我们搬进了代尔夫特的新房子，住到现在"}]}
+{"today": "2026-06-19", "text": "2025-01-14那会儿我用a.wen@gmail.com收邮件", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": "2025-01-14", "ongoing": false, "evidence": "2025-01-14那会儿我用a.wen@gmail.com收邮件"}]}
+{"today": "2026-01-04", "text": "2025-01-20那天我们搬进了阿姆斯特丹的新房子，住到现在", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": "2025-01-20", "ongoing": true, "evidence": "2025-01-20那天我们搬进了阿姆斯特丹的新房子，住到现在"}]}
+{"today": "2026-01-01", "text": "2025-01-21把车换成了吉利，开到现在", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2025-01-21", "ongoing": true, "evidence": "2025-01-21把车换成了吉利，开到现在"}]}
+{"today": "2026-05-10", "text": "2025-01-21那阵子我开的是特斯拉，后来卖了", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": "2025-01-21", "ongoing": false, "evidence": "2025-01-21那阵子我开的是特斯拉，后来卖了"}]}
+{"today": "2026-01-09", "text": "2025-01-27正式加入了Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2025-01-27", "ongoing": true, "evidence": "2025-01-27正式加入了Orange Logistics"}]}
+{"today": "2026-01-03", "text": "2025-01-28正式加入了海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2025-01-28", "ongoing": true, "evidence": "2025-01-28正式加入了海牙川菜馆"}]}
+{"today": "2026-01-04", "text": "2025-02-05正式加入了Delft Robotics", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": "2025-02-05", "ongoing": true, "evidence": "2025-02-05正式加入了Delft Robotics"}]}
+{"today": "2026-05-04", "text": "2025-02-14那阵子我开的是丰田，后来卖了", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2025-02-14", "ongoing": false, "evidence": "2025-02-14那阵子我开的是丰田，后来卖了"}]}
+{"today": "2026-06-22", "text": "2025-02-18的时候我住阿姆斯特丹，那是好久之前的事了", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": "2025-02-18", "ongoing": false, "evidence": "2025-02-18的时候我住阿姆斯特丹，那是好久之前的事了"}]}
+{"today": "2026-04-04", "text": "2025-02-21那阵子我开的是比亚迪，后来卖了", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2025-02-21", "ongoing": false, "evidence": "2025-02-21那阵子我开的是比亚迪，后来卖了"}]}
+{"today": "2026-05-06", "text": "2025-03-14那阵子我开的是蔚来，后来卖了", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2025-03-14", "ongoing": false, "evidence": "2025-03-14那阵子我开的是蔚来，后来卖了"}]}
+{"today": "2026-04-21", "text": "2025-03-16那会儿我用wen@delftrobotics.eu收邮件", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2025-03-16", "ongoing": false, "evidence": "2025-03-16那会儿我用wen@delftrobotics.eu收邮件"}]}
+{"today": "2026-04-15", "text": "2025-03-22那段时间我在Orange Logistics干过", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2025-03-22", "ongoing": false, "evidence": "2025-03-22那段时间我在Orange Logistics干过"}]}
+{"today": "2026-01-12", "text": "2025-03-23到海牙川菜馆报到，一直干到现在", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2025-03-23", "ongoing": true, "evidence": "2025-03-23到海牙川菜馆报到，一直干到现在"}]}
+{"today": "2026-03-07", "text": "2025-03-26那段时间我在Delft Robotics干过", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": "2025-03-26", "ongoing": false, "evidence": "2025-03-26那段时间我在Delft Robotics干过"}]}
+{"today": "2026-01-11", "text": "2025-03-29到Orange Logistics报到，一直干到现在", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2025-03-29", "ongoing": true, "evidence": "2025-03-29到Orange Logistics报到，一直干到现在"}]}
+{"today": "2026-01-03", "text": "2025-04-05把车换成了丰田，开到现在", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2025-04-05", "ongoing": true, "evidence": "2025-04-05把车换成了丰田，开到现在"}]}
+{"today": "2026-01-04", "text": "2025-04-08正式加入了Nexsand BV", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": "2025-04-08", "ongoing": true, "evidence": "2025-04-08正式加入了Nexsand BV"}]}
+{"today": "2026-01-03", "text": "2025-04-08那天我们搬进了鹿特丹的新房子，住到现在", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": "2025-04-08", "ongoing": true, "evidence": "2025-04-08那天我们搬进了鹿特丹的新房子，住到现在"}]}
+{"today": "2026-01-09", "text": "2025-04-11开始改用wen@delftrobotics.eu收邮件", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2025-04-11", "ongoing": true, "evidence": "2025-04-11开始改用wen@delftrobotics.eu收邮件"}]}
+{"today": "2026-03-27", "text": "2025-04-13那段时间我在Orange Logistics干过", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2025-04-13", "ongoing": false, "evidence": "2025-04-13那段时间我在Orange Logistics干过"}]}
+{"today": "2026-03-09", "text": "2025-04-16那会儿我用wen@nexsand.nl收邮件", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2025-04-16", "ongoing": false, "evidence": "2025-04-16那会儿我用wen@nexsand.nl收邮件"}]}
+{"today": "2026-06-14", "text": "2025-04-26那段时间我在Orange Logistics干过", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2025-04-26", "ongoing": false, "evidence": "2025-04-26那段时间我在Orange Logistics干过"}]}
+{"today": "2026-06-11", "text": "2025-05-02那阵子我开的是大众，后来卖了", "response": [{"relation": "使用", "object": "大众", "valid_from": "2025-05-02", "ongoing": false, "evidence": "2025-05-02那阵子我开的是大众，后来卖了"}]}
+{"today": "2026-06-15", "text": "2025-05-04的时候我住鹿特丹，那是好久之前的事了", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": "2025-05-04", "ongoing": false, "evidence": "2025-05-04的时候我住鹿特丹，那是好久之前的事了"}]}
+{"today": "2026-01-13", "text": "2025-05-06到Delft Robotics报到，一直干到现在", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": "2025-05-06", "ongoing": true, "evidence": "2025-05-06到Delft Robotics报到，一直干到现在"}]}
+{"today": "2026-05-11", "text": "2025-05-06那会儿我用wen@delftrobotics.eu收邮件", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2025-05-06", "ongoing": false, "evidence": "2025-05-06那会儿我用wen@delftrobotics.eu收邮件"}]}
+{"today": "2026-04-23", "text": "2025-05-07那阵子我开的是比亚迪，后来卖了", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2025-05-07", "ongoing": false, "evidence": "2025-05-07那阵子我开的是比亚迪，后来卖了"}]}
+{"today": "2026-04-25", "text": "2025-05-18那会儿我用a.wen@gmail.com收邮件", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": "2025-05-18", "ongoing": false, "evidence": "2025-05-18那会儿我用a.wen@gmail.com收邮件"}]}
+{"today": "2026-05-21", "text": "2025-05-28的时候我住阿姆斯特丹，那是好久之前的事了", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": "2025-05-28", "ongoing": false, "evidence": "2025-05-28的时候我住阿姆斯特丹，那是好久之前的事了"}]}
+{"today": "2026-01-07", "text": "2025-06-01开始改用wen@delftrobotics.eu收邮件", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2025-06-01", "ongoing": true, "evidence": "2025-06-01开始改用wen@delftrobotics.eu收邮件"}]}
+{"today": "2026-01-11", "text": "2025-06-08开始改用wen@nexsand.nl收邮件", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2025-06-08", "ongoing": true, "evidence": "2025-06-08开始改用wen@nexsand.nl收邮件"}]}
+{"today": "2026-01-13", "text": "2025-06-14开始改用wen@delftrobotics.eu收邮件", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2025-06-14", "ongoing": true, "evidence": "2025-06-14开始改用wen@delftrobotics.eu收邮件"}]}
+{"today": "2026-06-08", "text": "2025-06-16那会儿我用wen@nexsand.nl收邮件", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2025-06-16", "ongoing": false, "evidence": "2025-06-16那会儿我用wen@nexsand.nl收邮件"}]}
+{"today": "2026-05-30", "text": "2025-06-20那阵子我开的是蔚来，后来卖了", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2025-06-20", "ongoing": false, "evidence": "2025-06-20那阵子我开的是蔚来，后来卖了"}]}
+{"today": "2026-04-16", "text": "2025-06-21那段时间我在Nexsand BV干过", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": "2025-06-21", "ongoing": false, "evidence": "2025-06-21那段时间我在Nexsand BV干过"}]}
+{"today": "2026-04-24", "text": "2025-06-23的时候我住埃因霍温，那是好久之前的事了", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2025-06-23", "ongoing": false, "evidence": "2025-06-23的时候我住埃因霍温，那是好久之前的事了"}]}
+{"today": "2026-01-09", "text": "2025-06-24正式加入了Nexsand BV", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": "2025-06-24", "ongoing": true, "evidence": "2025-06-24正式加入了Nexsand BV"}]}
+{"today": "2026-04-20", "text": "2025-06-24那段时间我在Delft Robotics干过", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": "2025-06-24", "ongoing": false, "evidence": "2025-06-24那段时间我在Delft Robotics干过"}]}
+{"today": "2026-01-11", "text": "2025-06-29正式加入了海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2025-06-29", "ongoing": true, "evidence": "2025-06-29正式加入了海牙川菜馆"}]}
+{"today": "2026-01-01", "text": "2025-07-02正式加入了Nexsand BV", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": "2025-07-02", "ongoing": true, "evidence": "2025-07-02正式加入了Nexsand BV"}]}
+{"today": "2026-01-03", "text": "2025-07-03那天我们搬进了莱顿的新房子，住到现在", "response": [{"relation": "住在", "object": "莱顿", "valid_from": "2025-07-03", "ongoing": true, "evidence": "2025-07-03那天我们搬进了莱顿的新房子，住到现在"}]}
+{"today": "2026-01-05", "text": "2025-07-06正式加入了Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2025-07-06", "ongoing": true, "evidence": "2025-07-06正式加入了Orange Logistics"}]}
+{"today": "2026-01-13", "text": "2025-07-09把车换成了吉利，开到现在", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2025-07-09", "ongoing": true, "evidence": "2025-07-09把车换成了吉利，开到现在"}]}
+{"today": "2026-01-11", "text": "2025-07-10把车换成了吉利，开到现在", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2025-07-10", "ongoing": true, "evidence": "2025-07-10把车换成了吉利，开到现在"}]}
+{"today": "2026-06-25", "text": "2025-07-11那会儿我用wen@delftrobotics.eu收邮件", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2025-07-11", "ongoing": false, "evidence": "2025-07-11那会儿我用wen@delftrobotics.eu收邮件"}]}
+{"today": "2026-01-10", "text": "2025-07-13那天我们搬进了莱顿的新房子，住到现在", "response": [{"relation": "住在", "object": "莱顿", "valid_from": "2025-07-13", "ongoing": true, "evidence": "2025-07-13那天我们搬进了莱顿的新房子，住到现在"}]}
+{"today": "2026-01-02", "text": "2025-07-16那天我们搬进了阿姆斯特丹的新房子，住到现在", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": "2025-07-16", "ongoing": true, "evidence": "2025-07-16那天我们搬进了阿姆斯特丹的新房子，住到现在"}]}
+{"today": "2026-01-08", "text": "2025-07-20把车换成了丰田，开到现在", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2025-07-20", "ongoing": true, "evidence": "2025-07-20把车换成了丰田，开到现在"}]}
+{"today": "2026-01-03", "text": "2025-07-25那天我们搬进了莱顿的新房子，住到现在", "response": [{"relation": "住在", "object": "莱顿", "valid_from": "2025-07-25", "ongoing": true, "evidence": "2025-07-25那天我们搬进了莱顿的新房子，住到现在"}]}
+{"today": "2026-01-02", "text": "2025-07-25那天我们搬进了阿姆斯特丹的新房子，住到现在", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": "2025-07-25", "ongoing": true, "evidence": "2025-07-25那天我们搬进了阿姆斯特丹的新房子，住到现在"}]}
+{"today": "2026-01-08", "text": "2025-07-28把车换成了特斯拉，开到现在", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": "2025-07-28", "ongoing": true, "evidence": "2025-07-28把车换成了特斯拉，开到现在"}]}
+{"today": "2026-04-09", "text": "2025-08-01那阵子我开的是大众，后来卖了", "response": [{"relation": "使用", "object": "大众", "valid_from": "2025-08-01", "ongoing": false, "evidence": "2025-08-01那阵子我开的是大众，后来卖了"}]}
+{"today": "2026-06-20", "text": "2025-08-02的时候我住乌得勒支，那是好久之前的事了", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": "2025-08-02", "ongoing": false, "evidence": "2025-08-02的时候我住乌得勒支，那是好久之前的事了"}]}
+{"today": "2026-03-27", "text": "2025-08-03的时候我住代尔夫特，那是好久之前的事了", "response": [{"relation": "住在", "object": "代尔夫特", "valid_from": "2025-08-03", "ongoing": false, "evidence": "2025-08-03的时候我住代尔夫特，那是好久之前的事了"}]}
+{"today": "2026-01-07", "text": "2025-08-08到Nexsand BV报到，一直干到现在", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": "2025-08-08", "ongoing": true, "evidence": "2025-08-08到Nexsand BV报到，一直干到现在"}]}
+{"today": "2026-05-08", "text": "2025-08-11那阵子我开的是吉利，后来卖了", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2025-08-11", "ongoing": false, "evidence": "2025-08-11那阵子我开的是吉利，后来卖了"}]}
+{"today": "2026-01-10", "text": "2025-08-13把车换成了丰田，开到现在", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2025-08-13", "ongoing": true, "evidence": "2025-08-13把车换成了丰田，开到现在"}]}
+{"today": "2026-01-01", "text": "2025-08-28那天我们搬进了海牙的新房子，住到现在", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2025-08-28", "ongoing": true, "evidence": "2025-08-28那天我们搬进了海牙的新房子，住到现在"}]}
+{"today": "2026-05-13", "text": "2025-08-28那阵子我开的是特斯拉，后来卖了", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": "2025-08-28", "ongoing": false, "evidence": "2025-08-28那阵子我开的是特斯拉，后来卖了"}]}
+{"today": "2026-06-09", "text": "2025-08-30那会儿我用wen@delftrobotics.eu收邮件", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2025-08-30", "ongoing": false, "evidence": "2025-08-30那会儿我用wen@delftrobotics.eu收邮件"}]}
+{"today": "2026-03-24", "text": "2025-08-30那阵子我开的是蔚来，后来卖了", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2025-08-30", "ongoing": false, "evidence": "2025-08-30那阵子我开的是蔚来，后来卖了"}]}
+{"today": "2026-05-20", "text": "2025-09-06那段时间我在Orange Logistics干过", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2025-09-06", "ongoing": false, "evidence": "2025-09-06那段时间我在Orange Logistics干过"}]}
+{"today": "2026-03-28", "text": "2025-09-07那段时间我在Nexsand BV干过", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": "2025-09-07", "ongoing": false, "evidence": "2025-09-07那段时间我在Nexsand BV干过"}]}
+{"today": "2026-05-26", "text": "2025-09-20那段时间我在海牙川菜馆干过", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2025-09-20", "ongoing": false, "evidence": "2025-09-20那段时间我在海牙川菜馆干过"}]}
+{"today": "2026-05-02", "text": "2025-09-29那段时间我在Nexsand BV干过", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": "2025-09-29", "ongoing": false, "evidence": "2025-09-29那段时间我在Nexsand BV干过"}]}
+{"today": "2026-01-05", "text": "2025-09-30把车换成了吉利，开到现在", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2025-09-30", "ongoing": true, "evidence": "2025-09-30把车换成了吉利，开到现在"}]}
+{"today": "2026-01-09", "text": "2025-09-30正式加入了海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2025-09-30", "ongoing": true, "evidence": "2025-09-30正式加入了海牙川菜馆"}]}
+{"today": "2026-01-10", "text": "2025-11-13把车换成了大众，开到现在", "response": [{"relation": "使用", "object": "大众", "valid_from": "2025-11-13", "ongoing": true, "evidence": "2025-11-13把车换成了大众，开到现在"}]}
+{"today": "2026-01-09", "text": "2025-11-16正式加入了Nexsand BV", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": "2025-11-16", "ongoing": true, "evidence": "2025-11-16正式加入了Nexsand BV"}]}
+{"today": "2026-01-15", "text": "2025-12-20把车换成了蔚来，开到现在", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2025-12-20", "ongoing": true, "evidence": "2025-12-20把车换成了蔚来，开到现在"}]}
+{"today": "2026-01-24", "text": "2025-12-31把车换成了蔚来，开到现在", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2025-12-31", "ongoing": true, "evidence": "2025-12-31把车换成了蔚来，开到现在"}]}
+{"today": "2026-01-25", "text": "2026-01-06正式加入了Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2026-01-06", "ongoing": true, "evidence": "2026-01-06正式加入了Orange Logistics"}]}
+{"today": "2026-02-08", "text": "2026-01-12把车换成了特斯拉，开到现在", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": "2026-01-12", "ongoing": true, "evidence": "2026-01-12把车换成了特斯拉，开到现在"}]}
+{"today": "2026-02-12", "text": "2026-01-23把车换成了蔚来，开到现在", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2026-01-23", "ongoing": true, "evidence": "2026-01-23把车换成了蔚来，开到现在"}]}
+{"today": "2026-02-22", "text": "2026-02-04把车换成了蔚来，开到现在", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2026-02-04", "ongoing": true, "evidence": "2026-02-04把车换成了蔚来，开到现在"}]}
+{"today": "2026-03-07", "text": "2026-02-07开始改用wen@nexsand.nl收邮件", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2026-02-07", "ongoing": true, "evidence": "2026-02-07开始改用wen@nexsand.nl收邮件"}]}
+{"today": "2026-03-13", "text": "2026-02-22把车换成了吉利，开到现在", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-02-22", "ongoing": true, "evidence": "2026-02-22把车换成了吉利，开到现在"}]}
+{"today": "2026-02-27", "text": "2026-02-25那天我们搬进了代尔夫特的新房子，住到现在", "response": [{"relation": "住在", "object": "代尔夫特", "valid_from": "2026-02-25", "ongoing": true, "evidence": "2026-02-25那天我们搬进了代尔夫特的新房子，住到现在"}]}
+{"today": "2026-03-07", "text": "2026-02-27那天我们搬进了埃因霍温的新房子，住到现在", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2026-02-27", "ongoing": true, "evidence": "2026-02-27那天我们搬进了埃因霍温的新房子，住到现在"}]}
+{"today": "2026-03-16", "text": "2026-03-12正式加入了Delft Robotics", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": "2026-03-12", "ongoing": true, "evidence": "2026-03-12正式加入了Delft Robotics"}]}
+{"today": "2026-03-28", "text": "2026-03-23那天我们搬进了乌得勒支的新房子，住到现在", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": "2026-03-23", "ongoing": true, "evidence": "2026-03-23那天我们搬进了乌得勒支的新房子，住到现在"}]}
+{"today": "2026-04-12", "text": "2026-03-24那天我们搬进了海牙的新房子，住到现在", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2026-03-24", "ongoing": true, "evidence": "2026-03-24那天我们搬进了海牙的新房子，住到现在"}]}
+{"today": "2026-04-07", "text": "2026-04-01把车换成了吉利，开到现在", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-04-01", "ongoing": true, "evidence": "2026-04-01把车换成了吉利，开到现在"}]}
+{"today": "2026-05-05", "text": "2026-04-08到Nexsand BV报到，一直干到现在", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": "2026-04-08", "ongoing": true, "evidence": "2026-04-08到Nexsand BV报到，一直干到现在"}]}
+{"today": "2026-04-12", "text": "2026-04-09把车换成了吉利，开到现在", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-04-09", "ongoing": true, "evidence": "2026-04-09把车换成了吉利，开到现在"}]}
+{"today": "2026-04-19", "text": "2026-04-16把车换成了大众，开到现在", "response": [{"relation": "使用", "object": "大众", "valid_from": "2026-04-16", "ongoing": true, "evidence": "2026-04-16把车换成了大众，开到现在"}]}
+{"today": "2026-05-04", "text": "2026-04-18把车换成了蔚来，开到现在", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2026-04-18", "ongoing": true, "evidence": "2026-04-18把车换成了蔚来，开到现在"}]}
+{"today": "2026-05-20", "text": "2026-04-27那天我们搬进了埃因霍温的新房子，住到现在", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2026-04-27", "ongoing": true, "evidence": "2026-04-27那天我们搬进了埃因霍温的新房子，住到现在"}]}
+{"today": "2026-05-14", "text": "2026-04-28开始改用wen@nexsand.nl收邮件", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2026-04-28", "ongoing": true, "evidence": "2026-04-28开始改用wen@nexsand.nl收邮件"}]}
+{"today": "2026-05-12", "text": "2026-04-28把车换成了比亚迪，开到现在", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2026-04-28", "ongoing": true, "evidence": "2026-04-28把车换成了比亚迪，开到现在"}]}
+{"today": "2026-05-12", "text": "2026-04-30到Orange Logistics报到，一直干到现在", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2026-04-30", "ongoing": true, "evidence": "2026-04-30到Orange Logistics报到，一直干到现在"}]}
+{"today": "2026-05-16", "text": "2026-05-03把车换成了大众，开到现在", "response": [{"relation": "使用", "object": "大众", "valid_from": "2026-05-03", "ongoing": true, "evidence": "2026-05-03把车换成了大众，开到现在"}]}
+{"today": "2026-05-27", "text": "2026-05-03正式加入了海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2026-05-03", "ongoing": true, "evidence": "2026-05-03正式加入了海牙川菜馆"}]}
+{"today": "2026-05-27", "text": "2026-05-03那天我们搬进了埃因霍温的新房子，住到现在", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2026-05-03", "ongoing": true, "evidence": "2026-05-03那天我们搬进了埃因霍温的新房子，住到现在"}]}
+{"today": "2026-05-24", "text": "2026-05-05开始改用a.wen@gmail.com收邮件", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": "2026-05-05", "ongoing": true, "evidence": "2026-05-05开始改用a.wen@gmail.com收邮件"}]}
+{"today": "2026-05-26", "text": "2026-05-07把车换成了比亚迪，开到现在", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2026-05-07", "ongoing": true, "evidence": "2026-05-07把车换成了比亚迪，开到现在"}]}
+{"today": "2026-06-02", "text": "2026-05-09把车换成了丰田，开到现在", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2026-05-09", "ongoing": true, "evidence": "2026-05-09把车换成了丰田，开到现在"}]}
+{"today": "2026-05-28", "text": "2026-05-09正式加入了海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2026-05-09", "ongoing": true, "evidence": "2026-05-09正式加入了海牙川菜馆"}]}
+{"today": "2026-05-30", "text": "2026-05-09那天我们搬进了海牙的新房子，住到现在", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2026-05-09", "ongoing": true, "evidence": "2026-05-09那天我们搬进了海牙的新房子，住到现在"}]}
+{"today": "2026-06-11", "text": "2026-05-12正式加入了Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2026-05-12", "ongoing": true, "evidence": "2026-05-12正式加入了Orange Logistics"}]}
+{"today": "2026-06-28", "text": "2026-06-04那天我们搬进了海牙的新房子，住到现在", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2026-06-04", "ongoing": true, "evidence": "2026-06-04那天我们搬进了海牙的新房子，住到现在"}]}
+{"today": "2026-06-14", "text": "2026-06-06把车换成了丰田，开到现在", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2026-06-06", "ongoing": true, "evidence": "2026-06-06把车换成了丰田，开到现在"}]}
+{"today": "2026-06-24", "text": "2026-06-10那天我们搬进了埃因霍温的新房子，住到现在", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2026-06-10", "ongoing": true, "evidence": "2026-06-10那天我们搬进了埃因霍温的新房子，住到现在"}]}
+{"today": "2026-06-27", "text": "2026-06-23把车换成了丰田，开到现在", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2026-06-23", "ongoing": true, "evidence": "2026-06-23把车换成了丰田，开到现在"}]}
+{"today": "2026-05-05", "text": "20天之前那天我们搬进了海牙的新房子，住到现在", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2026-04-15", "ongoing": true, "evidence": "20天之前那天我们搬进了海牙的新房子，住到现在"}]}
+{"today": "2026-03-30", "text": "21天之前到Orange Logistics报到，一直干到现在", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2026-03-09", "ongoing": true, "evidence": "21天之前到Orange Logistics报到，一直干到现在"}]}
+{"today": "2026-01-27", "text": "21天之前那天我们搬进了代尔夫特的新房子，住到现在", "response": [{"relation": "住在", "object": "代尔夫特", "valid_from": "2026-01-06", "ongoing": true, "evidence": "21天之前那天我们搬进了代尔夫特的新房子，住到现在"}]}
+{"today": "2026-04-12", "text": "22天之前把车换成了比亚迪，开到现在", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2026-03-21", "ongoing": true, "evidence": "22天之前把车换成了比亚迪，开到现在"}]}
+{"today": "2026-04-23", "text": "22天之前正式加入了Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2026-04-01", "ongoing": true, "evidence": "22天之前正式加入了Orange Logistics"}]}
+{"today": "2026-06-15", "text": "22天之前正式加入了Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2026-05-24", "ongoing": true, "evidence": "22天之前正式加入了Orange Logistics"}]}
+{"today": "2026-04-17", "text": "23天之前把车换成了比亚迪，开到现在", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2026-03-25", "ongoing": true, "evidence": "23天之前把车换成了比亚迪，开到现在"}]}
+{"today": "2026-04-27", "text": "23天之前正式加入了Nexsand BV", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": "2026-04-04", "ongoing": true, "evidence": "23天之前正式加入了Nexsand BV"}]}
+{"today": "2026-03-17", "text": "24天之前把车换成了大众，开到现在", "response": [{"relation": "使用", "object": "大众", "valid_from": "2026-02-21", "ongoing": true, "evidence": "24天之前把车换成了大众，开到现在"}]}
+{"today": "2026-06-10", "text": "24天之前那天我们搬进了海牙的新房子，住到现在", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2026-05-17", "ongoing": true, "evidence": "24天之前那天我们搬进了海牙的新房子，住到现在"}]}
+{"today": "2026-05-07", "text": "25天之前开始改用wen@nexsand.nl收邮件", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2026-04-12", "ongoing": true, "evidence": "25天之前开始改用wen@nexsand.nl收邮件"}]}
+{"today": "2026-02-20", "text": "25天之前那天我们搬进了莱顿的新房子，住到现在", "response": [{"relation": "住在", "object": "莱顿", "valid_from": "2026-01-26", "ongoing": true, "evidence": "25天之前那天我们搬进了莱顿的新房子，住到现在"}]}
+{"today": "2026-02-08", "text": "27天之前把车换成了大众，开到现在", "response": [{"relation": "使用", "object": "大众", "valid_from": "2026-01-12", "ongoing": true, "evidence": "27天之前把车换成了大众，开到现在"}]}
+{"today": "2026-06-02", "text": "27天之前把车换成了蔚来，开到现在", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2026-05-06", "ongoing": true, "evidence": "27天之前把车换成了蔚来，开到现在"}]}
+{"today": "2026-04-01", "text": "28天之前把车换成了特斯拉，开到现在", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": "2026-03-04", "ongoing": true, "evidence": "28天之前把车换成了特斯拉，开到现在"}]}
+{"today": "2026-05-21", "text": "28天之前那天我们搬进了埃因霍温的新房子，住到现在", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2026-04-23", "ongoing": true, "evidence": "28天之前那天我们搬进了埃因霍温的新房子，住到现在"}]}
+{"today": "2026-02-06", "text": "29天之前正式加入了Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2026-01-08", "ongoing": true, "evidence": "29天之前正式加入了Orange Logistics"}]}
+{"today": "2026-03-17", "text": "2天之前把车换成了丰田，开到现在", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2026-03-15", "ongoing": true, "evidence": "2天之前把车换成了丰田，开到现在"}]}
+{"today": "2026-03-05", "text": "2月12日把车换成了吉利，开到现在", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-02-12", "ongoing": true, "evidence": "2月12日把车换成了吉利，开到现在"}]}
+{"today": "2026-03-01", "text": "2月16日那天我们搬进了阿姆斯特丹的新房子，住到现在", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": "2026-02-16", "ongoing": true, "evidence": "2月16日那天我们搬进了阿姆斯特丹的新房子，住到现在"}]}
+{"today": "2026-03-01", "text": "2月22日开始改用wen@delftrobotics.eu收邮件", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2026-02-22", "ongoing": true, "evidence": "2月22日开始改用wen@delftrobotics.eu收邮件"}]}
+{"today": "2026-03-21", "text": "2月24日那天我们搬进了莱顿的新房子，住到现在", "response": [{"relation": "住在", "object": "莱顿", "valid_from": "2026-02-24", "ongoing": true, "evidence": "2月24日那天我们搬进了莱顿的新房子，住到现在"}]}
+{"today": "2026-03-02", "text": "2月8日把车换成了丰田，开到现在", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2026-02-08", "ongoing": true, "evidence": "2月8日把车换成了丰田，开到现在"}]}
+{"today": "2026-03-25", "text": "30天之前那天我们搬进了海牙的新房子，住到现在", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2026-02-23", "ongoing": true, "evidence": "30天之前那天我们搬进了海牙的新房子，住到现在"}]}
+{"today": "2026-04-08", "text": "3天之前把车换成了吉利，开到现在", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-04-05", "ongoing": true, "evidence": "3天之前把车换成了吉利，开到现在"}]}
+{"today": "2026-03-14", "text": "3月10日正式加入了海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2026-03-10", "ongoing": true, "evidence": "3月10日正式加入了海牙川菜馆"}]}
+{"today": "2026-04-02", "text": "3月17日正式加入了海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2026-03-17", "ongoing": true, "evidence": "3月17日正式加入了海牙川菜馆"}]}
+{"today": "2026-03-24", "text": "3月18日正式加入了海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2026-03-18", "ongoing": true, "evidence": "3月18日正式加入了海牙川菜馆"}]}
+{"today": "2026-04-16", "text": "3月20日正式加入了海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2026-03-20", "ongoing": true, "evidence": "3月20日正式加入了海牙川菜馆"}]}
+{"today": "2026-04-21", "text": "3月27日把车换成了蔚来，开到现在", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2026-03-27", "ongoing": true, "evidence": "3月27日把车换成了蔚来，开到现在"}]}
+{"today": "2026-04-24", "text": "3月28日正式加入了Delft Robotics", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": "2026-03-28", "ongoing": true, "evidence": "3月28日正式加入了Delft Robotics"}]}
+{"today": "2026-04-01", "text": "3月3日正式加入了Nexsand BV", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": "2026-03-03", "ongoing": true, "evidence": "3月3日正式加入了Nexsand BV"}]}
+{"today": "2026-03-16", "text": "3月7日把车换成了比亚迪，开到现在", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2026-03-07", "ongoing": true, "evidence": "3月7日把车换成了比亚迪，开到现在"}]}
+{"today": "2026-03-09", "text": "3月8日那天我们搬进了阿姆斯特丹的新房子，住到现在", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": "2026-03-08", "ongoing": true, "evidence": "3月8日那天我们搬进了阿姆斯特丹的新房子，住到现在"}]}
+{"today": "2026-01-07", "text": "48天之前到Delft Robotics报到，一直干到现在", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": "2025-11-20", "ongoing": true, "evidence": "48天之前到Delft Robotics报到，一直干到现在"}]}
+{"today": "2026-05-14", "text": "4月16日开始改用wen@nexsand.nl收邮件", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2026-04-16", "ongoing": true, "evidence": "4月16日开始改用wen@nexsand.nl收邮件"}]}
+{"today": "2026-04-29", "text": "4月18日把车换成了比亚迪，开到现在", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2026-04-18", "ongoing": true, "evidence": "4月18日把车换成了比亚迪，开到现在"}]}
+{"today": "2026-04-10", "text": "4月1日那天我们搬进了埃因霍温的新房子，住到现在", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2026-04-01", "ongoing": true, "evidence": "4月1日那天我们搬进了埃因霍温的新房子，住到现在"}]}
+{"today": "2026-05-06", "text": "4月29日那天我们搬进了代尔夫特的新房子，住到现在", "response": [{"relation": "住在", "object": "代尔夫特", "valid_from": "2026-04-29", "ongoing": true, "evidence": "4月29日那天我们搬进了代尔夫特的新房子，住到现在"}]}
+{"today": "2026-04-15", "text": "4月9日正式加入了Nexsand BV", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": "2026-04-09", "ongoing": true, "evidence": "4月9日正式加入了Nexsand BV"}]}
+{"today": "2026-02-17", "text": "5天之前把车换成了比亚迪，开到现在", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2026-02-12", "ongoing": true, "evidence": "5天之前把车换成了比亚迪，开到现在"}]}
+{"today": "2026-05-01", "text": "5天之前把车换成了特斯拉，开到现在", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": "2026-04-26", "ongoing": true, "evidence": "5天之前把车换成了特斯拉，开到现在"}]}
+{"today": "2026-05-26", "text": "5月2日把车换成了吉利，开到现在", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-05-02", "ongoing": true, "evidence": "5月2日把车换成了吉利，开到现在"}]}
+{"today": "2026-05-16", "text": "5月6日把车换成了大众，开到现在", "response": [{"relation": "使用", "object": "大众", "valid_from": "2026-05-06", "ongoing": true, "evidence": "5月6日把车换成了大众，开到现在"}]}
+{"today": "2026-05-11", "text": "5月8日把车换成了蔚来，开到现在", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2026-05-08", "ongoing": true, "evidence": "5月8日把车换成了蔚来，开到现在"}]}
+{"today": "2026-06-28", "text": "6月16日把车换成了大众，开到现在", "response": [{"relation": "使用", "object": "大众", "valid_from": "2026-06-16", "ongoing": true, "evidence": "6月16日把车换成了大众，开到现在"}]}
+{"today": "2026-02-10", "text": "7天之前把车换成了吉利，开到现在", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-02-03", "ongoing": true, "evidence": "7天之前把车换成了吉利，开到现在"}]}
+{"today": "2026-05-27", "text": "7天之前把车换成了吉利，开到现在", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-05-20", "ongoing": true, "evidence": "7天之前把车换成了吉利，开到现在"}]}
+{"today": "2026-06-03", "text": "7天之前把车换成了特斯拉，开到现在", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": "2026-05-27", "ongoing": true, "evidence": "7天之前把车换成了特斯拉，开到现在"}]}
+{"today": "2026-04-09", "text": "8天之前正式加入了Delft Robotics", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": "2026-04-01", "ongoing": true, "evidence": "8天之前正式加入了Delft Robotics"}]}
+{"today": "2026-04-20", "text": "8天之前那天我们搬进了莱顿的新房子，住到现在", "response": [{"relation": "住在", "object": "莱顿", "valid_from": "2026-04-12", "ongoing": true, "evidence": "8天之前那天我们搬进了莱顿的新房子，住到现在"}]}
+{"today": "2026-05-18", "text": "9天之前把车换成了吉利，开到现在", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-05-09", "ongoing": true, "evidence": "9天之前把车换成了吉利，开到现在"}]}
+{"today": "2026-04-22", "text": "以前2024-12-16用的是wen@delftrobotics.eu这个邮箱", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2024-12-16", "ongoing": false, "evidence": "以前2024-12-16用的是wen@delftrobotics.eu这个邮箱"}]}
+{"today": "2026-04-13", "text": "以前2025-02-17用的是wen@nexsand.nl这个邮箱", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2025-02-17", "ongoing": false, "evidence": "以前2025-02-17用的是wen@nexsand.nl这个邮箱"}]}
+{"today": "2026-05-30", "text": "以前2025-04-07用的是a.wen@gmail.com这个邮箱", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": "2025-04-07", "ongoing": false, "evidence": "以前2025-04-07用的是a.wen@gmail.com这个邮箱"}]}
+{"today": "2026-05-16", "text": "以前2025-04-13用的是wen@delftrobotics.eu这个邮箱", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2025-04-13", "ongoing": false, "evidence": "以前2025-04-13用的是wen@delftrobotics.eu这个邮箱"}]}
+{"today": "2026-04-14", "text": "以前2025-06-26用的是a.wen@gmail.com这个邮箱", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": "2025-06-26", "ongoing": false, "evidence": "以前2025-06-26用的是a.wen@gmail.com这个邮箱"}]}
+{"today": "2026-05-04", "text": "以前2025-07-15用的是wen@delftrobotics.eu这个邮箱", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2025-07-15", "ongoing": false, "evidence": "以前2025-07-15用的是wen@delftrobotics.eu这个邮箱"}]}
+{"today": "2026-04-14", "text": "以前2025-08-07用的是wen@nexsand.nl这个邮箱", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2025-08-07", "ongoing": false, "evidence": "以前2025-08-07用的是wen@nexsand.nl这个邮箱"}]}
+{"today": "2026-04-28", "text": "以前2025-08-30用的是wen@delftrobotics.eu这个邮箱", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2025-08-30", "ongoing": false, "evidence": "以前2025-08-30用的是wen@delftrobotics.eu这个邮箱"}]}
+{"today": "2026-04-26", "text": "以前2025-09-25用的是wen@nexsand.nl这个邮箱", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2025-09-25", "ongoing": false, "evidence": "以前2025-09-25用的是wen@nexsand.nl这个邮箱"}]}
+{"today": "2026-03-27", "text": "当年2024-04-27开过一辆蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2024-04-27", "ongoing": false, "evidence": "当年2024-04-27开过一辆蔚来"}]}
+{"today": "2026-05-17", "text": "当年2024-11-01开过一辆大众", "response": [{"relation": "使用", "object": "大众", "valid_from": "2024-11-01", "ongoing": false, "evidence": "当年2024-11-01开过一辆大众"}]}
+{"today": "2026-05-23", "text": "当年2024-12-03开过一辆比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2024-12-03", "ongoing": false, "evidence": "当年2024-12-03开过一辆比亚迪"}]}
+{"today": "2026-03-20", "text": "当年2025-02-08开过一辆丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2025-02-08", "ongoing": false, "evidence": "当年2025-02-08开过一辆丰田"}]}
+{"today": "2026-05-25", "text": "当年2025-03-15开过一辆特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": "2025-03-15", "ongoing": false, "evidence": "当年2025-03-15开过一辆特斯拉"}]}
+{"today": "2026-05-29", "text": "当年2025-03-24开过一辆比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2025-03-24", "ongoing": false, "evidence": "当年2025-03-24开过一辆比亚迪"}]}
+{"today": "2026-04-03", "text": "当年2025-04-16开过一辆特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": "2025-04-16", "ongoing": false, "evidence": "当年2025-04-16开过一辆特斯拉"}]}
+{"today": "2026-03-14", "text": "当年2025-05-24开过一辆特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": "2025-05-24", "ongoing": false, "evidence": "当年2025-05-24开过一辆特斯拉"}]}
+{"today": "2026-03-24", "text": "当年2025-08-22开过一辆丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2025-08-22", "ongoing": false, "evidence": "当年2025-08-22开过一辆丰田"}]}
+{"today": "2026-03-09", "text": "当年2025-10-27开过一辆蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2025-10-27", "ongoing": false, "evidence": "当年2025-10-27开过一辆蔚来"}]}
+{"today": "2026-03-02", "text": "我们搬来乌得勒支了", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": null, "ongoing": true, "evidence": "我们搬来乌得勒支了"}]}
+{"today": "2026-01-04", "text": "我们搬来代尔夫特了", "response": [{"relation": "住在", "object": "代尔夫特", "valid_from": null, "ongoing": true, "evidence": "我们搬来代尔夫特了"}]}
+{"today": "2026-05-07", "text": "我们搬来代尔夫特了", "response": [{"relation": "住在", "object": "代尔夫特", "valid_from": null, "ongoing": true, "evidence": "我们搬来代尔夫特了"}]}
+{"today": "2026-05-13", "text": "我们搬来埃因霍温了", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": null, "ongoing": true, "evidence": "我们搬来埃因霍温了"}]}
+{"today": "2026-02-05", "text": "我们搬来海牙了", "response": [{"relation": "住在", "object": "海牙", "valid_from": null, "ongoing": true, "evidence": "我们搬来海牙了"}]}
+{"today": "2026-06-24", "text": "我们搬来海牙了", "response": [{"relation": "住在", "object": "海牙", "valid_from": null, "ongoing": true, "evidence": "我们搬来海牙了"}]}
+{"today": "2026-01-05", "text": "我们搬来莱顿了", "response": [{"relation": "住在", "object": "莱顿", "valid_from": null, "ongoing": true, "evidence": "我们搬来莱顿了"}]}
+{"today": "2026-03-03", "text": "我们搬来莱顿了", "response": [{"relation": "住在", "object": "莱顿", "valid_from": null, "ongoing": true, "evidence": "我们搬来莱顿了"}]}
+{"today": "2026-04-07", "text": "我们搬来莱顿了", "response": [{"relation": "住在", "object": "莱顿", "valid_from": null, "ongoing": true, "evidence": "我们搬来莱顿了"}]}
+{"today": "2026-04-21", "text": "我们搬来莱顿了", "response": [{"relation": "住在", "object": "莱顿", "valid_from": null, "ongoing": true, "evidence": "我们搬来莱顿了"}]}
+{"today": "2026-05-10", "text": "我们搬来莱顿了", "response": [{"relation": "住在", "object": "莱顿", "valid_from": null, "ongoing": true, "evidence": "我们搬来莱顿了"}]}
+{"today": "2026-05-19", "text": "我们搬来莱顿了", "response": [{"relation": "住在", "object": "莱顿", "valid_from": null, "ongoing": true, "evidence": "我们搬来莱顿了"}]}
+{"today": "2026-06-03", "text": "我们搬来莱顿了", "response": [{"relation": "住在", "object": "莱顿", "valid_from": null, "ongoing": true, "evidence": "我们搬来莱顿了"}]}
+{"today": "2026-03-02", "text": "我们搬来阿姆斯特丹了", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": null, "ongoing": true, "evidence": "我们搬来阿姆斯特丹了"}]}
+{"today": "2026-03-21", "text": "我们搬来阿姆斯特丹了", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": null, "ongoing": true, "evidence": "我们搬来阿姆斯特丹了"}]}
+{"today": "2026-04-18", "text": "我们搬来阿姆斯特丹了", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": null, "ongoing": true, "evidence": "我们搬来阿姆斯特丹了"}]}
+{"today": "2026-05-30", "text": "我们搬来阿姆斯特丹了", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": null, "ongoing": true, "evidence": "我们搬来阿姆斯特丹了"}]}
+{"today": "2026-02-16", "text": "我们搬来鹿特丹了", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": null, "ongoing": true, "evidence": "我们搬来鹿特丹了"}]}
+{"today": "2026-05-14", "text": "我们搬来鹿特丹了", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": null, "ongoing": true, "evidence": "我们搬来鹿特丹了"}]}
+{"today": "2026-04-04", "text": "打10天之前起一直住在鹿特丹", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": "2026-03-25", "ongoing": true, "evidence": "打10天之前起一直住在鹿特丹"}]}
+{"today": "2026-05-18", "text": "打12天之前起一直住在莱顿", "response": [{"relation": "住在", "object": "莱顿", "valid_from": "2026-05-06", "ongoing": true, "evidence": "打12天之前起一直住在莱顿"}]}
+{"today": "2026-02-27", "text": "打14天之前起一直住在海牙", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2026-02-13", "ongoing": true, "evidence": "打14天之前起一直住在海牙"}]}
+{"today": "2026-02-14", "text": "打17天之前起一直住在代尔夫特", "response": [{"relation": "住在", "object": "代尔夫特", "valid_from": "2026-01-28", "ongoing": true, "evidence": "打17天之前起一直住在代尔夫特"}]}
+{"today": "2026-05-11", "text": "打19天之前起一直住在鹿特丹", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": "2026-04-22", "ongoing": true, "evidence": "打19天之前起一直住在鹿特丹"}]}
+{"today": "2026-02-25", "text": "打1月28日起一直住在乌得勒支", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": "2026-01-28", "ongoing": true, "evidence": "打1月28日起一直住在乌得勒支"}]}
+{"today": "2026-01-08", "text": "打2024-12-18起一直住在鹿特丹", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": "2024-12-18", "ongoing": true, "evidence": "打2024-12-18起一直住在鹿特丹"}]}
+{"today": "2026-01-12", "text": "打2025-01-30起一直住在莱顿", "response": [{"relation": "住在", "object": "莱顿", "valid_from": "2025-01-30", "ongoing": true, "evidence": "打2025-01-30起一直住在莱顿"}]}
+{"today": "2026-01-13", "text": "打2025-02-04起一直住在埃因霍温", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2025-02-04", "ongoing": true, "evidence": "打2025-02-04起一直住在埃因霍温"}]}
+{"today": "2026-01-07", "text": "打2025-03-12起一直住在海牙", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2025-03-12", "ongoing": true, "evidence": "打2025-03-12起一直住在海牙"}]}
+{"today": "2026-01-09", "text": "打2025-05-27起一直住在埃因霍温", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2025-05-27", "ongoing": true, "evidence": "打2025-05-27起一直住在埃因霍温"}]}
+{"today": "2026-01-11", "text": "打2025-07-09起一直住在莱顿", "response": [{"relation": "住在", "object": "莱顿", "valid_from": "2025-07-09", "ongoing": true, "evidence": "打2025-07-09起一直住在莱顿"}]}
+{"today": "2026-01-06", "text": "打2025-08-03起一直住在乌得勒支", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": "2025-08-03", "ongoing": true, "evidence": "打2025-08-03起一直住在乌得勒支"}]}
+{"today": "2026-01-09", "text": "打2025-08-05起一直住在代尔夫特", "response": [{"relation": "住在", "object": "代尔夫特", "valid_from": "2025-08-05", "ongoing": true, "evidence": "打2025-08-05起一直住在代尔夫特"}]}
+{"today": "2026-01-10", "text": "打2025-11-24起一直住在乌得勒支", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": "2025-11-24", "ongoing": true, "evidence": "打2025-11-24起一直住在乌得勒支"}]}
+{"today": "2026-02-13", "text": "打2026-01-23起一直住在埃因霍温", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2026-01-23", "ongoing": true, "evidence": "打2026-01-23起一直住在埃因霍温"}]}
+{"today": "2026-02-25", "text": "打2026-01-26起一直住在莱顿", "response": [{"relation": "住在", "object": "莱顿", "valid_from": "2026-01-26", "ongoing": true, "evidence": "打2026-01-26起一直住在莱顿"}]}
+{"today": "2026-03-11", "text": "打2026-02-16起一直住在埃因霍温", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2026-02-16", "ongoing": true, "evidence": "打2026-02-16起一直住在埃因霍温"}]}
+{"today": "2026-04-22", "text": "打2026-03-25起一直住在阿姆斯特丹", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": "2026-03-25", "ongoing": true, "evidence": "打2026-03-25起一直住在阿姆斯特丹"}]}
+{"today": "2026-04-15", "text": "打2026-04-04起一直住在乌得勒支", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": "2026-04-04", "ongoing": true, "evidence": "打2026-04-04起一直住在乌得勒支"}]}
+{"today": "2026-04-21", "text": "打2026-04-13起一直住在乌得勒支", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": "2026-04-13", "ongoing": true, "evidence": "打2026-04-13起一直住在乌得勒支"}]}
+{"today": "2026-05-07", "text": "打2026-04-20起一直住在乌得勒支", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": "2026-04-20", "ongoing": true, "evidence": "打2026-04-20起一直住在乌得勒支"}]}
+{"today": "2026-05-02", "text": "打2026-04-26起一直住在鹿特丹", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": "2026-04-26", "ongoing": true, "evidence": "打2026-04-26起一直住在鹿特丹"}]}
+{"today": "2026-05-02", "text": "打2026-05-01起一直住在莱顿", "response": [{"relation": "住在", "object": "莱顿", "valid_from": "2026-05-01", "ongoing": true, "evidence": "打2026-05-01起一直住在莱顿"}]}
+{"today": "2026-06-29", "text": "打2026-06-11起一直住在乌得勒支", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": "2026-06-11", "ongoing": true, "evidence": "打2026-06-11起一直住在乌得勒支"}]}
+{"today": "2026-04-27", "text": "打28天之前起一直住在海牙", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2026-03-30", "ongoing": true, "evidence": "打28天之前起一直住在海牙"}]}
+{"today": "2026-01-21", "text": "打29天之前起一直住在代尔夫特", "response": [{"relation": "住在", "object": "代尔夫特", "valid_from": "2025-12-23", "ongoing": true, "evidence": "打29天之前起一直住在代尔夫特"}]}
+{"today": "2026-02-09", "text": "打29天之前起一直住在海牙", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2026-01-11", "ongoing": true, "evidence": "打29天之前起一直住在海牙"}]}
+{"today": "2026-03-10", "text": "打2月11日起一直住在鹿特丹", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": "2026-02-11", "ongoing": true, "evidence": "打2月11日起一直住在鹿特丹"}]}
+{"today": "2026-03-05", "text": "打2月18日起一直住在阿姆斯特丹", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": "2026-02-18", "ongoing": true, "evidence": "打2月18日起一直住在阿姆斯特丹"}]}
+{"today": "2026-03-05", "text": "打2月7日起一直住在乌得勒支", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": "2026-02-07", "ongoing": true, "evidence": "打2月7日起一直住在乌得勒支"}]}
+{"today": "2026-04-05", "text": "打3月11日起一直住在埃因霍温", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2026-03-11", "ongoing": true, "evidence": "打3月11日起一直住在埃因霍温"}]}
+{"today": "2026-03-23", "text": "打3月22日起一直住在代尔夫特", "response": [{"relation": "住在", "object": "代尔夫特", "valid_from": "2026-03-22", "ongoing": true, "evidence": "打3月22日起一直住在代尔夫特"}]}
+{"today": "2026-04-07", "text": "打3月24日起一直住在阿姆斯特丹", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": "2026-03-24", "ongoing": true, "evidence": "打3月24日起一直住在阿姆斯特丹"}]}
+{"today": "2026-03-20", "text": "打4天之前起一直住在鹿特丹", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": "2026-03-16", "ongoing": true, "evidence": "打4天之前起一直住在鹿特丹"}]}
+{"today": "2026-04-27", "text": "打4月15日起一直住在鹿特丹", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": "2026-04-15", "ongoing": true, "evidence": "打4月15日起一直住在鹿特丹"}]}
+{"today": "2026-05-06", "text": "打5月1日起一直住在阿姆斯特丹", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": "2026-05-01", "ongoing": true, "evidence": "打5月1日起一直住在阿姆斯特丹"}]}
+{"today": "2026-05-14", "text": "打5月2日起一直住在埃因霍温", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2026-05-02", "ongoing": true, "evidence": "打5月2日起一直住在埃因霍温"}]}
+{"today": "2026-04-04", "text": "把老车卖了，买了丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了丰田"}]}
+{"today": "2026-04-26", "text": "把老车卖了，买了丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了丰田"}]}
+{"today": "2026-03-08", "text": "把老车卖了，买了吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了吉利"}]}
+{"today": "2026-03-24", "text": "把老车卖了，买了吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了吉利"}]}
+{"today": "2026-05-30", "text": "把老车卖了，买了吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了吉利"}]}
+{"today": "2026-03-14", "text": "把老车卖了，买了大众", "response": [{"relation": "使用", "object": "大众", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了大众"}]}
+{"today": "2026-05-09", "text": "把老车卖了，买了大众", "response": [{"relation": "使用", "object": "大众", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了大众"}]}
+{"today": "2026-05-27", "text": "把老车卖了，买了大众", "response": [{"relation": "使用", "object": "大众", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了大众"}]}
+{"today": "2026-06-10", "text": "把老车卖了，买了大众", "response": [{"relation": "使用", "object": "大众", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了大众"}]}
+{"today": "2026-01-12", "text": "把老车卖了，买了比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了比亚迪"}]}
+{"today": "2026-02-03", "text": "把老车卖了，买了比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了比亚迪"}]}
+{"today": "2026-03-15", "text": "把老车卖了，买了比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了比亚迪"}]}
+{"today": "2026-06-04", "text": "把老车卖了，买了比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了比亚迪"}]}
+{"today": "2026-06-23", "text": "把老车卖了，买了比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了比亚迪"}]}
+{"today": "2026-01-11", "text": "把老车卖了，买了特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了特斯拉"}]}
+{"today": "2026-02-16", "text": "把老车卖了，买了特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了特斯拉"}]}
+{"today": "2026-03-19", "text": "把老车卖了，买了特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了特斯拉"}]}
+{"today": "2026-04-09", "text": "把老车卖了，买了特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了特斯拉"}]}
+{"today": "2026-06-19", "text": "把老车卖了，买了特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了特斯拉"}]}
+{"today": "2026-01-04", "text": "把老车卖了，买了蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了蔚来"}]}
+{"today": "2026-02-11", "text": "把老车卖了，买了蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了蔚来"}]}
+{"today": "2026-02-21", "text": "把老车卖了，买了蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了蔚来"}]}
+{"today": "2026-02-25", "text": "把老车卖了，买了蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了蔚来"}]}
+{"today": "2026-03-02", "text": "把老车卖了，买了蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了蔚来"}]}
+{"today": "2026-04-11", "text": "把老车卖了，买了蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": null, "ongoing": true, "evidence": "把老车卖了，买了蔚来"}]}
+{"today": "2026-01-01", "text": "换工作了，新东家是Delft Robotics", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": null, "ongoing": true, "evidence": "换工作了，新东家是Delft Robotics"}]}
+{"today": "2026-01-08", "text": "换工作了，新东家是Delft Robotics", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": null, "ongoing": true, "evidence": "换工作了，新东家是Delft Robotics"}]}
+{"today": "2026-04-24", "text": "换工作了，新东家是Delft Robotics", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": null, "ongoing": true, "evidence": "换工作了，新东家是Delft Robotics"}]}
+{"today": "2026-06-11", "text": "换工作了，新东家是Delft Robotics", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": null, "ongoing": true, "evidence": "换工作了，新东家是Delft Robotics"}]}
+{"today": "2026-03-13", "text": "换工作了，新东家是Nexsand BV", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": null, "ongoing": true, "evidence": "换工作了，新东家是Nexsand BV"}]}
+{"today": "2026-06-10", "text": "换工作了，新东家是Nexsand BV", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": null, "ongoing": true, "evidence": "换工作了，新东家是Nexsand BV"}]}
+{"today": "2026-01-07", "text": "换工作了，新东家是Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": null, "ongoing": true, "evidence": "换工作了，新东家是Orange Logistics"}]}
+{"today": "2026-01-09", "text": "换工作了，新东家是Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": null, "ongoing": true, "evidence": "换工作了，新东家是Orange Logistics"}]}
+{"today": "2026-01-10", "text": "换工作了，新东家是Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": null, "ongoing": true, "evidence": "换工作了，新东家是Orange Logistics"}]}
+{"today": "2026-02-07", "text": "换工作了，新东家是Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": null, "ongoing": true, "evidence": "换工作了，新东家是Orange Logistics"}]}
+{"today": "2026-03-30", "text": "换工作了，新东家是Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": null, "ongoing": true, "evidence": "换工作了，新东家是Orange Logistics"}]}
+{"today": "2026-06-26", "text": "换工作了，新东家是Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": null, "ongoing": true, "evidence": "换工作了，新东家是Orange Logistics"}]}
+{"today": "2026-02-17", "text": "换工作了，新东家是海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": null, "ongoing": true, "evidence": "换工作了，新东家是海牙川菜馆"}]}
+{"today": "2026-04-14", "text": "换工作了，新东家是海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": null, "ongoing": true, "evidence": "换工作了，新东家是海牙川菜馆"}]}
+{"today": "2026-01-12", "text": "新车到手了，是丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是丰田"}]}
+{"today": "2026-02-22", "text": "新车到手了，是丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是丰田"}]}
+{"today": "2026-03-02", "text": "新车到手了，是丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是丰田"}]}
+{"today": "2026-05-27", "text": "新车到手了，是丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是丰田"}]}
+{"today": "2026-06-28", "text": "新车到手了，是丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是丰田"}]}
+{"today": "2026-03-08", "text": "新车到手了，是吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是吉利"}]}
+{"today": "2026-06-04", "text": "新车到手了，是吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是吉利"}]}
+{"today": "2026-01-02", "text": "新车到手了，是大众", "response": [{"relation": "使用", "object": "大众", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是大众"}]}
+{"today": "2026-02-11", "text": "新车到手了，是大众", "response": [{"relation": "使用", "object": "大众", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是大众"}]}
+{"today": "2026-02-18", "text": "新车到手了，是大众", "response": [{"relation": "使用", "object": "大众", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是大众"}]}
+{"today": "2026-04-25", "text": "新车到手了，是大众", "response": [{"relation": "使用", "object": "大众", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是大众"}]}
+{"today": "2026-05-09", "text": "新车到手了，是大众", "response": [{"relation": "使用", "object": "大众", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是大众"}]}
+{"today": "2026-05-24", "text": "新车到手了，是大众", "response": [{"relation": "使用", "object": "大众", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是大众"}]}
+{"today": "2026-06-28", "text": "新车到手了，是大众", "response": [{"relation": "使用", "object": "大众", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是大众"}]}
+{"today": "2026-01-06", "text": "新车到手了，是比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是比亚迪"}]}
+{"today": "2026-02-12", "text": "新车到手了，是比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是比亚迪"}]}
+{"today": "2026-03-14", "text": "新车到手了，是比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是比亚迪"}]}
+{"today": "2026-03-24", "text": "新车到手了，是比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是比亚迪"}]}
+{"today": "2026-03-27", "text": "新车到手了，是比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是比亚迪"}]}
+{"today": "2026-04-20", "text": "新车到手了，是比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是比亚迪"}]}
+{"today": "2026-03-14", "text": "新车到手了，是特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是特斯拉"}]}
+{"today": "2026-03-17", "text": "新车到手了，是特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是特斯拉"}]}
+{"today": "2026-05-08", "text": "新车到手了，是特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是特斯拉"}]}
+{"today": "2026-06-07", "text": "新车到手了，是特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是特斯拉"}]}
+{"today": "2026-06-09", "text": "新车到手了，是特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是特斯拉"}]}
+{"today": "2026-06-20", "text": "新车到手了，是特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是特斯拉"}]}
+{"today": "2026-03-24", "text": "新车到手了，是蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是蔚来"}]}
+{"today": "2026-04-19", "text": "新车到手了，是蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是蔚来"}]}
+{"today": "2026-06-19", "text": "新车到手了，是蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": null, "ongoing": true, "evidence": "新车到手了，是蔚来"}]}
+{"today": "2026-01-02", "text": "新邮箱：a.wen@gmail.com", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": null, "ongoing": true, "evidence": "新邮箱：a.wen@gmail.com"}]}
+{"today": "2026-01-05", "text": "新邮箱：a.wen@gmail.com", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": null, "ongoing": true, "evidence": "新邮箱：a.wen@gmail.com"}]}
+{"today": "2026-01-08", "text": "新邮箱：a.wen@gmail.com", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": null, "ongoing": true, "evidence": "新邮箱：a.wen@gmail.com"}]}
+{"today": "2026-04-29", "text": "新邮箱：a.wen@gmail.com", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": null, "ongoing": true, "evidence": "新邮箱：a.wen@gmail.com"}]}
+{"today": "2026-06-11", "text": "新邮箱：a.wen@gmail.com", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": null, "ongoing": true, "evidence": "新邮箱：a.wen@gmail.com"}]}
+{"today": "2026-01-04", "text": "新邮箱：wen@delftrobotics.eu", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": null, "ongoing": true, "evidence": "新邮箱：wen@delftrobotics.eu"}]}
+{"today": "2026-01-06", "text": "新邮箱：wen@delftrobotics.eu", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": null, "ongoing": true, "evidence": "新邮箱：wen@delftrobotics.eu"}]}
+{"today": "2026-01-07", "text": "新邮箱：wen@delftrobotics.eu", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": null, "ongoing": true, "evidence": "新邮箱：wen@delftrobotics.eu"}]}
+{"today": "2026-01-11", "text": "新邮箱：wen@delftrobotics.eu", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": null, "ongoing": true, "evidence": "新邮箱：wen@delftrobotics.eu"}]}
+{"today": "2026-03-30", "text": "新邮箱：wen@delftrobotics.eu", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": null, "ongoing": true, "evidence": "新邮箱：wen@delftrobotics.eu"}]}
+{"today": "2026-06-17", "text": "新邮箱：wen@delftrobotics.eu", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": null, "ongoing": true, "evidence": "新邮箱：wen@delftrobotics.eu"}]}
+{"today": "2026-01-01", "text": "新邮箱：wen@nexsand.nl", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": null, "ongoing": true, "evidence": "新邮箱：wen@nexsand.nl"}]}
+{"today": "2026-01-11", "text": "新邮箱：wen@nexsand.nl", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": null, "ongoing": true, "evidence": "新邮箱：wen@nexsand.nl"}]}
+{"today": "2026-04-27", "text": "新邮箱：wen@nexsand.nl", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": null, "ongoing": true, "evidence": "新邮箱：wen@nexsand.nl"}]}
+{"today": "2026-06-06", "text": "新邮箱：wen@nexsand.nl", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": null, "ongoing": true, "evidence": "新邮箱：wen@nexsand.nl"}]}
+{"today": "2026-06-08", "text": "新邮箱：wen@nexsand.nl", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": null, "ongoing": true, "evidence": "新邮箱：wen@nexsand.nl"}]}
+{"today": "2026-05-03", "text": "早些年2024-06-02我在Delft Robotics上过班", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": "2024-06-02", "ongoing": false, "evidence": "早些年2024-06-02我在Delft Robotics上过班"}]}
+{"today": "2026-05-25", "text": "早些年2025-01-24我在海牙川菜馆上过班", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2025-01-24", "ongoing": false, "evidence": "早些年2025-01-24我在海牙川菜馆上过班"}]}
+{"today": "2026-06-25", "text": "早些年2025-03-14我在Orange Logistics上过班", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2025-03-14", "ongoing": false, "evidence": "早些年2025-03-14我在Orange Logistics上过班"}]}
+{"today": "2026-06-17", "text": "早些年2025-04-22我在Delft Robotics上过班", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": "2025-04-22", "ongoing": false, "evidence": "早些年2025-04-22我在Delft Robotics上过班"}]}
+{"today": "2026-03-07", "text": "早些年2025-07-04我在海牙川菜馆上过班", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2025-07-04", "ongoing": false, "evidence": "早些年2025-07-04我在海牙川菜馆上过班"}]}
+{"today": "2026-05-03", "text": "早些年2025-08-08我在海牙川菜馆上过班", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2025-08-08", "ongoing": false, "evidence": "早些年2025-08-08我在海牙川菜馆上过班"}]}
+{"today": "2026-04-23", "text": "早些年2025-08-22我在Delft Robotics上过班", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": "2025-08-22", "ongoing": false, "evidence": "早些年2025-08-22我在Delft Robotics上过班"}]}
+{"today": "2026-05-17", "text": "早些年2025-09-25我在海牙川菜馆上过班", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": "2025-09-25", "ongoing": false, "evidence": "早些年2025-09-25我在海牙川菜馆上过班"}]}
+{"today": "2026-05-24", "text": "早年2024-04-03我在乌得勒支住过一阵", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": "2024-04-03", "ongoing": false, "evidence": "早年2024-04-03我在乌得勒支住过一阵"}]}
+{"today": "2026-04-05", "text": "早年2024-04-05我在海牙住过一阵", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2024-04-05", "ongoing": false, "evidence": "早年2024-04-05我在海牙住过一阵"}]}
+{"today": "2026-03-14", "text": "早年2025-05-10我在埃因霍温住过一阵", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2025-05-10", "ongoing": false, "evidence": "早年2025-05-10我在埃因霍温住过一阵"}]}
+{"today": "2026-06-13", "text": "早年2025-05-18我在莱顿住过一阵", "response": [{"relation": "住在", "object": "莱顿", "valid_from": "2025-05-18", "ongoing": false, "evidence": "早年2025-05-18我在莱顿住过一阵"}]}
+{"today": "2026-04-28", "text": "早年2025-09-01我在埃因霍温住过一阵", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2025-09-01", "ongoing": false, "evidence": "早年2025-09-01我在埃因霍温住过一阵"}]}
+{"today": "2026-02-28", "text": "昨天把车换成了吉利，开到现在", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-02-27", "ongoing": true, "evidence": "昨天把车换成了吉利，开到现在"}]}
+{"today": "2026-05-29", "text": "更正一下，1月20日那段时间我在Delft Robotics干过", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": "2026-01-20", "ongoing": false, "evidence": "更正一下，1月20日那段时间我在Delft Robotics干过"}]}
+{"today": "2026-05-24", "text": "更正一下，2025-07-23的时候我住莱顿，那是好久之前的事了", "response": [{"relation": "住在", "object": "莱顿", "valid_from": "2025-07-23", "ongoing": false, "evidence": "更正一下，2025-07-23的时候我住莱顿，那是好久之前的事了"}]}
+{"today": "2026-04-08", "text": "更正一下，2025-08-12的时候我住莱顿，那是好久之前的事了", "response": [{"relation": "住在", "object": "莱顿", "valid_from": "2025-08-12", "ongoing": false, "evidence": "更正一下，2025-08-12的时候我住莱顿，那是好久之前的事了"}]}
+{"today": "2026-06-23", "text": "更正一下，2025-09-07那会儿我用wen@nexsand.nl收邮件", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2025-09-07", "ongoing": false, "evidence": "更正一下，2025-09-07那会儿我用wen@nexsand.nl收邮件"}]}
+{"today": "2026-04-28", "text": "更正一下，2025-10-23的时候我住鹿特丹，那是好久之前的事了", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": "2025-10-23", "ongoing": false, "evidence": "更正一下，2025-10-23的时候我住鹿特丹，那是好久之前的事了"}]}
+{"today": "2026-05-25", "text": "更正一下，2025-10-26的时候我住海牙，那是好久之前的事了", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2025-10-26", "ongoing": false, "evidence": "更正一下，2025-10-26的时候我住海牙，那是好久之前的事了"}]}
+{"today": "2026-06-19", "text": "更正一下，2025-10-29那段时间我在Delft Robotics干过", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": "2025-10-29", "ongoing": false, "evidence": "更正一下，2025-10-29那段时间我在Delft Robotics干过"}]}
+{"today": "2026-04-24", "text": "更正一下，2025-11-02那阵子我开的是特斯拉，后来卖了", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": "2025-11-02", "ongoing": false, "evidence": "更正一下，2025-11-02那阵子我开的是特斯拉，后来卖了"}]}
+{"today": "2026-04-08", "text": "更正一下，2025-12-21那段时间我在Orange Logistics干过", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": "2025-12-21", "ongoing": false, "evidence": "更正一下，2025-12-21那段时间我在Orange Logistics干过"}]}
+{"today": "2026-05-08", "text": "更正一下，2026-01-28那阵子我开的是丰田，后来卖了", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2026-01-28", "ongoing": false, "evidence": "更正一下，2026-01-28那阵子我开的是丰田，后来卖了"}]}
+{"today": "2026-04-27", "text": "更正一下，2026-02-13那阵子我开的是吉利，后来卖了", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-02-13", "ongoing": false, "evidence": "更正一下，2026-02-13那阵子我开的是吉利，后来卖了"}]}
+{"today": "2026-06-23", "text": "更正一下，2026-03-21的时候我住代尔夫特，那是好久之前的事了", "response": [{"relation": "住在", "object": "代尔夫特", "valid_from": "2026-03-21", "ongoing": false, "evidence": "更正一下，2026-03-21的时候我住代尔夫特，那是好久之前的事了"}]}
+{"today": "2026-04-19", "text": "更正一下，2月24日的时候我住海牙，那是好久之前的事了", "response": [{"relation": "住在", "object": "海牙", "valid_from": "2026-02-24", "ongoing": false, "evidence": "更正一下，2月24日的时候我住海牙，那是好久之前的事了"}]}
+{"today": "2026-06-03", "text": "更正一下，2月3日的时候我住鹿特丹，那是好久之前的事了", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": "2026-02-03", "ongoing": false, "evidence": "更正一下，2月3日的时候我住鹿特丹，那是好久之前的事了"}]}
+{"today": "2026-06-26", "text": "更正一下，4月6日那阵子我开的是大众，后来卖了", "response": [{"relation": "使用", "object": "大众", "valid_from": "2026-04-06", "ongoing": false, "evidence": "更正一下，4月6日那阵子我开的是大众，后来卖了"}]}
+{"today": "2026-05-08", "text": "更正一下，53天之前那阵子我开的是吉利，后来卖了", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-03-16", "ongoing": false, "evidence": "更正一下，53天之前那阵子我开的是吉利，后来卖了"}]}
+{"today": "2026-03-08", "text": "更正一下，当年1月21日开过一辆丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2026-01-21", "ongoing": false, "evidence": "更正一下，当年1月21日开过一辆丰田"}]}
+{"today": "2026-03-16", "text": "更正一下，当年1月23日开过一辆蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2026-01-23", "ongoing": false, "evidence": "更正一下，当年1月23日开过一辆蔚来"}]}
+{"today": "2026-03-20", "text": "更正一下，当年2025-09-09开过一辆大众", "response": [{"relation": "使用", "object": "大众", "valid_from": "2025-09-09", "ongoing": false, "evidence": "更正一下，当年2025-09-09开过一辆大众"}]}
+{"today": "2026-04-20", "text": "更正一下，当年2025-09-27开过一辆蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2025-09-27", "ongoing": false, "evidence": "更正一下，当年2025-09-27开过一辆蔚来"}]}
+{"today": "2026-04-20", "text": "更正一下，当年2026-02-24开过一辆丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2026-02-24", "ongoing": false, "evidence": "更正一下，当年2026-02-24开过一辆丰田"}]}
+{"today": "2026-04-19", "text": "更正一下，当年2026-02-25开过一辆比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2026-02-25", "ongoing": false, "evidence": "更正一下，当年2026-02-25开过一辆比亚迪"}]}
+{"today": "2026-05-26", "text": "更正一下，当年2026-02-25开过一辆特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": "2026-02-25", "ongoing": false, "evidence": "更正一下，当年2026-02-25开过一辆特斯拉"}]}
+{"today": "2026-05-22", "text": "更正一下，当年2026-03-16开过一辆比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2026-03-16", "ongoing": false, "evidence": "更正一下，当年2026-03-16开过一辆比亚迪"}]}
+{"today": "2026-06-01", "text": "更正一下，当年2月11日开过一辆大众", "response": [{"relation": "使用", "object": "大众", "valid_from": "2026-02-11", "ongoing": false, "evidence": "更正一下，当年2月11日开过一辆大众"}]}
+{"today": "2026-06-09", "text": "更正一下，当年3月12日开过一辆蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2026-03-12", "ongoing": false, "evidence": "更正一下，当年3月12日开过一辆蔚来"}]}
+{"today": "2026-05-17", "text": "更正一下，当年52天之前开过一辆蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2026-03-26", "ongoing": false, "evidence": "更正一下，当年52天之前开过一辆蔚来"}]}
+{"today": "2026-03-17", "text": "更正一下，早些年2025-10-02我在Delft Robotics上过班", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": "2025-10-02", "ongoing": false, "evidence": "更正一下，早些年2025-10-02我在Delft Robotics上过班"}]}
+{"today": "2026-06-22", "text": "更正一下，早些年2026-02-13我在Nexsand BV上过班", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": "2026-02-13", "ongoing": false, "evidence": "更正一下，早些年2026-02-13我在Nexsand BV上过班"}]}
+{"today": "2026-05-28", "text": "更正一下，早年1月25日我在埃因霍温住过一阵", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2026-01-25", "ongoing": false, "evidence": "更正一下，早年1月25日我在埃因霍温住过一阵"}]}
+{"today": "2026-05-15", "text": "更正一下，早年2025-08-17我在鹿特丹住过一阵", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": "2025-08-17", "ongoing": false, "evidence": "更正一下，早年2025-08-17我在鹿特丹住过一阵"}]}
+{"today": "2026-06-25", "text": "更正一下，早年2026-01-19我在鹿特丹住过一阵", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": "2026-01-19", "ongoing": false, "evidence": "更正一下，早年2026-01-19我在鹿特丹住过一阵"}]}
+{"today": "2026-05-14", "text": "更正一下，早年2026-02-02我在埃因霍温住过一阵", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2026-02-02", "ongoing": false, "evidence": "更正一下，早年2026-02-02我在埃因霍温住过一阵"}]}
+{"today": "2026-06-12", "text": "更正一下，早年2月25日我在埃因霍温住过一阵", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": "2026-02-25", "ongoing": false, "evidence": "更正一下，早年2月25日我在埃因霍温住过一阵"}]}
+{"today": "2026-01-06", "text": "最近搬家了，新家在乌得勒支", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在乌得勒支"}]}
+{"today": "2026-01-13", "text": "最近搬家了，新家在乌得勒支", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在乌得勒支"}]}
+{"today": "2026-02-22", "text": "最近搬家了，新家在乌得勒支", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在乌得勒支"}]}
+{"today": "2026-01-02", "text": "最近搬家了，新家在代尔夫特", "response": [{"relation": "住在", "object": "代尔夫特", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在代尔夫特"}]}
+{"today": "2026-01-12", "text": "最近搬家了，新家在埃因霍温", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在埃因霍温"}]}
+{"today": "2026-03-15", "text": "最近搬家了，新家在埃因霍温", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在埃因霍温"}]}
+{"today": "2026-06-19", "text": "最近搬家了，新家在埃因霍温", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在埃因霍温"}]}
+{"today": "2026-01-01", "text": "最近搬家了，新家在海牙", "response": [{"relation": "住在", "object": "海牙", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在海牙"}]}
+{"today": "2026-01-03", "text": "最近搬家了，新家在海牙", "response": [{"relation": "住在", "object": "海牙", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在海牙"}]}
+{"today": "2026-01-04", "text": "最近搬家了，新家在海牙", "response": [{"relation": "住在", "object": "海牙", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在海牙"}]}
+{"today": "2026-03-05", "text": "最近搬家了，新家在海牙", "response": [{"relation": "住在", "object": "海牙", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在海牙"}]}
+{"today": "2026-04-03", "text": "最近搬家了，新家在海牙", "response": [{"relation": "住在", "object": "海牙", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在海牙"}]}
+{"today": "2026-04-06", "text": "最近搬家了，新家在海牙", "response": [{"relation": "住在", "object": "海牙", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在海牙"}]}
+{"today": "2026-01-08", "text": "最近搬家了，新家在莱顿", "response": [{"relation": "住在", "object": "莱顿", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在莱顿"}]}
+{"today": "2026-01-07", "text": "最近搬家了，新家在阿姆斯特丹", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在阿姆斯特丹"}]}
+{"today": "2026-01-28", "text": "最近搬家了，新家在阿姆斯特丹", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在阿姆斯特丹"}]}
+{"today": "2026-04-08", "text": "最近搬家了，新家在阿姆斯特丹", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在阿姆斯特丹"}]}
+{"today": "2026-06-12", "text": "最近搬家了，新家在阿姆斯特丹", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在阿姆斯特丹"}]}
+{"today": "2026-06-18", "text": "最近搬家了，新家在阿姆斯特丹", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在阿姆斯特丹"}]}
+{"today": "2026-04-04", "text": "最近搬家了，新家在鹿特丹", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在鹿特丹"}]}
+{"today": "2026-05-20", "text": "最近搬家了，新家在鹿特丹", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在鹿特丹"}]}
+{"today": "2026-06-13", "text": "最近搬家了，新家在鹿特丹", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在鹿特丹"}]}
+{"today": "2026-06-20", "text": "最近搬家了，新家在鹿特丹", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": null, "ongoing": true, "evidence": "最近搬家了，新家在鹿特丹"}]}
+{"today": "2026-01-27", "text": "现在人在乌得勒支住着", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": null, "ongoing": true, "evidence": "现在人在乌得勒支住着"}]}
+{"today": "2026-04-17", "text": "现在人在乌得勒支住着", "response": [{"relation": "住在", "object": "乌得勒支", "valid_from": null, "ongoing": true, "evidence": "现在人在乌得勒支住着"}]}
+{"today": "2026-01-08", "text": "现在人在埃因霍温住着", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": null, "ongoing": true, "evidence": "现在人在埃因霍温住着"}]}
+{"today": "2026-01-11", "text": "现在人在埃因霍温住着", "response": [{"relation": "住在", "object": "埃因霍温", "valid_from": null, "ongoing": true, "evidence": "现在人在埃因霍温住着"}]}
+{"today": "2026-02-26", "text": "现在人在海牙住着", "response": [{"relation": "住在", "object": "海牙", "valid_from": null, "ongoing": true, "evidence": "现在人在海牙住着"}]}
+{"today": "2026-05-04", "text": "现在人在莱顿住着", "response": [{"relation": "住在", "object": "莱顿", "valid_from": null, "ongoing": true, "evidence": "现在人在莱顿住着"}]}
+{"today": "2026-06-01", "text": "现在人在莱顿住着", "response": [{"relation": "住在", "object": "莱顿", "valid_from": null, "ongoing": true, "evidence": "现在人在莱顿住着"}]}
+{"today": "2026-05-17", "text": "现在人在阿姆斯特丹住着", "response": [{"relation": "住在", "object": "阿姆斯特丹", "valid_from": null, "ongoing": true, "evidence": "现在人在阿姆斯特丹住着"}]}
+{"today": "2026-01-09", "text": "现在人在鹿特丹住着", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": null, "ongoing": true, "evidence": "现在人在鹿特丹住着"}]}
+{"today": "2026-01-12", "text": "现在人在鹿特丹住着", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": null, "ongoing": true, "evidence": "现在人在鹿特丹住着"}]}
+{"today": "2026-03-28", "text": "现在人在鹿特丹住着", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": null, "ongoing": true, "evidence": "现在人在鹿特丹住着"}]}
+{"today": "2026-05-10", "text": "现在人在鹿特丹住着", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": null, "ongoing": true, "evidence": "现在人在鹿特丹住着"}]}
+{"today": "2026-06-20", "text": "现在人在鹿特丹住着", "response": [{"relation": "住在", "object": "鹿特丹", "valid_from": null, "ongoing": true, "evidence": "现在人在鹿特丹住着"}]}
+{"today": "2026-01-01", "text": "现在代步用的是丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是丰田"}]}
+{"today": "2026-04-28", "text": "现在代步用的是丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是丰田"}]}
+{"today": "2026-06-13", "text": "现在代步用的是丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是丰田"}]}
+{"today": "2026-01-03", "text": "现在代步用的是吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是吉利"}]}
+{"today": "2026-01-07", "text": "现在代步用的是吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是吉利"}]}
+{"today": "2026-02-26", "text": "现在代步用的是吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是吉利"}]}
+{"today": "2026-03-25", "text": "现在代步用的是吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是吉利"}]}
+{"today": "2026-04-04", "text": "现在代步用的是吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是吉利"}]}
+{"today": "2026-02-18", "text": "现在代步用的是大众", "response": [{"relation": "使用", "object": "大众", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是大众"}]}
+{"today": "2026-04-10", "text": "现在代步用的是大众", "response": [{"relation": "使用", "object": "大众", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是大众"}]}
+{"today": "2026-01-03", "text": "现在代步用的是比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是比亚迪"}]}
+{"today": "2026-01-09", "text": "现在代步用的是比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是比亚迪"}]}
+{"today": "2026-01-26", "text": "现在代步用的是比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是比亚迪"}]}
+{"today": "2026-03-29", "text": "现在代步用的是比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是比亚迪"}]}
+{"today": "2026-01-01", "text": "现在代步用的是特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是特斯拉"}]}
+{"today": "2026-01-09", "text": "现在代步用的是特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是特斯拉"}]}
+{"today": "2026-02-20", "text": "现在代步用的是特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是特斯拉"}]}
+{"today": "2026-02-23", "text": "现在代步用的是特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是特斯拉"}]}
+{"today": "2026-03-10", "text": "现在代步用的是特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是特斯拉"}]}
+{"today": "2026-03-23", "text": "现在代步用的是特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是特斯拉"}]}
+{"today": "2026-01-06", "text": "现在代步用的是蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是蔚来"}]}
+{"today": "2026-02-22", "text": "现在代步用的是蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是蔚来"}]}
+{"today": "2026-04-29", "text": "现在代步用的是蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是蔚来"}]}
+{"today": "2026-05-21", "text": "现在代步用的是蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是蔚来"}]}
+{"today": "2026-06-21", "text": "现在代步用的是蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": null, "ongoing": true, "evidence": "现在代步用的是蔚来"}]}
+{"today": "2026-01-11", "text": "现在给Delft Robotics打工", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": null, "ongoing": true, "evidence": "现在给Delft Robotics打工"}]}
+{"today": "2026-03-28", "text": "现在给Delft Robotics打工", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": null, "ongoing": true, "evidence": "现在给Delft Robotics打工"}]}
+{"today": "2026-05-07", "text": "现在给Delft Robotics打工", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": null, "ongoing": true, "evidence": "现在给Delft Robotics打工"}]}
+{"today": "2026-06-02", "text": "现在给Delft Robotics打工", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": null, "ongoing": true, "evidence": "现在给Delft Robotics打工"}]}
+{"today": "2026-01-01", "text": "现在给Nexsand BV打工", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": null, "ongoing": true, "evidence": "现在给Nexsand BV打工"}]}
+{"today": "2026-04-01", "text": "现在给Nexsand BV打工", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": null, "ongoing": true, "evidence": "现在给Nexsand BV打工"}]}
+{"today": "2026-01-02", "text": "现在给Orange Logistics打工", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": null, "ongoing": true, "evidence": "现在给Orange Logistics打工"}]}
+{"today": "2026-01-09", "text": "现在给Orange Logistics打工", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": null, "ongoing": true, "evidence": "现在给Orange Logistics打工"}]}
+{"today": "2026-02-21", "text": "现在给Orange Logistics打工", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": null, "ongoing": true, "evidence": "现在给Orange Logistics打工"}]}
+{"today": "2026-01-04", "text": "现在给海牙川菜馆打工", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": null, "ongoing": true, "evidence": "现在给海牙川菜馆打工"}]}
+{"today": "2026-03-23", "text": "现在给海牙川菜馆打工", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": null, "ongoing": true, "evidence": "现在给海牙川菜馆打工"}]}
+{"today": "2026-01-06", "text": "目前供职于Delft Robotics", "response": [{"relation": "公司", "object": "Delft Robotics", "valid_from": null, "ongoing": true, "evidence": "目前供职于Delft Robotics"}]}
+{"today": "2026-01-11", "text": "目前供职于Nexsand BV", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": null, "ongoing": true, "evidence": "目前供职于Nexsand BV"}]}
+{"today": "2026-03-27", "text": "目前供职于Nexsand BV", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": null, "ongoing": true, "evidence": "目前供职于Nexsand BV"}]}
+{"today": "2026-04-24", "text": "目前供职于Nexsand BV", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": null, "ongoing": true, "evidence": "目前供职于Nexsand BV"}]}
+{"today": "2026-05-21", "text": "目前供职于Nexsand BV", "response": [{"relation": "公司", "object": "Nexsand BV", "valid_from": null, "ongoing": true, "evidence": "目前供职于Nexsand BV"}]}
+{"today": "2026-01-10", "text": "目前供职于Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": null, "ongoing": true, "evidence": "目前供职于Orange Logistics"}]}
+{"today": "2026-01-11", "text": "目前供职于Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": null, "ongoing": true, "evidence": "目前供职于Orange Logistics"}]}
+{"today": "2026-02-15", "text": "目前供职于Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": null, "ongoing": true, "evidence": "目前供职于Orange Logistics"}]}
+{"today": "2026-04-02", "text": "目前供职于Orange Logistics", "response": [{"relation": "公司", "object": "Orange Logistics", "valid_from": null, "ongoing": true, "evidence": "目前供职于Orange Logistics"}]}
+{"today": "2026-01-02", "text": "目前供职于海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": null, "ongoing": true, "evidence": "目前供职于海牙川菜馆"}]}
+{"today": "2026-01-05", "text": "目前供职于海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": null, "ongoing": true, "evidence": "目前供职于海牙川菜馆"}]}
+{"today": "2026-01-11", "text": "目前供职于海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": null, "ongoing": true, "evidence": "目前供职于海牙川菜馆"}]}
+{"today": "2026-02-22", "text": "目前供职于海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": null, "ongoing": true, "evidence": "目前供职于海牙川菜馆"}]}
+{"today": "2026-02-27", "text": "目前供职于海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": null, "ongoing": true, "evidence": "目前供职于海牙川菜馆"}]}
+{"today": "2026-02-28", "text": "目前供职于海牙川菜馆", "response": [{"relation": "公司", "object": "海牙川菜馆", "valid_from": null, "ongoing": true, "evidence": "目前供职于海牙川菜馆"}]}
+{"today": "2026-05-29", "text": "自14天之前起邮箱变更为wen@delftrobotics.eu", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2026-05-15", "ongoing": true, "evidence": "自14天之前起邮箱变更为wen@delftrobotics.eu"}]}
+{"today": "2026-05-10", "text": "自19天之前起邮箱变更为a.wen@gmail.com", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": "2026-04-21", "ongoing": true, "evidence": "自19天之前起邮箱变更为a.wen@gmail.com"}]}
+{"today": "2026-02-22", "text": "自1月31日起我开丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2026-01-31", "ongoing": true, "evidence": "自1月31日起我开丰田"}]}
+{"today": "2026-01-04", "text": "自2025-01-30起我开丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2025-01-30", "ongoing": true, "evidence": "自2025-01-30起我开丰田"}]}
+{"today": "2026-01-13", "text": "自2025-02-11起我开蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2025-02-11", "ongoing": true, "evidence": "自2025-02-11起我开蔚来"}]}
+{"today": "2026-01-02", "text": "自2025-02-14起我开比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2025-02-14", "ongoing": true, "evidence": "自2025-02-14起我开比亚迪"}]}
+{"today": "2026-01-05", "text": "自2025-03-18起邮箱变更为wen@nexsand.nl", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2025-03-18", "ongoing": true, "evidence": "自2025-03-18起邮箱变更为wen@nexsand.nl"}]}
+{"today": "2026-01-13", "text": "自2025-03-21起邮箱变更为a.wen@gmail.com", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": "2025-03-21", "ongoing": true, "evidence": "自2025-03-21起邮箱变更为a.wen@gmail.com"}]}
+{"today": "2026-01-09", "text": "自2025-04-10起邮箱变更为a.wen@gmail.com", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": "2025-04-10", "ongoing": true, "evidence": "自2025-04-10起邮箱变更为a.wen@gmail.com"}]}
+{"today": "2026-01-12", "text": "自2025-04-23起我开大众", "response": [{"relation": "使用", "object": "大众", "valid_from": "2025-04-23", "ongoing": true, "evidence": "自2025-04-23起我开大众"}]}
+{"today": "2026-01-05", "text": "自2025-04-25起我开丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2025-04-25", "ongoing": true, "evidence": "自2025-04-25起我开丰田"}]}
+{"today": "2026-01-04", "text": "自2025-05-22起我开吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2025-05-22", "ongoing": true, "evidence": "自2025-05-22起我开吉利"}]}
+{"today": "2026-01-04", "text": "自2025-06-08起邮箱变更为a.wen@gmail.com", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": "2025-06-08", "ongoing": true, "evidence": "自2025-06-08起邮箱变更为a.wen@gmail.com"}]}
+{"today": "2026-01-13", "text": "自2025-06-17起邮箱变更为a.wen@gmail.com", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": "2025-06-17", "ongoing": true, "evidence": "自2025-06-17起邮箱变更为a.wen@gmail.com"}]}
+{"today": "2026-01-09", "text": "自2025-06-25起我开吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2025-06-25", "ongoing": true, "evidence": "自2025-06-25起我开吉利"}]}
+{"today": "2026-01-13", "text": "自2025-09-05起邮箱变更为wen@nexsand.nl", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2025-09-05", "ongoing": true, "evidence": "自2025-09-05起邮箱变更为wen@nexsand.nl"}]}
+{"today": "2026-01-06", "text": "自2025-09-06起我开比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2025-09-06", "ongoing": true, "evidence": "自2025-09-06起我开比亚迪"}]}
+{"today": "2026-01-06", "text": "自2025-09-18起我开丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2025-09-18", "ongoing": true, "evidence": "自2025-09-18起我开丰田"}]}
+{"today": "2026-01-11", "text": "自2025-09-18起邮箱变更为a.wen@gmail.com", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": "2025-09-18", "ongoing": true, "evidence": "自2025-09-18起邮箱变更为a.wen@gmail.com"}]}
+{"today": "2026-01-03", "text": "自2025-09-30起邮箱变更为wen@nexsand.nl", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2025-09-30", "ongoing": true, "evidence": "自2025-09-30起邮箱变更为wen@nexsand.nl"}]}
+{"today": "2026-01-11", "text": "自2025-10-16起我开蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2025-10-16", "ongoing": true, "evidence": "自2025-10-16起我开蔚来"}]}
+{"today": "2026-01-04", "text": "自2025-10-17起邮箱变更为wen@delftrobotics.eu", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2025-10-17", "ongoing": true, "evidence": "自2025-10-17起邮箱变更为wen@delftrobotics.eu"}]}
+{"today": "2026-01-13", "text": "自2025-10-18起邮箱变更为wen@nexsand.nl", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2025-10-18", "ongoing": true, "evidence": "自2025-10-18起邮箱变更为wen@nexsand.nl"}]}
+{"today": "2026-01-11", "text": "自2025-10-29起邮箱变更为wen@nexsand.nl", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2025-10-29", "ongoing": true, "evidence": "自2025-10-29起邮箱变更为wen@nexsand.nl"}]}
+{"today": "2026-01-11", "text": "自2025-11-21起邮箱变更为wen@delftrobotics.eu", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2025-11-21", "ongoing": true, "evidence": "自2025-11-21起邮箱变更为wen@delftrobotics.eu"}]}
+{"today": "2026-02-11", "text": "自2026-01-21起我开丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2026-01-21", "ongoing": true, "evidence": "自2026-01-21起我开丰田"}]}
+{"today": "2026-03-18", "text": "自2026-03-15起我开吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-03-15", "ongoing": true, "evidence": "自2026-03-15起我开吉利"}]}
+{"today": "2026-03-29", "text": "自2026-03-28起我开蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2026-03-28", "ongoing": true, "evidence": "自2026-03-28起我开蔚来"}]}
+{"today": "2026-04-27", "text": "自2026-04-15起我开大众", "response": [{"relation": "使用", "object": "大众", "valid_from": "2026-04-15", "ongoing": true, "evidence": "自2026-04-15起我开大众"}]}
+{"today": "2026-05-08", "text": "自2026-04-18起我开大众", "response": [{"relation": "使用", "object": "大众", "valid_from": "2026-04-18", "ongoing": true, "evidence": "自2026-04-18起我开大众"}]}
+{"today": "2026-05-11", "text": "自2026-04-18起邮箱变更为a.wen@gmail.com", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": "2026-04-18", "ongoing": true, "evidence": "自2026-04-18起邮箱变更为a.wen@gmail.com"}]}
+{"today": "2026-05-19", "text": "自2026-05-03起邮箱变更为wen@nexsand.nl", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2026-05-03", "ongoing": true, "evidence": "自2026-05-03起邮箱变更为wen@nexsand.nl"}]}
+{"today": "2026-05-26", "text": "自2026-05-15起我开比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2026-05-15", "ongoing": true, "evidence": "自2026-05-15起我开比亚迪"}]}
+{"today": "2026-06-19", "text": "自2026-05-22起我开特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": "2026-05-22", "ongoing": true, "evidence": "自2026-05-22起我开特斯拉"}]}
+{"today": "2026-06-11", "text": "自2026-05-27起我开蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2026-05-27", "ongoing": true, "evidence": "自2026-05-27起我开蔚来"}]}
+{"today": "2026-04-19", "text": "自22天之前起我开吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-03-28", "ongoing": true, "evidence": "自22天之前起我开吉利"}]}
+{"today": "2026-04-04", "text": "自26天之前起我开蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2026-03-09", "ongoing": true, "evidence": "自26天之前起我开蔚来"}]}
+{"today": "2026-06-07", "text": "自26天之前起邮箱变更为wen@nexsand.nl", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2026-05-12", "ongoing": true, "evidence": "自26天之前起邮箱变更为wen@nexsand.nl"}]}
+{"today": "2026-06-21", "text": "自27天之前起我开大众", "response": [{"relation": "使用", "object": "大众", "valid_from": "2026-05-25", "ongoing": true, "evidence": "自27天之前起我开大众"}]}
+{"today": "2026-02-22", "text": "自2月3日起我开蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2026-02-03", "ongoing": true, "evidence": "自2月3日起我开蔚来"}]}
+{"today": "2026-03-27", "text": "自3月22日起我开吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-03-22", "ongoing": true, "evidence": "自3月22日起我开吉利"}]}
+{"today": "2026-03-10", "text": "自3月7日起我开比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2026-03-07", "ongoing": true, "evidence": "自3月7日起我开比亚迪"}]}
+{"today": "2026-04-05", "text": "自3月8日起我开大众", "response": [{"relation": "使用", "object": "大众", "valid_from": "2026-03-08", "ongoing": true, "evidence": "自3月8日起我开大众"}]}
+{"today": "2026-04-18", "text": "自4月13日起我开大众", "response": [{"relation": "使用", "object": "大众", "valid_from": "2026-04-13", "ongoing": true, "evidence": "自4月13日起我开大众"}]}
+{"today": "2026-05-14", "text": "自4月19日起我开丰田", "response": [{"relation": "使用", "object": "丰田", "valid_from": "2026-04-19", "ongoing": true, "evidence": "自4月19日起我开丰田"}]}
+{"today": "2026-04-24", "text": "自4月20日起我开蔚来", "response": [{"relation": "使用", "object": "蔚来", "valid_from": "2026-04-20", "ongoing": true, "evidence": "自4月20日起我开蔚来"}]}
+{"today": "2026-05-13", "text": "自4月22日起我开特斯拉", "response": [{"relation": "使用", "object": "特斯拉", "valid_from": "2026-04-22", "ongoing": true, "evidence": "自4月22日起我开特斯拉"}]}
+{"today": "2026-05-30", "text": "自5月21日起我开吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-05-21", "ongoing": true, "evidence": "自5月21日起我开吉利"}]}
+{"today": "2026-05-31", "text": "自5月28日起我开吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-05-28", "ongoing": true, "evidence": "自5月28日起我开吉利"}]}
+{"today": "2026-05-10", "text": "自5月6日起我开大众", "response": [{"relation": "使用", "object": "大众", "valid_from": "2026-05-06", "ongoing": true, "evidence": "自5月6日起我开大众"}]}
+{"today": "2026-05-22", "text": "自5月8日起我开比亚迪", "response": [{"relation": "使用", "object": "比亚迪", "valid_from": "2026-05-08", "ongoing": true, "evidence": "自5月8日起我开比亚迪"}]}
+{"today": "2026-06-13", "text": "自6月3日起我开吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-06-03", "ongoing": true, "evidence": "自6月3日起我开吉利"}]}
+{"today": "2026-06-10", "text": "自6月4日起我开吉利", "response": [{"relation": "使用", "object": "吉利", "valid_from": "2026-06-04", "ongoing": true, "evidence": "自6月4日起我开吉利"}]}
+{"today": "2026-06-20", "text": "自6月9日起邮箱变更为wen@delftrobotics.eu", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": "2026-06-09", "ongoing": true, "evidence": "自6月9日起邮箱变更为wen@delftrobotics.eu"}]}
+{"today": "2026-06-25", "text": "自9天之前起邮箱变更为wen@nexsand.nl", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": "2026-06-16", "ongoing": true, "evidence": "自9天之前起邮箱变更为wen@nexsand.nl"}]}
+{"today": "2026-01-01", "text": "邮件请发a.wen@gmail.com，老邮箱不用了", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": null, "ongoing": true, "evidence": "邮件请发a.wen@gmail.com，老邮箱不用了"}]}
+{"today": "2026-01-03", "text": "邮件请发a.wen@gmail.com，老邮箱不用了", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": null, "ongoing": true, "evidence": "邮件请发a.wen@gmail.com，老邮箱不用了"}]}
+{"today": "2026-01-05", "text": "邮件请发a.wen@gmail.com，老邮箱不用了", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": null, "ongoing": true, "evidence": "邮件请发a.wen@gmail.com，老邮箱不用了"}]}
+{"today": "2026-01-08", "text": "邮件请发a.wen@gmail.com，老邮箱不用了", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": null, "ongoing": true, "evidence": "邮件请发a.wen@gmail.com，老邮箱不用了"}]}
+{"today": "2026-01-13", "text": "邮件请发a.wen@gmail.com，老邮箱不用了", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": null, "ongoing": true, "evidence": "邮件请发a.wen@gmail.com，老邮箱不用了"}]}
+{"today": "2026-04-14", "text": "邮件请发a.wen@gmail.com，老邮箱不用了", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": null, "ongoing": true, "evidence": "邮件请发a.wen@gmail.com，老邮箱不用了"}]}
+{"today": "2026-06-16", "text": "邮件请发a.wen@gmail.com，老邮箱不用了", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": null, "ongoing": true, "evidence": "邮件请发a.wen@gmail.com，老邮箱不用了"}]}
+{"today": "2026-06-17", "text": "邮件请发a.wen@gmail.com，老邮箱不用了", "response": [{"relation": "邮箱", "object": "a.wen@gmail.com", "valid_from": null, "ongoing": true, "evidence": "邮件请发a.wen@gmail.com，老邮箱不用了"}]}
+{"today": "2026-01-12", "text": "邮件请发wen@delftrobotics.eu，老邮箱不用了", "response": [{"relation": "邮箱", "object": "wen@delftrobotics.eu", "valid_from": null, "ongoing": true, "evidence": "邮件请发wen@delftrobotics.eu，老邮箱不用了"}]}
+{"today": "2026-01-04", "text": "邮件请发wen@nexsand.nl，老邮箱不用了", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": null, "ongoing": true, "evidence": "邮件请发wen@nexsand.nl，老邮箱不用了"}]}
+{"today": "2026-03-06", "text": "邮件请发wen@nexsand.nl，老邮箱不用了", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": null, "ongoing": true, "evidence": "邮件请发wen@nexsand.nl，老邮箱不用了"}]}
+{"today": "2026-04-07", "text": "邮件请发wen@nexsand.nl，老邮箱不用了", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": null, "ongoing": true, "evidence": "邮件请发wen@nexsand.nl，老邮箱不用了"}]}
+{"today": "2026-06-04", "text": "邮件请发wen@nexsand.nl，老邮箱不用了", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": null, "ongoing": true, "evidence": "邮件请发wen@nexsand.nl，老邮箱不用了"}]}
+{"today": "2026-06-20", "text": "邮件请发wen@nexsand.nl，老邮箱不用了", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": null, "ongoing": true, "evidence": "邮件请发wen@nexsand.nl，老邮箱不用了"}]}
+{"today": "2026-06-24", "text": "邮件请发wen@nexsand.nl，老邮箱不用了", "response": [{"relation": "邮箱", "object": "wen@nexsand.nl", "valid_from": null, "ongoing": true, "evidence": "邮件请发wen@nexsand.nl，老邮箱不用了"}]}
