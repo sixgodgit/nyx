@@ -2,7 +2,7 @@
 
 > **Nyx — 把「检索失败」也当作一类信号的记忆系统**
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.10-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.11-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 ## 别的记忆系统回答「找到了什么」，Nyx 还回答「我是不是见过」
 
@@ -55,7 +55,7 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 | 🗑️ **擦除级联** | `core/erasure.py` | 一次删除贯通中枢/日志正文/FTS/倒排/影子/engram/向量，可独立验收（v7.4） |
 | 🕯️ **遗忘隔离区** | `core/quarantine.py` | **删得掉，也救得回**：forget 两段式 —— 检索侧立刻读不到，隔离期内 `restore` 逐字节还原，到期 `purge` 不可逆（v7.6） |
 | 🛡️ **来源信任** | `core/provenance.py` | 第三类元认知信号：trusted / unverified / tainted。来源在写入时绑定、正文改不了；只有主人亲口说的能成为规则；外部信息召回时带来源标注（v7.8，防 OWASP ASI06 记忆投毒） |
-| 🗣️ **话语理解** | `core/understand.py` | 一句话 → (谁, 关系, 值, 从何时起, 是否至今仍真)：读得出「2 月 25 号就换成吉利了」里的起始时间与「体」；规则后端零依赖，LLM 后端可选且输出必须过校验（v7.10） |
+| 🗣️ **话语理解** | `core/understand.py` | 一句话 → (谁, 关系, 值, 从何时起, 是否至今仍真)：读得出「2 月 25 号就换成吉利了」里的起始时间与「体」；规则后端零依赖，LLM 后端可选、输出必须过校验，开启时以 LLM 为准（v7.10–v7.11） |
 | 🧬 **Skill Distiller** | `features/skill_distiller.py` | 过程记忆 → 技能候选自动蒸馏，观察反复出现的工作流并生成可复用 skill 草案（v7.5） |
 | 🕸️ **织线 Thread** | `features/weavethread.py` | 知识图谱（实体关系三元组），支持 OpenViking Memory Link 类型化 links + PPR 图增强 |
 | 🏜️ **影子沙 Fact Store** | `features/shadow_sand.py` | 结构化事实存储（带信任评分） |
@@ -322,6 +322,58 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 ---
 
 ## 📝 更新日志
+
+### v7.11 (2026-09-26) — LLM 后端实测：用 Claude 当抽取模型跑留出集
+
+**做了什么**
+v7.10 留下的问题：LLM 后端的端到端数字给不出（评测环境连不到网关）。
+这一版由本会话的 Claude 直接充当 LLM 后端：逐条阅读留出句式的 549 个输入（原句 + 说话日期，
+与 `extract_llm` 发给网关的 prompt 同一格式），按同一输出规格写出五元组。
+回答录成 `benchmarks/results/llm_replay_claude_holdout.jsonl`，经**真实**的
+`extract_llm` → 校验 → 存储路径回放评分，任何人可复现。
+
+**协议**
+- 只看 LLM 能看到的东西：原句 + 说话日期。标注时**不看**世界真相
+- 回答照常过 `validate_llm_items`（对象与证据必须是原文子串、本体内关系、日期不晚于说话日期）
+- 评分用 v7.10 同一个脚本、同一套留出句式、35 种子 × 180 天
+
+**结果（轨道 C 留出句式）**
+
+| | 仅规则（v7.10 冻结版，无偏） | 规则为主 + LLM 补充（v7.10 合并策略） | 仅 LLM（Claude） | **LLM 为主 + 规则兜底（v7.11）** |
+|---|---|---|---|---|
+| 现在是什么 | 64.3% | 92.6% | 100% | **100%** |
+| 第 K 天时我以为是什么 | 64.3% | 92.6% | 100% | **100%** |
+| 过去某刻是什么 | 66.2% | 94.7% | 100% | **100%** |
+| 抽取召回 / 精确 | 71.4% / 89.8% | 100% / 94.1% | 100% / 100% | **100% / 100%** |
+
+结果文件：`benchmarks/results/longitudinal_llm_claude.json` / `longitudinal_llm_claude_only.json`
+
+**评测发现的设计缺陷：合并策略反了**
+v7.10 是「规则为主、LLM 只补规则漏掉的」。实测**合并后比只用 LLM 差**（92.6% vs 100%）：
+规则在没见过的说法上会产出错误事实 ——「搬进了莱顿的新房子，住到现在」抽出地名「到现在」（35 次）——
+合并策略让它和 LLM 的正确事实并存，单值关系上出现两个现任。
+改为 **LLM 返回了通过校验的事实就以 LLM 为准，否则用规则**：LLM 的输出已经被约束为原文子串，
+精确度高于规则，两者同时开口时该听精确的那个。同时修掉「到现在 / 至今」被当成地名。
+
+**这组 100% 必须连同下面几条一起读**
+- **LLM 是 Claude（本会话的模型），不是你生产环境配置的 `deepseek-v4-flash`**。小模型在相对日期换算
+  （「53天之前」「当年1月21日」）上更容易出错。你自己网关的数字，用同一脚本测：
+  `NYX_UNDERSTAND_LLM=1 LLM_EXTRACT_API_URL=… python3 benchmarks/longitudinal_eval.py`；
+  或先录一份网关回答，再 `--llm-replay 文件` 离线复现
+- **评测是我设计的**。标注时没看真相，但句子是干净的单事实陈述、实体来自小词表 ——
+  真实对话更乱（一句多事、指代、口误、夹杂别人的话）。100% 说明的是"这类句子 LLM 读得懂、
+  存储层接得住"，不说明真实对话里也是 100%
+- **合并策略与「到现在」的修复都是看过留出结果之后做的**：右边两列不是无偏数字。
+  唯一的无偏数字仍是最左列的 64.3%（规则、冻结版）。下一轮需要新的留出句式，最好不是我写的
+- 规则后端仍然是零依赖的默认值；LLM 后端要网络与调用成本，是可选项
+
+**新增**
+- `benchmarks/longitudinal_eval.py --llm-replay 文件 [--llm-only]`：回放录制的 LLM 响应，
+  走真实的 extract_llm → 校验 → 存储路径；找不到录音的句子按网关失败处理并计数
+- `tests/test_understand.py` +3 项：LLM 优先、「到现在」不是地名、回放依赖的 prompt 锚点
+
+**测试**
+全量 417 项逐文件独立 + 单进程整体全绿；投毒演练、事故演练全部通过。
 
 ### v7.10 (2026-09-26) — 话语理解：把一句话读成五元组
 

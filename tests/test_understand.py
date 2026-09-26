@@ -224,3 +224,32 @@ def test_extractor_crash_falls_back_to_legacy(wt, monkeypatch):
     monkeypatch.setattr(U, "extract", boom)
     assert weavethread.wthread_store("我偏好 Python，这周用了Docker部署服务", 1) >= 1
     assert get_current(path, "user", "用过"), "退回正则后的结果丢了"
+
+
+def test_llm_takes_precedence_over_rules(monkeypatch):
+    """回归：「规则为主、LLM 补充」时，规则的错误事实会和 LLM 的正确事实并存。
+
+    留出评测：「搬进了莱顿的新房子，住到现在」→ 规则抽出地名「到现在」、LLM 抽出「莱顿」，
+    单值关系出现两个现任；合并后的成绩（92.6%）反而低于只用 LLM（100%）。
+    """
+    monkeypatch.setenv("NYX_UNDERSTAND_LLM", "1")
+    text = "8天之前那天我们搬进了莱顿的新房子，住到现在"
+    reply = {"choices": [{"message": {"content":
+        '[{"relation":"住在","object":"莱顿","valid_from":"2026-03-02","ongoing":true,'
+        '"evidence":"搬进了莱顿的新房子"}]'}}]}
+    monkeypatch.setattr(U, "_post", lambda *a, **k: reply)
+    f = U.extract(text, NOW)
+    assert [(x.relation, x.object, x.backend) for x in f] == [("住在", "莱顿", "llm")]
+
+
+def test_until_now_is_not_a_place():
+    """「住到现在」的「到现在」不是地名（留出评测发现，35 次）。"""
+    places = [x[1] for x in _facts("那天我们搬进了莱顿的新房子，住到现在") if x[0] == "住在"]
+    assert "到现在" not in places
+
+
+def test_replay_recording_matches_real_prompt_shape():
+    """录音回放靠解析真实 prompt 取回 (日期, 原句)。prompt 改了而回放没跟上，
+    评测会静默地全部"未录到"然后退回规则 —— 这里钉住 prompt 里的两个锚点。"""
+    p = U._LLM_PROMPT.format(rels="x", today="2026-03-10", text="原句")
+    assert "按说话日期 2026-03-10" in p and p.rstrip().endswith("句子：原句\nJSON:")
