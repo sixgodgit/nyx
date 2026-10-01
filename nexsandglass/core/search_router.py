@@ -47,7 +47,17 @@ def sand_density(candidates, query_tokens, query) -> list:
     except Exception:
         pass
     scored = []
-    nq = max(len(query_tokens), 1)
+    # 权重：中文 token 恒为 1（与 v7.11 完全一致）；英文 token 按候选集内的稀有度加权（v7.12）——
+    # 英文里 "work" / "name" 这类词在候选里到处都是，不该和 "contoso" 同分
+    lows = [(c[2] if len(c) > 2 else "").lower() for c in candidates]
+    weights = {}
+    for t in query_tokens:
+        if t.isascii():
+            df = sum(1 for low in lows if t in low)
+            weights[t] = math.log(1 + len(lows) / (1 + df))
+        else:
+            weights[t] = 1.0
+    nq = sum(weights.values()) or 1.0
     for item in candidates:
         ln = item[0]
         text = item[2] if len(item) > 2 else ""
@@ -57,7 +67,7 @@ def sand_density(candidates, query_tokens, query) -> list:
         # 全量切成 2/3/4 字窗口。Step 3 之后候选从"单行"变成"整条记忆"，
         # 这一步的成本放大了近一个数量级，实测合并排序占了单次查询 2.5s 中的 1.9s。
         low = text.lower()
-        matched = sum(1 for t in query_tokens if t in low)
+        matched = sum(weights[t] for t in query_tokens if t in low)
         density = matched / nq
         trust = trust_scores.get(ln, 0.5)
         fp = _l3_simhash(text[:500])

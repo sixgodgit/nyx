@@ -1,0 +1,1099 @@
+[
+ {
+  "question_id": "zq_cat",
+  "question_type": "single-session-user",
+  "question": "我的猫叫什么名字？",
+  "answer": "团子",
+  "question_date": "2023/07/01 (Sat) 10:00",
+  "haystack_session_ids": [
+   "z_allergy",
+   "z_cat",
+   "z_job1",
+   "z_food",
+   "z_trip",
+   "z_book",
+   "z_book2",
+   "z_run",
+   "z_tea",
+   "z_job2"
+  ],
+  "haystack_dates": [
+   "2023/02/11 (Sat) 11:00",
+   "2023/03/04 (Sat) 10:15",
+   "2023/03/10 (Fri) 18:30",
+   "2023/03/12 (Sun) 09:00",
+   "2023/04/01 (Sat) 14:00",
+   "2023/04/18 (Tue) 22:05",
+   "2023/05/02 (Tue) 08:20",
+   "2023/05/14 (Sun) 12:10",
+   "2023/05/20 (Sat) 16:00",
+   "2023/06/20 (Tue) 20:45"
+  ],
+  "haystack_sessions": [
+   [
+    {
+     "role": "user",
+     "content": "提醒一下，我对芒果过敏。"
+    },
+    {
+     "role": "assistant",
+     "content": "记住了，以后推荐水果会避开芒果。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "我上周末领养了一只橘猫，给它取名叫团子。",
+     "has_answer": true
+    },
+    {
+     "role": "assistant",
+     "content": "恭喜你领养了团子！橘猫性格一般都很亲人。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "我刚入职了蔚来汽车，做电池管理系统的软件工程师。"
+    },
+    {
+     "role": "assistant",
+     "content": "祝你在蔚来一切顺利！"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "推荐一个简单的番茄炒蛋做法吧"
+    },
+    {
+     "role": "assistant",
+     "content": "先把鸡蛋炒到半熟盛出，再炒番茄出汁，最后把鸡蛋倒回去，加一点糖和盐。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "下个月想去成都玩三天，有什么推荐？"
+    },
+    {
+     "role": "assistant",
+     "content": "可以去宽窄巷子、大熊猫基地，晚上吃火锅。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "最近读完了《三体》，结局太震撼了。"
+    },
+    {
+     "role": "assistant",
+     "content": "《三体》的结局确实让人久久不能平静。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "现在通勤路上在看《活着》。"
+    },
+    {
+     "role": "assistant",
+     "content": "《活着》很适合慢慢读。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "今天第一次跑完半程马拉松，用时两小时零五分。"
+    },
+    {
+     "role": "assistant",
+     "content": "第一次半马就跑进两小时出头，非常棒！"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "下午喝什么茶比较好？"
+    },
+    {
+     "role": "assistant",
+     "content": "可以试试白茶，口感清淡。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "告诉你个消息，我从蔚来离职了，现在在理想汽车做高级工程师。"
+    },
+    {
+     "role": "assistant",
+     "content": "恭喜跳槽到理想汽车！"
+    }
+   ]
+  ],
+  "answer_session_ids": [
+   "z_cat"
+  ]
+ },
+ {
+  "question_id": "zq_food",
+  "question_type": "single-session-assistant",
+  "question": "你之前说番茄炒蛋最后要加什么调料？",
+  "answer": "糖和盐",
+  "question_date": "2023/07/01 (Sat) 10:00",
+  "haystack_session_ids": [
+   "z_allergy",
+   "z_cat",
+   "z_job1",
+   "z_food",
+   "z_trip",
+   "z_book",
+   "z_book2",
+   "z_run",
+   "z_tea",
+   "z_job2"
+  ],
+  "haystack_dates": [
+   "2023/02/11 (Sat) 11:00",
+   "2023/03/04 (Sat) 10:15",
+   "2023/03/10 (Fri) 18:30",
+   "2023/03/12 (Sun) 09:00",
+   "2023/04/01 (Sat) 14:00",
+   "2023/04/18 (Tue) 22:05",
+   "2023/05/02 (Tue) 08:20",
+   "2023/05/14 (Sun) 12:10",
+   "2023/05/20 (Sat) 16:00",
+   "2023/06/20 (Tue) 20:45"
+  ],
+  "haystack_sessions": [
+   [
+    {
+     "role": "user",
+     "content": "提醒一下，我对芒果过敏。"
+    },
+    {
+     "role": "assistant",
+     "content": "记住了，以后推荐水果会避开芒果。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "我上周末领养了一只橘猫，给它取名叫团子。"
+    },
+    {
+     "role": "assistant",
+     "content": "恭喜你领养了团子！橘猫性格一般都很亲人。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "我刚入职了蔚来汽车，做电池管理系统的软件工程师。"
+    },
+    {
+     "role": "assistant",
+     "content": "祝你在蔚来一切顺利！"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "推荐一个简单的番茄炒蛋做法吧"
+    },
+    {
+     "role": "assistant",
+     "content": "先把鸡蛋炒到半熟盛出，再炒番茄出汁，最后把鸡蛋倒回去，加一点糖和盐。",
+     "has_answer": true
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "下个月想去成都玩三天，有什么推荐？"
+    },
+    {
+     "role": "assistant",
+     "content": "可以去宽窄巷子、大熊猫基地，晚上吃火锅。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "最近读完了《三体》，结局太震撼了。"
+    },
+    {
+     "role": "assistant",
+     "content": "《三体》的结局确实让人久久不能平静。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "现在通勤路上在看《活着》。"
+    },
+    {
+     "role": "assistant",
+     "content": "《活着》很适合慢慢读。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "今天第一次跑完半程马拉松，用时两小时零五分。"
+    },
+    {
+     "role": "assistant",
+     "content": "第一次半马就跑进两小时出头，非常棒！"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "下午喝什么茶比较好？"
+    },
+    {
+     "role": "assistant",
+     "content": "可以试试白茶，口感清淡。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "告诉你个消息，我从蔚来离职了，现在在理想汽车做高级工程师。"
+    },
+    {
+     "role": "assistant",
+     "content": "恭喜跳槽到理想汽车！"
+    }
+   ]
+  ],
+  "answer_session_ids": [
+   "z_food"
+  ]
+ },
+ {
+  "question_id": "zq_job",
+  "question_type": "knowledge-update",
+  "question": "我现在在哪家公司上班？",
+  "answer": "理想汽车",
+  "question_date": "2023/07/01 (Sat) 10:00",
+  "haystack_session_ids": [
+   "z_allergy",
+   "z_cat",
+   "z_job1",
+   "z_food",
+   "z_trip",
+   "z_book",
+   "z_book2",
+   "z_run",
+   "z_tea",
+   "z_job2"
+  ],
+  "haystack_dates": [
+   "2023/02/11 (Sat) 11:00",
+   "2023/03/04 (Sat) 10:15",
+   "2023/03/10 (Fri) 18:30",
+   "2023/03/12 (Sun) 09:00",
+   "2023/04/01 (Sat) 14:00",
+   "2023/04/18 (Tue) 22:05",
+   "2023/05/02 (Tue) 08:20",
+   "2023/05/14 (Sun) 12:10",
+   "2023/05/20 (Sat) 16:00",
+   "2023/06/20 (Tue) 20:45"
+  ],
+  "haystack_sessions": [
+   [
+    {
+     "role": "user",
+     "content": "提醒一下，我对芒果过敏。"
+    },
+    {
+     "role": "assistant",
+     "content": "记住了，以后推荐水果会避开芒果。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "我上周末领养了一只橘猫，给它取名叫团子。"
+    },
+    {
+     "role": "assistant",
+     "content": "恭喜你领养了团子！橘猫性格一般都很亲人。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "我刚入职了蔚来汽车，做电池管理系统的软件工程师。"
+    },
+    {
+     "role": "assistant",
+     "content": "祝你在蔚来一切顺利！"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "推荐一个简单的番茄炒蛋做法吧"
+    },
+    {
+     "role": "assistant",
+     "content": "先把鸡蛋炒到半熟盛出，再炒番茄出汁，最后把鸡蛋倒回去，加一点糖和盐。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "下个月想去成都玩三天，有什么推荐？"
+    },
+    {
+     "role": "assistant",
+     "content": "可以去宽窄巷子、大熊猫基地，晚上吃火锅。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "最近读完了《三体》，结局太震撼了。"
+    },
+    {
+     "role": "assistant",
+     "content": "《三体》的结局确实让人久久不能平静。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "现在通勤路上在看《活着》。"
+    },
+    {
+     "role": "assistant",
+     "content": "《活着》很适合慢慢读。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "今天第一次跑完半程马拉松，用时两小时零五分。"
+    },
+    {
+     "role": "assistant",
+     "content": "第一次半马就跑进两小时出头，非常棒！"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "下午喝什么茶比较好？"
+    },
+    {
+     "role": "assistant",
+     "content": "可以试试白茶，口感清淡。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "告诉你个消息，我从蔚来离职了，现在在理想汽车做高级工程师。",
+     "has_answer": true
+    },
+    {
+     "role": "assistant",
+     "content": "恭喜跳槽到理想汽车！"
+    }
+   ]
+  ],
+  "answer_session_ids": [
+   "z_job2"
+  ]
+ },
+ {
+  "question_id": "zq_books",
+  "question_type": "multi-session",
+  "question": "我提到过在读哪两本书？",
+  "answer": "《三体》和《活着》",
+  "question_date": "2023/07/01 (Sat) 10:00",
+  "haystack_session_ids": [
+   "z_allergy",
+   "z_cat",
+   "z_job1",
+   "z_food",
+   "z_trip",
+   "z_book",
+   "z_book2",
+   "z_run",
+   "z_tea",
+   "z_job2"
+  ],
+  "haystack_dates": [
+   "2023/02/11 (Sat) 11:00",
+   "2023/03/04 (Sat) 10:15",
+   "2023/03/10 (Fri) 18:30",
+   "2023/03/12 (Sun) 09:00",
+   "2023/04/01 (Sat) 14:00",
+   "2023/04/18 (Tue) 22:05",
+   "2023/05/02 (Tue) 08:20",
+   "2023/05/14 (Sun) 12:10",
+   "2023/05/20 (Sat) 16:00",
+   "2023/06/20 (Tue) 20:45"
+  ],
+  "haystack_sessions": [
+   [
+    {
+     "role": "user",
+     "content": "提醒一下，我对芒果过敏。"
+    },
+    {
+     "role": "assistant",
+     "content": "记住了，以后推荐水果会避开芒果。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "我上周末领养了一只橘猫，给它取名叫团子。"
+    },
+    {
+     "role": "assistant",
+     "content": "恭喜你领养了团子！橘猫性格一般都很亲人。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "我刚入职了蔚来汽车，做电池管理系统的软件工程师。"
+    },
+    {
+     "role": "assistant",
+     "content": "祝你在蔚来一切顺利！"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "推荐一个简单的番茄炒蛋做法吧"
+    },
+    {
+     "role": "assistant",
+     "content": "先把鸡蛋炒到半熟盛出，再炒番茄出汁，最后把鸡蛋倒回去，加一点糖和盐。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "下个月想去成都玩三天，有什么推荐？"
+    },
+    {
+     "role": "assistant",
+     "content": "可以去宽窄巷子、大熊猫基地，晚上吃火锅。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "最近读完了《三体》，结局太震撼了。",
+     "has_answer": true
+    },
+    {
+     "role": "assistant",
+     "content": "《三体》的结局确实让人久久不能平静。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "现在通勤路上在看《活着》。",
+     "has_answer": true
+    },
+    {
+     "role": "assistant",
+     "content": "《活着》很适合慢慢读。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "今天第一次跑完半程马拉松，用时两小时零五分。"
+    },
+    {
+     "role": "assistant",
+     "content": "第一次半马就跑进两小时出头，非常棒！"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "下午喝什么茶比较好？"
+    },
+    {
+     "role": "assistant",
+     "content": "可以试试白茶，口感清淡。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "告诉你个消息，我从蔚来离职了，现在在理想汽车做高级工程师。"
+    },
+    {
+     "role": "assistant",
+     "content": "恭喜跳槽到理想汽车！"
+    }
+   ]
+  ],
+  "answer_session_ids": [
+   "z_book",
+   "z_book2"
+  ]
+ },
+ {
+  "question_id": "zq_run",
+  "question_type": "temporal-reasoning",
+  "question": "我跑半马是在跳槽到理想汽车之前多少天？",
+  "answer": "37天",
+  "question_date": "2023/07/01 (Sat) 10:00",
+  "haystack_session_ids": [
+   "z_allergy",
+   "z_cat",
+   "z_job1",
+   "z_food",
+   "z_trip",
+   "z_book",
+   "z_book2",
+   "z_run",
+   "z_tea",
+   "z_job2"
+  ],
+  "haystack_dates": [
+   "2023/02/11 (Sat) 11:00",
+   "2023/03/04 (Sat) 10:15",
+   "2023/03/10 (Fri) 18:30",
+   "2023/03/12 (Sun) 09:00",
+   "2023/04/01 (Sat) 14:00",
+   "2023/04/18 (Tue) 22:05",
+   "2023/05/02 (Tue) 08:20",
+   "2023/05/14 (Sun) 12:10",
+   "2023/05/20 (Sat) 16:00",
+   "2023/06/20 (Tue) 20:45"
+  ],
+  "haystack_sessions": [
+   [
+    {
+     "role": "user",
+     "content": "提醒一下，我对芒果过敏。"
+    },
+    {
+     "role": "assistant",
+     "content": "记住了，以后推荐水果会避开芒果。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "我上周末领养了一只橘猫，给它取名叫团子。"
+    },
+    {
+     "role": "assistant",
+     "content": "恭喜你领养了团子！橘猫性格一般都很亲人。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "我刚入职了蔚来汽车，做电池管理系统的软件工程师。"
+    },
+    {
+     "role": "assistant",
+     "content": "祝你在蔚来一切顺利！"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "推荐一个简单的番茄炒蛋做法吧"
+    },
+    {
+     "role": "assistant",
+     "content": "先把鸡蛋炒到半熟盛出，再炒番茄出汁，最后把鸡蛋倒回去，加一点糖和盐。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "下个月想去成都玩三天，有什么推荐？"
+    },
+    {
+     "role": "assistant",
+     "content": "可以去宽窄巷子、大熊猫基地，晚上吃火锅。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "最近读完了《三体》，结局太震撼了。"
+    },
+    {
+     "role": "assistant",
+     "content": "《三体》的结局确实让人久久不能平静。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "现在通勤路上在看《活着》。"
+    },
+    {
+     "role": "assistant",
+     "content": "《活着》很适合慢慢读。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "今天第一次跑完半程马拉松，用时两小时零五分。",
+     "has_answer": true
+    },
+    {
+     "role": "assistant",
+     "content": "第一次半马就跑进两小时出头，非常棒！"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "下午喝什么茶比较好？"
+    },
+    {
+     "role": "assistant",
+     "content": "可以试试白茶，口感清淡。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "告诉你个消息，我从蔚来离职了，现在在理想汽车做高级工程师。",
+     "has_answer": true
+    },
+    {
+     "role": "assistant",
+     "content": "恭喜跳槽到理想汽车！"
+    }
+   ]
+  ],
+  "answer_session_ids": [
+   "z_run",
+   "z_job2"
+  ]
+ },
+ {
+  "question_id": "zq_allergy",
+  "question_type": "single-session-user",
+  "question": "我对什么水果过敏？",
+  "answer": "芒果",
+  "question_date": "2023/07/01 (Sat) 10:00",
+  "haystack_session_ids": [
+   "z_allergy",
+   "z_cat",
+   "z_job1",
+   "z_food",
+   "z_trip",
+   "z_book",
+   "z_book2",
+   "z_run",
+   "z_tea",
+   "z_job2"
+  ],
+  "haystack_dates": [
+   "2023/02/11 (Sat) 11:00",
+   "2023/03/04 (Sat) 10:15",
+   "2023/03/10 (Fri) 18:30",
+   "2023/03/12 (Sun) 09:00",
+   "2023/04/01 (Sat) 14:00",
+   "2023/04/18 (Tue) 22:05",
+   "2023/05/02 (Tue) 08:20",
+   "2023/05/14 (Sun) 12:10",
+   "2023/05/20 (Sat) 16:00",
+   "2023/06/20 (Tue) 20:45"
+  ],
+  "haystack_sessions": [
+   [
+    {
+     "role": "user",
+     "content": "提醒一下，我对芒果过敏。",
+     "has_answer": true
+    },
+    {
+     "role": "assistant",
+     "content": "记住了，以后推荐水果会避开芒果。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "我上周末领养了一只橘猫，给它取名叫团子。"
+    },
+    {
+     "role": "assistant",
+     "content": "恭喜你领养了团子！橘猫性格一般都很亲人。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "我刚入职了蔚来汽车，做电池管理系统的软件工程师。"
+    },
+    {
+     "role": "assistant",
+     "content": "祝你在蔚来一切顺利！"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "推荐一个简单的番茄炒蛋做法吧"
+    },
+    {
+     "role": "assistant",
+     "content": "先把鸡蛋炒到半熟盛出，再炒番茄出汁，最后把鸡蛋倒回去，加一点糖和盐。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "下个月想去成都玩三天，有什么推荐？"
+    },
+    {
+     "role": "assistant",
+     "content": "可以去宽窄巷子、大熊猫基地，晚上吃火锅。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "最近读完了《三体》，结局太震撼了。"
+    },
+    {
+     "role": "assistant",
+     "content": "《三体》的结局确实让人久久不能平静。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "现在通勤路上在看《活着》。"
+    },
+    {
+     "role": "assistant",
+     "content": "《活着》很适合慢慢读。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "今天第一次跑完半程马拉松，用时两小时零五分。"
+    },
+    {
+     "role": "assistant",
+     "content": "第一次半马就跑进两小时出头，非常棒！"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "下午喝什么茶比较好？"
+    },
+    {
+     "role": "assistant",
+     "content": "可以试试白茶，口感清淡。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "告诉你个消息，我从蔚来离职了，现在在理想汽车做高级工程师。"
+    },
+    {
+     "role": "assistant",
+     "content": "恭喜跳槽到理想汽车！"
+    }
+   ]
+  ],
+  "answer_session_ids": [
+   "z_allergy"
+  ]
+ },
+ {
+  "question_id": "zq_trip",
+  "question_type": "single-session-assistant",
+  "question": "你推荐我在成都晚上吃什么？",
+  "answer": "火锅",
+  "question_date": "2023/07/01 (Sat) 10:00",
+  "haystack_session_ids": [
+   "z_allergy",
+   "z_cat",
+   "z_job1",
+   "z_food",
+   "z_trip",
+   "z_book",
+   "z_book2",
+   "z_run",
+   "z_tea",
+   "z_job2"
+  ],
+  "haystack_dates": [
+   "2023/02/11 (Sat) 11:00",
+   "2023/03/04 (Sat) 10:15",
+   "2023/03/10 (Fri) 18:30",
+   "2023/03/12 (Sun) 09:00",
+   "2023/04/01 (Sat) 14:00",
+   "2023/04/18 (Tue) 22:05",
+   "2023/05/02 (Tue) 08:20",
+   "2023/05/14 (Sun) 12:10",
+   "2023/05/20 (Sat) 16:00",
+   "2023/06/20 (Tue) 20:45"
+  ],
+  "haystack_sessions": [
+   [
+    {
+     "role": "user",
+     "content": "提醒一下，我对芒果过敏。"
+    },
+    {
+     "role": "assistant",
+     "content": "记住了，以后推荐水果会避开芒果。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "我上周末领养了一只橘猫，给它取名叫团子。"
+    },
+    {
+     "role": "assistant",
+     "content": "恭喜你领养了团子！橘猫性格一般都很亲人。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "我刚入职了蔚来汽车，做电池管理系统的软件工程师。"
+    },
+    {
+     "role": "assistant",
+     "content": "祝你在蔚来一切顺利！"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "推荐一个简单的番茄炒蛋做法吧"
+    },
+    {
+     "role": "assistant",
+     "content": "先把鸡蛋炒到半熟盛出，再炒番茄出汁，最后把鸡蛋倒回去，加一点糖和盐。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "下个月想去成都玩三天，有什么推荐？"
+    },
+    {
+     "role": "assistant",
+     "content": "可以去宽窄巷子、大熊猫基地，晚上吃火锅。",
+     "has_answer": true
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "最近读完了《三体》，结局太震撼了。"
+    },
+    {
+     "role": "assistant",
+     "content": "《三体》的结局确实让人久久不能平静。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "现在通勤路上在看《活着》。"
+    },
+    {
+     "role": "assistant",
+     "content": "《活着》很适合慢慢读。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "今天第一次跑完半程马拉松，用时两小时零五分。"
+    },
+    {
+     "role": "assistant",
+     "content": "第一次半马就跑进两小时出头，非常棒！"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "下午喝什么茶比较好？"
+    },
+    {
+     "role": "assistant",
+     "content": "可以试试白茶，口感清淡。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "告诉你个消息，我从蔚来离职了，现在在理想汽车做高级工程师。"
+    },
+    {
+     "role": "assistant",
+     "content": "恭喜跳槽到理想汽车！"
+    }
+   ]
+  ],
+  "answer_session_ids": [
+   "z_trip"
+  ]
+ },
+ {
+  "question_id": "zq_dog_abs",
+  "question_type": "single-session-user",
+  "question": "我的狗叫什么名字？",
+  "answer": "没有提到过狗",
+  "question_date": "2023/07/01 (Sat) 10:00",
+  "haystack_session_ids": [
+   "z_allergy",
+   "z_cat",
+   "z_job1",
+   "z_food",
+   "z_trip",
+   "z_book",
+   "z_book2",
+   "z_run",
+   "z_tea",
+   "z_job2"
+  ],
+  "haystack_dates": [
+   "2023/02/11 (Sat) 11:00",
+   "2023/03/04 (Sat) 10:15",
+   "2023/03/10 (Fri) 18:30",
+   "2023/03/12 (Sun) 09:00",
+   "2023/04/01 (Sat) 14:00",
+   "2023/04/18 (Tue) 22:05",
+   "2023/05/02 (Tue) 08:20",
+   "2023/05/14 (Sun) 12:10",
+   "2023/05/20 (Sat) 16:00",
+   "2023/06/20 (Tue) 20:45"
+  ],
+  "haystack_sessions": [
+   [
+    {
+     "role": "user",
+     "content": "提醒一下，我对芒果过敏。"
+    },
+    {
+     "role": "assistant",
+     "content": "记住了，以后推荐水果会避开芒果。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "我上周末领养了一只橘猫，给它取名叫团子。"
+    },
+    {
+     "role": "assistant",
+     "content": "恭喜你领养了团子！橘猫性格一般都很亲人。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "我刚入职了蔚来汽车，做电池管理系统的软件工程师。"
+    },
+    {
+     "role": "assistant",
+     "content": "祝你在蔚来一切顺利！"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "推荐一个简单的番茄炒蛋做法吧"
+    },
+    {
+     "role": "assistant",
+     "content": "先把鸡蛋炒到半熟盛出，再炒番茄出汁，最后把鸡蛋倒回去，加一点糖和盐。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "下个月想去成都玩三天，有什么推荐？"
+    },
+    {
+     "role": "assistant",
+     "content": "可以去宽窄巷子、大熊猫基地，晚上吃火锅。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "最近读完了《三体》，结局太震撼了。"
+    },
+    {
+     "role": "assistant",
+     "content": "《三体》的结局确实让人久久不能平静。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "现在通勤路上在看《活着》。"
+    },
+    {
+     "role": "assistant",
+     "content": "《活着》很适合慢慢读。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "今天第一次跑完半程马拉松，用时两小时零五分。"
+    },
+    {
+     "role": "assistant",
+     "content": "第一次半马就跑进两小时出头，非常棒！"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "下午喝什么茶比较好？"
+    },
+    {
+     "role": "assistant",
+     "content": "可以试试白茶，口感清淡。"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "告诉你个消息，我从蔚来离职了，现在在理想汽车做高级工程师。"
+    },
+    {
+     "role": "assistant",
+     "content": "恭喜跳槽到理想汽车！"
+    }
+   ]
+  ],
+  "answer_session_ids": []
+ }
+]

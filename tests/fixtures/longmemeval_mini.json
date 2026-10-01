@@ -1,0 +1,753 @@
+[
+ {
+  "question_id": "q_dog",
+  "question_type": "single-session-user",
+  "question": "What is the name of my dog?",
+  "answer": "Biscuit",
+  "question_date": "2023/07/01 (Sat) 10:00",
+  "haystack_session_ids": [
+   "s_dog",
+   "s_job1",
+   "s_recipe",
+   "s_weather",
+   "s_book",
+   "s_book2",
+   "s_marathon",
+   "s_tea",
+   "s_job2"
+  ],
+  "haystack_dates": [
+   "2023/03/04 (Sat) 10:15",
+   "2023/03/10 (Fri) 18:30",
+   "2023/03/12 (Sun) 09:00",
+   "2023/04/01 (Sat) 14:00",
+   "2023/04/18 (Tue) 22:05",
+   "2023/05/02 (Tue) 08:20",
+   "2023/05/14 (Sun) 12:10",
+   "2023/05/20 (Sat) 16:00",
+   "2023/06/20 (Tue) 20:45"
+  ],
+  "haystack_sessions": [
+   [
+    {
+     "role": "user",
+     "content": "I adopted a beagle puppy last weekend, we named him Biscuit.",
+     "has_answer": true
+    },
+    {
+     "role": "assistant",
+     "content": "Congratulations on adopting Biscuit! Beagles are energetic and friendly."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I just started my new job as a data engineer at Northwind Logistics."
+    },
+    {
+     "role": "assistant",
+     "content": "That's exciting, good luck at Northwind Logistics!"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Can you give me a quick recipe for banana bread?"
+    },
+    {
+     "role": "assistant",
+     "content": "Sure: mash three ripe bananas, mix with melted butter, sugar, one egg, flour and baking soda, then bake at 175C for an hour."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "What should I pack for a rainy weekend in Seattle?"
+    },
+    {
+     "role": "assistant",
+     "content": "Pack a waterproof jacket, layers, and comfortable boots."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I finished reading Project Hail Mary, loved the ending."
+    },
+    {
+     "role": "assistant",
+     "content": "Project Hail Mary has a great ending, glad you enjoyed it."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Now I'm reading The Three-Body Problem on my commute."
+    },
+    {
+     "role": "assistant",
+     "content": "The Three-Body Problem is a fascinating read."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I ran my first half marathon today in 2 hours and 5 minutes."
+    },
+    {
+     "role": "assistant",
+     "content": "Amazing finish time for a first half marathon!"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Recommend me a good tea for the afternoon?"
+    },
+    {
+     "role": "assistant",
+     "content": "Try a Darjeeling, it's light and aromatic."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Big news, I left Northwind and joined Contoso Robotics as a senior data engineer."
+    },
+    {
+     "role": "assistant",
+     "content": "Congratulations on the move to Contoso Robotics!"
+    }
+   ]
+  ],
+  "answer_session_ids": [
+   "s_dog"
+  ]
+ },
+ {
+  "question_id": "q_recipe",
+  "question_type": "single-session-assistant",
+  "question": "What oven temperature did you suggest for the banana bread?",
+  "answer": "175C",
+  "question_date": "2023/07/01 (Sat) 10:00",
+  "haystack_session_ids": [
+   "s_dog",
+   "s_job1",
+   "s_recipe",
+   "s_weather",
+   "s_book",
+   "s_book2",
+   "s_marathon",
+   "s_tea",
+   "s_job2"
+  ],
+  "haystack_dates": [
+   "2023/03/04 (Sat) 10:15",
+   "2023/03/10 (Fri) 18:30",
+   "2023/03/12 (Sun) 09:00",
+   "2023/04/01 (Sat) 14:00",
+   "2023/04/18 (Tue) 22:05",
+   "2023/05/02 (Tue) 08:20",
+   "2023/05/14 (Sun) 12:10",
+   "2023/05/20 (Sat) 16:00",
+   "2023/06/20 (Tue) 20:45"
+  ],
+  "haystack_sessions": [
+   [
+    {
+     "role": "user",
+     "content": "I adopted a beagle puppy last weekend, we named him Biscuit."
+    },
+    {
+     "role": "assistant",
+     "content": "Congratulations on adopting Biscuit! Beagles are energetic and friendly."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I just started my new job as a data engineer at Northwind Logistics."
+    },
+    {
+     "role": "assistant",
+     "content": "That's exciting, good luck at Northwind Logistics!"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Can you give me a quick recipe for banana bread?"
+    },
+    {
+     "role": "assistant",
+     "content": "Sure: mash three ripe bananas, mix with melted butter, sugar, one egg, flour and baking soda, then bake at 175C for an hour.",
+     "has_answer": true
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "What should I pack for a rainy weekend in Seattle?"
+    },
+    {
+     "role": "assistant",
+     "content": "Pack a waterproof jacket, layers, and comfortable boots."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I finished reading Project Hail Mary, loved the ending."
+    },
+    {
+     "role": "assistant",
+     "content": "Project Hail Mary has a great ending, glad you enjoyed it."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Now I'm reading The Three-Body Problem on my commute."
+    },
+    {
+     "role": "assistant",
+     "content": "The Three-Body Problem is a fascinating read."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I ran my first half marathon today in 2 hours and 5 minutes."
+    },
+    {
+     "role": "assistant",
+     "content": "Amazing finish time for a first half marathon!"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Recommend me a good tea for the afternoon?"
+    },
+    {
+     "role": "assistant",
+     "content": "Try a Darjeeling, it's light and aromatic."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Big news, I left Northwind and joined Contoso Robotics as a senior data engineer."
+    },
+    {
+     "role": "assistant",
+     "content": "Congratulations on the move to Contoso Robotics!"
+    }
+   ]
+  ],
+  "answer_session_ids": [
+   "s_recipe"
+  ]
+ },
+ {
+  "question_id": "q_job",
+  "question_type": "knowledge-update",
+  "question": "Which company do I work for now?",
+  "answer": "Contoso Robotics",
+  "question_date": "2023/07/01 (Sat) 10:00",
+  "haystack_session_ids": [
+   "s_dog",
+   "s_job1",
+   "s_recipe",
+   "s_weather",
+   "s_book",
+   "s_book2",
+   "s_marathon",
+   "s_tea",
+   "s_job2"
+  ],
+  "haystack_dates": [
+   "2023/03/04 (Sat) 10:15",
+   "2023/03/10 (Fri) 18:30",
+   "2023/03/12 (Sun) 09:00",
+   "2023/04/01 (Sat) 14:00",
+   "2023/04/18 (Tue) 22:05",
+   "2023/05/02 (Tue) 08:20",
+   "2023/05/14 (Sun) 12:10",
+   "2023/05/20 (Sat) 16:00",
+   "2023/06/20 (Tue) 20:45"
+  ],
+  "haystack_sessions": [
+   [
+    {
+     "role": "user",
+     "content": "I adopted a beagle puppy last weekend, we named him Biscuit."
+    },
+    {
+     "role": "assistant",
+     "content": "Congratulations on adopting Biscuit! Beagles are energetic and friendly."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I just started my new job as a data engineer at Northwind Logistics."
+    },
+    {
+     "role": "assistant",
+     "content": "That's exciting, good luck at Northwind Logistics!"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Can you give me a quick recipe for banana bread?"
+    },
+    {
+     "role": "assistant",
+     "content": "Sure: mash three ripe bananas, mix with melted butter, sugar, one egg, flour and baking soda, then bake at 175C for an hour."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "What should I pack for a rainy weekend in Seattle?"
+    },
+    {
+     "role": "assistant",
+     "content": "Pack a waterproof jacket, layers, and comfortable boots."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I finished reading Project Hail Mary, loved the ending."
+    },
+    {
+     "role": "assistant",
+     "content": "Project Hail Mary has a great ending, glad you enjoyed it."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Now I'm reading The Three-Body Problem on my commute."
+    },
+    {
+     "role": "assistant",
+     "content": "The Three-Body Problem is a fascinating read."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I ran my first half marathon today in 2 hours and 5 minutes."
+    },
+    {
+     "role": "assistant",
+     "content": "Amazing finish time for a first half marathon!"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Recommend me a good tea for the afternoon?"
+    },
+    {
+     "role": "assistant",
+     "content": "Try a Darjeeling, it's light and aromatic."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Big news, I left Northwind and joined Contoso Robotics as a senior data engineer.",
+     "has_answer": true
+    },
+    {
+     "role": "assistant",
+     "content": "Congratulations on the move to Contoso Robotics!"
+    }
+   ]
+  ],
+  "answer_session_ids": [
+   "s_job2"
+  ]
+ },
+ {
+  "question_id": "q_books",
+  "question_type": "multi-session",
+  "question": "Which two books have I mentioned reading?",
+  "answer": "Project Hail Mary and The Three-Body Problem",
+  "question_date": "2023/07/01 (Sat) 10:00",
+  "haystack_session_ids": [
+   "s_dog",
+   "s_job1",
+   "s_recipe",
+   "s_weather",
+   "s_book",
+   "s_book2",
+   "s_marathon",
+   "s_tea",
+   "s_job2"
+  ],
+  "haystack_dates": [
+   "2023/03/04 (Sat) 10:15",
+   "2023/03/10 (Fri) 18:30",
+   "2023/03/12 (Sun) 09:00",
+   "2023/04/01 (Sat) 14:00",
+   "2023/04/18 (Tue) 22:05",
+   "2023/05/02 (Tue) 08:20",
+   "2023/05/14 (Sun) 12:10",
+   "2023/05/20 (Sat) 16:00",
+   "2023/06/20 (Tue) 20:45"
+  ],
+  "haystack_sessions": [
+   [
+    {
+     "role": "user",
+     "content": "I adopted a beagle puppy last weekend, we named him Biscuit."
+    },
+    {
+     "role": "assistant",
+     "content": "Congratulations on adopting Biscuit! Beagles are energetic and friendly."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I just started my new job as a data engineer at Northwind Logistics."
+    },
+    {
+     "role": "assistant",
+     "content": "That's exciting, good luck at Northwind Logistics!"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Can you give me a quick recipe for banana bread?"
+    },
+    {
+     "role": "assistant",
+     "content": "Sure: mash three ripe bananas, mix with melted butter, sugar, one egg, flour and baking soda, then bake at 175C for an hour."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "What should I pack for a rainy weekend in Seattle?"
+    },
+    {
+     "role": "assistant",
+     "content": "Pack a waterproof jacket, layers, and comfortable boots."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I finished reading Project Hail Mary, loved the ending.",
+     "has_answer": true
+    },
+    {
+     "role": "assistant",
+     "content": "Project Hail Mary has a great ending, glad you enjoyed it."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Now I'm reading The Three-Body Problem on my commute.",
+     "has_answer": true
+    },
+    {
+     "role": "assistant",
+     "content": "The Three-Body Problem is a fascinating read."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I ran my first half marathon today in 2 hours and 5 minutes."
+    },
+    {
+     "role": "assistant",
+     "content": "Amazing finish time for a first half marathon!"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Recommend me a good tea for the afternoon?"
+    },
+    {
+     "role": "assistant",
+     "content": "Try a Darjeeling, it's light and aromatic."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Big news, I left Northwind and joined Contoso Robotics as a senior data engineer."
+    },
+    {
+     "role": "assistant",
+     "content": "Congratulations on the move to Contoso Robotics!"
+    }
+   ]
+  ],
+  "answer_session_ids": [
+   "s_book",
+   "s_book2"
+  ]
+ },
+ {
+  "question_id": "q_marathon",
+  "question_type": "temporal-reasoning",
+  "question": "How many days before I joined Contoso Robotics did I run my half marathon?",
+  "answer": "37 days",
+  "question_date": "2023/07/01 (Sat) 10:00",
+  "haystack_session_ids": [
+   "s_dog",
+   "s_job1",
+   "s_recipe",
+   "s_weather",
+   "s_book",
+   "s_book2",
+   "s_marathon",
+   "s_tea",
+   "s_job2"
+  ],
+  "haystack_dates": [
+   "2023/03/04 (Sat) 10:15",
+   "2023/03/10 (Fri) 18:30",
+   "2023/03/12 (Sun) 09:00",
+   "2023/04/01 (Sat) 14:00",
+   "2023/04/18 (Tue) 22:05",
+   "2023/05/02 (Tue) 08:20",
+   "2023/05/14 (Sun) 12:10",
+   "2023/05/20 (Sat) 16:00",
+   "2023/06/20 (Tue) 20:45"
+  ],
+  "haystack_sessions": [
+   [
+    {
+     "role": "user",
+     "content": "I adopted a beagle puppy last weekend, we named him Biscuit."
+    },
+    {
+     "role": "assistant",
+     "content": "Congratulations on adopting Biscuit! Beagles are energetic and friendly."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I just started my new job as a data engineer at Northwind Logistics."
+    },
+    {
+     "role": "assistant",
+     "content": "That's exciting, good luck at Northwind Logistics!"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Can you give me a quick recipe for banana bread?"
+    },
+    {
+     "role": "assistant",
+     "content": "Sure: mash three ripe bananas, mix with melted butter, sugar, one egg, flour and baking soda, then bake at 175C for an hour."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "What should I pack for a rainy weekend in Seattle?"
+    },
+    {
+     "role": "assistant",
+     "content": "Pack a waterproof jacket, layers, and comfortable boots."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I finished reading Project Hail Mary, loved the ending."
+    },
+    {
+     "role": "assistant",
+     "content": "Project Hail Mary has a great ending, glad you enjoyed it."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Now I'm reading The Three-Body Problem on my commute."
+    },
+    {
+     "role": "assistant",
+     "content": "The Three-Body Problem is a fascinating read."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I ran my first half marathon today in 2 hours and 5 minutes.",
+     "has_answer": true
+    },
+    {
+     "role": "assistant",
+     "content": "Amazing finish time for a first half marathon!"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Recommend me a good tea for the afternoon?"
+    },
+    {
+     "role": "assistant",
+     "content": "Try a Darjeeling, it's light and aromatic."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Big news, I left Northwind and joined Contoso Robotics as a senior data engineer.",
+     "has_answer": true
+    },
+    {
+     "role": "assistant",
+     "content": "Congratulations on the move to Contoso Robotics!"
+    }
+   ]
+  ],
+  "answer_session_ids": [
+   "s_marathon",
+   "s_job2"
+  ]
+ },
+ {
+  "question_id": "q_cat_abs",
+  "question_type": "single-session-user",
+  "question": "What is the name of my cat?",
+  "answer": "You did not mention a cat",
+  "question_date": "2023/07/01 (Sat) 10:00",
+  "haystack_session_ids": [
+   "s_dog",
+   "s_job1",
+   "s_recipe",
+   "s_weather",
+   "s_book",
+   "s_book2",
+   "s_marathon",
+   "s_tea",
+   "s_job2"
+  ],
+  "haystack_dates": [
+   "2023/03/04 (Sat) 10:15",
+   "2023/03/10 (Fri) 18:30",
+   "2023/03/12 (Sun) 09:00",
+   "2023/04/01 (Sat) 14:00",
+   "2023/04/18 (Tue) 22:05",
+   "2023/05/02 (Tue) 08:20",
+   "2023/05/14 (Sun) 12:10",
+   "2023/05/20 (Sat) 16:00",
+   "2023/06/20 (Tue) 20:45"
+  ],
+  "haystack_sessions": [
+   [
+    {
+     "role": "user",
+     "content": "I adopted a beagle puppy last weekend, we named him Biscuit."
+    },
+    {
+     "role": "assistant",
+     "content": "Congratulations on adopting Biscuit! Beagles are energetic and friendly."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I just started my new job as a data engineer at Northwind Logistics."
+    },
+    {
+     "role": "assistant",
+     "content": "That's exciting, good luck at Northwind Logistics!"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Can you give me a quick recipe for banana bread?"
+    },
+    {
+     "role": "assistant",
+     "content": "Sure: mash three ripe bananas, mix with melted butter, sugar, one egg, flour and baking soda, then bake at 175C for an hour."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "What should I pack for a rainy weekend in Seattle?"
+    },
+    {
+     "role": "assistant",
+     "content": "Pack a waterproof jacket, layers, and comfortable boots."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I finished reading Project Hail Mary, loved the ending."
+    },
+    {
+     "role": "assistant",
+     "content": "Project Hail Mary has a great ending, glad you enjoyed it."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Now I'm reading The Three-Body Problem on my commute."
+    },
+    {
+     "role": "assistant",
+     "content": "The Three-Body Problem is a fascinating read."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "I ran my first half marathon today in 2 hours and 5 minutes."
+    },
+    {
+     "role": "assistant",
+     "content": "Amazing finish time for a first half marathon!"
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Recommend me a good tea for the afternoon?"
+    },
+    {
+     "role": "assistant",
+     "content": "Try a Darjeeling, it's light and aromatic."
+    }
+   ],
+   [
+    {
+     "role": "user",
+     "content": "Big news, I left Northwind and joined Contoso Robotics as a senior data engineer."
+    },
+    {
+     "role": "assistant",
+     "content": "Congratulations on the move to Contoso Robotics!"
+    }
+   ]
+  ],
+  "answer_session_ids": []
+ }
+]

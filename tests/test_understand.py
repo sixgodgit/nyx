@@ -253,3 +253,14 @@ def test_replay_recording_matches_real_prompt_shape():
     评测会静默地全部"未录到"然后退回规则 —— 这里钉住 prompt 里的两个锚点。"""
     p = U._LLM_PROMPT.format(rels="x", today="2026-03-10", text="原句")
     assert "按说话日期 2026-03-10" in p and p.rstrip().endswith("句子：原句\nJSON:")
+
+
+def test_vague_company_and_title_modifier():
+    """「在一家做机器人的公司当工程师」：没说是哪家公司；职位是「工程师」不是「机器人」（v7.12）。"""
+    ro = lambda t: [x[:2] for x in _facts(t)]
+    f = ro("我住在杭州，在一家做机器人的公司当工程师")
+    assert ("公司", "一家") not in f
+    assert ("职位", "工程师") in f and ("职位", "机器人") not in f
+    # 修饰语照常保留
+    assert ("职位", "高级工程师") in ro("我是一名高级工程师")
+    assert ("公司", "海牙川菜馆") in ro("我现在在海牙川菜馆上班，当主厨")

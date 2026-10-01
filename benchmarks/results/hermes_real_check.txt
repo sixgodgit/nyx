@@ -1,0 +1,36 @@
+{
+ "hermes_commit": "12e4d3e2dd5281adf289f70e5d6c7f33427d6982",
+ "entry_point": "ok (data_dir from nyx.json applied before import)",
+ "user_plugin_dir": "ok",
+ "system_prompt_chars": 47,
+ "prefetch": "## Nyx 记忆（与本轮相关，[日期]=说这句话的时间）\n- [2026-10-01] user 住在 上海（自 2026-09-01）\n## 当前\n偏移: 平稳(+0%) | 情绪: 平稳\n",
+ "recall_indicator": "🧠 Nyx — recalled 1 memory",
+ "tools": [
+  "fact_feedback",
+  "fact_store",
+  "nyx_belief",
+  "nyx_forget",
+  "nyx_quarantine",
+  "nyx_restore",
+  "sandglass_echo",
+  "sandglass_offset",
+  "sandglass_recent",
+  "sandglass_search"
+ ],
+ "belief_now": [
+  {
+   "subject": "user",
+   "relation": "住在",
+   "object": "上海",
+   "valid_from": "2026-09-01T00:00:00Z",
+   "valid_until": null,
+   "valid_basis": "stated",
+   "recorded_at": "2026-10-01T00:12:18Z",
+   "closed_at": null,
+   "source_mem_id": "m_2125d9324e5ddce6"
+  }
+ ],
+ "guest_bound_as": "participant",
+ "forget_restore": "2 quarantined and restored"
+}
+HERMES REAL CHECK: PASS

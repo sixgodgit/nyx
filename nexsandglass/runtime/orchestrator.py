@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import threading
 import traceback
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
@@ -407,14 +408,24 @@ class RecallPlanner:
         from nexsandglass.features.shadow_sand import shadow_search
         hits = shadow_search(query, limit=self.policy.limit("shadow"))
         # hits 形如 [(score, line_num), ...] 或 [(line_num, score)]
-        return [_make_obj(f"shadow:{ln}", _shadow_text(ln), "shadow", confidence=score,
-                          line=ln)
-                for score, ln in _normalize_shadow(hits)]
+        objs = []
+        for score, ln in _normalize_shadow(hits):
+            text = _shadow_text(ln)
+            if text:                       # 取不到正文的（已遗忘 / 索引滞后）不占召回名额
+                objs.append(_make_obj(f"shadow:{ln}", text, "shadow", confidence=score, line=ln))
+        return objs
 
     def _adapt_wthread(self, query: str) -> list[MemoryObject]:
         from nexsandglass.features.weavethread import wthread_query, wthread_weave
         objs = []
         triples = wthread_query(entity=query, limit=self.policy.limit("wthread"))
+        # 整句当实体名精确匹配，自然问句（「我住哪」）永远命不中 —— 双时态的「现在信什么」
+        # 对召回是隐形的。按问句里的关系线索 / 对象名补上当前信念（v7.12）
+        seen = {t.get("id") for t in triples if isinstance(t, dict)}
+        for t in _cued_beliefs(query, self.policy.limit("wthread")):
+            if t.get("id") not in seen:
+                seen.add(t.get("id"))
+                triples.append(t)
         for t in triples:
             if isinstance(t, dict) and t.get("retracted_at"):
                 continue                     # 已被更精确版本取代的旧版本，不是现在的信念
@@ -541,9 +552,15 @@ class RecallPlanner:
         for tr in sorted(result.traces, key=lambda t: self.policy.priority(t.source), reverse=True):
             for obj in tr.items:
                 mid = obj.memory_id or obj.content
-                if mid in seen:
+                # 同一条日志记录经不同的源进来（shadow:11 / search_router:11）只留一份；
+                # 知识图谱三元组例外 —— 它带着「现在是否仍然成立」，不是原文的重复
+                line_key = (f"line:{obj.source_id}" if obj.source_id and obj.provenance != "wthread"
+                            else None)
+                if mid in seen or (line_key and line_key in seen):
                     continue
                 seen.add(mid)
+                if line_key:
+                    seen.add(line_key)
                 ordered.append(obj)
 
         # v5.0：意图感知排序（包住而非替换——在聚合结果之上重排，再截断）
@@ -672,14 +689,70 @@ def _normalize_shadow(hits) -> list[tuple[float, int]]:
 
 
 def _shadow_text(line_num: int) -> str:
+    # 按行号查中枢取正文。旧实现把行号当关键词去全文搜（search("11")），
+    # 几乎总是落空 —— 召回结果里出现的是字面量 "shadow#11"，还会被注入 prompt
     try:
-        from nexsandglass.features.sandglass_vault import search
-        r = search(str(line_num), limit=1)
-        if r:
-            return r[0][-1][:200]
+        from nexsandglass.core import memid
+        r = memid.get_conn().execute(
+            "SELECT text FROM memories WHERE line_start=? AND deleted_at IS NULL",
+            (int(line_num),)).fetchone()
+        if r and r[0]:
+            return str(r[0])[:200]
     except Exception:
         pass
-    return f"shadow#{line_num}"
+    try:
+        from nexsandglass.core.sandglass_sqlite import get_records
+        rec = get_records([int(line_num)]).get(int(line_num))
+        if rec and rec[2]:
+            return str(rec[2])[:200]
+    except Exception:
+        pass
+    return ""
+
+
+# 问句 → 关系的线索词。只用于「这句话在问哪类事实」，不做抽取
+_RELATION_CUES = {
+    "住在": ("住", "哪里", "哪儿", "城市", "搬", "家在", "live", "where", "moved"),
+    "使用": ("车", "开什么", "座驾", "drive", "car"),
+    "公司": ("公司", "上班", "哪工作", "在哪儿工作", "单位", "东家", "雇主", "company", "employer", "work for", "work at"),
+    "职位": ("职位", "工作", "做什么", "职业", "岗位", "头衔", "job", "title", "role"),
+    "邮箱": ("邮箱", "邮件", "email", "mail"),
+    "电话": ("电话", "手机", "号码", "phone"),
+    "偏好": ("喜欢", "爱", "偏好", "prefer", "like", "favorite"),
+    "反感": ("讨厌", "不喜欢", "反感", "过敏", "dislike", "hate"),
+}
+_HISTORY_CUES = ("以前", "之前", "原来", "曾经", "过去", "当时", "那时", "before", "used to", "previous")
+
+
+def _cue_in(cue: str, q: str) -> bool:
+    """中文线索按子串；英文线索按整词（"car" 不该命中 "careful"）。"""
+    if cue.isascii():
+        return re.search(r"\b" + re.escape(cue) + r"\b", q) is not None
+    return cue in q
+
+
+def _cued_beliefs(query: str, limit: int) -> list:
+    """问句里有关系线索或点到了对象名 → 取对应的当前信念；问的是过去 → 连已结束的版本一起。"""
+    q = (query or "").lower()
+    if not q.strip():
+        return []
+    try:
+        from nexsandglass.features import weavethread
+        from nexsandglass.engram.loops import temporal_fact as tf
+        db = weavethread._DB
+        if not os.path.exists(db):
+            return []
+        rows = tf.get_current(db)
+        if any(_cue_in(c, q) for c in _HISTORY_CUES):
+            rows += [r for r in tf.history_of(db, "user") if r.get("valid_until")]
+    except Exception as e:
+        logger.debug("[wthread] 当前信念读取失败: %s", e)
+        return []
+    rels = {r for r, cues in _RELATION_CUES.items() if any(_cue_in(c, q) for c in cues)}
+    hit = [r for r in rows
+           if r.get("relation") in rels
+           or (len(str(r.get("object", ""))) >= 2 and str(r.get("object", "")).lower() in q)]
+    return hit[:limit]
 
 
 def _triple_text(t) -> str:
@@ -690,6 +763,10 @@ def _triple_text(t) -> str:
         p = t.get("predicate") or t.get("relation", "")
         o = t.get("object", "")
         if s and p and o:
+            vf = str(t.get("valid_from") or "")[:10]
+            # 只有「说过从什么时候起」的才标时间；推定起点（记录时刻）标出来反而误导
+            if vf and t.get("valid_basis") == "stated" and not t.get("valid_until"):
+                return f"{s} {p} {o}（自 {vf}）"
             return f"{s} {p} {o}"
         return t.get("text") or t.get("triple") or ""
     return str(t)

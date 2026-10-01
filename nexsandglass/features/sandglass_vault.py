@@ -88,13 +88,43 @@ def _tokenize(text: str) -> set:
     return {t for t in tokens if t}
 
 
+_EN_STOP = frozenset("""
+a about above after again all am an and any are as at be because been before being below between both
+but by can could did do does doing down during each few for from further had has have having he her here
+hers him his how i if in into is it its just me more most my no nor not now of off on once only or other
+our out over own same she should so some such than that the their them then there these they this those
+through to too under until up very was we were what when where which while who whom why will with would
+you your yours yourself tell know remember mentioned say said ever recently last please
+""".split())
+
+
+def _en_stem(w: str) -> str:
+    for suf in ("ing", "ed", "es", "s"):
+        if w.endswith(suf) and len(w) - len(suf) >= 4:
+            return w[: -len(suf)]
+    return w
+
+
 def _query_tokens(text: str) -> set:
-    """搜索分词：和_tokenize相同，但单字仅当输入只有一个中文字时才保留。"""
-    tokens = _tokenize(text)
-    chars = "".join(re.findall(r"[\u4e00-\u9fff]", text))
-    if len(chars) != 1:
-        tokens -= set(chars)  # 去单字
-    return tokens
+    """搜索分词。中文与 _tokenize 相同（单字仅当输入只有一个中文字时保留）。
+
+    英文（v7.12）：只取实词 + 轻量词干 + **词内** 4-gram。旧做法把整句字母连成一串再切
+    2–4 字窗口（"whatisthenameofmydog" → th / is / he …），这些碎片几乎命中每一句英文，
+    排序被它们淹没：问「我的狗叫什么」，排第一的是讲书的那句。索引侧分词不变。
+    """
+    chars = "".join(re.findall(r"[一-鿿]", text))
+    tokens = {chars[i:i + 2] for i in range(len(chars) - 1)}
+    if len(chars) == 1:
+        tokens.add(chars)
+    words = re.findall(r"[a-z0-9_]{2,}", (text or "").lower())
+    content = [w for w in words if w not in _EN_STOP] or words
+    for w in content:
+        tokens.add(w)
+        stem = _en_stem(w)
+        tokens.add(stem)
+        if len(stem) >= 5:
+            tokens.update(stem[i:i + 4] for i in range(len(stem) - 3))
+    return {t for t in tokens if t}
 
 
 def _parse_line(line: str) -> tuple:

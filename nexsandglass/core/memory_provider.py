@@ -1,10 +1,17 @@
 """
-NexSandglass MemoryProvider — MemoryProvider for Hermes
-========================================================
-让 Hermes 使用 NexSandglass 作为记忆后端，替代 Holographic。
+NexSandglass MemoryProvider — Hermes Agent 官方记忆提供器接口实现
+==================================================================
+让 Hermes 使用 Nyx（NexSandglass）作为外置记忆，与 Honcho / Mem0 / Hindsight 走同一套
+``agent.memory_provider.MemoryProvider`` 契约（v7.12 起按官方签名实现）。
 
-零API Key、零外部依赖——纯本地驱动。投石问路（倒排索引）优先、
-五维权重排序、偏移率感知、回音折情绪追踪、影子灵魂预测。
+零 API Key、零外部依赖——纯本地驱动。Nyx 独有、同类 provider 没有的：
+  - 双时态事实：「现在是什么」与「第 K 天时我以为是什么」分开回答（nyx_belief）
+  - 写入时绑定来源与信任：多人会话里非主人说的话不会被当成主人的话（owner_ids）
+  - 两段式遗忘：agent 只能把记忆送进隔离区，保留期内可还原；永久擦除只留给主人（CLI）
+
+生命周期（MemoryManager 驱动）：
+  initialize → system_prompt_block（静态画像）→ 每轮 prefetch（按本轮问题召回）
+  → sync_turn（MemoryManager 已放在串行后台线程里调用）→ 工具调用 → shutdown
 """
 from __future__ import annotations
 
@@ -13,121 +20,189 @@ import logging
 import os
 import re
 import threading
-import time
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 # 条件导入——兼容赫姆斯环境和独立运行时
 try:
     from agent.memory_provider import MemoryProvider
 except ImportError:
-    class MemoryProvider:
-        name = "nexsandglass"
-        def is_available(self): return True
-        def initialize(self): pass
-        def shutdown(self): pass
-        def get_tool_schemas(self): return []
-        def handle_tool_call(self, name, args): return ""
-        def system_prompt_block(self): return ""
-        def prefetch(self, query): return None
-        def sync_turn(self, user_msg, assistant_msg): pass
+    class MemoryProvider:  # 与官方 ABC 同名同签名的可选钩子默认值（独立运行 / 测试用）
+        pre_compress_checkpoint_api_version = 1
+
+        def unavailable_reason(self) -> str: return ""
+        def system_prompt_block(self) -> str: return ""
+        def prefetch(self, query, *, session_id=""): return ""
+        def queue_prefetch(self, query, *, session_id=""): return None
+        def recall_status(self): return None
+        def sync_turn(self, user_content, assistant_content, *, session_id="",
+                      messages=None, turn_author=None): return None
+        def handle_tool_call(self, tool_name, args, **kwargs): raise NotImplementedError(tool_name)
+        def shutdown(self): return None
+        def on_turn_start(self, turn_number, message, **kwargs): return None
+        def identity_signature(self): return {}
+        def on_session_end(self, messages): return None
+        def on_session_switch(self, new_session_id, *, parent_session_id="", reset=False,
+                              rewound=False, **kwargs): return None
+        def on_pre_compress(self, messages): return ""
+        def on_delegation(self, task, result, *, child_session_id="", **kwargs): return None
+        def get_config_schema(self): return []
+        def save_config(self, values, hermes_home): return None
+        def on_memory_write(self, action, target, content, metadata=None): return None
+        def backup_paths(self): return []
+
+try:
+    from agent.memory_provider import RecallStatus
+except ImportError:
+    @dataclass(frozen=True)
+    class RecallStatus:
+        provider_label: str
+        count: int
+        glyph: str = "🧠"
+
+try:
+    from agent.memory_provider import is_trivial_prompt
+except ImportError:
+    _TRIVIAL = re.compile(
+        r"^(yes|no|ok|okay|sure|thanks|thank you|y|n|hi|hey|hello|continue|go ahead|done|next|"
+        r"好|好的|嗯|嗯嗯|行|可以|谢谢|收到|继续|对|是的|没问题)[\s!?.。！？~，,]*$", re.I)
+
+    def is_trivial_prompt(text) -> bool:
+        s = (text or "").strip()
+        return not s or s.startswith("/") or bool(_TRIVIAL.match(s))
 
 try:
     from tools.registry import tool_error
 except ImportError:
-    def tool_error(msg): return json.dumps({"error": msg})
+    def tool_error(msg): return json.dumps({"error": msg}, ensure_ascii=False)
 
 logger = logging.getLogger(__name__)
 
 # 偏移方向中文标签（system_prompt_block / prefetch 共用）
 _OFFSET_LABELS = {"frugal": "省钱", "spend": "愿投", "drift": "放弃"}
 
+# agent 一次最多送进隔离区的条数；更大的范围交给主人用 CLI 做
+_FORGET_MAX = 20
+_PREFETCH_TOKENS_DEFAULT = 600
+_WRITE_CONTEXTS = ("", "primary")
+
+
+def _fn(name: str, description: str, properties: dict, required: list = None) -> dict:
+    schema = {"type": "object", "properties": properties}
+    if required:
+        schema["required"] = required
+    return {"name": name, "description": description, "parameters": schema}
+
+
 # ══════════════════════════════════════════════════════════
-# 工具方法——把 sandglass 函数暴露给 Hermes 模型调用
+# 工具方法——官方格式 {"name", "description", "parameters"}
 # ══════════════════════════════════════════════════════════
 
 _TOOL_SCHEMAS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "sandglass_search",
-            "description": "搜索沙漏记忆——投石问路（倒排索引）优先，五维权重排序。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "搜索关键词"},
-                    "limit": {"type": "integer", "default": 10},
-                },
-                "required": ["query"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "sandglass_recent",
-            "description": "获取最近 N 条记忆。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "n": {"type": "integer", "default": 10},
-                },
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "sandglass_offset",
-            "description": "计算当前偏移率——主人决策方向的趋势。返回偏移百分比和方向。",
-            "parameters": {"type": "object", "properties": {}},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "fact_store",
-            "description": "影子沙事实存储。action=add/search/probe/reason。存储结构化事实，信任评分排序。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "action": {"type": "string", "enum": ["add", "search", "probe", "reason"]},
-                    "content": {"type": "string", "description": "事实内容"},
-                    "category": {"type": "string", "default": "general"},
-                    "query": {"type": "string"},
-                    "entity": {"type": "string"},
-                },
-                "required": ["action"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "fact_feedback",
-            "description": "信任评分反馈。标记记忆是否有帮助。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "line_num": {"type": "integer"},
-                    "helpful": {"type": "boolean"},
-                },
-                "required": ["line_num", "helpful"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "sandglass_echo",
-            "description": "读取回音折——最近的情感风向。",
-            "parameters": {"type": "object", "properties": {}},
-        },
-    },
+    _fn("sandglass_search", "搜索 Nyx 记忆——投石问路（倒排索引）优先，五维权重排序；"
+        "非主人来源的记忆会带「未经证实」标注。",
+        {"query": {"type": "string", "description": "搜索关键词"},
+         "limit": {"type": "integer", "default": 10}}, ["query"]),
+    _fn("sandglass_recent", "获取最近 N 条记忆。",
+        {"n": {"type": "integer", "default": 10}}),
+    _fn("sandglass_offset", "计算当前偏移率——主人决策方向的趋势。返回偏移百分比和方向。", {}),
+    _fn("fact_store", "影子沙事实存储。action=add/search/probe/reason。存储结构化事实，信任评分排序。",
+        {"action": {"type": "string", "enum": ["add", "search", "probe", "reason"]},
+         "content": {"type": "string", "description": "事实内容"},
+         "category": {"type": "string", "default": "general"},
+         "query": {"type": "string"},
+         "entity": {"type": "string"}}, ["action"]),
+    _fn("fact_feedback", "信任评分反馈。标记记忆是否有帮助。",
+        {"line_num": {"type": "integer"}, "helpful": {"type": "boolean"}},
+        ["line_num", "helpful"]),
+    _fn("sandglass_echo", "读取回音折——最近的情感风向。", {}),
+    _fn("nyx_belief",
+        "查双时态事实（住在/使用/公司/职位/邮箱/电话/偏好/反感）。默认返回现在相信的；"
+        "as_of=某日期 → 那天什么为真；known_at=某日期 → 那时我以为现在是什么；"
+        "history=true → 演变链与看法变化时间线。回答「现在住哪 / 以前在哪工作 / 什么时候换的」时用它。",
+        {"subject": {"type": "string", "default": "user"},
+         "relation": {"type": "string",
+                      "enum": ["住在", "使用", "公司", "职位", "邮箱", "电话", "偏好", "反感"]},
+         "as_of": {"type": "string", "description": "YYYY-MM-DD"},
+         "known_at": {"type": "string", "description": "YYYY-MM-DD"},
+         "history": {"type": "boolean", "default": False}}),
+    _fn("nyx_forget",
+        "遗忘记忆（进隔离区，保留期内可 nyx_restore 还原；agent 无权永久擦除）。"
+        "先不带 confirm 调一次看会删哪些，确认无误再带 confirm=true。"
+        "只在主人明确要求忘掉某件事时使用。",
+        {"contains": {"type": "string", "description": "正文精确子串（至少 2 个字）"},
+         "mem_id": {"type": "string"},
+         "reason": {"type": "string"},
+         "confirm": {"type": "boolean", "default": False}}),
+    _fn("nyx_restore", "把隔离区里的一条记忆原样还原（隔离期内有效）。",
+        {"mem_id": {"type": "string"}}, ["mem_id"]),
+    _fn("nyx_quarantine", "列出隔离区：被遗忘但还能还原的记忆（只含 40 字预览）与到期时间。",
+        {"limit": {"type": "integer", "default": 20}}),
 ]
+
+_WRITE_TOOLS = {"fact_feedback", "nyx_forget", "nyx_restore"}
+
+
+def _as_bool(v, default: bool) -> bool:
+    if v is None or v == "":
+        return default
+    if isinstance(v, bool):
+        return v
+    return str(v).strip().lower() in ("1", "true", "yes", "on", "y")
+
+
+def _as_int(v, default: int) -> int:
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def _said_on(objs: list) -> Dict[int, str]:
+    """召回对象 → 说这句话的日期（按日志行号查中枢）。「上个月」「那天」这类问题离不开它。"""
+    lines = {}
+    for i, o in enumerate(objs):
+        sid = getattr(o, "source_id", None)
+        if sid is not None and str(sid).isdigit():
+            lines[i] = int(sid)
+    if not lines:
+        return {}
+    try:
+        from nexsandglass.core import memid
+        uniq = sorted(set(lines.values()))
+        q = "SELECT line_start, ts FROM memories WHERE line_start IN (%s)" % ",".join("?" * len(uniq))
+        ts = {r[0]: str(r[1])[:10] for r in memid.get_conn().execute(q, uniq)}
+    except Exception:
+        return {}
+    return {i: ts[ln] for i, ln in lines.items() if ln in ts}
+
+
+def _hermes_cfg():
+    """nexsandglass_hermes 只用标准库；拿不到（旧式单文件部署）时退化为无配置。"""
+    try:
+        import nexsandglass_hermes as nh
+        return nh
+    except Exception:
+        return None
 
 
 class NexSandglassProvider(MemoryProvider):
-    """NexSandglass 记忆提供器——替代 Holographic，纯本地零依赖。"""
+    """Nyx 记忆提供器——纯本地零依赖，官方 MemoryProvider 契约。"""
+
+    # 类级默认值：测试会用 __new__ 绕过 __init__ 直接调方法
+    _config: dict = {}
+    _lock = None
+    _initialized = False
+    _turn_count = 0
+    _use_facade = False
+    _session_id = ""
+    _hermes_home: Optional[str] = None
+    _agent_context = "primary"
+    _owner_ids: frozenset = frozenset()
+    _bots_external = True
+    _prefetch_budget = _PREFETCH_TOKENS_DEFAULT
+    _turn_author: Optional[dict] = None
+    _last_recall: Optional[int] = None
 
     def __init__(self, config: dict = None):
         self._config = config or {}
@@ -141,15 +216,58 @@ class NexSandglassProvider(MemoryProvider):
     def name(self) -> str:
         return "nexsandglass"
 
+    def _data_dir(self) -> str:
+        nh = _hermes_cfg()
+        if nh is not None:
+            return nh.resolve_data_dir(self._hermes_home)
+        return os.path.abspath(os.environ.get("NEXSANDBASE_HOME")
+                               or os.path.expanduser("~/.neurobase"))
+
     def is_available(self) -> bool:
-        """始终可用——零API Key，纯本地。"""
-        return True
+        """零 API Key：只看记忆目录能不能写（不碰网络）。"""
+        return not self.unavailable_reason()
+
+    def unavailable_reason(self) -> str:
+        d = self._data_dir()
+        probe = d
+        while probe and not os.path.exists(probe):
+            parent = os.path.dirname(probe)
+            if parent == probe:
+                break
+            probe = parent
+        if probe and os.path.exists(probe) and not os.access(probe, os.W_OK):
+            return f"Nyx 记忆目录不可写：{d}（设置 NEXSANDBASE_HOME 或 nyx.json 的 data_dir）"
+        return ""
+
+    def _load_settings(self) -> None:
+        cfg = dict(self._config)
+        nh = _hermes_cfg()
+        if nh is not None:
+            cfg = {**nh.load_config(self._hermes_home), **cfg}
+        owners = cfg.get("owner_ids", os.environ.get("NYX_OWNER_IDS", ""))
+        if isinstance(owners, str):
+            owners = [o for o in re.split(r"[,，\s]+", owners) if o]
+        self._owner_ids = frozenset(str(o) for o in (owners or []))
+        self._bots_external = _as_bool(cfg.get("bots_are_external"), True)
+        self._prefetch_budget = max(0, _as_int(cfg.get("prefetch_tokens"), _PREFETCH_TOKENS_DEFAULT))
 
     def initialize(self, session_id: str = "", **kwargs) -> None:
-        """设置沙漏路径、重建投石问路索引。"""
-        with self._lock:
+        """设置沙漏路径、重建投石问路索引。
+
+        kwargs（Hermes 注入）：hermes_home / platform / agent_context（非 primary 不写）/ ...
+        """
+        lock = self.__dict__.get("_lock") or threading.Lock()
+        self._lock = lock
+        with lock:
+            self._session_id = session_id or ""
+            self._hermes_home = kwargs.get("hermes_home") or self._hermes_home
+            self._agent_context = str(kwargs.get("agent_context") or "primary")
+            self._load_settings()
             if self._initialized:
                 return
+            nh = _hermes_cfg()
+            if nh is not None:
+                nh.apply_data_dir(self._hermes_home)
             # 确保 sandglass 模块可导入
             import sys
             nb = os.environ.get("NEXSANDBASE_HOME") or os.path.expanduser("~/.neurobase")
@@ -160,14 +278,16 @@ class NexSandglassProvider(MemoryProvider):
             from nexsandglass.features.sandglass_vault import rebuild_index
             from nexsandglass.core.sandglass_paths import validate
             validate()
-            rebuild_index()
+            if self._can_write():
+                rebuild_index()          # 子 agent / cron 不重建主 agent 的索引
             # Cognitive Memory OS feature flag：NYX_USE_FACADE=1 时走稳定门面（默认关）
             self._use_facade = os.environ.get("NYX_USE_FACADE", "0") == "1"
             self._initialized = True
-            if self._use_facade:
-                logger.info("NexSandglass MemoryProvider initialized (facade mode: ON)")
-            else:
-                logger.info("NexSandglass MemoryProvider initialized")
+            logger.info("NexSandglass MemoryProvider initialized (context=%s, owners=%d, facade=%s)",
+                        self._agent_context, len(self._owner_ids), self._use_facade)
+
+    def _can_write(self) -> bool:
+        return (self._agent_context or "") in _WRITE_CONTEXTS
 
     def system_prompt_block(self) -> str:
         """V2.9.8: 四层问答式注入 — 你是谁→往哪走→怎么变成这样→还没做完"""
@@ -364,57 +484,120 @@ class NexSandglassProvider(MemoryProvider):
             logger.warning("system_prompt_block 整体失败", exc_info=True)
             return "NexSandglass记忆系统已就绪。使用sandglass_search搜索记忆。"
 
-    def prefetch(self, query: str) -> str:
-        """每轮对话前注入织布机摘要——偏移+情绪+场景。主注入已有全貌，这里只给最动态的信号。"""
+    def _signal_line(self) -> str:
+        """偏移 + 情绪：主注入已有全貌，这里只给最动态的信号。"""
         try:
-            from nexsandglass.features.sandglass_think import comprehensive_offset, _current_stage, _emotional_entropy
+            from nexsandglass.features.sandglass_think import comprehensive_offset, _emotional_entropy
             off = comprehensive_offset()
             ent = _emotional_entropy()
             mood = "平稳" if ent < 0.5 else ("波动" if ent < 1.0 else "高熵")
             off_d = _OFFSET_LABELS.get(off.get('direction', ''), '平稳')
-            return (
-                f"## 当前\n"
-                f"偏移: {off_d}({off.get('offset',0):+d}%) | 情绪: {mood}\n"
-            )
+            return f"## 当前\n偏移: {off_d}({off.get('offset', 0):+d}%) | 情绪: {mood}\n"
         except Exception:
             return ""
 
-    def queue_prefetch(self, query: str) -> None:
-        """后台预热——搜索足够快，不需要预热。保持接口兼容。"""
-        pass
+    def prefetch(self, query: str, *, session_id: str = "") -> str:
+        """按**本轮**问题召回相关记忆 + 当前信号。
 
-    def sync_turn(self, user_msg: str, assistant_msg: str, **kwargs) -> None:
+        官方建议「后台召回、这里返回缓存」是为远程 provider 设计的；Nyx 的召回是本地的
+        （实测 10–30ms），直接对本轮问题召回，比用上一轮的问题预取更准。
+        """
+        self._last_recall = None           # recall_status 只反映最近这一次
+        parts: List[str] = []
+        if not is_trivial_prompt(query):
+            try:
+                from nexsandglass.runtime.orchestrator import get_orchestrator
+                mc = get_orchestrator().recall(query, token_budget=self._prefetch_budget or 1)
+                objs = [o for o in (mc.objects or []) if o.content and str(o.content).strip()]
+                lines = [str(o.content) for o in objs] or \
+                        [s for s in (mc.strings or []) if s and str(s).strip()]
+                cap = max(12, self._prefetch_budget // 100)   # 600 → 12 条；4000 → 40 条
+                if self._prefetch_budget and lines:
+                    dates = _said_on(objs[:cap])
+                    parts.append("## Nyx 记忆（与本轮相关，[日期]=说这句话的时间）")
+                    for i, s in enumerate(lines[:cap]):
+                        d = dates.get(i)
+                        parts.append(f"- [{d}] {s[:300]}" if d else f"- {s[:300]}")
+                    withheld = len(getattr(mc, "withheld", None) or [])
+                    if withheld:
+                        parts.append(f"（另有 {withheld} 条因来源可疑未注入）")
+                    self._last_recall = min(len(lines), cap)
+            except Exception as e:
+                logger.debug("prefetch 召回失败: %s", e)
+        sig = self._signal_line()
+        if sig:
+            parts.append(sig)
+        return "\n".join(parts)
+
+    def queue_prefetch(self, query: str, *, session_id: str = "") -> None:
+        """不预取：召回在 prefetch 里对本轮问题现做（见 prefetch 文档）。"""
+        return None
+
+    def recall_status(self):
+        if self._last_recall:
+            return RecallStatus(provider_label="Nyx", count=int(self._last_recall))
+        return None
+
+    def on_turn_start(self, turn_number: int, message: str, **kwargs) -> None:
+        """记下这一轮是谁写的（多人会话里 sync_turn 可能拿不到 turn_author）。"""
+        aid, aname = kwargs.get("author_id"), kwargs.get("author_name")
+        if aid is None and aname is None and not kwargs.get("author_is_bot"):
+            self._turn_author = None
+        else:
+            self._turn_author = {"id": aid, "name": aname, "is_bot": bool(kwargs.get("author_is_bot"))}
+
+    def _user_source(self, turn_author: Optional[dict] = None) -> str:
+        """用户一侧这句话算谁说的：主人 → user（principal）；机器人 / 非主人 → 外部来源。
+
+        不配置 owner_ids = 单人会话，全部按主人记（与 v7.11 行为一致）。
+        """
+        a = turn_author if turn_author is not None else self._turn_author
+        if not a:
+            return "user"
+        if a.get("is_bot") and self._bots_external:
+            return "bot"
+        if self._owner_ids:
+            ident = {str(a.get("id") or ""), str(a.get("name") or "")} - {""}
+            if not (ident & self._owner_ids):
+                return "participant"
+        return "user"
+
+    def sync_turn(self, user_content: str, assistant_content: str, *, session_id: str = "",
+                  messages: Optional[List[Dict[str, Any]]] = None,
+                  turn_author: Optional[Dict[str, Any]] = None, **kwargs) -> None:
         """每轮对话后：raw 落沙（审计日志）+ 候选晋升（只写值得长期记住的）。
 
-        替代默认整轮 dump：
-          - 每条消息先落沙 sandglass（保留作审计日志）
+        同步执行是有意的：MemoryManager.sync_all 已经把它放在**串行**后台线程上，
+        第 N 轮一定先于第 N+1 轮落盘，flush_pending 也等得到它；自己再起线程会破坏这两条。
+
+          - 每条消息先落沙 sandglass（保留作审计日志），发送者按 turn_author 绑定来源
           - 用 PromotionEngine 判断是否晋升长期（Promote/SessionOnly/Drop）
           - 只对 promote 的候选经 orchestrator 写长期 engram/fact
         """
+        if not self._can_write():
+            return
+        user_src = self._user_source(turn_author)
+        pairs = [(user_content, user_src, user_src), (assistant_content, "agent", "assistant")]
         try:
             from nexsandglass.runtime.orchestrator import get_orchestrator
             from nexsandglass.runtime.promotion import PromotionEngine
             orch = get_orchestrator()
             eng = PromotionEngine(use_llm=False, timeout=2.0)
 
-            for msg in (user_msg, assistant_msg):
+            for msg, sender, source in pairs:
                 if not msg:
                     continue
                 # 1. raw 落沙（审计日志，始终保留）
                 try:
                     from nexsandglass.core.sandglass_log import log_message
-                    log_message(msg, "user" if msg == user_msg else "agent")
+                    log_message(msg, sender)
                 except Exception as e:
                     logger.warning("sync_turn raw 落沙失败: %s", e)
                 # 2. 候选晋升判断（raw 已在上方落过 → raw_already_logged=True 防双写）
                 try:
                     cand = eng.observe(msg)
                     if cand.disposition == "promote":
-                        orch.observe(
-                            msg,
-                            source="user" if msg == user_msg else "assistant",
-                            raw_already_logged=True,
-                        )
+                        orch.observe(msg, source=source, raw_already_logged=True)
                 except Exception as e:
                     logger.warning("sync_turn 晋升失败: %s", e)
             self._turn_count += 1
@@ -423,10 +606,9 @@ class NexSandglassProvider(MemoryProvider):
             logger.warning("sync_turn 主路径失败，fallback 直连落沙: %s", e)
             try:
                 from nexsandglass.core.sandglass_log import log_message
-                if user_msg:
-                    log_message(user_msg, "user")
-                if assistant_msg:
-                    log_message(assistant_msg, "agent")
+                for msg, sender, _ in pairs:
+                    if msg:
+                        log_message(msg, sender)
                 self._turn_count += 1
             except Exception as e2:
                 logger.warning("sync_turn fallback 落沙失败: %s", e2)
@@ -491,47 +673,144 @@ class NexSandglassProvider(MemoryProvider):
         except Exception as e:
             return tool_error(f"fact_feedback error: {e}")
 
+    # ═══════ 双时态 / 遗忘 工具 ═══════
+
+    def _handle_belief(self, args: dict) -> str:
+        from nexsandglass.features import weavethread
+        from nexsandglass.engram.loops import temporal_fact as tf
+        db = weavethread._DB
+        subject = args.get("subject") or "user"
+        rel = args.get("relation") or None
+        keep = ("subject", "relation", "object", "valid_from", "valid_until", "valid_basis",
+                "recorded_at", "closed_at", "source_mem_id")
+        slim = lambda rows: [{k: r.get(k) for k in keep} for r in rows]
+        if _as_bool(args.get("history"), False):
+            return json.dumps({"mode": "history", "facts": slim(tf.history_of(db, subject, rel)),
+                               "timeline": tf.belief_timeline(db, subject, rel)},
+                              ensure_ascii=False, default=str)
+        if args.get("as_of"):
+            rows = tf.as_of(db, args["as_of"], known_at=args.get("known_at"),
+                            subject=subject, predicate=rel)
+            return json.dumps({"mode": "as_of", "as_of": args["as_of"], "facts": slim(rows)},
+                              ensure_ascii=False, default=str)
+        if args.get("known_at"):
+            rows = tf.get_current(db, subject, rel, known_at=args["known_at"])
+            return json.dumps({"mode": "known_at", "known_at": args["known_at"], "facts": slim(rows)},
+                              ensure_ascii=False, default=str)
+        return json.dumps({"mode": "current", "facts": slim(tf.get_current(db, subject, rel))},
+                          ensure_ascii=False, default=str)
+
+    def _handle_forget(self, args: dict) -> str:
+        from nexsandglass.runtime import facade
+        sel: dict = {}
+        if args.get("mem_id"):
+            sel["mem_id"] = str(args["mem_id"])
+        elif len(str(args.get("contains") or "").strip()) >= 2:
+            sel["contains"] = str(args["contains"]).strip()
+        else:
+            return tool_error("nyx_forget 需要 mem_id，或至少 2 个字的 contains")
+        preview = facade.forget({**sel, "dry_run": True})
+        if not preview.get("ok"):
+            return tool_error(f"nyx_forget 预览失败: {preview.get('error')}")
+        n = int(preview.get("selected") or 0)
+        if not _as_bool(args.get("confirm"), False) or n == 0:
+            return json.dumps({"status": "preview", "would_forget": n,
+                               "items": (preview.get("preview") or [])[:10],
+                               "next": "确认后带 confirm=true 再调用；进入隔离区，保留期内可 nyx_restore"},
+                              ensure_ascii=False, default=str)
+        if n > _FORGET_MAX:
+            return tool_error(f"一次选中 {n} 条，超过 agent 上限 {_FORGET_MAX}；"
+                              "请缩小范围，或由主人用 CLI 处理")
+        rep = facade.forget({**sel, "reason": str(args.get("reason") or "agent_forget")})
+        return json.dumps({"status": "quarantined" if rep.get("ok") else "failed",
+                           "forgotten": rep.get("removed", 0),
+                           "mem_ids": [p.get("mem_id") for p in (preview.get("preview") or [])],
+                           "recoverable": rep.get("recoverable", False),
+                           "purge_after": rep.get("purge_after", ""),
+                           "error": rep.get("error")}, ensure_ascii=False, default=str)
+
+    def _handle_restore(self, args: dict) -> str:
+        from nexsandglass.runtime import facade
+        mid = str(args.get("mem_id") or "").strip()
+        if not mid:
+            return tool_error("nyx_restore 需要 mem_id")
+        return json.dumps(facade.restore(mid), ensure_ascii=False, default=str)
+
+    def _handle_quarantine(self, args: dict) -> str:
+        from nexsandglass.core import erasure
+        items = erasure.quarantine_list(limit=max(1, min(_as_int(args.get("limit"), 20), 200)))
+        return json.dumps({"items": items}, ensure_ascii=False, default=str)
+
     def on_session_end(self, messages: List[Dict[str, Any]]) -> None:
-        """会话结束——蒸馏 + 偏移检查。经 orchestrator 落最后一轮（B1）。"""
+        """会话结束——偏移检查；宿主没调过 sync_turn 时才补落最后几轮（B1 兜底）。
+
+        宿主正常调用 sync_turn 时，每一轮已按真实作者落过了；这里再按 role 落一遍，
+        会把多人会话里别人说的话重新记成「主人说的」。
+        """
         try:
-            from nexsandglass.runtime.orchestrator import get_orchestrator
-            orch = get_orchestrator()
-            # 落最后一轮对话（经 Formation，带 raw_already_logged 避免重复逻辑）
-            for msg in messages[-5:]:
-                role = msg.get("role", "user")
-                content = msg.get("content", "")
-                if content:
-                    orch.observe(str(content)[:500], source=role, raw_already_logged=True)
+            if self._can_write() and not self._turn_count:
+                from nexsandglass.runtime.orchestrator import get_orchestrator
+                orch = get_orchestrator()
+                for msg in (messages or [])[-5:]:
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    if content and role in ("user", "assistant"):
+                        src = self._user_source() if role == "user" else "assistant"
+                        orch.observe(str(content)[:500], source=src, raw_already_logged=True)
 
             # 触发偏移检查 + 织造
             from nexsandglass.features.sandglass_think import comprehensive_offset
             off = comprehensive_offset()
             if abs(off.get("offset", 0)) >= 30:
                 logger.info(f"会话结束偏移: {off['offset']:+d}% ({off['direction']})")
-
         except Exception:
             pass
+
+    def on_session_switch(self, new_session_id: str, *, parent_session_id: str = "",
+                          reset: bool = False, rewound: bool = False, **kwargs) -> None:
+        self._session_id = new_session_id or ""
+        if reset:
+            self._turn_author = None
+            self._last_recall = None
+
+    def on_delegation(self, task: str, result: str, *, child_session_id: str = "", **kwargs) -> None:
+        """子 agent 的结果是 agent 推断，不是主人的话：以 agent 来源记入，经晋升门。"""
+        if not self._can_write() or not (task or result):
+            return
+        try:
+            from nexsandglass.runtime.orchestrator import get_orchestrator
+            get_orchestrator().observe(f"委派：{str(task)[:200]} → 结果：{str(result)[:500]}",
+                                       source="agent")
+        except Exception as e:
+            logger.debug("on_delegation 失败: %s", e)
 
     # ═══════ 工具暴露 ═══════
 
     def get_tool_schemas(self) -> List[Dict[str, Any]]:
-        return _TOOL_SCHEMAS
+        return [dict(s) for s in _TOOL_SCHEMAS]
 
-    def handle_tool_call(self, name: str, args: Dict[str, Any]) -> str:
+    def handle_tool_call(self, tool_name: str, args: Dict[str, Any] = None, **kwargs) -> str:
+        name = tool_name
+        args = args or {}
         try:
+            if name in _WRITE_TOOLS or (name == "fact_store" and args.get("action") == "add"):
+                if not self._can_write():
+                    return tool_error(f"{name}: 当前是 {self._agent_context} 上下文，Nyx 只读")
+
             if name == "sandglass_search":
                 from nexsandglass.runtime.orchestrator import get_orchestrator
                 orch = get_orchestrator()
-                rr = orch.recall(args.get("query", ""), token_budget=args.get("limit", 10) * 200)
+                limit = _as_int(args.get("limit"), 10)
+                rr = orch.recall(args.get("query", ""), token_budget=limit * 200)
                 return json.dumps(
-                    [{"text": t[:200], "id": rr.memory_ids[i] if i < len(rr.memory_ids) else t} for i, t in enumerate(rr.strings[: args.get("limit", 10)])],
+                    [{"text": t[:200], "id": rr.memory_ids[i] if i < len(rr.memory_ids) else t} for i, t in enumerate(rr.strings[:limit])],
                     ensure_ascii=False,
                 )
 
             if name == "sandglass_recent":
                 from nexsandglass.runtime.orchestrator import get_orchestrator
                 orch = get_orchestrator()
-                objs = orch.recent(args.get("n", 10))
+                objs = orch.recent(_as_int(args.get("n"), 10))
                 return json.dumps(
                     [{"id": o.memory_id, "text": o.content[:200]} for o in objs],
                     ensure_ascii=False,
@@ -540,7 +819,7 @@ class NexSandglassProvider(MemoryProvider):
             if name == "sandglass_offset":
                 from nexsandglass.features.sandglass_think import comprehensive_offset
                 off = comprehensive_offset()
-                return json.dumps(off, ensure_ascii=False)
+                return json.dumps(off, ensure_ascii=False, default=str)
 
             if name == "sandglass_echo":
                 from nexsandglass.features.sandglass_think import _sentiment_wind
@@ -549,9 +828,16 @@ class NexSandglassProvider(MemoryProvider):
 
             if name == "fact_store":
                 return self._handle_fact_store(args)
-
             if name == "fact_feedback":
                 return self._handle_fact_feedback(args)
+            if name == "nyx_belief":
+                return self._handle_belief(args)
+            if name == "nyx_forget":
+                return self._handle_forget(args)
+            if name == "nyx_restore":
+                return self._handle_restore(args)
+            if name == "nyx_quarantine":
+                return self._handle_quarantine(args)
 
             return tool_error(f"Unknown NexSandglass tool: {name}")
 
@@ -561,31 +847,83 @@ class NexSandglassProvider(MemoryProvider):
     # ═══════ 可选钩子 ═══════
 
     def on_memory_write(self, action: str, target: str, content: str, metadata: dict = None) -> None:
-        """镜像内置记忆写入——同步落沙。"""
+        """镜像内置记忆写入——同步落沙（agent 的决定，来源记为 memory_write）。"""
+        if not self._can_write():
+            return
         try:
             from nexsandglass.core.sandglass_log import log_message
-            text = f"[{action}] {target}: {content[:200]}"
+            text = f"[{action}] {target}: {(content or '')[:200]}"
             log_message(text, "memory_write")
         except Exception:
             pass
 
-    def on_pre_compress(self, messages: List[Dict[str, Any]]) -> Optional[str]:
+    def on_pre_compress(self, messages: List[Dict[str, Any]]) -> str:
         """上下文压缩前提取关键记忆。经 orchestrator 统一召回。"""
         try:
             from nexsandglass.runtime.orchestrator import get_orchestrator
             orch = get_orchestrator()
             if messages:
-                last = messages[-1].get("content", "")[:100]
+                last = str(messages[-1].get("content", "") or "")[:100]
                 if last:
                     rr = orch.recall(last, token_budget=600)
                     return "\n".join(t[:200] for t in rr.strings[:3])
         except Exception:
             pass
-        return None
+        return ""
+
+    # ═══════ 配置 / 备份 / 身份 ═══════
+
+    def get_config_schema(self) -> List[Dict[str, Any]]:
+        nh = _hermes_cfg()
+        default_dir = nh.DEFAULT_DATA_DIR if nh is not None else os.path.expanduser("~/.neurobase")
+        return [
+            {"key": "data_dir", "type": "text", "default": default_dir,
+             "description": "Nyx 记忆目录。默认与 nyx 的 MCP / CLI 共用同一份记忆；"
+                            "环境变量 NEXSANDBASE_HOME 优先。改动后重启生效。"},
+            {"key": "owner_ids", "type": "text", "default": "",
+             "description": "主人在聊天平台上的身份 ID / 名字（逗号分隔）。设置后只有这些人说的话按"
+                            "「主人亲口说的」记，其他参与者一律记为外部来源（未经证实）。留空 = 单人使用。"},
+            {"key": "bots_are_external", "type": "boolean", "default": True,
+             "description": "机器人发来的消息按外部来源记（不当成主人的话）。"},
+            {"key": "prefetch_tokens", "type": "integer", "default": _PREFETCH_TOKENS_DEFAULT,
+             "minimum": 0, "maximum": 4000, "step": 100,
+             "description": "每轮自动召回注入的预算（token）；0 = 只注入偏移/情绪信号。"},
+        ]
+
+    def save_config(self, values: Dict[str, Any], hermes_home: str) -> None:
+        nh = _hermes_cfg()
+        if nh is None:
+            raise RuntimeError("nexsandglass_hermes 不可用，无法保存配置")
+        known = {f["key"] for f in self.get_config_schema()}
+        nh.save_config({k: v for k, v in (values or {}).items() if k in known}, hermes_home)
+        if hermes_home and hermes_home == self._hermes_home:
+            self._load_settings()
+
+    def backup_paths(self) -> List[str]:
+        """记忆目录在 HERMES_HOME 之外时交给 hermes backup（不需要 initialize）。"""
+        d = self._data_dir()
+        nh = _hermes_cfg()
+        home = nh.hermes_home(self._hermes_home) if nh is not None else self._hermes_home
+        if home:
+            h = os.path.abspath(home)
+            if d == h or d.startswith(h.rstrip(os.sep) + os.sep):
+                return []
+        return [d]
+
+    def identity_signature(self) -> Dict[str, Any]:
+        """owner_ids 变了，网关缓存的 agent 必须重建（来源绑定依赖它）。只读、廉价。"""
+        nh = _hermes_cfg()
+        owners = ""
+        if nh is not None:
+            owners = nh.load_config(self._hermes_home).get("owner_ids", "")
+        owners = owners or os.environ.get("NYX_OWNER_IDS", "")
+        if isinstance(owners, str):
+            owners = [o for o in re.split(r"[,，\s]+", owners) if o]
+        return {"nyx.owner_ids": sorted(str(o) for o in owners)}
 
 
 # ── 插件自动发现入口 ──
 def register(ctx) -> None:
-    """Hermes 插件加载入口——接收 config 上下文并注册 Provider。"""
+    """Hermes 插件加载入口——注册 Provider。新部署用 nexsandglass_hermes（先定数据目录再 import）。"""
     provider = NexSandglassProvider()
     ctx.register_memory_provider(provider)
