@@ -2,7 +2,7 @@
 
 > **Nyx — 把「检索失败」也当作一类信号的记忆系统**
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.11-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.12-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 ## 别的记忆系统回答「找到了什么」，Nyx 还回答「我是不是见过」
 
@@ -63,8 +63,9 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 | 🌙 **梦境 Dream** | `dream/` | 夜间多阶段复盘：记忆整理、反思成长、创造联结 |
 | 📚 **记忆书 NyxBook** | `nyx-web/` | 「纸质晨光」主题的可视化记忆浏览 / 写日记 / 盖章 UI（FastAPI + Vue3） |
 | 🕸️ **类型化 Memory Link** | `features/weavethread.py` | 支持 OpenViking Memory Link 关系类型（belongs_to / evolved_from / contradicts / related_to …）+ PPR 图增强 |
-| 🔍 **语义检索** | `core/embedding_provider.py`, `core/vector_search.py` | 真正的向量语义检索（本地多语言模型 + RRF 混合，v3.4.0） |
+| 🔍 **语义检索（未接入）** | `core/embedding_provider.py`, `core/vector_search.py` | 向量检索组件（本地多语言模型 + RRF）。**尚未接进召回主路径** —— 默认召回是词法 + 图 + 时间三路（v7.12 更正，见更新日志） |
 | 🤖 **LLM 图谱抽取** | `core/llm_extract.py`, `features/weavethread.py` | 可选 LLM 知识图谱补充抽取 + 实体归一化（可降级，v3.4.0） |
+| 🔌 **Hermes 记忆提供器** | `nexsandglass_hermes/`, `core/memory_provider.py` | 官方 `MemoryProvider` 契约，entry point 自动发现；多人会话按 `owner_ids` 绑定来源；已在真实 Hermes 上跑通（v7.12） |
 | 🔌 **MCP 接口** | `interfaces/sandglass_mcp.py`, `interfaces/nyx.py` | MCP 工具接入 Hermes / Claude |
 | 🧬 **记忆加工** | `engram/types.py`, `engram/decay.py` | Tulving 四类记忆 + Ebbinghaus 衰减（EngramTide 融合） |
 | 🧬 **差异化写入** | `engram/writer.py` | semantic 覆盖 / emotional 强化 / procedural 去重 / episodic 直插 |
@@ -184,6 +185,19 @@ nexsandglass/
 | 评测脚本 | `tests/eval/run_eval.py` |
 
 >注：混合检索（词法+RRF向量）需要安装 `[vector]` 或 `[chroma]` 额外依赖后运行。
+>
+>**v7.12 更正**：上表的「词法检索召回率」用的是评测脚本**自带**的简易分词，不经过 nyx 的检索链路，不能代表 nyx 的召回质量。
+
+**公开基准 LongMemEval**（`benchmarks/longmemeval_eval.py`，走 Hermes 插件的真实写入/召回路径）：
+检索指标零 LLM 可复现；QA 生成假设文件交给官方 `evaluate_qa.py` 打分。
+数据在 HuggingFace，本仓库的构建环境连不到 —— **目前没有真实数据上的分数**，需要在部署环境运行：
+
+```bash
+python3 benchmarks/longmemeval_eval.py longmemeval_s_cleaned.json --workers 8 --json benchmarks/results/longmemeval_s.json
+```
+
+其他可复现的评测：纵向评测 `benchmarks/longitudinal_eval.py`（双时态，v7.9–v7.11）、投毒演练 `benchmarks/poisoning_drill.py`（v7.8）、
+事故演练 `benchmarks/forget_restore_drill.py`（v7.6）、真实 Hermes 集成检查 `tests/integration/hermes_real_check.py`（v7.12）。
 
 ---
 
@@ -225,7 +239,17 @@ install.bat
 docker compose up -d
 ```
 
-### 方式四：作为 Hermes 技能
+### 方式四：作为 Hermes 记忆提供器（官方接口，推荐给 Hermes 用户）
+
+```bash
+pip install nyx-memory      # 自动注册 entry point：hermes_agent.memory_providers → nyx
+```
+
+Hermes `config.yaml` 里 `memory.provider: nyx`。可选配置（`hermes memory setup` 写入 `$HERMES_HOME/nyx.json`）：
+`data_dir`、`owner_ids`（多人会话里谁是主人）、`bots_are_external`、`prefetch_tokens`。
+详见 [`nexsandglass_hermes/README.md`](nexsandglass_hermes/README.md)。
+
+### 方式五：作为 Hermes 技能
 
 技能文件位于 `skills/nyx/`，复制到 Hermes 技能目录即可自动加载：
 
@@ -241,7 +265,7 @@ cp -r skills/nyx ~/.hermes/skills/memory/
 
 ```yaml
 memory:
-  provider: nexsandglass
+  provider: nyx             # 旧名 nexsandglass 同样可用
   memory_enabled: true
   user_profile_enabled: true
   nyx:
@@ -322,6 +346,78 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 ---
 
 ## 📝 更新日志
+
+### v7.12 (2026-10-01) — Hermes 官方记忆提供器 + LongMemEval 评测框架
+
+**为什么做**
+Hermes 官方的外置记忆提供商（Honcho / Mem0 / Hindsight …）走的是同一个 `MemoryProvider` 契约。
+nyx 的旧插件是照着早期接口写的：签名对不上（`prefetch(query)` 不收 `session_id`、`handle_tool_call(name, args)`
+不收 `**kwargs`、工具 schema 是包了一层的旧格式），每轮 prefetch 也只给偏移/情绪、不按问题召回。
+另一半是没有公开基准上的数：Hindsight 报 LongMemEval 94.6%，nyx 连跑这个基准的脚本都没有。
+
+**插件：按官方契约重写，并在真实 Hermes 上跑通**
+- 签名全部对齐 `agent/memory_provider.py`：`prefetch / queue_prefetch(…, *, session_id)`、
+  `sync_turn(…, *, session_id, messages, turn_author)`、`handle_tool_call(tool_name, args, **kwargs)`、
+  `on_pre_compress → str`、`on_session_switch`、`on_delegation`、`on_turn_start`、`recall_status`、
+  `get_config_schema / save_config`、`backup_paths`、`identity_signature`、`unavailable_reason`
+- 发现机制：entry point `hermes_agent.memory_providers`（`nyx`，旧名 `nexsandglass` 兼容）+ 可拷贝的目录插件
+  `nexsandglass_hermes/`（`plugin.yaml`）。配置写在 `$HERMES_HOME/nyx.json`，`data_dir` 在 import nexsandglass 之前生效
+- **prefetch 按本轮问题现做召回**（本地，实测 10–50ms），每条标「哪天说的」；界面显示 `🧠 Nyx — recalled N memories`
+- **多人会话的来源绑定**：配置 `owner_ids` 后，只有主人说的话按 principal 记；访客记为 `participant`、
+  机器人记为 `bot`（外部来源，未经证实，不会变成「关于主人的事实」）。不配置 = 单人使用，行为与 v7.11 一致
+- **非主 agent 只读**：`agent_context` 为 subagent / cron / flush 时不写记忆、写类工具拒绝
+- `on_session_end` 不再把已经按真实作者落过的轮次按 role 重新记一遍（否则访客的话会被重新记成主人的）
+- 新工具：`nyx_belief`（现在信什么 / as_of / known_at / 演变链）、`nyx_forget`（**只进隔离区**，先预览、
+  `confirm=true` 才执行、一次最多 20 条；永久擦除只留给主人用 CLI）、`nyx_restore`、`nyx_quarantine`
+- **真实 Hermes 集成检查**：`tests/integration/hermes_real_check.py` 对 NousResearch/hermes-agent
+  （`12e4d3e`，2026-09-30）跑通 —— entry point 加载器、用户目录插件发现、`MemoryManager` 的
+  initialize_all / build_system_prompt / prefetch_all / describe_recall / sync_all（后台串行线程）+ flush_pending /
+  工具注册与分发 / on_session_end / shutdown_all，全部经过 Hermes 自己的代码。结果：`benchmarks/results/hermes_real_check.txt`
+
+**LongMemEval 评测框架：`benchmarks/longmemeval_eval.py`**
+- 每题独立子进程、独立 nyx 目录；按 `haystack_dates` 冻结时钟，逐轮调 `provider.sync_turn`（与 Hermes 写入同一路径）
+- 检索模式（默认，零 LLM）：会话级 `recall_any@k / recall_all@k`（官方定义，abstention 题不计）+ 轮次级命中
+- QA 模式（`--qa`）：prefetch 上下文 + 问题 → OpenAI 兼容网关 → 官方格式假设文件，**用官方 `evaluate_qa.py` 打分**
+  （不内置裁判 —— 裁判不同，分数就不能和别人的榜单比）
+- **这个环境连不到 HuggingFace，仓库里没有真实数据上的分数。** 在部署环境跑：
+  `python3 benchmarks/longmemeval_eval.py longmemeval_s_cleaned.json --workers 8 --json 结果.json`
+
+**框架第一次跑就揪出来的问题（都已修）**
+
+| 问题 | 后果 |
+|---|---|
+| 英文查询分词把整句字母连成一串切 2–4 字窗口（`whatisthenameofmydog` → th / is / he …） | 碎片命中每一句英文，排序被淹没：问「我的狗叫什么」，第一名是讲书的会话 |
+| 影子沙拿每个英文词（含 is / the / of）去 `LIKE '%…%'` 实体 | 无关结果占满前几名（影子沙聚合优先级最高） |
+| 影子沙召回的正文是字面量 `shadow#11`（拿行号当关键词全文搜） | **中英文都有**：这串占位符会被注入 prompt |
+| 同一条记录经两个源进来（`shadow:11` / `search_router:11`）各占一个名额 | 重复挤掉别的召回 |
+| 知识图谱召回拿整句问话当实体名精确匹配 | 「我住哪」永远命不中；双时态的当前信念对召回是隐形的 |
+| 「在一家做机器人的公司当工程师」抽出 公司=一家、职位=机器人 | 错误事实以主人的信任等级入库 |
+
+修法只动查询侧（索引不变，无需重建）；中文 token 的权重与 v7.11 完全一致。
+
+小样本回归（`tests/fixtures/longmemeval_mini*.json`，我写的、10 个会话以内 —— **只用来防回归，不是基准分**）：
+
+| | v7.11 | v7.12 |
+|---|---|---|
+| 英文 recall_any@1 | 0.40 | **0.80** |
+| 英文 recall_all@1 | 0.00 | **0.40** |
+| 英文 recall_all@5 | 1.00 | 0.80 |
+| 中文 recall_any@1 / all@1 | 0.71 / 0.57 | 0.71 / 0.57（逐题排名不变） |
+
+英文 all@5 下降不是退步：v7.11 那题（问 company、原话是 joined Contoso Robotics）是被碎片随机带进第 4 名的，
+没有任何一个词真正匹配；在 LongMemEval 一题约 50 个会话的规模下，这种运气不存在。
+
+**如实说明：最大的差距在语义检索**
+- README 之前把「向量语义检索（RRF 混合）」列为能力 —— 组件在（`core/embedding_provider.py` / `vector_search.py`），
+  但**从来没有接进召回主路径**（`SearchRouter` 默认 `vector=None`，存储路径写死 `~/.hermes`，键与行号对不上）。已在能力表里更正
+- 后果：同义改写召不回来 —— 英文「Which company」对「joined Contoso」、中文「我的猫叫什么」对「领养了一只橘猫…叫团子」
+  （中文单字「猫」不进索引）。Hindsight 是语义 + BM25 + 图 + 时间四路；nyx 现在是词法 + 图 + 时间三路
+- 英文的事实抽取规则很少；LongMemEval 上 nyx 的「双时态」优势主要靠召回原文 + 日期，而不是结构化事实
+- 一个进程一份 nyx 记忆：网关里多个 Hermes profile 共进程时共用同一个 `data_dir`
+
+**测试**
+全量 448 项 + 1 跳过（真实 Hermes 检查，设置 `HERMES_AGENT_SRC` 后运行并通过），逐文件独立运行全绿；
+纵向评测三条轨道与 v7.11 逐项相同；投毒演练（16 条攻击 0 条无标注进 prompt、主人 0 误伤）、事故演练全部通过。
 
 ### v7.11 (2026-09-26) — LLM 后端实测：用 Claude 当抽取模型跑留出集
 

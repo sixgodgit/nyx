@@ -308,7 +308,9 @@ _JOB = (r"(?:工程师|经理|总监|主管|老师|教师|医生|护士|设计�
         r"会计|律师|程序员|产品经理|架构师|科学家|创始人|合伙人|CEO|CTO|COO|CFO)")
 _TITLE = re.compile(r"(?:职位|岗位|职务|头衔)\s*(?:是|为|改成了?|变成了?|升到了?)\s*([一-鿿A-Za-z ]{2,16})"
                     r"|(?:升职为|升任|升为|被提拔为|转岗为|当上了?|现在是|担任)\s*([一-鿿A-Za-z ]{2,16})"
-                    r"|(?:做|当|是|任)\s*(?:一名|一个|个|名)?\s*([一-鿿A-Za-z]{0,8}?" + _JOB + r")")
+                    # 职位修饰语里不能跨过 的/当/做/是/任：「在做机器人的公司当工程师」的职位是「工程师」，
+                    # 不是从「做」一路吞到「机器人的公司当工程师」再被截成「机器人」
+                    r"|(?:做|当|是|任)\s*(?:一名|一个|个|名)?\s*((?:(?![的当做是任])[一-鿿A-Za-z]){0,8}?" + _JOB + r")")
 _PREF = re.compile(r"(?:喜欢|偏好|偏爱|爱吃|爱喝|更喜欢|倾向于?)\s*([一-鿿A-Za-z0-9]{2,12})")
 _DISLIKE = re.compile(r"(?:讨厌|不喜欢|反感|受不了|烦)\s*([一-鿿A-Za-z0-9]{2,12})")
 
@@ -320,6 +322,8 @@ _NOT_PLACE = re.compile(r"^(那边|这边|那里|这里|哪里|哪儿|那儿|这
 # （留出评测发现；这条是普遍规则，但它是看过留出结果后加的 —— 见 README v7.10）
 _ASPECT_HEAD = re.compile(r"^(过|了|着|一阵|一下|一段|几年|几个月|很久|到现在|到今天|至今|到如今|下来)")
 _NOT_COMPANY = re.compile(r"^(家|这里|那里|这|那|哪|海牙|阿姆斯特丹|鹿特丹|国内|国外)$")
+# 数量词 / 指示词开头的不是公司名：「在一家做机器人的公司当工程师」没有说是哪家
+_VAGUE_COMPANY = re.compile(r"^(一家|一个|一所|一间|某|某家|这家|那家|哪家|家里|别的|其他)")
 
 
 def _clauses(sentence: str) -> list:
@@ -381,6 +385,7 @@ def _find(cl: str) -> list:
             for m in rx.finditer(cl):
                 obj = _cut(m.group(1), 40).strip(" .")
                 if obj and len(obj) >= 2 and not _NOT_COMPANY.match(obj) \
+                        and not _VAGUE_COMPANY.match(obj) \
                         and not _ASPECT_HEAD.match(obj) \
                         and not re.fullmatch(_CITY_RX, obj):
                     hits.append(("公司", obj, m.group(0)))

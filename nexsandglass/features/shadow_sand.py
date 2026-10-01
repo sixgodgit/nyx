@@ -123,6 +123,10 @@ def shadow_search(query: str, limit: int = 10) -> list:
 def _shadow_search_unlocked(query: str, limit: int = 10) -> list:
     db = _get_conn()
     words = [w for w in re.findall(r'\w+', query.lower()) if len(w) > 1]
+    # 英文虚词（is / the / of / my …）拿去做 LIKE '%is%' 会命中一大片实体，
+    # 而影子沙在聚合里优先级最高 —— 英文问句的前几名全被它占掉（v7.12）
+    from nexsandglass.features.sandglass_vault import _EN_STOP
+    words = [w for w in words if not (w.isascii() and (len(w) < 3 or w in _EN_STOP))]
     # 方法1: 实体名匹配（最快）
     results = []
     for w in words:
