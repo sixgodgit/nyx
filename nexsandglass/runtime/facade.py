@@ -294,6 +294,12 @@ def restore(mem_id: str) -> dict:
     try:
         from nexsandglass.core import erasure
         rep = erasure.restore(mem_id)
+        if rep.get("ok"):
+            try:                         # 还原的记忆在后台重新嵌入（v7.13）
+                from nexsandglass.core import semantic
+                semantic.schedule_index()
+            except Exception:
+                pass
         return {"ok": rep["ok"], "action": "restore", "mem_id": mem_id,
                 "found": rep["found"], "problems": rep["problems"],
                 "notes": rep.get("notes", []),

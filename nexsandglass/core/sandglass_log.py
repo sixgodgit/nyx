@@ -105,6 +105,13 @@ def log_message(text: str, sender: str = "agent", return_id: bool = False):
             except Exception as e:
                 logger.warning("织线抽取跳过: %s", e)
 
+        # 语义索引（v7.13）：后台补向量，不占写入路径；没配嵌入后端时是空操作
+        try:
+            from nexsandglass.core import semantic
+            semantic.schedule_index()
+        except Exception as e:
+            logger.debug("语义索引调度跳过: %s", e)
+
         return mem_id if return_id else True
     except Exception as e:
         logger.error(f"沙漏写入失败: {e}")

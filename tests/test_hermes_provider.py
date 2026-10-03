@@ -222,11 +222,13 @@ def test_config_roundtrip_backup_and_identity(tmp_path, monkeypatch):
 
     p = NexSandglassProvider()
     keys = {f["key"] for f in p.get_config_schema()}
-    assert keys == {"data_dir", "owner_ids", "bots_are_external", "prefetch_tokens"}
+    assert keys == {"data_dir", "owner_ids", "bots_are_external", "prefetch_tokens",
+                    "semantic", "embedding_model", "embedding_api_url", "embedding_api_key"}
     for f in p.get_config_schema():
         assert f["type"] in ("text", "integer", "number", "boolean")
 
-    p.save_config({"owner_ids": "tg:42, alice", "prefetch_tokens": 300, "junk": 1}, str(hh))
+    p.save_config({"owner_ids": "tg:42, alice", "prefetch_tokens": 300, "junk": 1,
+                   "embedding_api_key": "sk-must-not-land-in-json"}, str(hh))
     cfg = json.load(open(hh / "nyx.json", encoding="utf-8"))
     assert cfg == {"owner_ids": "tg:42, alice", "prefetch_tokens": 300}
     assert p.identity_signature() == {"nyx.owner_ids": ["alice", "tg:42"]}

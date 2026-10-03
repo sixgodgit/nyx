@@ -102,3 +102,26 @@ def test_query_tokens_english_and_chinese():
     zh = _query_tokens("我上个月搬到了哪里")
     assert zh == {"我上", "上个", "个月", "月搬", "搬到", "到了", "了哪", "哪里"}
     assert _query_tokens("猫") == {"猫"}
+
+
+def test_harness_semantic_switch(tmp_path):
+    """语义这一路在评测框架里真的开得起来、关得掉（概念词袋只证明管道，不是质量）。"""
+    out = {}
+    for mode, extra in (("on", {"NYX_EMBED_PROVIDER": "tests.fixtures.fake_embed:provider"}),
+                        ("off", {})):
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("NYX_UNDERSTAND_LLM", "NYX_NOW", "NYX_EMBED", "NYX_EMBED_PROVIDER")}
+        env.update(extra, PYTHONPATH=_ROOT)
+        dst = tmp_path / f"{mode}.json"
+        cmd = [sys.executable, os.path.join(_ROOT, "benchmarks", "longmemeval_eval.py"),
+               os.path.join(_ROOT, "tests", "fixtures", "longmemeval_mini_zh.json"),
+               "--workers", "2", "--json", str(dst)] + (["--no-semantic"] if mode == "off" else [])
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600, env=env)
+        assert r.returncode == 0, r.stderr[-2000:]
+        out[mode] = json.load(open(dst, encoding="utf-8"))
+    assert out["on"]["scores"]["_meta"]["semantic_backend"] == ["fake:concept-bag-v1"]
+    assert out["off"]["scores"]["_meta"]["semantic_backend"] == ["off"]
+    assert all(r["semantic"]["pending"] == 0 and r["semantic"]["indexed"] > 0 for r in out["on"]["results"])
+    top1 = lambda d, q: next(r["ranked_sessions"][:1] for r in d["results"] if r["question_id"] == q)
+    assert top1(out["off"], "zq_cat") != ["z_cat"]          # 「猫」≠「橘猫」，词法召不回
+    assert top1(out["on"], "zq_cat") == ["z_cat"]
