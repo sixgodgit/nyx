@@ -250,6 +250,11 @@ class NexSandglassProvider(MemoryProvider):
         self._owner_ids = frozenset(str(o) for o in (owners or []))
         self._bots_external = _as_bool(cfg.get("bots_are_external"), True)
         self._prefetch_budget = max(0, _as_int(cfg.get("prefetch_tokens"), _PREFETCH_TOKENS_DEFAULT))
+        # 语义检索后端：配置只在环境变量没设时生效（环境变量 > nyx.json）
+        for key, env in (("semantic", "NYX_EMBED"), ("embedding_model", "NYX_EMBED_MODEL"),
+                         ("embedding_api_url", "EMBEDDING_API_URL")):
+            if cfg.get(key) and not os.environ.get(env):
+                os.environ[env] = str(cfg[key])
 
     def initialize(self, session_id: str = "", **kwargs) -> None:
         """设置沙漏路径、重建投石问路索引。
@@ -280,6 +285,11 @@ class NexSandglassProvider(MemoryProvider):
             validate()
             if self._can_write():
                 rebuild_index()          # 子 agent / cron 不重建主 agent 的索引
+                try:
+                    from nexsandglass.core import semantic
+                    semantic.warm_async()    # 后台：加载嵌入模型 + 回填历史向量（无后端时空操作）
+                except Exception as e:
+                    logger.debug("语义索引回填未启动: %s", e)
             # Cognitive Memory OS feature flag：NYX_USE_FACADE=1 时走稳定门面（默认关）
             self._use_facade = os.environ.get("NYX_USE_FACADE", "0") == "1"
             self._initialized = True
@@ -601,6 +611,7 @@ class NexSandglassProvider(MemoryProvider):
                 except Exception as e:
                     logger.warning("sync_turn 晋升失败: %s", e)
             self._turn_count += 1
+            self._index_semantic()
         except Exception as e:
             # 降级：orchestrator 不可用时回退到直连落沙（保持可用性），打 warning
             logger.warning("sync_turn 主路径失败，fallback 直连落沙: %s", e)
@@ -610,8 +621,19 @@ class NexSandglassProvider(MemoryProvider):
                     if msg:
                         log_message(msg, sender)
                 self._turn_count += 1
+                self._index_semantic()
             except Exception as e2:
                 logger.warning("sync_turn fallback 落沙失败: %s", e2)
+
+    @staticmethod
+    def _index_semantic() -> None:
+        """给刚落沙的记忆补向量（v7.13）。sync_turn 已在 Hermes 的串行后台线程上，这里同步做。"""
+        try:
+            from nexsandglass.core import semantic
+            if semantic.enabled():
+                semantic.index_pending(limit=64)
+        except Exception as e:
+            logger.debug("语义索引跳过: %s", e)
 
     def _bundle_max_tokens(self) -> int:
         """Bundle 默认预算（NYX_BUNDLE_MAX_TOKENS 可配，默认 1500）。"""
@@ -888,13 +910,23 @@ class NexSandglassProvider(MemoryProvider):
             {"key": "prefetch_tokens", "type": "integer", "default": _PREFETCH_TOKENS_DEFAULT,
              "minimum": 0, "maximum": 4000, "step": 100,
              "description": "每轮自动召回注入的预算（token）；0 = 只注入偏移/情绪信号。"},
+            {"key": "semantic", "type": "text", "default": "auto", "choices": ["auto", "local", "api", "off"],
+             "description": "语义检索（同义改写也能召回）。auto：配了 API 用 API，装了 "
+                            "sentence-transformers（pip install 'nyx-memory[vector]'）用本地模型，都没有则关闭。"},
+            {"key": "embedding_model", "type": "text", "default": "",
+             "description": "嵌入模型名。本地默认 paraphrase-multilingual-MiniLM-L12-v2（中英混合）；"
+                            "API 默认 text-embedding-3-small。换模型后旧向量自动作废并在后台重建。"},
+            {"key": "embedding_api_url", "type": "text", "default": "",
+             "description": "OpenAI 兼容 /embeddings 地址（选填；semantic=api 或 auto 时使用）。"},
+            {"key": "embedding_api_key", "type": "text", "secret": True, "env_var": "EMBEDDING_API_KEY",
+             "description": "嵌入 API 的密钥（存进 .env，不写 nyx.json）。"},
         ]
 
     def save_config(self, values: Dict[str, Any], hermes_home: str) -> None:
         nh = _hermes_cfg()
         if nh is None:
             raise RuntimeError("nexsandglass_hermes 不可用，无法保存配置")
-        known = {f["key"] for f in self.get_config_schema()}
+        known = {f["key"] for f in self.get_config_schema() if not f.get("secret")}   # 密钥只进 .env
         nh.save_config({k: v for k, v in (values or {}).items() if k in known}, hermes_home)
         if hermes_home and hermes_home == self._hermes_home:
             self._load_settings()

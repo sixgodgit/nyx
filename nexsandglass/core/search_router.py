@@ -226,7 +226,17 @@ class TfidfSearch:
 
 class MmapFallback:
     def __init__(self, sandfile=None):
-        self.sandfile = sandfile or _SANDGLASS
+        # 不传路径时**每次调用**再取当前日志路径（v7.13）。以前在 import 时把
+        # sandglass_vault._SANDGLASS 绑死在本模块里：数据目录一换（多 profile / 测试隔离），
+        # 兜底扫描就去读上一个目录的日志 —— 已遗忘的内容从这里回来（测试实测）
+        self.sandfile = sandfile
+
+    def _path(self) -> str:
+        if self.sandfile:
+            return self.sandfile
+        from nexsandglass.features import sandglass_vault
+        return sandglass_vault._SANDGLASS
+
     def search(self, query: str, limit: int = 10) -> list:
         results = []
         results_token = []
@@ -234,7 +244,7 @@ class MmapFallback:
             from nexsandglass.features.sandglass_vault import _query_tokens
             tokens = _query_tokens(query)
             has_tokens = bool(tokens)
-            with open(self.sandfile, "rb") as f:
+            with open(self._path(), "rb") as f:
                 with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
                     ln = 0
                     for line in iter(mm.readline, b""):
@@ -270,17 +280,30 @@ class MmapFallback:
             return []
 
 
+_AUTO = object()
+RRF_K = 60
+PIN_MIN_COVERAGE = 0.6
+
+
 class SearchRouter:
     """搜索路由器——四路并发 + 沙子密度融合(density×trust+simhash) + 动态扩窗 + mmap兜底。
     V2.8.6: 统一为唯一搜索入口。
     """
-    def __init__(self, shadow=None, fts5=None, idx=None, tfidf=None, mmap=None, vector=None):
+    def __init__(self, shadow=None, fts5=None, idx=None, tfidf=None, mmap=None, vector=_AUTO):
         self.shadow = shadow or ShadowSearch()
         self.fts5 = fts5 or Fts5Search()
         self.idx = idx or IdxSearch()
         self.tfidf = tfidf or TfidfSearch()
         self.mmapfallback = mmap or MmapFallback()
-        self.vector = vector  # 可选：向量语义检索（第五路）
+        # 第五路：向量语义检索。默认（_AUTO）= 配置了嵌入后端就用 core/semantic，否则关闭；
+        # 显式传 None 关闭；传对象则用它（.search(query, limit) → [(行号, 分数)]）
+        if vector is _AUTO:
+            try:
+                from nexsandglass.core import semantic
+                vector = semantic.router_hook()
+            except Exception:
+                vector = None
+        self.vector = vector
 
     def search(self, query: str, limit: int = 10) -> list:
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
@@ -318,9 +341,23 @@ class SearchRouter:
                     if ts and text:
                         seen.add(ln)
                         all_candidates.append((ln, ts, text))
+        vector_lines = self._vector_lines(vector_hits)
+        if vector_lines:
+            # 纯向量命中（与问句零词法重叠 —— 同义改写）也要能进结果，取回整条记录
+            from nexsandglass.core.sandglass_sqlite import get_records
+            want = [ln for ln in vector_lines if ln not in seen]
+            recs = get_records(want) if want else {}
+            for ln in want:
+                rec = recs.get(ln)
+                if rec and rec[0] and rec[2]:
+                    seen.add(ln)
+                    all_candidates.append((ln, rec[0], rec[2]))
         if all_candidates:
             tokens = _query_tokens(query)
             ranked = sand_density(all_candidates, tokens, query)
+            if vector_lines:
+                # RRF：词法排序与语义排序各投一票（排名的倒数），任一路排得高都能上来
+                return self._rrf(ranked, vector_lines, tokens)[:limit]
             # 这里曾经还有一句 `ranked = simhash_rerank(ranked, query)`。
             # 它把候选全部按「与 query 的汉明距离」重新排序，把上一行精心算出的
             # density×trust 分数整个洗掉 —— 而 simhash 本来就已经作为 sim_bonus
@@ -335,6 +372,49 @@ class SearchRouter:
             ranked = dynamic_expand(ranked, tokens, limit)
             return ranked[:limit]
         return self.mmapfallback.search(query, limit)
+
+    @staticmethod
+    def _vector_lines(vector_hits) -> list:
+        """向量命中 → 行号列表（保序去重）。id 不是行号的（旧式 memory_id 键）忽略。"""
+        out, seen = [], set()
+        for hit in vector_hits or []:
+            try:
+                ln = int(hit[0])
+            except (TypeError, ValueError, IndexError):
+                continue
+            if ln not in seen:
+                seen.add(ln)
+                out.append(ln)
+        return out
+
+    @staticmethod
+    def _rrf(ranked: list, vector_lines: list, tokens=()) -> list:
+        """RRF 融合，但**完整词法命中优先**。
+
+        向量检索永远会返回「最像的几条」，哪怕全不相关 —— 纯 RRF 会让这些无关条目
+        凭两票把精确命中挤出前几名（事故演练实测：按原文搜被还原的记录，搜不到）。
+        名字、编号、账号这类查询只能靠字面命中，所以包含问句全部词的记录保持词法顺序在前，
+        向量只负责其余部分的排序、以及把零字面重叠的同义改写带进来。
+        """
+        score = {}
+        for r, item in enumerate(ranked):
+            score[item[0]] = score.get(item[0], 0.0) + 1.0 / (RRF_K + r + 1)
+        for r, ln in enumerate(vector_lines):
+            score[ln] = score.get(ln, 0.0) + 1.0 / (RRF_K + r + 1)
+        lows = {item[0]: (item[2] if len(item) > 2 else "").lower() for item in ranked}
+        # 只认在候选里真实出现过的词：中文 2-gram 会跨过被剔除的数字拼出「第条」这种
+        # 哪条记录里都没有的幻影词，带上它就永远没有记录能「完整命中」
+        allt = {t.lower() for t in (tokens or ()) if t}
+        toks = [t for t in allt if any(t in low for low in lows.values())]
+        # 剩下的词还得占问句的大头：「我的猫叫什么名字」只剩一个「什么」时，
+        # 含「什么」的无关记录不能算完整命中
+        if len(toks) < PIN_MIN_COVERAGE * len(allt):
+            toks = []
+        pinned = [item for item in ranked if toks and all(t in lows[item[0]] for t in toks)]
+        pinned_lines = {item[0] for item in pinned}
+        by_line = {item[0]: item for item in ranked if item[0] not in pinned_lines}
+        order = sorted(by_line, key=lambda ln: -score[ln])
+        return pinned + [by_line[ln] for ln in order]
 
     def _vector_search_wrapper(self, query: str, limit: int) -> list:
         """向量检索包装（fail-safe）。"""

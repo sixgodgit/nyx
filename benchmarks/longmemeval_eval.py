@@ -19,7 +19,11 @@ LongMemEval（Wu et al., ICLR 2025, MIT）是 Hindsight / Zep / Mem0 等报分�
         python3 src/evaluation/evaluate_qa.py gpt-4o 假设文件 data/longmemeval_s_cleaned.json
       不内置裁判：裁判模型与提示词不同，分数就不能和别人的榜单比。
 
+语义检索（v7.13）：按 NYX_EMBED / EMBEDDING_API_URL 自动启用（见 core/semantic.py）；
+  加 --no-semantic 跑一遍关闭时的分数，两者之差就是语义这一路的贡献。
+
 用法
+  pip install 'nyx-memory[vector]'      # 本地多语言嵌入模型（首次运行下载约 470MB）
   python3 benchmarks/longmemeval_eval.py data/longmemeval_s_cleaned.json --workers 8 \
       --json benchmarks/results/longmemeval_s_retrieval.json
   NYX_EVAL_API_URL=https://…/v1/chat/completions NYX_EVAL_API_KEY=… NYX_EVAL_MODEL=… \
@@ -113,6 +117,10 @@ def run_instance(inst: dict, *, budget: int, prefetch_tokens: int, want_context:
     sandglass_sqlite.sync_all()
     sandglass_vault._idx_cache = None
     sandglass_vault.rebuild_index()
+    from nexsandglass.core import semantic
+    semantic.wait_idle(600)                  # 后台补索引跑完
+    semantic.index_all()                     # 兜底，保证全部入索引
+    sem = semantic.stats()
     ingest_s = time.time() - t0
 
     clock.set_global(parse_date(inst["question_date"]))
@@ -149,6 +157,7 @@ def run_instance(inst: dict, *, budget: int, prefetch_tokens: int, want_context:
         "n_answer_turns": len(answer_seqs), "n_objects": len(mc.objects), "unmapped": unmapped,
         "n_sessions": len(sessions), "n_turns": n_turns, "n_memories": max_seq(),
         "ingest_s": round(ingest_s, 3), "recall_ms": round(recall_ms, 1),
+        "semantic": {k: sem.get(k) for k in ("backend", "indexed", "pending")},
     }
     if want_context:
         t2 = time.time()
@@ -182,6 +191,8 @@ def _spawn(inst: dict, args, tmp: str) -> dict:
         env.pop(k, None)
     if not args.understand_llm:
         env.pop("NYX_UNDERSTAND_LLM", None)
+    if args.no_semantic:
+        env["NYX_EMBED"] = "off"
     cmd = [sys.executable, os.path.abspath(__file__), "--worker", "--instance-file", inf, "--out", outf,
            "--budget", str(args.budget), "--prefetch-tokens", str(args.prefetch_tokens)]
     if args.qa:
@@ -253,6 +264,8 @@ def main(argv=None) -> int:
     ap.add_argument("--prefetch-tokens", type=int, default=2000, help="QA 上下文的 prefetch 预算")
     ap.add_argument("--timeout", type=int, default=1800, help="单题超时（秒）")
     ap.add_argument("--understand-llm", action="store_true", help="保留 NYX_UNDERSTAND_LLM（默认关）")
+    ap.add_argument("--no-semantic", action="store_true",
+                    help="关掉语义检索（NYX_EMBED=off），用来和开启时对比")
     ap.add_argument("--qa", action="store_true", help="生成答案（需要 NYX_EVAL_API_URL）")
     ap.add_argument("--hyp", default="", help="QA 假设文件输出（官方 jsonl 格式）")
     ap.add_argument("--json", default="", help="检索指标与逐题结果输出")
@@ -281,8 +294,9 @@ def main(argv=None) -> int:
         with ThreadPoolExecutor(max_workers=args.workers) as ex:
             results = list(ex.map(lambda d: _spawn(d, args, tmp), data))
     report = score(results)
+    backends = sorted({str((r.get("semantic") or {}).get("backend")) for r in results if "error" not in r})
     report["_meta"].update({"data": os.path.basename(args.data), "wall_s": round(time.time() - t0, 1),
-                            "budget": args.budget, "workers": args.workers})
+                            "budget": args.budget, "workers": args.workers, "semantic_backend": backends})
     try:
         from nexsandglass import __version__
         report["_meta"]["nyx_version"] = __version__

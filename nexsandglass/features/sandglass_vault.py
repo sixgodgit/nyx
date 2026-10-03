@@ -116,7 +116,11 @@ def _query_tokens(text: str) -> set:
     tokens = {chars[i:i + 2] for i in range(len(chars) - 1)}
     if len(chars) == 1:
         tokens.add(chars)
-    words = re.findall(r"[a-z0-9_]{2,}", (text or "").lower())
+    low = (text or "").lower()
+    # 编号 / 账号 / 邮箱 / 版本号这类复合标识整体保留（v7.13）：拆开后「detail-7」只剩
+    # 「detail」，和 detail-0…detail-29 一模一样；「7」单字符又进不了分词
+    tokens.update(m.group(0) for m in re.finditer(r"[a-z0-9]+(?:[-_.@/:][a-z0-9]+)+", low))
+    words = re.findall(r"[a-z0-9_]{2,}", low)
     content = [w for w in words if w not in _EN_STOP] or words
     for w in content:
         tokens.add(w)

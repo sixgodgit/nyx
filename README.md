@@ -2,7 +2,7 @@
 
 > **Nyx — 把「检索失败」也当作一类信号的记忆系统**
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.12-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.13-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 ## 别的记忆系统回答「找到了什么」，Nyx 还回答「我是不是见过」
 
@@ -63,7 +63,7 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 | 🌙 **梦境 Dream** | `dream/` | 夜间多阶段复盘：记忆整理、反思成长、创造联结 |
 | 📚 **记忆书 NyxBook** | `nyx-web/` | 「纸质晨光」主题的可视化记忆浏览 / 写日记 / 盖章 UI（FastAPI + Vue3） |
 | 🕸️ **类型化 Memory Link** | `features/weavethread.py` | 支持 OpenViking Memory Link 关系类型（belongs_to / evolved_from / contradicts / related_to …）+ PPR 图增强 |
-| 🔍 **语义检索（未接入）** | `core/embedding_provider.py`, `core/vector_search.py` | 向量检索组件（本地多语言模型 + RRF）。**尚未接进召回主路径** —— 默认召回是词法 + 图 + 时间三路（v7.12 更正，见更新日志） |
+| 🔍 **语义检索** | `core/semantic.py` | 同义改写也能召回：向量与词法 RRF 融合，纯语义命中可进结果；只认「明显高于背景」的语义证据，字面完整命中保持在前；遗忘级联删除向量。可选：`pip install 'nyx-memory[vector]'`（本地多语言模型）或 OpenAI 兼容 API；不装则与词法召回完全相同（v7.13） |
 | 🤖 **LLM 图谱抽取** | `core/llm_extract.py`, `features/weavethread.py` | 可选 LLM 知识图谱补充抽取 + 实体归一化（可降级，v3.4.0） |
 | 🔌 **Hermes 记忆提供器** | `nexsandglass_hermes/`, `core/memory_provider.py` | 官方 `MemoryProvider` 契约，entry point 自动发现；多人会话按 `owner_ids` 绑定来源；已在真实 Hermes 上跑通（v7.12） |
 | 🔌 **MCP 接口** | `interfaces/sandglass_mcp.py`, `interfaces/nyx.py` | MCP 工具接入 Hermes / Claude |
@@ -215,10 +215,10 @@ pip install nyx-memory
 pip install "nyx-memory[mcp]"
 ```
 
-带向量语义检索：
+带语义检索（本地多语言嵌入模型，首次运行下载；v7.13 起接入召回主路径）：
 
 ```bash
-pip install "nyx-memory[vector,chroma]"
+pip install "nyx-memory[vector]"
 ```
 
 > 包名 `nyx-memory`（PyPI）；Python 模块名仍为 `nexsandglass`（`import nexsandglass`）。
@@ -346,6 +346,62 @@ sandglass_dream(question="如果选择另一个方案会怎样")
 ---
 
 ## 📝 更新日志
+
+### v7.13 (2026-10-03) — 语义检索接进召回主路径
+
+**为什么做**
+v7.12 评测确认：README 列为能力的「向量语义检索」从来没有接进召回 —— 生产路径上没有任何代码写入向量。
+同义改写召不回来（问「我的猫叫什么」、原话是「领养了一只橘猫…叫团子」；问 company、原话是 joined Contoso）。
+这是与 Hindsight（语义 + BM25 + 图 + 时间四路）差距最大的一项。
+
+**做了什么：`core/semantic.py`**
+- 向量放在数据目录的 `vectors.db`（与 `nyx.db` 同目录、随 `hermes backup`），键 = mem_id，同时存行号与模型名；
+  换模型后旧向量不参与比较、后台重建
+- **所有写入方都会被索引**：`log_message` 落沙成功后调度后台补向量（Hermes / MCP / CLI 一视同仁），
+  不占写入路径；Hermes 插件启动时后台加载模型并回填历史。召回路径只嵌入查询、模型未就绪时不等待
+- `SearchRouter` 用 RRF 融合词法与语义两路，**纯语义命中（零字面重叠）也能进结果**。
+  旧的 `_vector_boost` 只能给词法候选重新排序，同义改写那种情况恰好会被丢掉
+- 遗忘级联删除向量（排在墓碑之后，后台补索引不可能把它补回来；嵌入期间被遗忘的会在插入后立刻清掉）；
+  还原后后台重新嵌入；`verify_erasure` 新增「指向已删除记忆的向量」检查
+- 语义命中同样过信任门：投毒内容经语义这一路被召回时同样被扣下（测试含对照组，关掉语义时召不回来）
+- 后端：`NYX_EMBED=auto|local|api|off`。本地 = `pip install 'nyx-memory[vector]'`（默认
+  paraphrase-multilingual-MiniLM-L12-v2，中英混合）；API = OpenAI 兼容 `EMBEDDING_API_URL`；
+  Hermes 用户可在 `hermes memory setup` 里配（密钥只进 .env）。**没有后端时召回与 v7.12 逐项相同**
+
+**接的过程中揪出来的问题（都已修）**
+
+| 问题 | 后果 |
+|---|---|
+| 向量检索永远返回「最像的几条」，哪怕全不相关；纯 RRF 让这些噪声凭两票把字面精确命中挤出前 5 | **事故演练开启语义后失败**：按原文搜刚还原的记录搜不到。真实模型在回填历史期间同样会这样 |
+| → 语义命中必须「明显高于背景」才算证据（稳健 z 分数：中位数 + 2×1.4826×MAD） | 噪声级别的相似度不再参与融合 |
+| → 包含问句全部（真实出现的）词、且覆盖问句大部分的记录保持字面顺序在前 | 名字、编号、账号这类查询不会被语义「意会」掉 |
+| 查询分词丢掉复合标识：「detail-7」只剩「detail」（「7」单字符不进分词） | 按编号搜，30 条 detail-N 并列。关掉语义时也一样（既有缺陷） |
+| `MmapFallback` 在 import 时把日志路径绑死 | 换了数据目录后，兜底扫描去读**上一个目录**的日志 —— 测试里已遗忘的内容从这里回来。生产上多 profile 共进程时会读到别人的日志 |
+| `erasure._purge_vectors` 调的是写死 `~/.hermes` 的旧 JSON 存储 | 每次遗忘都在用户 home 下建文件，并对每个 id 报「删了 1 条」（实际什么都没删） |
+| `engram/writer` 另起一份模型并在写入路径上同步加载 | 内存里两份模型、首次写入卡在下载上 |
+
+**验证**
+- 这个环境下载不到嵌入模型（HuggingFace 被拦），**没有真实模型上的分数**。管道用确定性的概念词袋
+  （`tests/fixtures/fake_embed.py`）验证：写入 → 补索引 → 融合 → 遗忘 → 还原 → 换模型 → 信任门
+- 事故演练（开启语义：写入 400 条、还原后重新嵌入 150 条，结束时 0 条孤儿向量）与投毒演练在语义开/关两种模式下全部通过；
+  真实 Hermes 集成检查两种模式都通过；纵向评测三轨与 v7.12 逐项相同
+- 小样本（我写的，概念词表也是我写的 —— **循环论证，只证明管道通了，不是质量**）：
+
+| | v7.12 | v7.13 语义关 | v7.13 语义开（概念词袋） |
+|---|---|---|---|
+| 英文 recall_all@5 | 0.80 | 0.80 | 1.00 |
+| 中文 recall_any@1 | 0.71 | 0.71 | 1.00 |
+| 中文 recall_all@5 | 0.71 | 0.71 | 1.00 |
+
+- 全量 460 项通过（+2 跳过：真实 Hermes 检查需 `HERMES_AGENT_SRC`、一项既有跳过），逐文件独立全绿；测试不再往 `~/.hermes` 写任何东西
+
+**下一步要在你的环境里做**
+```bash
+pip install 'nyx-memory[vector]'
+python3 benchmarks/longmemeval_eval.py longmemeval_s_cleaned.json --workers 8 --json 开.json
+python3 benchmarks/longmemeval_eval.py longmemeval_s_cleaned.json --workers 8 --no-semantic --json 关.json
+```
+两次之差就是语义这一路在公开基准上的真实贡献。
 
 ### v7.12 (2026-10-01) — Hermes 官方记忆提供器 + LongMemEval 评测框架
 

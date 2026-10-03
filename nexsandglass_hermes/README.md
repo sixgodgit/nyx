@@ -26,6 +26,9 @@ memory:
 | `owner_ids` | 空 | 主人在聊天平台上的 ID / 名字（逗号分隔）。设置后只有主人说的话按「主人亲口说的」记；其他参与者一律记为外部来源（未经证实），不会变成关于主人的事实。留空 = 单人使用 |
 | `bots_are_external` | `true` | 机器人发来的消息按外部来源记 |
 | `prefetch_tokens` | `600` | 每轮自动召回的预算；0 = 只注入偏移/情绪信号 |
+| `semantic` | `auto` | 语义检索：`auto`（配了 API 用 API；装了 `nyx-memory[vector]` 用本地模型；都没有则关）/ `local` / `api` / `off` |
+| `embedding_model` | 空 | 嵌入模型名；换模型后旧向量自动作废并后台重建 |
+| `embedding_api_url` / `embedding_api_key` | 空 | OpenAI 兼容 `/embeddings`；密钥只进 `.env` |
 
 ## 每轮做什么
 
@@ -48,4 +51,4 @@ memory:
 ## 已知局限
 
 - 一个进程一份 nyx 记忆：网关里多个 Hermes profile 共进程时共用同一个 `data_dir`
-- 向量语义检索尚未接入召回主路径：同义改写（问 company、原话是 joined Contoso）召不回来
+- 语义检索需要嵌入后端（本地模型或 API）；没有时同义改写召不回来（问 company、原话是 joined Contoso）

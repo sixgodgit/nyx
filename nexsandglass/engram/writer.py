@@ -24,13 +24,16 @@ logger = logging.getLogger(__name__)
 
 def _fill_embedding(mem: Memory) -> None:
     """为记忆计算 embedding（如果 Provider 可用）。Fail-safe：失败不抛异常。"""
+    # v7.13：与召回共用 core/semantic 的后端。旧实现另起一份 sentence-transformers 实例
+    # 并在写入路径上同步加载（首次要下载模型）—— 内存里两份模型、写入卡住几十秒。
+    # 模型还没就绪就跳过：差异化写入有字符重叠的退化相似度兜底。
     try:
-        from ..core.embedding_provider import get_embedding_provider
-        provider = get_embedding_provider()
-        if provider.available:
-            emb = provider.encode_one(mem.content)
-            if emb:
-                mem.embedding = emb
+        from ..core import semantic
+        p = semantic.provider()
+        if p is not None and getattr(p, "ready", True):
+            embs = p.encode([mem.content])
+            if embs:
+                mem.embedding = list(embs[0])
     except Exception as e:
         logger.debug("[_fill_embedding] 跳过: %s", e)
 

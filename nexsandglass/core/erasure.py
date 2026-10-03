@@ -323,18 +323,16 @@ def _purge_engram(ts_list: list) -> int:
 
 
 def _purge_vectors(mem_ids: list) -> int:
+    """语义索引（数据目录里的 vectors.db）级联删除。
+
+    旧实现调 vector_store.get_vector_store() —— 那是一个写死在 ~/.hermes 的 JSON 存储，
+    生产路径从来没往里写过；调用它反而会在用户 home 下创建文件，并且对每个 id 都报「删了 1 条」。
+    """
     try:
-        from nexsandglass.core.vector_store import get_vector_store
-        store = get_vector_store()
-        n = 0
-        for m in mem_ids:
-            try:
-                store.delete(m)
-                n += 1
-            except Exception:
-                pass
-        return n
-    except Exception:
+        from nexsandglass.core import semantic
+        return semantic.delete(mem_ids)
+    except Exception as e:
+        logger.warning("[erasure] 向量删除失败: %s", e)
         return 0
 
 
@@ -425,10 +423,12 @@ def forget(selector: dict, reason: str = "user_forget", apply: bool = False,
     report["idx"] = _purge_idx(line_starts)
     report["shadow"] = _purge_shadow(ids, line_starts)
     report["engram"] = _purge_engram(ts_list)
-    report["vectors"] = _purge_vectors(ids)
     for mid in ids:
         if memid.tombstone(mid, reason=reason):
             report["hub"] += 1
+    # 向量放在墓碑**之后**：后台补索引的线程只给在世记忆嵌入，墓碑先落下，
+    # 它就不可能在「删向量」与「打墓碑」之间把向量又补回来（v7.13）
+    report["vectors"] = _purge_vectors(ids)
 
     # 这个函数之前不返回 ok，也不返回 removed。调用方写 r.get("ok") 拿到 None，
     # 写 r.get("removed") 也拿到 None —— 删成功和删失败返回的东西一模一样。
@@ -545,6 +545,14 @@ def verify_erasure(needles: Iterable[str], journal_path: str = None) -> dict:
                 for nd in needles:
                     if nd in line:
                         hit("engram", line.strip())
+
+    # 语义索引里不存正文，按「指向已删除记忆的向量」验收：遗忘之后必须为 0
+    try:
+        from nexsandglass.core import semantic
+        for m in semantic.orphans():
+            hit("vectors", f"orphan vector {m}")
+    except Exception as e:
+        hit("vectors_error", str(e))
 
     try:
         q_hits = quarantine.find_text(needles)
