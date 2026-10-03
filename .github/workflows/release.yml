@@ -1,0 +1,134 @@
+# 发布到 PyPI（Trusted Publishing / OIDC —— 仓库里不存任何 token）
+#
+# 触发：推送 v* 标签（如 v7.13.0）→ 测试 → 构建 → 校验 → 发布
+#       手动运行（Actions 页面 Run workflow）只测试和构建，不发布，用来预演
+#
+# 一次性设置（PyPI 项目 nyx-memory → Publishing → Add a new publisher → GitHub）：
+#   Owner: sixgodgit   Repository: nyx   Workflow: release.yml   Environment: pypi
+#
+# 发版：改 nexsandglass/core/sandglass_paths.py 的 __version__ → 合并到 main →
+#       git tag v<版本> && git push origin v<版本>
+#       标签与 __version__ 不一致时直接失败，不会发出错版本号的包。
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . pytest fastapi httpx
+      - name: Run tests
+        env:
+          # 测试只写临时目录；任何一项写进真实数据目录都会在这里暴露
+          NEXSANDBASE_HOME: ${{ runner.temp }}/nyx-home
+        run: python -m pytest tests -q -p no:cacheprovider
+
+  build:
+    name: Build and verify
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Tag must match __version__
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(python - <<'EOF'
+          import re
+          src = open("nexsandglass/core/sandglass_paths.py", encoding="utf-8").read()
+          print(re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", src).group(1))
+          EOF
+          )
+          tag="${GITHUB_REF_NAME#v}"
+          echo "tag=$tag  __version__=$version"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::标签 v$tag 与 __version__ $version 不一致"
+            exit 1
+          fi
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          python -m twine check --strict dist/*
+      - name: Smoke-test the wheel in a clean venv
+        run: |
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install dist/*.whl
+          cd /tmp
+          NEXSANDBASE_HOME=$(mktemp -d) /tmp/smoke/bin/python - <<'EOF'
+          import importlib.metadata as md
+          import zipfile, glob, os
+          eps = sorted(e.name for e in md.entry_points(group="hermes_agent.memory_providers"))
+          assert eps == ["nexsandglass", "nyx"], eps
+
+          class Ctx:
+              provider = None
+              def register_memory_provider(self, p):
+                  self.provider = p
+
+          import nexsandglass_hermes
+          c = Ctx()
+          nexsandglass_hermes.register(c)
+          p = c.provider
+          p.initialize("smoke", agent_context="primary", platform="ci")
+          p.sync_turn("我住在杭州", "好的")
+          assert len(p.get_tool_schemas()) >= 10
+
+          whl = glob.glob(os.path.join(os.environ["GITHUB_WORKSPACE"], "dist", "*.whl"))[0]
+          names = zipfile.ZipFile(whl).namelist()
+          bad = [n for n in names if n.startswith("tests/") or n.endswith((".db", ".jsonl", ".idx"))]
+          assert not bad, bad
+          print("smoke ok:", eps, len(names), "files")
+          EOF
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: Publish to PyPI
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/nyx-memory/
+    permissions:
+      id-token: write   # Trusted Publishing：用 GitHub 的 OIDC 身份换 PyPI 的一次性凭证
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2

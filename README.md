@@ -1062,6 +1062,24 @@ v7.4 那次误抹 **345 行真实对话**之后，修复做的是"消灭伪行�
 
 ---
 
+## 🚢 发布（维护者）
+
+`.github/workflows/release.yml`：推送 `v*` 标签 → Python 3.10–3.13 全量测试 → 构建 → 校验（标签必须等于
+`__version__`、`twine check --strict`、干净环境安装后 Hermes 入口可用、包里没有测试与数据文件）→ 发布到 PyPI。
+用 PyPI Trusted Publishing（OIDC），仓库里**不存任何 token**。在 Actions 页面手动运行只测试和构建，不发布。
+
+一次性设置：PyPI 项目 `nyx-memory` → Publishing → Add a new publisher → GitHub，填
+Owner `sixgodgit` / Repository `nyx` / Workflow `release.yml` / Environment `pypi`。
+
+发版：
+
+```bash
+# 1. 改 nexsandglass/core/sandglass_paths.py 的 __version__，合并到 main
+git tag v7.13.0 && git push origin v7.13.0
+```
+
+---
+
 ## 📄 License
 
 MIT License
