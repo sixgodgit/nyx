@@ -261,6 +261,39 @@ def test_facade_forget_actually_erases(env):
     assert erasure.verify_erasure([SECRET], str(home / "sandglass.txt"))["clean"] is True
 
 
+def test_mcp_memory_forget_by_memory_id_really_erases(env):
+    """MCP memory_forget 声明的参数是 memory_id。v7.12 及以前 facade 不认它：
+    返回 ok、删了 0 条、原文原封不动 —— 正是本文件开头那类「报成功但没删」。"""
+    import json
+    memid, erasure, sq, vault, shadow, home, log = env
+    from nexsandglass.interfaces import sandglass_mcp
+    _seed(log, 3)
+    mid = log.log_message(f"我的银行密码提示是 {SECRET}", sender="user", return_id=True)
+    _reindex(sq, vault, shadow)
+
+    sent = []
+    orig = sandglass_mcp._send
+    sandglass_mcp._send = sent.append
+    try:
+        sandglass_mcp._handle_tool("memory_forget", {"memory_id": mid}, 1)
+    finally:
+        sandglass_mcp._send = orig
+    out = json.loads(sent[-1]["result"]["content"][0]["text"])
+    assert out["ok"] is True and out["removed"] == 1 and out["recoverable"] is True, out
+    assert erasure.verify_erasure([SECRET], str(home / "sandglass.txt"))["clean"] is True
+
+
+def test_facade_forget_refuses_unrecognized_selector(env):
+    """选不中任何东西的条件不能报 ok：调用方会以为删掉了。"""
+    memid, erasure, sq, vault, shadow, home, log = env
+    from nexsandglass.runtime import facade
+    log.log_message(f"要留着的 {SECRET}", sender="user")
+    for sel in ({"memory_id": "m_does_not_exist"}, {"id": "whatever"}, {}):
+        r = facade.forget(sel)
+        assert r["ok"] is False and r["removed"] == 0 and r["error"], (sel, r)
+    assert SECRET in (home / "sandglass.txt").read_text(encoding="utf-8")
+
+
 def test_facade_forget_dry_run(env):
     memid, erasure, sq, vault, shadow, home, log = env
     from nexsandglass.runtime import facade

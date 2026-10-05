@@ -2,7 +2,7 @@
 
 > **Nyx — 把「检索失败」也当作一类信号的记忆系统**
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.13-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.13.1-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 ## 别的记忆系统回答「找到了什么」，Nyx 还回答「我是不是见过」
 
@@ -60,18 +60,16 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 | 🕸️ **织线 Thread** | `features/weavethread.py` | 知识图谱（实体关系三元组），支持 OpenViking Memory Link 类型化 links + PPR 图增强 |
 | 🏜️ **影子沙 Fact Store** | `features/shadow_sand.py` | 结构化事实存储（带信任评分） |
 | 📊 **情绪/画像** | `core/emotion_vocab.py`, `l3/persona_l3.py` | 用户状态追踪、偏移率计算、回音折 |
-| 🌙 **梦境 Dream** | `dream/` | 夜间多阶段复盘：记忆整理、反思成长、创造联结 |
 | 📚 **记忆书 NyxBook** | `nyx-web/` | 「纸质晨光」主题的可视化记忆浏览 / 写日记 / 盖章 UI（FastAPI + Vue3） |
 | 🕸️ **类型化 Memory Link** | `features/weavethread.py` | 支持 OpenViking Memory Link 关系类型（belongs_to / evolved_from / contradicts / related_to …）+ PPR 图增强 |
 | 🔍 **语义检索** | `core/semantic.py` | 同义改写也能召回：向量与词法 RRF 融合，纯语义命中可进结果；只认「明显高于背景」的语义证据，字面完整命中保持在前；遗忘级联删除向量。可选：`pip install 'nyx-memory[vector]'`（本地多语言模型）或 OpenAI 兼容 API；不装则与词法召回完全相同（v7.13） |
 | 🤖 **LLM 图谱抽取** | `core/llm_extract.py`, `features/weavethread.py` | 可选 LLM 知识图谱补充抽取 + 实体归一化（可降级，v3.4.0） |
 | 🔌 **Hermes 记忆提供器** | `nexsandglass_hermes/`, `core/memory_provider.py` | 官方 `MemoryProvider` 契约，entry point 自动发现；多人会话按 `owner_ids` 绑定来源；已在真实 Hermes 上跑通（v7.12） |
-| 🔌 **MCP 接口** | `interfaces/sandglass_mcp.py`, `interfaces/nyx.py` | MCP 工具接入 Hermes / Claude |
+| 🔌 **MCP 接口** | `interfaces/sandglass_mcp.py` | stdio MCP 服务，26 个工具（见下文「MCP 工具」），可接 Claude Desktop / Claude Code 等任意 MCP 客户端 |
 | 🧬 **记忆加工** | `engram/types.py`, `engram/decay.py` | Tulving 四类记忆 + Ebbinghaus 衰减（EngramTide 融合） |
 | 🧬 **差异化写入** | `engram/writer.py` | semantic 覆盖 / emotional 强化 / procedural 去重 / episodic 直插 |
 | 🧬 **Constitutional** | `engram/context.py` | 记忆融入 system prompt 隐性影响（自然无痕） |
 | 🧩 **Canon 集成** | `runtime/intent.py` / `features/skill_distiller.py` | 与 Canon 技能生态联动：意图召回时确定是否需要某个 skill，反复出现的工作流自动蒸馏为 skill 候选 |
-| 🕸️ **类型化 Memory Link** | `features/weavethread.py` | 吸收 OpenViking Memory Link，支持 belongs_to / evolved_from / contradicts / related_to 等关系类型 + PPR 图增强 |
 | 🔄 **记忆自我演化** | `engram/evolve.py`, `engram/loops/` | 四闭环：事实↔图谱、梦境↔加工、画像↔上下文、召回↔重要性 |
 | 🌙 **梦境管线** | `engram/dream_pipeline.py`, `engram/prompts/` | hypnos 三女神融合：浅睡总结→深睡内化→灵感联结 |
 | 🎛️ **热路径收编** | `runtime/orchestrator.py` | NyxOrchestrator：写入/召回统一入口，包住底层引擎 |
@@ -130,74 +128,66 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 
 ```
 nexsandglass/
-├── core/                        # 基础设施
-│   ├── memid.py                     # 🆔 ID 中枢：记忆唯一标识 + 行号跨度 + 墓碑（v7.4）
-│   ├── erasure.py                   # 🗑️ 擦除级联：中枢/日志/FTS/索引/影子/向量（v7.4）
-│   ├── embedding_provider.py        # 语义向量后端（本地/外部 API，Task 1）
-│   ├── vector_store.py              # 向量存储（JSON/sqlite-vec，Task 1）
-│   ├── vector_search.py             # 向量语义检索 + RRF 融合（Task 1）
-│   ├── search_router.py             # 检索路由器（五路混合排序）
-│   ├── llm_extract.py               # 可选 LLM 抽取接口（Task 2）
-│   ├── sandglass_sqlite.py          # SQLite 沙漏存储
-│   ├── sandglass_paths.py           # 数据路径管理
-│   ├── sandglass_archive.py         # 记忆归档
-│   ├── l0_buffer.py                 # L0 缓冲层
-│   ├── emotion_vocab.py             # 情绪词库
-├── interfaces/                    # 对外接口
-│   ├── nexsandglass.py              # 主接口
-│   ├── nyx.py                       # Nyx 适配层（含 Veil Bloom Filter + Déjà Vu 寻回）
-│   ├── sandglass_mcp.py             # MCP 工具
-│   └── plugin.py                    # 插件接口
-├── features/                      # 特性模块
-│   ├── weavethread.py               # 知识图谱（正则 + 可选 LLM 抽取，Task 2）
-│   ├── shadow_sand.py               # 结构化事实存储（信任评分）
-│   ├── sandglass_vault.py           # 沙漏索引检索
-│   ├── soul_diff.py                 # 灵魂差分导出/迁移
-│   ├── nightwatch.py                # 夜间值守
-│   └── ...                          # decision_particles/multi_analysis/pulse/think
-├── l3/                          # L3 层（高级记忆）
-│   ├── persona_l3.py                # 画像构建
-│   ├── l3_search_core.py            # SimHash/搜索核心
-│   └── ...                          # tasks/emotion/scene/offset/weave/arch
-├── engram/                      # 🧬 EngramTide 融合层（记忆加工）
-│   ├── types.py                     # Tulving 四类记忆
-│   ├── decay.py                     # Ebbinghaus 衰减 + 浮现 + 激活
-│   ├── writer.py                    # 差异化写入 + embedding 计算（Task 1）
-│   ├── context.py                   # Constitutional 上下文
-│   ├── evolve.py                    # 演化协调器
-│   ├── dream_pipeline.py            # 🌙 梦境管线（hypnos 融合）
-│   ├── prompts/                     # 三女神 prompt（Mnemosyne/Epimetheus/Prometheus）
-│   └── loops/                       # 四闭环（事实↔图谱/梦境↔加工/画像↔上下文/召回↔重要性）
-└── utils/                       # 工具
-    ├── heartbeat.py                 # 心跳
-    └── discipline.py                # 纪律约束```
+├── core/                        # 存储与基础设施
+│   ├── memid.py                     # 🆔 ID 中枢：mem_id + 行号跨度 + 墓碑（v7.4）
+│   ├── sandglass_log.py             # 唯一写入口：落沙 + 影子沙 + 知识图谱 + 语义索引调度
+│   ├── sandglass_sqlite.py          # FTS5 全文索引
+│   ├── search_router.py             # 检索路由：FTS5 / 倒排 / TF-IDF / 影子沙 + 语义，RRF 融合
+│   ├── semantic.py                  # 🔍 语义检索（v7.13）
+│   ├── erasure.py                   # 🗑️ 擦除级联 + 验收（v7.4）
+│   ├── quarantine.py                # 🕯️ 遗忘隔离区：还原 / 到期擦除（v7.6）
+│   ├── provenance.py                # 🛡️ 来源与信任（v7.8）
+│   ├── understand.py                # 🗣️ 一句话 → 带时间的事实（v7.10–v7.11）
+│   ├── clock.py                     # 可注入时钟（评测 / 回放用）
+│   ├── memory_provider.py           # 🔌 Hermes MemoryProvider 实现（v7.12）
+│   ├── embedding_provider.py, vector_store.py, vector_search.py   # 旧向量组件（v3.4，召回主路径不用）
+│   └── sandglass_paths.py, sandglass_archive.py, l0_buffer.py, emotion_vocab.py, llm_extract.py, …
+├── runtime/                     # 对外 API：observe / recall / feedback / forget / restore / consolidate
+│   ├── facade.py                    # 稳定门面
+│   ├── orchestrator.py              # 写入 FormationRouter + 召回 RecallPlanner（信任门在这里）
+│   ├── intent.py, bundle.py, promotion.py, consolidation.py, eval.py
+├── engram/                      # 记忆加工（EngramTide 融合）
+│   ├── loops/temporal_fact.py       # 🕰️ 双时态事实（v7.7）
+│   ├── types.py, decay.py, writer.py, context.py, bridge.py, evolve.py, dream_pipeline.py, prompts/
+├── features/                    # 影子沙、织线知识图谱、倒排索引、灵魂差分、技能蒸馏、夜间值守 …
+├── l3/                          # 画像、场景、偏移率、矛盾检测、待办
+├── dejavu/                      # 👻 Déjà Vu 独立子包（Veil Bloom + Mist SQLite）
+├── interfaces/                  # sandglass_mcp.py（MCP 服务）、nyx.py（Déjà Vu 适配）
+├── nyx_server.py                # NyxBook 的 HTTP API（FastAPI，可选）
+└── utils/
+nexsandglass_hermes/             # Hermes 插件入口：entry point + plugin.yaml + 配置（v7.12）
+benchmarks/                      # LongMemEval / 纵向评测 / 投毒演练 / 事故演练 / Déjà Vu
+scripts/nyx_quarantine.py        # 隔离区命令行：list / restore / purge（仓库里有，pip 包里没有）
+```
 
 ---
 
 ## 📊 Benchmark
 
-基于 `tests/eval/run_eval.py` 运行的记忆系统评测（测试集 60 条，top-k=5）：
-
-| 指标 | 结果 |
-|------|------|
-| 词法检索召回率 | 75.00% |
-| Episodic 记忆 30 天衰减后权重 | 22.31% |
-| 评测脚本 | `tests/eval/run_eval.py` |
-
->注：混合检索（词法+RRF向量）需要安装 `[vector]` 或 `[chroma]` 额外依赖后运行。
->
->**v7.12 更正**：上表的「词法检索召回率」用的是评测脚本**自带**的简易分词，不经过 nyx 的检索链路，不能代表 nyx 的召回质量。
-
-**公开基准 LongMemEval**（`benchmarks/longmemeval_eval.py`，走 Hermes 插件的真实写入/召回路径）：
-检索指标零 LLM 可复现；QA 生成假设文件交给官方 `evaluate_qa.py` 打分。
-数据在 HuggingFace，本仓库的构建环境连不到 —— **目前没有真实数据上的分数**，需要在部署环境运行：
+**公开基准 LongMemEval**（`benchmarks/longmemeval_eval.py`，v7.12）：每题独立目录，按会话日期冻结时钟，
+逐轮走 Hermes 插件真实的写入路径，再按官方定义算会话级 recall_any@k / recall_all@k（零 LLM，可复现）；
+`--qa` 生成官方格式的答案文件，交给官方 `evaluate_qa.py` 打分。
+**目前还没有真实数据上的分数** —— 数据在 HuggingFace，开发环境连不到。在部署环境运行
+（开 / 关语义各跑一次，差值就是语义检索的贡献）：
 
 ```bash
+pip install "nyx-memory[vector]"
 python3 benchmarks/longmemeval_eval.py longmemeval_s_cleaned.json --workers 8 --json benchmarks/results/longmemeval_s.json
+python3 benchmarks/longmemeval_eval.py longmemeval_s_cleaned.json --workers 8 --no-semantic --json benchmarks/results/longmemeval_s_lexical.json
 ```
 
-其他可复现的评测：纵向评测 `benchmarks/longitudinal_eval.py`（双时态，v7.9–v7.11）、投毒演练 `benchmarks/poisoning_drill.py`（v7.8）、
-事故演练 `benchmarks/forget_restore_drill.py`（v7.6）、真实 Hermes 集成检查 `tests/integration/hermes_real_check.py`（v7.12）。
+**仓库里可复现的评测**（结果在 `benchmarks/results/`）：
+
+| 评测 | 测什么 | 版本 |
+|---|---|---|
+| `benchmarks/longitudinal_eval.py` | 一个人半年的生活：现在 / 当时以为 / 过去某刻，三个问题分开打分；含留出句式 | v7.9–v7.11 |
+| `benchmarks/poisoning_drill.py` | 记忆投毒：16 条攻击 0 条无标注进 prompt，主人 8 条 0 误伤 | v7.8 |
+| `benchmarks/forget_restore_drill.py` | 误删 150 条 → 逐字节还原；真删仍不可逆 | v7.6 |
+| `tests/integration/hermes_real_check.py` | 对真实 Hermes 源码跑插件全链路（需 `HERMES_AGENT_SRC`） | v7.12 |
+| `benchmarks/dejavu_bench.py` | Déjà Vu「熟悉 / 陌生」分类 | v7.5 |
+
+> 旧版这里放过 `tests/eval/run_eval.py` 的「词法检索召回率 75%」。那个脚本用自带的简易分词给一个内存列表打分，
+> **不经过 nyx 的检索链路**，不代表 nyx 的召回质量，已撤下。
 
 ---
 
@@ -246,7 +236,8 @@ pip install nyx-memory      # 自动注册 entry point：hermes_agent.memory_pro
 ```
 
 Hermes `config.yaml` 里 `memory.provider: nyx`。可选配置（`hermes memory setup` 写入 `$HERMES_HOME/nyx.json`）：
-`data_dir`、`owner_ids`（多人会话里谁是主人）、`bots_are_external`、`prefetch_tokens`。
+`data_dir`、`owner_ids`（多人会话里谁是主人）、`bots_are_external`、`prefetch_tokens`，
+以及语义检索的 `semantic` / `embedding_model` / `embedding_api_url` / `embedding_api_key`（密钥只进 `.env`）。
 详见 [`nexsandglass_hermes/README.md`](nexsandglass_hermes/README.md)。
 
 ### 方式五：作为 Hermes 技能
@@ -261,91 +252,108 @@ cp -r skills/nyx ~/.hermes/skills/memory/
 
 ## 🔧 配置
 
-`memory_bus_config.yaml`（或 Hermes `config.yaml`）示例：
+**Hermes 用户**：`config.yaml` 里 `memory.provider: nyx`，其余用 `hermes memory setup`（写入 `$HERMES_HOME/nyx.json`，
+键见 [`nexsandglass_hermes/README.md`](nexsandglass_hermes/README.md)）。
 
-```yaml
-memory:
-  provider: nyx             # 旧名 nexsandglass 同样可用
-  memory_enabled: true
-  user_profile_enabled: true
-  nyx:
-    sandglass:
-      backend: tfidf        # 或 chromadb
-      auto_consolidate: true
-    dream:
-      enabled: true
-      cron: "0 3 * * *"
-    dejavu:
-      enabled: true
-      sensitivity: 0.7
-```
+**环境变量**（所有入口通用；Hermes 下环境变量优先于 `nyx.json`）：
+
+| 变量 | 默认 | 作用 |
+|---|---|---|
+| `NEXSANDBASE_HOME` | `~/.neurobase` | 记忆数据目录 |
+| `NYX_OWNER_IDS` | 空 | 多人会话里主人的 ID / 名字（逗号分隔）；其他人说的话按外部来源记 |
+| `NYX_EMBED` | `auto` | 语义检索后端：`auto` / `local` / `api` / `off` |
+| `NYX_EMBED_MODEL` | 本地 `paraphrase-multilingual-MiniLM-L12-v2`；API `text-embedding-3-small` | 嵌入模型 |
+| `EMBEDDING_API_URL` / `EMBEDDING_API_KEY` | 空 | OpenAI 兼容 `/embeddings` |
+| `NYX_EMBED_Z` | `2` | 语义命中要比背景高出多少（稳健 z 分数）才算证据 |
+| `NYX_UNDERSTAND_LLM` | 关 | `1` = 事实抽取走 LLM（结果必须过校验；失败退回规则） |
+| `LLM_EXTRACT_API_URL` / `NYX_UNDERSTAND_MODEL` | 空 / `deepseek-v4-flash` | 抽取用的 OpenAI 兼容网关与模型 |
+| `NYX_FORGET_RETENTION_DAYS` | `30` | 遗忘隔离期 |
+| `NYX_BUNDLE_MAX_TOKENS` | `1500` | system prompt 注入预算 |
+| `NYX_RUNTIME` | `1` | `0` = 紧急回滚到旧写入路径 |
 
 ---
 
 ## 🛠️ MCP 工具
 
+启动（stdio）：`python3 -m nexsandglass.interfaces.sandglass_mcp`
+
 | 工具 | 功能 |
 |------|------|
-| `sandglass_search` | 倒排索引关键词搜索 |
-| `sandglass_semantic` | 语义搜索（TF-IDF / ChromaDB 后端） |
-| `sandglass_recent` | 最近 N 条记忆 |
-| `sandglass_persona` | 当前主人画像 |
-| `sandglass_offset` | 当前偏移率（决策趋势） |
-| `sandglass_echo` | 回音折（情感风向） |
-| `sandglass_chart` | 情绪熵 ASCII 可视化 |
-| `sandglass_dejavu` | Déjà Vu 模糊感知（check/stats/save_bf/awaken） |
-| `sandglass_thread` | 织线知识图谱查询 |
-| `sandglass_thread_graph` | 实体子图展开 |
-| `sandglass_thread_weave` | 因果链摘要 |
-| `sandglass_dream` | 幽灵决策（"如果选另一个选项会怎样"） |
-| `sandglass_export/import` | 记忆迁移 |
-| `soul_export/merge` | 灵魂差分导出/合并 |
-| `fact_store` | 事实增删查（信任评分） |
-| `fact_feedback` | 信任评分反馈 |
-| `memory_observe` | 🆕 统一记忆写入入口（经 PromotionEngine 晋升） |
-| `memory_recall` | 🆕 统一记忆召回入口（经 MemoryIntent 自适应） |
-| `memory_feedback` | 🆕 统一反馈入口 |
-| `memory_forget` | 🆕 统一遗忘入口 |
+| `memory_observe` | 统一写入（经晋升门与来源绑定） |
+| `memory_recall` | 统一召回（意图自适应 + 信任门） |
+| `memory_feedback` | 召回反馈（强化 / 弱化） |
+| `memory_forget` | 遗忘：`memory_id` / `contains` / `dry_run`；**默认进隔离区**，保留期内可还原；什么都没删时返回 `ok=false` |
+| `sandglass_search` / `sandglass_semantic` | 关键词搜索 / 同义词 + SimHash + TF-IDF 搜索 |
+| `sandglass_recent` / `sandglass_ping` | 最近 N 条 / 健康检查 |
+| `sandglass_persona` / `sandglass_tasks` | 主人画像 / 待办 |
+| `sandglass_offset` / `sandglass_echo` / `sandglass_chart` | 偏移率 / 情感风向 / 情绪熵图 |
+| `sandglass_dejavu` | Déjà Vu 模糊感知 |
+| `sandglass_thread` / `sandglass_thread_graph` / `sandglass_thread_weave` / `sandglass_thread_add` | 知识图谱查询 / 子图 / 因果链 / 手动补三元组 |
+| `sandglass_dream` | 幽灵决策（「如果选另一个会怎样」） |
+| `sandglass_export` / `sandglass_import` / `sandglass_migrate` | 导出 / 导入（含 ChatGPT、Claude 对话导出）/ 打包迁移 |
+| `sandglass_soul_export` / `sandglass_soul_merge` | 灵魂差分导出 / 合并 |
+| `fact_store` / `fact_feedback` | 事实存储 / 信任反馈 |
+
+> MCP 目前没有还原工具；被遗忘的记忆用 `scripts/nyx_quarantine.py restore <mem_id>` 或下面的 `restore()` 还原。
+> 双时态查询（现在 / 当时以为 / 演变）与隔离区工具目前只在 Hermes 插件里提供（`nyx_belief` / `nyx_restore` / `nyx_quarantine`）。
 
 ---
 
 ## 📖 使用示例
 
 ```python
-# 搜索记忆
-sandglass_search(query="荷兰 BV 公司", limit=10)
+from nexsandglass.runtime import observe, recall, forget, restore
 
-# 语义搜索
-sandglass_semantic(query="如何优化网络延迟", backend="tfidf")
+observe("我上个月从杭州搬到了上海", source="user")   # source="user" = 主人亲口说的
+print(recall("我现在住哪").text)                       # → user 住在 上海（自 2026-09-01）
 
-# 查看主人画像
-sandglass_persona()
-
-# 查询知识图谱
-sandglass_thread(entity="用户", relation="偏好", limit=5)
-
-# 展开知识子图
-sandglass_thread_graph(entity="Xian Delicious Foods", depth=2)
-
-# 幽灵决策
-sandglass_dream(question="如果选择另一个方案会怎样")
+r = forget({"contains": "搬到了上海", "dry_run": True})  # 先预览
+r = forget({"contains": "搬到了上海"})                 # 进隔离区：召回立刻读不到
+print(r["recoverable"], r["purge_after"])             # True 2026-11-04 …
+restore(r["preview"][0]["mem_id"])                     # 隔离期内原样还原
 ```
 
 ---
 
 ## 📊 数据存储
 
-| 数据 | 位置 | 格式 |
-|------|------|------|
-| 沙漏记忆 | `~/.hermes/sandglass/` | SQLite / JSONL |
-| 织线图谱 | `~/.hermes/sandglass/thread/` | JSON（三元组） |
-| 事实存储 | `~/.hermes/sandglass/facts/` | SQLite |
-| Déjà Vu | `~/.hermes/sandglass/dejavu.bf` | Bloom Filter 持久化 |
-| 梦境日志 | `~/.hermes/dreams/` | Markdown |
+默认目录 `~/.neurobase`（`NEXSANDBASE_HOME` 可改）。**`sandglass.txt` 是唯一真相来源**，其余都可以从它重建。
+
+| 文件 | 内容 |
+|------|------|
+| `sandglass.txt` | 原始日志：`时间 \| 发送者 \| 正文`，逐条追加 |
+| `nyx.db` | ID 中枢（mem_id ↔ 行号）、墓碑、来源与信任、遗忘隔离区 |
+| `sandglass.db` / `sandglass.idx` | FTS5 全文索引 / 倒排索引 |
+| `shadow_sand.db` | 影子沙（信任评分、实体、标签）+ 双时态事实 `wthread_triples` |
+| `vectors.db` | 语义索引（v7.13；没有嵌入后端时不创建） |
+| `engram_store.jsonl` | engram 加工层（四类记忆 + 衰减） |
+| `veil.bin` / `mist.db` | Déjà Vu（Bloom Filter / 出现记录） |
+| `persona/`、`archive/` | 画像与决策日志 / 冷归档 |
+
+Hermes 用户：数据目录在 `HERMES_HOME` 之外时，`hermes backup` 会自动把它带上（插件的 `backup_paths`）。
 
 ---
 
 ## 📝 更新日志
+
+### v7.13.1 (2026-10-05) — README 对照代码逐项核实 + MCP 遗忘修复
+
+**README**：之前每个版本只改了自己那一段，其余部分从没对照代码核对过。这次逐项核实后更正：
+- **Python 版本**：写的是 3.8+，实际最低 3.10 —— 核心模块（如 `engram/bridge.py`）里 `str | None`
+  这类注解在 import 时求值，3.8 / 3.9 上 import 直接失败，但 pip 会照装不误。`requires-python` 同步改为 `>=3.10`；
+  CI 在 3.10–3.13 上跑全量测试
+- **数据存储**：写的是 `~/.hermes/sandglass/…`，实际默认 `~/.neurobase`，文件也全不一样，按实际重写
+- **配置**：示例 YAML 里的 `auto_consolidate` / `sensitivity` / `memory_bus_config.yaml` 代码里都不读，
+  换成代码实际读取的环境变量表与 Hermes `nyx.json`
+- **MCP 工具**：表里漏了 4 个、2 个名字写错（实际 26 个，已用 `tools/list` 核对）；补上启动命令
+- **使用示例**：以前是把 MCP 工具名当 Python 函数写，跑不起来；换成实际跑过的 `nexsandglass.runtime` 示例
+- **包结构**：补上 v7.4 以后的模块；能力表删掉不存在的 `dream/` 目录和一行重复
+- **Benchmark**：撤下「词法召回率 75%」（脚本不经过 nyx 检索链路）；列出仓库里真正可复现的评测
+
+**MCP `memory_forget` 静默失败（修复）**
+工具声明的参数是 `memory_id`，门面层只认 `mem_id` / `source_id`：按 `memory_id` 遗忘返回 `ok`、删了 0 条、
+原文原封不动（已复现）。现在 `memory_id` 正常解析；选不中任何记忆、或带了不认识的条件时返回 `ok=false` 和原因，
+不再报成功。工具声明补上 `contains` / `dry_run`，并写明默认进隔离区。
 
 ### v7.13 (2026-10-03) — 语义检索接进召回主路径
 

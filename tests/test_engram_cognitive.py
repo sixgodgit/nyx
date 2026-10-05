@@ -172,7 +172,8 @@ def test_facade():
 
     # forget
     fg = facade.forget({"memory_id": "no-such-id"})
-    check("forget 无匹配不误删", fg["ok"] and fg["removed"] == 0)
+    # v7.13：找不到的 id 不再报 ok —— 「删了 0 条也是成功」正是那类静默失败
+    check("forget 无匹配不误删且如实报错", not fg["ok"] and fg["removed"] == 0 and "找不到" in fg["error"], fg)
 
     # 清理临时
     import shutil
