@@ -238,7 +238,7 @@ def forget(selector: dict) -> dict:
       - {"seq": N} / {"seqs": [...]}
       - {"contains": "子串"}   正文精确子串匹配
       - {"all": true}          清空（谨慎）
-      - {"source_id": "..."}   兼容旧形态，经 memid.resolve 解析
+      - {"source_id": "..."} / {"memory_id": "..."}   召回结果里的 id，经 memid.resolve 解析
       - {"dry_run": true}      只列出会删什么，不动任何东西
       - {"purge_now": true}    不留隔离区，当场不可逆（法务 / 他人隐私 / 误粘贴凭据）
       - {"retention_days": N}  覆盖本次的隔离期天数
@@ -257,12 +257,27 @@ def forget(selector: dict) -> dict:
         mode = "purge" if sel.pop("purge_now", False) else "quarantine"
         days = sel.pop("retention_days", None)
 
-        # 兼容旧调用：source_id 可能是 "engram:<ts>" / "shadow:<line>" / 裸行号
-        src = sel.pop("source_id", None)
-        if src is not None:
+        # 兼容旧调用：source_id 可能是 "engram:<ts>" / "shadow:<line>" / 裸行号。
+        # memory_id 是 MCP memory_forget 声明的参数名（召回结果里的 id 也叫它）——
+        # v7.13 之前这里不认它：按 memory_id 遗忘返回 ok、删了 0 条、原文原封不动
+        unresolved = []
+        for key in ("source_id", "memory_id"):
+            src = sel.pop(key, None)
+            if src is None:
+                continue
             mid = memid.resolve(src)
             if mid:
                 sel.setdefault("mem_ids", []).append(mid)
+            else:
+                unresolved.append(src)
+
+        # 不认识的选择条件不能静默当成「什么都不删」然后报 ok
+        known = {"mem_id", "mem_ids", "seq", "seqs", "contains", "all"}
+        unknown = sorted(set(sel) - known)
+        if unknown or not any(sel.get(k) not in (None, "", [], False) for k in known):
+            why = (f"无法识别的选择条件: {unknown}" if unknown else
+                   f"找不到这条记忆: {unresolved}" if unresolved else "selector 为空")
+            return {"ok": False, "action": "error", "removed": 0, "error": why}
 
         rep = erasure.forget(sel, reason=reason, apply=not dry, mode=mode,
                              retention_days=days)

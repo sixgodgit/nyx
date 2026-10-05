@@ -338,10 +338,14 @@ TOOLS = [
           {"memory_ids": {"type": "array", "items": {"type": "string"},
                           "description": "召回记忆 id 列表"},
            "helpful": {"type": "boolean", "description": "是否有帮助"}}),
-    _tool("memory_forget", "统一遗忘入口——按 selector 遗忘记忆",
-          {"memory_id": {"type": "string", "description": "记忆 id"},
-           "source_id": {"type": "string", "description": "来源 id"},
-           "all": {"type": "boolean", "description": "清空全部(谨慎)"}}),
+    _tool("memory_forget",
+          "统一遗忘入口。默认进隔离区（保留期内可还原，到期才物理擦除）；"
+          "先带 dry_run=true 看会删哪些。返回 ok=false 表示什么都没删",
+          {"memory_id": {"type": "string", "description": "记忆 id（召回结果里的 id，或 m_ 开头的 mem_id）"},
+           "source_id": {"type": "string", "description": "来源 id（兼容旧形态）"},
+           "contains": {"type": "string", "description": "正文精确子串"},
+           "dry_run": {"type": "boolean", "description": "只预览，不删除"},
+           "all": {"type": "boolean", "description": "清空全部(谨慎；同样先进隔离区)"}}),
 ]
 
 
