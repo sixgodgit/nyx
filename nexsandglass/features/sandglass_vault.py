@@ -143,10 +143,12 @@ def _parse_line(line: str) -> tuple:
 
 
 def _journal_lines() -> int:
+    # 增量计数（v7.13.2）：以前每次调用都把整份日志从头读一遍，而倒排与 TF-IDF
+    # 每次召回各调一次 —— 15 万条记忆时光数行就占了召回时间的大头
     if not os.path.exists(_SANDGLASS):
         return 0
-    with open(_SANDGLASS, "r", encoding="utf-8", errors="replace") as f:
-        return sum(1 for _ in f)
+    from nexsandglass.core import journal_mirror
+    return journal_mirror.line_count(_SANDGLASS)
 
 
 def _write_idx(idx, covered_lines: int = None):

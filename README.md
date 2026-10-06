@@ -2,7 +2,7 @@
 
 > **Nyx — 把「检索失败」也当作一类信号的记忆系统**
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.13.1-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.13.2-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 ## 别的记忆系统回答「找到了什么」，Nyx 还回答「我是不是见过」
 
@@ -133,6 +133,7 @@ nexsandglass/
 │   ├── sandglass_log.py             # 唯一写入口：落沙 + 影子沙 + 知识图谱 + 语义索引调度
 │   ├── sandglass_sqlite.py          # FTS5 全文索引
 │   ├── search_router.py             # 检索路由：FTS5 / 倒排 / TF-IDF / 影子沙 + 语义，RRF 融合
+│   ├── journal_mirror.py            # 日志增量内存镜像：行数与兜底扫描不再随历史变长而变慢（v7.13.2）
 │   ├── semantic.py                  # 🔍 语义检索（v7.13）
 │   ├── erasure.py                   # 🗑️ 擦除级联 + 验收（v7.4）
 │   ├── quarantine.py                # 🕯️ 遗忘隔离区：还原 / 到期擦除（v7.6）
@@ -185,6 +186,7 @@ python3 benchmarks/longmemeval_eval.py longmemeval_s_cleaned.json --workers 8 --
 | `benchmarks/forget_restore_drill.py` | 误删 150 条 → 逐字节还原；真删仍不可逆 | v7.6 |
 | `tests/integration/hermes_real_check.py` | 对真实 Hermes 源码跑插件全链路（需 `HERMES_AGENT_SRC`） | v7.12 |
 | `benchmarks/dejavu_bench.py` | Déjà Vu「熟悉 / 陌生」分类 | v7.5 |
+| `benchmarks/recall_latency.py` | 3 万 / 15 万条记忆下 Hermes 插件的启动、首轮与每轮召回耗时 | v7.13.2 |
 
 > 旧版这里放过 `tests/eval/run_eval.py` 的「词法检索召回率 75%」。那个脚本用自带的简易分词给一个内存列表打分，
 > **不经过 nyx 的检索链路**，不代表 nyx 的召回质量，已撤下。
@@ -269,6 +271,8 @@ cp -r skills/nyx ~/.hermes/skills/memory/
 | `LLM_EXTRACT_API_URL` / `NYX_UNDERSTAND_MODEL` | 空 / `deepseek-v4-flash` | 抽取用的 OpenAI 兼容网关与模型 |
 | `NYX_FORGET_RETENTION_DAYS` | `30` | 遗忘隔离期 |
 | `NYX_BUNDLE_MAX_TOKENS` | `1500` | system prompt 注入预算 |
+| `NYX_JOURNAL_MIRROR_MB` | `32` | 日志内存镜像上限（日志文件大小，MB）；超过则退回逐行扫描。约占日志 3.5 倍内存 |
+| `NYX_WARM_WAIT_SECONDS` | `10` | Hermes 首轮对话最多等后台预热多久 |
 | `NYX_RUNTIME` | `1` | `0` = 紧急回滚到旧写入路径 |
 
 ---
@@ -335,6 +339,45 @@ Hermes 用户：数据目录在 `HERMES_HOME` 之外时，`hermes backup` 会自
 ---
 
 ## 📝 更新日志
+
+### v7.13.2 (2026-10-06) — 召回提速：查询不再随历史变长而变慢
+
+**问题**：之前测的 10–50ms 是几十条记忆的小库。按真实写入路径造了 3 万条和 15 万条记忆（重度使用约一年 / 五年）实测：
+
+| | 3 万条 | 15 万条 |
+|---|---|---|
+| 召回 p50 / p95 | 51 / 98 ms | 167 / 431 ms |
+| 首次召回 | 303 ms | 1.76 s |
+| Hermes 插件启动 | — | 2.8 s（同步全量重建倒排） |
+
+剖析出来的原因都是「每次都把整份历史重新过一遍」，和数据在磁盘上无关（SQLite 与倒排本来就在内存缓存里）：
+1. 倒排与 TF-IDF 两路判断索引是否过期时，**每次查询各把整份日志从头数一遍行数**
+2. 问句里没有词命中索引时（「我现在住哪」、单字查询），兜底扫描**逐行解码整份日志**
+3. 插件启动时同步全量重建倒排；第一轮对话再现场把倒排和日志读进内存
+
+**改法：`core/journal_mirror.py` —— 日志的增量内存镜像**
+- 日志只会追加：同一个文件、只是变长、旧末尾没变 → 只读新增的那几行（每轮对话的正常情况）；
+  遗忘 / 还原用 `os.replace` 换了文件、被截短、末尾对不上 → 整份重读。所以**遗忘之后内存里不会留着旧正文**（有测试）
+- 行数镜像只存计数；正文镜像约为日志文件的 3.5 倍（15 万条 47MB），超过 `NYX_JOURNAL_MIRROR_MB`
+  （默认 32MB 日志 ≈ 36 万条）就不建，退回逐行扫描 —— 宁可慢，不能把内存吃光
+- Hermes 插件启动不再同步重建：后台增量补齐索引、把倒排与日志镜像读进内存、跑一次预热召回；
+  第一轮如果赶上预热没做完就等它（同时各加载一份只会互相抢：实测首轮从 1.1 秒变成 3 秒）
+
+**结果**（`benchmarks/recall_latency.py`，Hermes 插件的 `prefetch`，语义检索关）：
+
+| | 3 万条 | 15 万条 |
+|---|---|---|
+| 插件启动 | 49 ms | 2.8 s → **69 ms** |
+| 后台预热 | 0.2 s | 1.2 s |
+| 首轮（预热完成后） | 34 ms | 1.4 s → **63 ms** |
+| 首轮（启动后立刻说话） | 268 ms | 0.9 s |
+| 每轮 p50 / p95 | 16 / 29 ms | 52 / 112 ms |
+| 召回 p50 / p95（同一脚本前后对比） | 51 / 98 → **17 / 32 ms** | 167 / 431 → **51 / 109 ms** |
+
+召回结果不变：纵向评测三轨逐项相同，LongMemEval 小样本逐题排名相同（只有耗时变了）。
+
+**还剩的**：15 万条时每轮仍有 50–110ms，大头是影子沙的 `LIKE '%词%'` 全表扫（~20ms）和无索引命中时的兜底扫描
+（内存里 ~20–90ms，仍随历史线性增长）。真正的解法是让兜底不再需要 —— 中文单字与字符 n-gram 进索引，下一步做。
 
 ### v7.13.1 (2026-10-05) — README 对照代码逐项核实 + MCP 遗忘修复
 

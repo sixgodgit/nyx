@@ -1,5 +1,5 @@
 name: nyx
-version: 7.13.1
+version: 7.13.2
 description: >-
   Nyx 夜神 — 单用户、本地、零 API Key 的 agent 记忆。双时态事实（现在信什么 / 当时以为什么）、
   写入时绑定来源与信任（防记忆投毒）、两段式遗忘（隔离区可还原）、Déjà Vu 模糊感知。

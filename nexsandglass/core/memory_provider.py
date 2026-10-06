@@ -20,6 +20,7 @@ import logging
 import os
 import re
 import threading
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -203,6 +204,7 @@ class NexSandglassProvider(MemoryProvider):
     _prefetch_budget = _PREFETCH_TOKENS_DEFAULT
     _turn_author: Optional[dict] = None
     _last_recall: Optional[int] = None
+    _warm_thread = None
 
     def __init__(self, config: dict = None):
         self._config = config or {}
@@ -280,11 +282,13 @@ class NexSandglassProvider(MemoryProvider):
             if nb_scripts not in sys.path:
                 sys.path.insert(0, nb_scripts)
 
-            from nexsandglass.features.sandglass_vault import rebuild_index
             from nexsandglass.core.sandglass_paths import validate
             validate()
             if self._can_write():
-                rebuild_index()          # 子 agent / cron 不重建主 agent 的索引
+                # v7.13.2：不再同步全量重建倒排（15 万条记忆时启动卡 2.8 秒）。
+                # 索引本来就按日志行数增量补齐；放到后台补，并顺手把索引和日志镜像读进内存，
+                # 第一轮对话不用再现场加载（实测首轮 1.4 秒 → 与之后各轮相同）
+                self._warm_async()
                 try:
                     from nexsandglass.core import semantic
                     semantic.warm_async()    # 后台：加载嵌入模型 + 回填历史向量（无后端时空操作）
@@ -298,6 +302,31 @@ class NexSandglassProvider(MemoryProvider):
 
     def _can_write(self) -> bool:
         return (self._agent_context or "") in _WRITE_CONTEXTS
+
+    @staticmethod
+    def _warm() -> None:
+        """增量补齐索引 + 把倒排与日志镜像读进内存 + 一次预热召回（连接、Déjà Vu、时序表）。"""
+        t0 = time.time()
+        try:
+            from nexsandglass.core import sandglass_sqlite, journal_mirror
+            from nexsandglass.features import sandglass_vault
+            sandglass_sqlite.sync_incremental()
+            sandglass_vault._sync_index()
+            journal_mirror.records(sandglass_vault._SANDGLASS)
+            from nexsandglass.runtime.orchestrator import get_orchestrator
+            get_orchestrator().recall("记忆预热", token_budget=200)
+            logger.info("Nyx 预热完成：%.0f ms", (time.time() - t0) * 1000)
+        except Exception as e:
+            logger.warning("Nyx 预热失败（不影响使用，首轮查询会现场加载）: %s", e)
+
+    def _warm_async(self) -> None:
+        try:
+            from agent.memory_provider import spawn_context_thread
+            t = spawn_context_thread(self._warm, name="nyx-warm")
+        except Exception:
+            t = threading.Thread(target=self._warm, name="nyx-warm", daemon=True)
+        t.start()
+        self._warm_thread = t
 
     def system_prompt_block(self) -> str:
         """V2.9.8: 四层问答式注入 — 你是谁→往哪走→怎么变成这样→还没做完"""
@@ -515,6 +544,10 @@ class NexSandglassProvider(MemoryProvider):
         self._last_recall = None           # recall_status 只反映最近这一次
         parts: List[str] = []
         if not is_trivial_prompt(query):
+            # 预热还没做完就等它：同时现场加载同一份索引只会互相抢 —— 实测首轮从 1.1 秒变成 3 秒
+            warm = getattr(self, "_warm_thread", None)
+            if warm is not None and warm.is_alive():
+                warm.join(_as_int(os.environ.get("NYX_WARM_WAIT_SECONDS"), 10))
             try:
                 from nexsandglass.runtime.orchestrator import get_orchestrator
                 mc = get_orchestrator().recall(query, token_budget=self._prefetch_budget or 1)

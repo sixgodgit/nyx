@@ -244,28 +244,23 @@ class MmapFallback:
             from nexsandglass.features.sandglass_vault import _query_tokens
             tokens = _query_tokens(query)
             has_tokens = bool(tokens)
-            with open(self._path(), "rb") as f:
-                with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
-                    ln = 0
-                    for line in iter(mm.readline, b""):
-                        ln += 1
-                        try:
-                            decoded = line.decode("utf-8", errors="ignore").strip()
-                            if " | " not in decoded: continue
-                            parts = decoded.split(" | ", 2)
-                            if len(parts) < 3: continue
-                            ts, sender, text = parts
-                            # mmap 直接扫原始日志，绕过所有索引层的过滤 ——
-                            # 已抹除的记录必须在这里也挡住，否则它是最后一个漏点。
-                            if text.lstrip().startswith("[REDACTED"):
-                                continue
-                            if query.lower() in text.lower():
-                                results.append((ln, ts, text[:300]))
-                                if len(results) >= limit: break
-                            elif has_tokens and any(tk in text.lower() for tk in tokens):
-                                if len(results_token) < limit:
-                                    results_token.append((ln, ts, text[:300]))
-                        except: pass
+            from nexsandglass.core import journal_mirror
+            recs = journal_mirror.records(self._path())   # 增量内存镜像；超过上限时为 None
+            if recs is not None:
+                q = query.lower()
+                toks = [tk.lower() for tk in tokens]
+                for ln, ts, text, low in recs:
+                    # 已抹除的记录必须挡住 —— 兜底扫描绕过所有索引层，是最后一个漏点
+                    if text.lstrip().startswith("[REDACTED"):
+                        continue
+                    if q in low:
+                        results.append((ln, ts, text[:300]))
+                        if len(results) >= limit:
+                            break
+                    elif has_tokens and len(results_token) < limit and any(tk in low for tk in toks):
+                        results_token.append((ln, ts, text[:300]))
+            else:
+                self._scan_file(query, tokens, limit, results, results_token)
             if not results and results_token:
                 results = results_token[:limit]
             if results:
@@ -278,6 +273,31 @@ class MmapFallback:
             return results[:limit]
         except Exception:
             return []
+
+    def _scan_file(self, query, tokens, limit, results, results_token) -> None:
+        """日志超过内存镜像上限时的老路径：逐行解码整份文件。"""
+        q = query.lower()
+        with open(self._path(), "rb") as f:
+            with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+                ln = 0
+                for line in iter(mm.readline, b""):
+                    ln += 1
+                    decoded = line.decode("utf-8", errors="ignore").strip()
+                    if " | " not in decoded:
+                        continue
+                    parts = decoded.split(" | ", 2)
+                    if len(parts) < 3:
+                        continue
+                    ts, _sender, text = parts
+                    if text.lstrip().startswith("[REDACTED"):
+                        continue
+                    low = text.lower()
+                    if q in low:
+                        results.append((ln, ts, text[:300]))
+                        if len(results) >= limit:
+                            break
+                    elif tokens and len(results_token) < limit and any(tk in low for tk in tokens):
+                        results_token.append((ln, ts, text[:300]))
 
 
 _AUTO = object()

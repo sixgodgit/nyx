@@ -352,18 +352,40 @@ def test_non_primary_context_never_writes(env):
 
 
 def test_initialize_honors_agent_context(env, monkeypatch, tmp_path):
-    from nexsandglass.features import sandglass_vault
     from nexsandglass.core import sandglass_paths
+    from nexsandglass.core.memory_provider import NexSandglassProvider
     calls = []
-    monkeypatch.setattr(sandglass_vault, "rebuild_index", lambda *a, **k: calls.append("rebuild"))
+    monkeypatch.setattr(NexSandglassProvider, "_warm", staticmethod(lambda: calls.append("warm")))
     monkeypatch.setattr(sandglass_paths, "validate", lambda: {"ok": True})
     hh = tmp_path / "hermes"
     p = _provider()
     p.initialize("s1", hermes_home=str(hh), platform="cli", agent_context="subagent")
-    assert p._agent_context == "subagent" and calls == []
+    assert p._agent_context == "subagent" and calls == []          # 子 agent 不碰主 agent 的索引
     q = _provider()
     q.initialize("s1", hermes_home=str(hh), platform="cli", agent_context="primary")
-    assert calls == ["rebuild"] and q._can_write()
+    q._warm_thread.join(5)
+    assert calls == ["warm"] and q._can_write()
+
+
+def test_initialize_does_not_block_and_warms_in_background(env):
+    """启动不同步做重活；预热线程把索引与日志镜像读进内存，召回结果与冷启动一致。"""
+    from nexsandglass.core import journal_mirror
+    from nexsandglass.features import sandglass_vault
+    w = _provider()
+    for i in range(30):
+        w.sync_turn(f"第{i}次和老周讨论预算表", "")
+    _reindex(env)
+    cold = [s for s in __import__("nexsandglass.runtime.orchestrator", fromlist=["x"])
+            .get_orchestrator().recall("老周 预算表", 600).strings]
+    journal_mirror.invalidate()
+    sandglass_vault._idx_cache = None
+    p = _provider()
+    p.initialize("s1", agent_context="primary", platform="cli")
+    p._warm_thread.join(30)
+    assert sandglass_vault._idx_cache, "预热没有把倒排读进内存"
+    assert journal_mirror._state, "预热没有建日志镜像"
+    from nexsandglass.runtime.orchestrator import get_orchestrator
+    assert get_orchestrator().recall("老周 预算表", 600).strings == cold
 
 
 def test_prefetch_recalls_for_this_turn(env):
