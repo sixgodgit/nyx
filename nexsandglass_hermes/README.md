@@ -47,8 +47,15 @@ memory:
 | `nyx_restore` / `nyx_quarantine` | 从隔离区原样还原 / 查看隔离区 |
 | `fact_store` / `fact_feedback` | 影子沙事实存储与信任反馈 |
 | `sandglass_offset` / `sandglass_echo` | 主人决策偏移 / 情绪风向 |
+| `nyx_health` | 自检（`quick=true` 只查语义索引）。系统提示里出现「⚠️ Nyx 自检」时调用 |
+
+## 自检
+
+语义索引等子系统出故障时不会拖垮对话（词法召回照常），但**不会再静默**：系统提示里会出现一行
+「⚠️ Nyx 自检：…」，agent 会转告主人。主人在终端运行 `python3 -m nexsandglass.doctor` 看每一项。
 
 ## 已知局限
 
 - 一个进程一份 nyx 记忆：网关里多个 Hermes profile 共进程时共用同一个 `data_dir`
 - 语义检索需要嵌入后端（本地模型或 API）；没有时同义改写召不回来（问 company、原话是 joined Contoso）
+- 升级到 v7.13.3 后首次启动会在后台回填全部历史记忆的向量（本地 CPU 模型几千条约几十分钟），期间语义召回逐步变全

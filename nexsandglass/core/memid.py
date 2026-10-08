@@ -133,22 +133,16 @@ def _lock_path() -> str:
     return _journal_path() + ".lock"
 
 
-_conn: Optional[sqlite3.Connection] = None
+# 每个线程一个连接（v7.13.3）。以前是进程内单例 + check_same_thread=False：
+# Python sqlite3 的隐式事务挂在连接上，于是线程 A 写到一半、线程 B 的 commit 会把 A 的半截一起提交，
+# B 的 rollback 会把 A 的写一起回滚；两个线程同时开事务直接报
+# 「cannot start a transaction within a transaction」（并发压测实测）。
+# v7.13 起后台线程变多（语义补索引、预热、Hermes 的串行写入线程），这个洞从偶发变成必然。
+_local = threading.local()
+_conn_gen = 0                       # set_db_path 时递增：所有线程的旧连接在下次使用时作废
 _conn_lock = threading.RLock()
-_conn_path: Optional[str] = None
-
-
-def _reset_if_path_changed() -> None:
-    """数据目录变了就丢弃旧连接（含其 WAL），否则会写错库。"""
-    global _conn, _conn_path
-    want = _db_path()
-    if _conn is not None and _conn_path != want:
-        try:
-            _conn.close()
-        except Exception:
-            pass
-        _conn = None
-        _conn_path = None
+_conn_path: Optional[str] = None    # 当前线程最近一次 get_conn 用的库路径（测试与诊断用）
+_schema_ready: set = set()          # 已建过表的 (库路径, inode)，同一个库不必每个线程都跑一遍建表脚本
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -183,47 +177,98 @@ CREATE TABLE IF NOT EXISTS tombstones (
 # ══════════════════════════════════════════════════════════
 
 def set_db_path(path: str) -> None:
-    """重定向 ID 中枢库路径（测试/迁移用）。会关闭已有连接。"""
-    global _DB, _conn, _conn_path
+    """重定向 ID 中枢库路径（测试/迁移用）。所有线程的旧连接作废（各自下次使用时重开）。"""
+    global _DB, _conn_path, _conn_gen
     with _conn_lock:
-        if _conn is not None:
-            try:
-                _conn.close()
-            except Exception:
-                pass
-            _conn = None
-            _conn_path = None
+        _close_local()
+        _conn_gen += 1
+        _conn_path = None
         _DB = path
         _set_override(os.path.dirname(path) or None)
 
 
+def _close_local() -> None:
+    c = getattr(_local, "conn", None)
+    if c is not None:
+        try:
+            c.close()
+        except Exception:
+            pass
+    _local.conn = None
+
+
 def get_conn() -> sqlite3.Connection:
-    """获取 ID 中枢库连接（进程内单例，多线程安全）。
+    """当前线程的 ID 中枢库连接（每线程一个；同一线程内反复调用拿到同一个连接）。
 
-    ⚠ `global _conn_path` 不是可省略的声明。缺了它，下面的 `_conn_path = dbp`
-    赋的是**局部变量**，模块级 `_conn_path` 永远是 None，于是每次调用
-    `_reset_if_path_changed()` 都判定"路径变了"→ 关掉刚建的连接再开一个。
-
-    后果不是慢一点，是**静默丢写**：调用方在一个 get_conn() 上 execute、
-    在下一个 get_conn() 上 commit 时，中间那次关闭把未提交的事务回滚掉了，
-    而 rowcount 明明返回 1。docstring 写着"进程内单例"，实际上一次都不是。
-    （发现于遗忘隔离区的 restore：DELETE rowcount=1，行却还在。）
+    同一线程内「在一个 get_conn() 上 execute、在下一个 get_conn() 上 commit」必须是同一个连接 ——
+    v7.3 那次 `global _conn_path` 漏写导致每次都换连接，未提交的写被静默回滚（DELETE rowcount=1，行还在）。
+    跨线程则**必须**是不同连接：共享一个连接时事务边界属于连接而不属于线程，见模块顶部的说明。
+    数据目录变了（NEXSANDBASE_HOME / set_db_path）就丢弃旧连接，否则会写错库。
     """
-    global _conn, _conn_path
-    with _conn_lock:
-        _reset_if_path_changed()
-        if _conn is None:
-            dbp = _db_path()
-            os.makedirs(os.path.dirname(dbp) or ".", exist_ok=True)
-            _conn = sqlite3.connect(dbp, timeout=10, check_same_thread=False)
-            _conn_path = dbp
-            _conn.execute("PRAGMA journal_mode=WAL")
-            _conn.execute("PRAGMA synchronous=NORMAL")
-            _conn.execute("PRAGMA foreign_keys=ON")
-            _conn.executescript(_SCHEMA)
-            _prov.ensure(_conn)
-            _conn.commit()
-        return _conn
+    global _conn_path
+    want = _db_path()
+    c = getattr(_local, "conn", None)
+    if c is not None and (getattr(_local, "path", None) != want or getattr(_local, "gen", -1) != _conn_gen):
+        _close_local()
+        c = None
+    if c is None:
+        os.makedirs(os.path.dirname(want) or ".", exist_ok=True)
+        c = sqlite3.connect(want, timeout=30, check_same_thread=False)
+        c.execute("PRAGMA journal_mode=WAL")
+        c.execute("PRAGMA synchronous=NORMAL")
+        c.execute("PRAGMA foreign_keys=ON")
+        try:
+            key = (want, os.stat(want).st_ino)
+        except OSError:
+            key = None
+        if key is None or key not in _schema_ready:
+            c.executescript(_SCHEMA)
+            _prov.ensure(c)
+            c.commit()
+            if key is not None:
+                _schema_ready.add(key)
+        _local.conn, _local.path, _local.gen = c, want, _conn_gen
+    _conn_path = want
+    return c
+
+
+_jl = threading.local()
+
+
+class journal_lock:
+    """日志排他锁（跨进程：O_EXCL 锁文件；同一线程内可重入）。
+
+    **所有**改写 sandglass.txt 的路径都必须持有它 —— 不只是追加。v7.13.2 以前遗忘 / 还原
+    「读整份 → 写临时文件 → 替换」时不拿锁，期间别的线程追加的那一行会被替换掉：中枢里有、日志里没了
+    （并发压测每轮丢 1–5 条真实对话）。可重入是为了让 forget 在外层持锁、内部改写日志时不会锁死自己。
+
+    锁序：先日志锁，后数据库写事务。持有未提交的数据库写事务时不要去拿日志锁。
+    """
+
+    def __init__(self, journal_path: str = None):
+        self.path = os.path.abspath(journal_path or _journal_path())
+        self._inner = None
+
+    def __enter__(self):
+        held = getattr(_jl, "held", None)
+        if held is None:
+            held = _jl.held = {}
+        if held.get(self.path):
+            held[self.path] += 1
+            return self
+        self._inner = _FileLock(self.path + ".lock")
+        self._inner.__enter__()
+        held[self.path] = 1
+        return self
+
+    def __exit__(self, *exc):
+        held = _jl.held
+        held[self.path] -= 1
+        if held[self.path] == 0:
+            del held[self.path]
+            if self._inner is not None:
+                self._inner.__exit__(*exc)
+        return False
 
 
 # ══════════════════════════════════════════════════════════
@@ -465,7 +510,7 @@ def allocate(text: str, sender: str = "agent", ts: str = None,
     conn = get_conn()
     jpath = journal_path or _journal_path()
 
-    with _FileLock(jpath + ".lock"):
+    with journal_lock(jpath):
         mem_id = _unique_mem_id(conn, ts, sender, text)
         seq = int(conn.execute("SELECT COALESCE(MAX(seq), 0) FROM memories").fetchone()[0]) + 1
 
@@ -898,6 +943,18 @@ def health(journal_path: str = None, window_days: int = 3) -> dict:
         }
     except Exception as e:
         out["checks"]["inverted_index"] = {"ok": False, "error": str(e)}
+
+    # 语义索引（v7.13.3）：这一路曾经一条向量都没写进去过、整整一个月，因为失败只是一行 warning、
+    # 而且**没有任何一项指标在看它**（2026-10-09 诊断报告）。关闭（没配后端）不算故障。
+    try:
+        from nexsandglass.core import semantic
+        hc = semantic.health_check()
+        out["checks"]["semantic_index"] = {k: hc.get(k) for k in (
+            "ok", "state", "backend", "indexed", "pending", "orphans", "stale_model",
+            "oldest_pending_minutes", "last_index_at", "failures", "last_error", "last_error_at",
+            "problems", "db")}
+    except Exception as e:
+        out["checks"]["semantic_index"] = {"ok": False, "error": str(e)}
 
     # 写入放大：同一秒 + 同一发送者 + 同一正文连续出现多次 = 一条消息被写了 N 份。
     # 生产上这东西从 3 倍一路爬到 56 倍，爬了七天没被发现 ——

@@ -509,7 +509,11 @@ def test_restore_does_not_clobber_another_restores_index(env):
     缓存于是永远"命中"，`_write_idx` 按旧索引整file重写，**把别的进程刚还原的
     token 抹掉**。实测形状：先用 CLI 还原一条，再在本进程还原其余 149 条，
     第一条的 posting 全没了。
+
+    v7.13.3 起本进程按 idx 文件的身份（inode/大小/mtime）判断「别的进程写过」，
+    所以这里真的用另一个进程去还原第一条，而不是在本进程里伪造一份过期缓存。
     """
+    import os, subprocess, sys
     e = env
     a = e.log.log_message(f"第一条要删的 {SECRET} alpha-uniq-aaa", sender="user",
                           return_id=True)
@@ -518,15 +522,13 @@ def test_restore_does_not_clobber_another_restores_index(env):
     _reindex(e)
     line_a = e.memid.get(a)["line_start"]
     _forget(e)
+    assert not {t for t, lines in e.vault._sync_index().items() if line_a in lines}   # 本进程的缓存：没有 a
 
-    assert e.erasure.restore(a)["ok"] is True
-    tokens_a = {t for t, lines in e.vault._sync_index().items() if line_a in lines}
-    assert tokens_a, "前置条件不成立：第一条还原后索引里本来就没有它"
-
-    # 模拟另一个进程留下的过期缓存：行数没变，所以缓存会"命中"
-    stale = {t: [l for l in lines if l != line_a]
-             for t, lines in e.vault._sync_index().items()}
-    e.vault._idx_cache, e.vault._idx_mtime = stale, e.vault._journal_lines()
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    r = subprocess.run([sys.executable, os.path.join(root, "scripts", "nyx_quarantine.py"), "restore", a],
+                       env=dict(os.environ, NEXSANDBASE_HOME=str(e.home), PYTHONPATH=root),
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr[-800:]
 
     assert e.erasure.restore(b)["ok"] is True
     after = {t for t, lines in e.vault._sync_index().items() if line_a in lines}

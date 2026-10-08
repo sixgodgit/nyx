@@ -1,5 +1,13 @@
 """
-core/vector_store.py — 向量存储（轻量、后端可切换）
+core/vector_store.py — 向量存储（轻量、后端可切换）【v7.13.3 起弃用】
+
+⚠ 召回主路径不用这个模块。唯一的向量索引是 core/semantic.py（semantic.db / 表 embeddings）。
+这里只为旧代码的 API 兼容保留，并且**不再碰任何共享位置**：
+  - 以前的默认路径是 ~/.hermes/nexsandglass/vectors.db，表名 vectors —— 数据目录恰好就是
+    ~/.hermes/nexsandglass 时，它先建了 2 列的 vectors 表，语义层的 CREATE TABLE IF NOT EXISTS 静默跳过，
+    此后语义层每次写入都 `no such column: model`，一个月没写进去一条向量（2026-10-09 诊断报告）
+  - 现在默认路径是数据目录下专属的 legacy_vector_store.{json,db}，表名 legacy_vectors；
+    get_vector_store() 只返回 JSON 后端并给出 DeprecationWarning
 
 设计：
 - 抽象 VectorStore 接口
@@ -35,6 +43,11 @@ def _cosine(a: list[float], b: list[float]) -> float:
     return dot / (na * nb)
 
 
+def _legacy_path(ext: str) -> str:
+    from nexsandglass.core import memid
+    return os.path.join(os.path.dirname(memid._db_path()), f"legacy_vector_store.{ext}")
+
+
 class VectorStore:
     """向量存储抽象接口。"""
 
@@ -64,8 +77,8 @@ class JsonVectorStore(VectorStore):
     适合中小规模（<10k 条），全量加载内存检索。
     """
 
-    def __init__(self, path: str = "~/.hermes/nexsandglass/vectors.json"):
-        self._path = os.path.expanduser(path)
+    def __init__(self, path: str = None):
+        self._path = os.path.expanduser(path) if path else _legacy_path("json")
         self._data: dict[str, list[float]] = {}
         self._load()
 
@@ -81,10 +94,9 @@ class JsonVectorStore(VectorStore):
     def _save(self):
         try:
             os.makedirs(os.path.dirname(self._path), exist_ok=True)
-            tmp = self._path + ".tmp"
-            with open(tmp, 'w', encoding='utf-8') as f:
+            from nexsandglass.core.fsutil import atomic_write
+            with atomic_write(self._path) as f:
                 json.dump(self._data, f, ensure_ascii=False)
-            os.replace(tmp, self._path)  # 原子替换，避免写坏主文件
         except Exception as e:
             logger.warning("[JsonVectorStore] 保存失败: %s", e)
 
@@ -124,8 +136,8 @@ class SqliteVecStore(VectorStore):
     需要：pip install sqlite-vec
     """
 
-    def __init__(self, path: str = "~/.hermes/nexsandglass/vectors.db"):
-        self._path = os.path.expanduser(path)
+    def __init__(self, path: str = None):
+        self._path = os.path.expanduser(path) if path else _legacy_path("db")
         self._conn = None
         self._dim = 384
         self._init_db()
@@ -137,11 +149,11 @@ class SqliteVecStore(VectorStore):
             self._conn.enable_load_extension(True)
             sqlite_vec.load(self._conn)
             self._conn.execute(
-                "CREATE TABLE IF NOT EXISTS vectors "
+                "CREATE TABLE IF NOT EXISTS legacy_vectors "
                 "(memory_id TEXT PRIMARY KEY, embedding FLOAT[%d])" % self._dim
             )
             self._conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_vec ON vectors(embedding)"
+                "CREATE INDEX IF NOT EXISTS idx_legacy_vec ON legacy_vectors(embedding)"
             )
         except Exception as e:
             logger.warning("[SqliteVecStore] 初始化失败（将使用 JSON 后端）: %s", e)
@@ -156,7 +168,7 @@ class SqliteVecStore(VectorStore):
             return
         try:
             self._conn.execute(
-                "INSERT OR REPLACE INTO vectors (memory_id, embedding) VALUES (?, ?)",
+                "INSERT OR REPLACE INTO legacy_vectors (memory_id, embedding) VALUES (?, ?)",
                 (memory_id, json.dumps(embedding)),
             )
             self._conn.commit()
@@ -172,7 +184,7 @@ class SqliteVecStore(VectorStore):
             return []
         try:
             # 简化：全表扫描 + 余弦（sqlite-vec 扩展时可改为向量索引）
-            rows = self._conn.execute("SELECT memory_id, embedding FROM vectors").fetchall()
+            rows = self._conn.execute("SELECT memory_id, embedding FROM legacy_vectors").fetchall()
             scored = []
             for mid, emb_json in rows:
                 emb = json.loads(emb_json)
@@ -186,21 +198,21 @@ class SqliteVecStore(VectorStore):
 
     def delete(self, memory_id: str) -> None:
         if self._conn:
-            self._conn.execute("DELETE FROM vectors WHERE memory_id = ?", (memory_id,))
+            self._conn.execute("DELETE FROM legacy_vectors WHERE memory_id = ?", (memory_id,))
             self._conn.commit()
 
     def get(self, memory_id: str) -> Optional[list[float]]:
         if not self._conn:
             return None
         row = self._conn.execute(
-            "SELECT embedding FROM vectors WHERE memory_id = ?", (memory_id,)
+            "SELECT embedding FROM legacy_vectors WHERE memory_id = ?", (memory_id,)
         ).fetchone()
         return json.loads(row[0]) if row else None
 
     def count(self) -> int:
         if not self._conn:
             return 0
-        return self._conn.execute("SELECT COUNT(*) FROM vectors").fetchone()[0]
+        return self._conn.execute("SELECT COUNT(*) FROM legacy_vectors").fetchone()[0]
 
 
 # ── 全局单例 ──────────────────────────────────────────────────
@@ -209,19 +221,12 @@ _store: Optional[VectorStore] = None
 
 
 def get_vector_store() -> VectorStore:
-    """获取全局 VectorStore（优先 sqlite-vec，否则 JSON）。"""
+    """【弃用】旧接口。只返回数据目录下专属文件的 JSON 后端；召回主路径请用 core.semantic。"""
     global _store
+    import warnings
+    warnings.warn("nexsandglass.core.vector_store 已弃用；向量索引请用 nexsandglass.core.semantic",
+                  DeprecationWarning, stacklevel=2)
     if _store is not None:
         return _store
-    # 尝试 sqlite-vec
-    try:
-        import sqlite_vec  # noqa: F401
-        store = SqliteVecStore()
-        if store.available:
-            _store = store
-            return _store
-    except Exception:
-        pass
-    # 回退 JSON
     _store = JsonVectorStore()
     return _store

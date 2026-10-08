@@ -6,6 +6,9 @@
     python3 benchmarks/recall_latency.py --home 已有数据目录        # 测已有的记忆库（只读查询）
 
 两种首轮：wait = 预热完成后才说第一句（通常情况）；immediate = 启动后立刻说第一句。
+conversation = 真实对话节奏：每轮先 prefetch 再 sync_turn（写入），测的是「上一轮刚写过之后」的查询。
+（v7.13.2 的基准只连续查询、中间不写入，漏掉了「每次有新行就整份重读索引」—— 15 万条时每轮 1.3–2.0 秒。）
+--home 指向已有数据目录时，conversation 模式会写入：脚本先把目录复制一份，在副本上跑。
 每种在独立子进程里测，互不共享内存缓存。语义检索默认关（NYX_EMBED=off），测的是词法 + 图 + 时间三路。
 """
 from __future__ import annotations
@@ -57,6 +60,24 @@ def measure(mode: str) -> None:
     p = NexSandglassProvider()
     p.initialize("bench", agent_context="primary", platform="bench")
     out = {"mode": mode, "initialize_ms": round((time.perf_counter() - t) * 1000)}
+    if mode == "conversation":
+        p._warm_thread.join()
+        ts, ws = [], []
+        for i, q in enumerate(QUERIES * 3):
+            a = time.perf_counter()
+            p.prefetch(q, session_id="bench")
+            ts.append((time.perf_counter() - a) * 1000)
+            a = time.perf_counter()
+            p.sync_turn(f"{q}——第{i}轮我说的话，老周提醒我体检报告", "好的，我记下了体检报告的事", session_id="bench")
+            ws.append((time.perf_counter() - a) * 1000)
+        ts.sort()
+        ws.sort()
+        out.update(turn_p50_ms=round(statistics.median(ts[1:])), turn_p95_ms=round(ts[int(len(ts) * 0.95) - 1]),
+                   turn_max_ms=round(ts[-1]), sync_turn_p50_ms=round(statistics.median(ws)))
+        from nexsandglass.core import memid
+        out["memories"] = memid.count()
+        print(json.dumps(out, ensure_ascii=False))
+        return
     if mode == "wait":
         a = time.perf_counter()
         p._warm_thread.join()
@@ -82,7 +103,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--turns", type=int, default=20000)
     ap.add_argument("--home", help="已有数据目录（不造数据）")
-    ap.add_argument("--_child", choices=["gen", "wait", "immediate"], help=argparse.SUPPRESS)
+    ap.add_argument("--_child", choices=["gen", "wait", "immediate", "conversation"], help=argparse.SUPPRESS)
     args = ap.parse_args()
     if args._child == "gen":
         generate(args.turns)
@@ -92,6 +113,12 @@ def main() -> int:
         return 0
 
     home = args.home or tempfile.mkdtemp(prefix="nyx-latency-")
+    conv_home = home
+    if args.home:                      # conversation 会写入：在副本上跑，不动原目录
+        import shutil
+        conv_home = tempfile.mkdtemp(prefix="nyx-latency-conv-")
+        shutil.rmtree(conv_home)
+        shutil.copytree(args.home, conv_home)
     env = dict(os.environ, NEXSANDBASE_HOME=home, NYX_EMBED=os.environ.get("NYX_EMBED", "off"),
                PYTHONPATH=REPO + os.pathsep + os.environ.get("PYTHONPATH", ""))
     run = lambda mode: subprocess.run([sys.executable, __file__, "--_child", mode, "--turns", str(args.turns)],
@@ -100,6 +127,11 @@ def main() -> int:
         print(run("gen"))
     for mode in ("wait", "immediate"):
         print(run(mode))
+    env["NEXSANDBASE_HOME"] = conv_home
+    print(run("conversation"))
+    if conv_home != home:
+        import shutil
+        shutil.rmtree(conv_home, ignore_errors=True)
     return 0
 
 

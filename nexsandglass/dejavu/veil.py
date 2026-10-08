@@ -105,15 +105,24 @@ class Veil:
         """把位图写入文件（原子替换，避免写一半崩溃留下坏文件）。"""
         d = os.path.dirname(os.path.abspath(path))
         os.makedirs(d, exist_ok=True)
-        tmp = path + ".tmp"
+        # 唯一临时文件名：两个进程同时 persist 时，固定的 path + ".tmp" 会互相截断
+        import tempfile
         with self._lock:
-            with open(tmp, "wb") as f:
-                f.write(_MAGIC)
-                f.write(self._size.to_bytes(4, "big"))
-                f.write(bytes([self._hashes]))
-                f.write(self._count.to_bytes(8, "big"))
-                f.write(bytes(self._bits))
-            os.replace(tmp, path)
+            fd, tmp = tempfile.mkstemp(dir=d, prefix="." + os.path.basename(path) + ".", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "wb") as f:
+                    f.write(_MAGIC)
+                    f.write(self._size.to_bytes(4, "big"))
+                    f.write(bytes([self._hashes]))
+                    f.write(self._count.to_bytes(8, "big"))
+                    f.write(bytes(self._bits))
+                os.replace(tmp, path)
+            except BaseException:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                raise
 
     def load(self, path: str) -> bool:
         """从文件恢复。返回 False 表示没有可用文件或格式不兼容。"""

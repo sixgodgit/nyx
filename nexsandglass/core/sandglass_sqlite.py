@@ -107,8 +107,17 @@ def sync_incremental() -> int:
                 "SELECT COALESCE(MAX(line_end), 0), COUNT(*) FROM sandglass").fetchone()
             last_end, indexed = int(row[0]), int(row[1])
             rows = []; fts = []
-            for rec in memid.parse_journal_records(
-                    _SANDGLASS, from_line=last_end + 1, seq_start=indexed + 1):
+            # 新记录从 ID 中枢按行号取（v7.13.3）：parse_journal_records(from_line=N) 要从第 1 行
+            # 逐行读过去再跳过，15 万条时每次写入后的第一次查询要多花 ~60ms。全量重建（sync_all）仍按日志解析
+            hub = memid.get_conn()
+            if hub.execute("SELECT 1 FROM memories LIMIT 1").fetchone() is not None:
+                recs = [{"line_start": r[0], "ts": r[1], "sender": r[2], "text": r[3], "line_end": r[4]}
+                        for r in hub.execute(
+                            "SELECT line_start, ts, sender, text, line_end FROM memories"
+                            " WHERE deleted_at IS NULL AND line_start > ? ORDER BY line_start", (last_end,))]
+            else:
+                recs = memid.parse_journal_records(_SANDGLASS, from_line=last_end + 1, seq_start=indexed + 1)
+            for rec in recs:
                 if memid.is_redacted(rec):
                     continue
                 rows.append((rec["line_start"], rec["ts"], rec["sender"],

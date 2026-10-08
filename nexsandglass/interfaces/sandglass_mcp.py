@@ -72,10 +72,18 @@ def _handle_tool(name, args, request_id):
         if name == "sandglass_ping":
             from nexsandglass.features.sandglass_vault import count
             from nexsandglass.features.sandglass_think import _current_stage
+            from nexsandglass.core import semantic
+            # v7.13.3：ping 以前恒报 ok。语义这一路静默失效一个月，ping 每次都是绿的
+            sem = semantic.health_check()
+            status = "ok" if sem.get("ok") else "degraded"
             return _result(request_id, {
                 "content": [{
                     "type": "text",
-                    "text": json.dumps({"status": "ok", "sands": count(), "stage": _current_stage()}, ensure_ascii=False)
+                    "text": json.dumps({"status": status, "sands": count(), "stage": _current_stage(),
+                                        "semantic_index": {"state": sem.get("state"), "problems": sem.get("problems"),
+                                                           "indexed": sem.get("indexed"), "pending": sem.get("pending")},
+                                        "full_check": "python3 -m nexsandglass.doctor"},
+                                       ensure_ascii=False, default=str)
                 }]
             })
 
@@ -261,7 +269,7 @@ def _tool(name, description, properties=None, required=None):
 
 
 TOOLS = [
-    _tool("sandglass_ping", "健康检查——返回沙漏总数和当前阶段"),
+    _tool("sandglass_ping", "健康检查——沙漏总数、当前阶段、语义索引状态（status=degraded 表示有一路检索不可用）"),
     _tool("sandglass_search", "关键词搜索记忆",
           {"query": {"type": "string", "description": "搜索关键词"},
            "limit": {"type": "integer", "description": "返回条数"}},

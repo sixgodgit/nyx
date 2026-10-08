@@ -232,6 +232,11 @@ def _write_back(path: str, start: int, original: list) -> dict:
     out = {"path": path, "lines": 0, "status": "absent"}
     if not path or not os.path.exists(path) or not original:
         return out
+    with memid.journal_lock(path):         # 读改写期间不许有人追加（v7.13.3）
+        return _write_back_locked(path, start, original, out)
+
+
+def _write_back_locked(path: str, start: int, original: list, out: dict) -> dict:
     lines, trailing = _read_lines(path)
     end = start + len(original) - 1
     if start < 1 or end > len(lines):
@@ -247,10 +252,9 @@ def _write_back(path: str, start: int, original: list) -> dict:
             return out
     for off, text in enumerate(original):
         lines[start - 1 + off] = text
-    tmp = path + ".restore.tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
+    from nexsandglass.core.fsutil import atomic_write
+    with atomic_write(path) as f:
         f.write("\n".join(lines) + ("\n" if trailing else ""))
-    os.replace(tmp, path)
     memid._line_count_cache.pop(path, None)
     out["lines"] = len(original)
     out["status"] = "restored"
@@ -433,6 +437,13 @@ def find_text(needles: Iterable[str]) -> dict:
 # ══════════════════════════════════════════════════════════
 
 def restore(mem_id: str, *, journal_path: str = None, engram_path: str = None) -> dict:
+    """见 _restore_impl。整个还原过程持有日志锁（v7.13.3）：写回正文是「读整份 → 替换」，
+    期间有人追加的那一行会丢。"""
+    with memid.journal_lock(journal_path or memid._journal_path()):
+        return _restore_impl(mem_id, journal_path=journal_path, engram_path=engram_path)
+
+
+def _restore_impl(mem_id: str, *, journal_path: str = None, engram_path: str = None) -> dict:
     """把一条被"忘记"的记忆完整还原。
 
     顺序与 forget 相反：先还原派生索引，最后还原日志正文与中枢墓碑。
@@ -607,8 +618,7 @@ def _restore_idx(text: str, line_num: int) -> int:
     """
     try:
         from nexsandglass.features import sandglass_vault as v
-        v._idx_cache, v._idx_mtime = None, 0
-        idx = v._sync_index()
+        idx = v.index_for_update()          # 别的进程改过文件才重读（v7.13.3）
         if idx is None:
             return 0
         n = 0
@@ -617,8 +627,7 @@ def _restore_idx(text: str, line_num: int) -> int:
             if line_num not in lines:
                 lines.append(line_num)
                 n += 1
-        v._write_idx(idx, v._journal_lines())
-        v._idx_cache, v._idx_mtime = idx, v._journal_lines()
+        v._set_index(idx, v._idx_mtime or v._journal_lines())
         return n
     except Exception as e:
         logger.warning("[quarantine] 倒排索引未还原（可重建）: %s", e)

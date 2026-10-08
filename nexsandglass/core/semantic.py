@@ -8,9 +8,15 @@ v3.4.0 起仓库里就有 embedding_provider / vector_store / vector_search，RE
 结果是同义改写永远召不回来（问 company、原话是 joined Contoso；问「我的猫叫什么」、
 原话是「领养了一只橘猫…叫团子」）。这个模块把它接上：
 
-  索引  vectors.db 放在 nyx 数据目录里（与 nyx.db 同处，随 hermes backup 一起备份）。
+  索引  semantic.db（表 embeddings）放在 nyx 数据目录里（与 nyx.db 同处，随 hermes backup 一起备份）。
         键 = mem_id，同时存 line_start（召回侧按行号与其他几路融合）与 model（换模型
         后旧向量不参与比较，等重建）。
+        v7.13–v7.13.2 用的是 vectors.db / 表 vectors —— 和旧 vector_store 撞了文件名和表名：
+        数据目录恰好是 ~/.hermes/nexsandglass 时，旧模块先建了 2 列的 vectors 表，这里的
+        CREATE TABLE IF NOT EXISTS 静默跳过，此后每次写入都 `no such column: model`，
+        失败又被降级成一行 warning —— 生产上一条向量都没写进去过（2026-10-09 诊断报告）。
+        现在：独立文件名 + 独立表名 + 打开时校验结构（对不上就挪开重建，向量是派生数据）
+        + 失败计入 health()，Hermes 会在系统提示里提醒、`python3 -m nexsandglass.doctor` 会报红。
   写入  不进 memid.allocate 的文件锁（嵌入要几十毫秒）。由调用方在后台补：Hermes 插件
         的 sync_turn（本来就在串行后台线程上）每轮调 ``index_pending``，initialize 起一个
         后台线程补历史。召回路径**从不嵌入文档**，只嵌入查询。
@@ -41,8 +47,13 @@ from typing import Iterable, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 DEFAULT_LOCAL_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
+DB_NAME = "semantic.db"
+TABLE = "embeddings"
+SCHEMA_VERSION = "1"
+OWNER = "nexsandglass.semantic"
+_COLUMNS = ["mem_id", "line_start", "model", "dim", "vec", "indexed_at"]
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS vectors (
+CREATE TABLE IF NOT EXISTS embeddings (
     mem_id     TEXT PRIMARY KEY,
     line_start INTEGER,
     model      TEXT NOT NULL,
@@ -50,9 +61,20 @@ CREATE TABLE IF NOT EXISTS vectors (
     vec        BLOB NOT NULL,
     indexed_at TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_vec_model ON vectors(model);
-CREATE INDEX IF NOT EXISTS idx_vec_line  ON vectors(line_start);
+CREATE INDEX IF NOT EXISTS idx_emb_model ON embeddings(model);
+CREATE INDEX IF NOT EXISTS idx_emb_line  ON embeddings(line_start);
+CREATE TABLE IF NOT EXISTS semantic_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
+# 打开时逐条编译（EXPLAIN 不执行）—— 表结构对不上会在这里当场失败，而不是在某次写入里被吞掉
+_STATEMENTS = [
+    "INSERT OR REPLACE INTO embeddings (mem_id, line_start, model, dim, vec, indexed_at) VALUES (?,?,?,?,?,?)",
+    "SELECT mem_id, line_start, vec FROM embeddings WHERE model=?",
+    "SELECT mem_id FROM embeddings WHERE model=?",
+    "DELETE FROM embeddings WHERE mem_id=?",
+]
 
 _lock = threading.RLock()          # 索引写入串行（sync_turn 工作线程 + 回填线程）
 _provider = None                   # 已解析的 provider；False = 解析过但没有
@@ -112,7 +134,8 @@ class _Local:
                     logger.info("[semantic] 本地模型就绪: %s", self.model_name)
                 except Exception as e:
                     self._failed = True
-                    logger.warning("[semantic] 本地模型加载失败，语义检索关闭: %s", e)
+                    self.load_error = f"{type(e).__name__}: {e}"
+                    logger.error("[semantic] 本地模型 %s 加载失败，语义检索不可用: %s", self.model_name, e)
         return self._model is not None
 
     def encode(self, texts: List[str]) -> List[List[float]]:
@@ -126,7 +149,17 @@ def _config_key() -> tuple:
         "NYX_EMBED", "NYX_EMBED_PROVIDER", "NYX_EMBED_MODEL", "EMBEDDING_API_URL", "EMBEDDING_API_KEY"))
 
 
+def _problem(msg: str):
+    """配置写了要语义检索、实际却用不了 —— 记下来进 health()，而不只是一行 warning。"""
+    global _resolve_problem
+    _resolve_problem = msg
+    logger.error("[semantic] %s", msg)
+    return None
+
+
 def _resolve():
+    global _resolve_problem
+    _resolve_problem = None
     mode = (os.environ.get("NYX_EMBED") or "auto").strip().lower()
     if mode in ("off", "0", "false", "none", "no"):
         return None
@@ -143,19 +176,17 @@ def _resolve():
     url = os.environ.get("EMBEDDING_API_URL", "").strip()
     if mode == "api" or (mode == "auto" and url):
         if not url:
-            logger.warning("[semantic] NYX_EMBED=api 但没有 EMBEDDING_API_URL")
-            return None
+            return _problem("NYX_EMBED=api 但没有设置 EMBEDDING_API_URL，语义检索不可用")
         return _Api(url, os.environ.get("EMBEDDING_API_KEY", ""), model or "text-embedding-3-small")
     if mode in ("local", "auto"):
         import importlib.util
         if importlib.util.find_spec("sentence_transformers") is None:
             if mode == "local":
-                logger.warning("[semantic] NYX_EMBED=local 但没有安装 sentence-transformers"
-                               "（pip install 'nyx-memory[vector]'）")
+                return _problem("NYX_EMBED=local 但没有安装 sentence-transformers"
+                                "（pip install 'nyx-memory[vector]'），语义检索不可用")
             return None
         return _Local(model or DEFAULT_LOCAL_MODEL)
-    logger.warning("[semantic] 未知的 NYX_EMBED=%r，语义检索关闭", mode)
-    return None
+    return _problem(f"未知的 NYX_EMBED={mode!r}（可选 auto / local / api / off），语义检索不可用")
 
 
 def provider():
@@ -166,7 +197,7 @@ def provider():
         try:
             _provider = _resolve() or False
         except Exception as e:
-            logger.warning("[semantic] 后端解析失败，语义检索关闭: %s", e)
+            _problem(f"语义后端解析失败（{type(e).__name__}: {e}），语义检索不可用")
             _provider = False
         _provider_key = key
     return _provider or None
@@ -194,15 +225,139 @@ def _model_id(p) -> str:
 
 def _db_path() -> str:
     from nexsandglass.core import memid
-    return os.path.join(os.path.dirname(memid._db_path()), "vectors.db")   # 与 nyx.db 同目录
+    return os.path.join(os.path.dirname(memid._db_path()), DB_NAME)   # 与 nyx.db 同目录
+
+
+# ── 故障状态：不再只是一行 warning ───────────────────────────
+_status: dict = {}          # db 路径 → {last_error, last_error_at, failures, last_ok_at, where}
+_logged: set = set()        # 已经按 ERROR 报过的 (路径, 错误)；同一个错误不刷屏
+_resolve_problem: Optional[str] = None
+
+
+def _fail(where: str, e: BaseException, path: str = None) -> None:
+    path = path or _db_path()
+    st = _status.setdefault(path, {"failures": 0})
+    msg = f"{type(e).__name__}: {e}"
+    st.update(last_error=msg, last_error_at=_now(), where=where)
+    st["failures"] = st.get("failures", 0) + 1
+    if (path, where, msg) not in _logged:
+        _logged.add((path, where, msg))
+        logger.error("[semantic] %s 失败：%s —— 语义检索这一路不可用（词法召回不受影响）。"
+                     "运行 `python3 -m nexsandglass.doctor` 查看。库：%s", where, msg, path)
+    else:
+        logger.debug("[semantic] %s 再次失败: %s", where, msg)
+
+
+def _ok(path: str = None) -> None:
+    st = _status.setdefault(path or _db_path(), {"failures": 0})
+    st.update(last_error=None, last_ok_at=_now())
+
+
+# ── 打开 + 校验 ───────────────────────────────────────────────
+_validated: set = set()     # 已校验过的 (路径, inode)
+_open_lock = threading.Lock()
+
+
+def _columns(c: sqlite3.Connection, table: str) -> list:
+    return [r[1] for r in c.execute(f"PRAGMA table_info({table})")]
+
+
+def _problems(c: sqlite3.Connection) -> list:
+    tables = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if not tables:
+        return []
+    out = []
+    if TABLE in tables and _columns(c, TABLE) != _COLUMNS:
+        out.append(f"表 {TABLE} 的列是 {_columns(c, TABLE)}，期望 {_COLUMNS}")
+    if "semantic_meta" not in tables:
+        out.append("缺少 semantic_meta（不是本模块建的库）")
+    else:
+        meta = dict(c.execute("SELECT key, value FROM semantic_meta"))
+        if meta.get("owner") != OWNER:
+            out.append(f"owner={meta.get('owner')!r}，不是 {OWNER}")
+        if meta.get("schema_version") != SCHEMA_VERSION:
+            out.append(f"schema_version={meta.get('schema_version')!r}，期望 {SCHEMA_VERSION}")
+    return out
+
+
+def _move_aside(path: str, why: str) -> str:
+    stamp = _now().replace(" ", "_").replace(":", "")
+    dest = f"{path}.mismatch-{stamp}"
+    for suffix in ("", "-wal", "-shm"):
+        if os.path.exists(path + suffix):
+            os.replace(path + suffix, dest + suffix)
+    logger.error("[semantic] %s 的结构不对（%s）。已挪到 %s 并重建 —— 向量是派生数据，会在后台重新嵌入",
+                 path, why, dest)
+    return dest
+
+
+def _migrate_from_v713(c: sqlite3.Connection, path: str) -> int:
+    """v7.13–v7.13.2 把向量写在同目录的 vectors.db / 表 vectors。是本模块的结构就搬过来（省掉重新嵌入）；
+    是旧 vector_store 的 2 列表（或别的东西）就原样不碰 —— 那不是我们的文件。"""
+    old = os.path.join(os.path.dirname(path), "vectors.db")
+    if not os.path.exists(old):
+        return 0
+    try:
+        oc = sqlite3.connect(f"file:{old}?mode=ro", uri=True, timeout=5)
+        try:
+            cols = _columns(oc, "vectors")
+        finally:
+            oc.close()
+        if cols != _COLUMNS:
+            logger.info("[semantic] 同目录的 vectors.db 是旧 vector_store 的表（%s），不使用、不改动", cols or "无 vectors 表")
+            return 0
+        c.execute("ATTACH DATABASE ? AS old", (old,))
+        try:
+            n = c.execute(f"INSERT OR IGNORE INTO {TABLE} ({','.join(_COLUMNS)}) "
+                          f"SELECT {','.join(_COLUMNS)} FROM old.vectors").rowcount
+            c.commit()
+        finally:
+            c.execute("DETACH DATABASE old")
+        from nexsandglass.core import memid
+        live = {r[0] for r in memid.get_conn().execute("SELECT mem_id FROM memories WHERE deleted_at IS NULL")}
+        dead = [r[0] for r in c.execute(f"SELECT mem_id FROM {TABLE}") if r[0] not in live]
+        for i in range(0, len(dead), 400):
+            part = dead[i:i + 400]
+            c.execute(f"DELETE FROM {TABLE} WHERE mem_id IN ({','.join('?' * len(part))})", part)
+        c.commit()
+        logger.info("[semantic] 从 v7.13 的 vectors.db 迁移了 %d 条向量到 %s（旧文件保留未动；丢弃已遗忘的 %d 条）",
+                    n - len(dead), path, len(dead))
+        return n - len(dead)
+    except Exception as e:
+        logger.warning("[semantic] 迁移 v7.13 vectors.db 失败（会重新嵌入）: %s", e)
+        return 0
 
 
 def _conn(path: str = None) -> sqlite3.Connection:
+    """打开语义库。第一次打开时校验结构：对不上就挪开重建；所有语句先编译一遍。"""
     path = path or _db_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    c = sqlite3.connect(path, timeout=10)
+    c = sqlite3.connect(path, timeout=30)
     c.execute("PRAGMA journal_mode=WAL")
-    c.executescript(_SCHEMA)
+    try:
+        key = (path, os.stat(path).st_ino)
+    except OSError:
+        key = None
+    if key is not None and key in _validated:
+        return c
+    with _open_lock:
+        fresh = not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' LIMIT 1").fetchone()
+        problems = _problems(c)
+        if problems:
+            c.close()
+            _move_aside(path, "；".join(problems))
+            c = sqlite3.connect(path, timeout=30)
+            c.execute("PRAGMA journal_mode=WAL")
+            fresh = True
+        c.executescript(_SCHEMA)
+        c.execute("INSERT OR REPLACE INTO semantic_meta VALUES ('owner', ?)", (OWNER,))
+        c.execute("INSERT OR REPLACE INTO semantic_meta VALUES ('schema_version', ?)", (SCHEMA_VERSION,))
+        c.commit()
+        for sql in _STATEMENTS:
+            c.execute("EXPLAIN " + sql, tuple([None] * sql.count("?")))
+        if fresh:
+            _migrate_from_v713(c, path)
+        _validated.add((path, os.stat(path).st_ino))
     return c
 
 
@@ -246,7 +401,7 @@ def index_pending(limit: Optional[int] = 256, batch: int = 32) -> int:
     with _lock:
         try:
             vc = _conn()
-            have = {r[0] for r in vc.execute("SELECT mem_id FROM vectors WHERE model=?", (model,))}
+            have = {r[0] for r in vc.execute(f"SELECT mem_id FROM {TABLE} WHERE model=?", (model,))}
             todo = []
             for mid, line, text in memid.get_conn().execute(
                     "SELECT mem_id, line_start, text FROM memories WHERE deleted_at IS NULL ORDER BY seq"):
@@ -259,14 +414,14 @@ def index_pending(limit: Optional[int] = 256, batch: int = 32) -> int:
                 part = todo[i:i + batch]
                 vecs = p.encode([t for _, _, t in part])
                 if not vecs or len(vecs) != len(part):
-                    logger.warning("[semantic] 嵌入返回 %d 条，期望 %d；本批跳过",
-                                   len(vecs or []), len(part))
-                    continue
+                    raise RuntimeError(f"嵌入后端返回 {len(vecs or [])} 条向量，期望 {len(part)} 条")
                 rows = []
                 for (mid, line, _), v in zip(part, vecs):
                     blob, dim = _pack(v)
                     rows.append((mid, line, model, dim, blob, _now()))
-                vc.executemany("INSERT OR REPLACE INTO vectors VALUES (?,?,?,?,?,?)", rows)
+                vc.executemany(_STATEMENTS[0], rows)
+                # 进度戳：回填几千条要几十分钟，期间「待补很多」是正常的 —— 别的进程（doctor）靠它分辨
+                vc.execute("INSERT OR REPLACE INTO semantic_meta VALUES ('last_index_at', ?)", (_now(),))
                 vc.commit()
                 # 嵌入期间这几条可能刚被遗忘：插入之后再核对一次，不在世的立刻删掉
                 ids = [r[0] for r in rows]
@@ -275,12 +430,13 @@ def index_pending(limit: Optional[int] = 256, batch: int = 32) -> int:
                     f"({','.join('?' * len(ids))})", ids)}
                 gone = [m for m in ids if m not in live]
                 if gone:
-                    vc.execute(f"DELETE FROM vectors WHERE mem_id IN ({','.join('?' * len(gone))})", gone)
+                    vc.execute(f"DELETE FROM {TABLE} WHERE mem_id IN ({','.join('?' * len(gone))})", gone)
                     vc.commit()
                 done += len(rows) - len(gone)
             vc.close()
+            _ok()
         except Exception as e:
-            logger.warning("[semantic] 补索引失败（不影响写入与词法召回）: %s", e)
+            _fail("补索引", e)
     if done:
         _matrix_cache.pop(_db_path(), None)
     return done
@@ -318,7 +474,7 @@ def schedule_index() -> None:
                         _sched_running = False
                         return
         except Exception as e:
-            logger.warning("[semantic] 后台补索引失败: %s", e)
+            _fail("后台补索引", e)
             with _sched_lock:
                 _sched_running = False
 
@@ -366,7 +522,7 @@ def warm_async() -> None:
             if n:
                 logger.info("[semantic] 回填 %d 条记忆的向量", n)
         except Exception as e:
-            logger.warning("[semantic] 回填失败: %s", e)
+            _fail("回填", e)
         finally:
             _warming.clear()
 
@@ -379,7 +535,7 @@ def warm_async() -> None:
 
 
 def delete(mem_ids: Iterable[str]) -> int:
-    """删除向量（遗忘级联）。没有 vectors.db 时不创建。"""
+    """删除向量（遗忘级联）。没有语义库时不创建。"""
     ids = [m for m in (mem_ids or []) if m]
     path = _db_path()
     if not ids or not os.path.exists(path):
@@ -389,7 +545,7 @@ def delete(mem_ids: Iterable[str]) -> int:
         n = 0
         for i in range(0, len(ids), 400):
             part = ids[i:i + 400]
-            n += c.execute(f"DELETE FROM vectors WHERE mem_id IN ({','.join('?' * len(part))})",
+            n += c.execute(f"DELETE FROM {TABLE} WHERE mem_id IN ({','.join('?' * len(part))})",
                            part).rowcount
         c.commit()
         c.close()
@@ -405,14 +561,13 @@ def _load(path: str, model: str):
     """当前模型的全部向量（按 data_version 缓存）。个人记忆规模（十万条以内）暴力检索足够。"""
     c = _conn(path)
     try:
-        ver = (c.execute("SELECT COUNT(*), MAX(rowid) FROM vectors WHERE model=?", (model,)).fetchone(),
+        ver = (c.execute(f"SELECT COUNT(*), MAX(rowid) FROM {TABLE} WHERE model=?", (model,)).fetchone(),
                os.path.getmtime(path))
         hit = _matrix_cache.get(path)
         if hit and hit[0] == ver and hit[1] == model:
             return hit
         ids, lines, vecs = [], [], []
-        for mid, line, blob in c.execute(
-                "SELECT mem_id, line_start, vec FROM vectors WHERE model=?", (model,)):
+        for mid, line, blob in c.execute(_STATEMENTS[1], (model,)):
             ids.append(mid)
             lines.append(line)
             vecs.append(_unpack(blob))
@@ -470,7 +625,7 @@ def search(query: str, k: int = 20, min_score: float = None) -> List[Tuple[int, 
             f"({','.join('?' * len(cand))})", [m for m, _, _ in cand])}
         return [(live[m], s) for m, _, s in cand if m in live][:k]
     except Exception as e:
-        logger.debug("[semantic] 检索失败（退回词法）: %s", e)
+        _fail("检索", e, path)
         return []
 
 
@@ -482,12 +637,17 @@ def _standout_threshold(scores: List[float]) -> float:
     只有和背景拉开距离的命中才算语义证据。全部一样像（MAD=0）→ 只有严格高于中位数
     一个最小间隔的才算。Z 由 NYX_EMBED_Z 配置，默认 2。
     """
-    n = len(scores)
-    if n == 0:
+    if not scores:
         return float("inf")
+    # 背景只用「最像的那几条之外」的分数估（v7.13.3）。以前对全部分数取中位数：只有两条记忆时，
+    # 中位数是命中与噪声的平均，门槛高过命中本身 —— 新用户的头几条记忆永远语义召回不到
     srt = sorted(scores)
-    med = srt[n // 2] if n % 2 else (srt[n // 2 - 1] + srt[n // 2]) / 2
-    dev = sorted(abs(x - med) for x in scores)
+    bg = srt[:-max(1, len(srt) // 10)] or srt
+    if len(srt) == 1:
+        return min(srt[0], 0.0) - 1e-9          # 只有一条：没有背景可比，交给 RRF 与字面优先去排
+    n = len(bg)
+    med = bg[n // 2] if n % 2 else (bg[n // 2 - 1] + bg[n // 2]) / 2
+    dev = sorted(abs(x - med) for x in bg)
     mad = dev[n // 2] if n % 2 else (dev[n // 2 - 1] + dev[n // 2]) / 2
     try:
         z = float(os.environ.get("NYX_EMBED_Z", "2") or 2)
@@ -511,31 +671,140 @@ def router_hook() -> Optional[RouterHook]:
 # 体检
 # ══════════════════════════════════════════════════════════
 
+def _live_ids() -> set:
+    from nexsandglass.core import memid
+    return {r[0] for r in memid.get_conn().execute("SELECT mem_id FROM memories WHERE deleted_at IS NULL")}
+
+
 def stats() -> dict:
+    """如实报告。库打不开时 pending 按全部在世记忆算 —— 以前这种情况报的是 pending=0，看起来像全部完成。"""
     p = provider()
-    out = {"enabled": p is not None, "backend": _model_id(p) if p else "off",
-           "ready": bool(p and getattr(p, "ready", True)), "indexed": 0, "pending": 0,
-           "stale_model": 0, "orphans": 0}
     path = _db_path()
+    model = _model_id(p) if p else None
+    out = {"enabled": p is not None, "backend": model or "off",
+           "ready": bool(p and getattr(p, "ready", True)), "db": path,
+           "indexed": 0, "pending": 0, "stale_model": 0, "orphans": 0}
+    st = _status.get(path) or {}
+    out.update(last_error=st.get("last_error"), last_error_at=st.get("last_error_at"),
+               failures=st.get("failures", 0), last_ok_at=st.get("last_ok_at"))
+    if _resolve_problem:
+        out["config_problem"] = _resolve_problem
     try:
-        from nexsandglass.core import memid
-        live = {r[0] for r in memid.get_conn().execute(
-            "SELECT mem_id FROM memories WHERE deleted_at IS NULL")}
-        if os.path.exists(path):
-            c = _conn(path)
-            rows = c.execute("SELECT mem_id, model FROM vectors").fetchall()
-            c.close()
-        else:
-            rows = []
-        model = _model_id(p) if p else None
-        cur = {m for m, md in rows if md == model}
-        out["indexed"] = len(cur & live)
-        out["pending"] = len(live - cur) if p else 0
-        out["stale_model"] = sum(1 for _, md in rows if md != model) if p else 0
-        out["orphans"] = sum(1 for m, _ in rows if m not in live)
+        live = _live_ids()
     except Exception as e:
-        out["error"] = str(e)
+        out["error"] = f"读不了 ID 中枢: {e}"
+        return out
+    rows = []
+    if os.path.exists(path):
+        try:
+            c = _conn(path)
+            try:
+                rows = c.execute(f"SELECT mem_id, model FROM {TABLE}").fetchall()
+            finally:
+                c.close()
+        except Exception as e:
+            out["error"] = f"{type(e).__name__}: {e}"
+    cur = {m for m, md in rows if md == model}
+    out["indexed"] = len(cur & live)
+    out["pending"] = len(live - cur) if p else 0
+    out["stale_model"] = sum(1 for _, md in rows if md != model) if p else 0
+    out["orphans"] = sum(1 for m, _ in rows if m not in live)
     return out
+
+
+def _oldest_pending_age_minutes(pending_ids: set) -> Optional[float]:
+    if not pending_ids:
+        return None
+    from datetime import datetime
+    from nexsandglass.core import memid, clock
+    ids = list(pending_ids)[:5000]
+    row = memid.get_conn().execute(
+        f"SELECT MIN(ts) FROM memories WHERE mem_id IN ({','.join('?' * len(ids))})", ids).fetchone()
+    try:
+        return (clock.now() - datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")).total_seconds() / 60
+    except Exception:
+        return None
+
+
+PENDING_GRACE_MINUTES = 10
+PROGRESS_FRESH_MINUTES = 5
+
+
+def _last_index_at():
+    path = _db_path()
+    if not os.path.exists(path):
+        return None
+    from datetime import datetime
+    c = _conn(path)
+    try:
+        row = c.execute("SELECT value FROM semantic_meta WHERE key='last_index_at'").fetchone()
+    finally:
+        c.close()
+    try:
+        return datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S") if row else None
+    except ValueError:
+        return None
+
+
+def health_check() -> dict:
+    """给 memid.health() / doctor / Hermes 用：语义这一路是否真的在工作。
+
+    不健康（ok=False）的情形 —— 每一种都曾经或可能静默发生：
+      - 配了语义后端却解析不出来（例如 NYX_EMBED=local 但没装 sentence-transformers）
+      - 最近一次补索引 / 检索失败，之后没有成功过
+      - 本地模型加载失败
+      - 有在世记忆超过 10 分钟还没有向量（写进去了却一直没被索引）
+      - 有向量指向已经遗忘的记忆（遗忘没删干净）
+    没配后端 = 关闭，ok=True（这是用户的选择，不是故障）。
+    """
+    s = stats()
+    s["ok"], s["problems"] = True, []
+    if s.get("config_problem"):
+        s["problems"].append(s["config_problem"])
+    if not s["enabled"]:
+        s["ok"] = not s["problems"]
+        s["state"] = "disabled"
+        return s
+    p = provider()
+    if getattr(p, "_failed", False):
+        s["problems"].append(f"本地嵌入模型加载失败：{getattr(p, 'load_error', '')}")
+    if s.get("error"):
+        s["problems"].append(f"语义库读不了：{s['error']}")
+    if s.get("last_error"):
+        s["problems"].append(f"最近一次失败（{s.get('last_error_at')}）：{s['last_error']}")
+    if s["orphans"]:
+        s["problems"].append(f"{s['orphans']} 条向量指向已遗忘的记忆")
+    if s["pending"]:
+        try:
+            pend = _live_ids() - _indexed_ids(_model_id(p))
+            age = _oldest_pending_age_minutes(pend)
+        except Exception:
+            age = None
+        s["oldest_pending_minutes"] = None if age is None else round(age, 1)
+        if age is not None and age > PENDING_GRACE_MINUTES:
+            from nexsandglass.core import clock
+            last = _last_index_at()
+            fresh = last is not None and (clock.now() - last).total_seconds() / 60 <= PROGRESS_FRESH_MINUTES
+            if fresh and not s.get("last_error"):
+                s["backfilling"] = True       # 正在回填且有进展：不是故障
+                s["last_index_at"] = f"{last:%Y-%m-%d %H:%M:%S}"
+            else:
+                s["problems"].append(f"{s['pending']} 条记忆还没有向量，最早的已等了 {age:.0f} 分钟"
+                                     + ("" if last is None else f"，最近一次成功写入向量在 {last:%Y-%m-%d %H:%M}"))
+    s["ok"] = not s["problems"]
+    s["state"] = ("backfilling" if s.get("backfilling") else "ok") if s["ok"] else "failing"
+    return s
+
+
+def _indexed_ids(model: str) -> set:
+    path = _db_path()
+    if not os.path.exists(path):
+        return set()
+    c = _conn(path)
+    try:
+        return {r[0] for r in c.execute(_STATEMENTS[2], (model,))}
+    finally:
+        c.close()
 
 
 def orphans() -> List[str]:
@@ -543,11 +812,9 @@ def orphans() -> List[str]:
     path = _db_path()
     if not os.path.exists(path):
         return []
-    from nexsandglass.core import memid
-    live = {r[0] for r in memid.get_conn().execute(
-        "SELECT mem_id FROM memories WHERE deleted_at IS NULL")}
+    live = _live_ids()
     c = _conn(path)
     try:
-        return [r[0] for r in c.execute("SELECT mem_id FROM vectors") if r[0] not in live]
+        return [r[0] for r in c.execute(f"SELECT mem_id FROM {TABLE}") if r[0] not in live]
     finally:
         c.close()

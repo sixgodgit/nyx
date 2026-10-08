@@ -3,11 +3,14 @@ NexSandglass V2.1.1 — 冷热分层存储
 热沙(sandglass.txt): 最近30天完整对话
 冷沙(archive/): 超过30天，按月分文件，AI低价值丢弃
 """
+import logging
 import os
 import re
 import shutil
 from nexsandglass.core.sandglass_paths import _NB
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 _VAULT = _NB
 _ARCHIVE = os.path.join(_VAULT, "archive")
@@ -43,6 +46,20 @@ def cold_migration(dry_run: bool = False) -> dict:
     hot_file = os.path.join(_VAULT, "sandglass.txt")
     if not os.path.exists(hot_file):
         return {"moved": 0, "dropped": 0, "kept": 0}
+
+    # v7.4 起日志的物理行号就是每条记忆的身份（ID 中枢、倒排、FTS、来源、隔离区都按行号定位）。
+    # 把旧行从日志里删掉会让之后**所有**记忆的行号整体前移 —— 全部索引静默错位。
+    # 有中枢记录时拒绝改写日志；冷热分层要做也只能做在派生索引上，不能动真相来源。
+    if not dry_run:
+        try:
+            from nexsandglass.core import memid
+            if memid.count(include_deleted=True) > 0:
+                logger.error("[archive] 拒绝冷迁移：日志行号是记忆身份，删行会让全部索引错位（v7.13.3 起禁用）")
+                return {"moved": 0, "dropped": 0, "kept": 0,
+                        "skipped": "journal line numbers are memory identity since v7.4"}
+        except Exception as e:
+            logger.error("[archive] 无法确认 ID 中枢状态，为安全起见不改写日志: %s", e)
+            return {"moved": 0, "dropped": 0, "kept": 0, "skipped": f"hub check failed: {e}"}
 
     to_keep = []
     moved = 0
@@ -93,11 +110,10 @@ def cold_migration(dry_run: bool = False) -> dict:
 
         try:
             # 重写热沙
-            tmp = hot_file + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
+            from nexsandglass.core.fsutil import atomic_write
+            with atomic_write(hot_file) as f:
                 for line in to_keep:
                     f.write(line + "\n")
-            os.replace(tmp, hot_file)
         finally:
             try:
                 os.unlink(lock)

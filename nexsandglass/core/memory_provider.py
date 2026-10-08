@@ -139,6 +139,11 @@ _TOOL_SCHEMAS = [
         {"mem_id": {"type": "string"}}, ["mem_id"]),
     _fn("nyx_quarantine", "列出隔离区：被遗忘但还能还原的记忆（只含 40 字预览）与到期时间。",
         {"limit": {"type": "integer", "default": 20}}),
+    _fn("nyx_health",
+        "Nyx 自检：中枢与日志一致性、全文 / 倒排 / 语义索引、遗忘完整性、隔离区到期、规则投毒。"
+        "每项单独给出 ok 与原因。主人问「记忆系统正常吗」或系统提示里出现自检警告时调用。",
+        {"quick": {"type": "boolean", "default": False,
+                   "description": "true = 只查语义索引（快）；false = 全量（要扫整份日志）"}}),
 ]
 
 _WRITE_TOOLS = {"fact_feedback", "nyx_forget", "nyx_restore"}
@@ -518,10 +523,29 @@ class NexSandglassProvider(MemoryProvider):
                 body = "\n\n".join(fb).strip()
 
             tail = f"沙漏: {total}条 | 阶段: {stage}"
-            return (body + "\n\n" + tail).strip()
+            warn = self._health_warning()
+            return (body + "\n\n" + tail + (("\n" + warn) if warn else "")).strip()
         except Exception:
             logger.warning("system_prompt_block 整体失败", exc_info=True)
             return "NexSandglass记忆系统已就绪。使用sandglass_search搜索记忆。"
+
+    @staticmethod
+    def _health_warning() -> str:
+        """语义索引自检失败时给 agent 的一行提醒（v7.13.3）。
+
+        这一路曾经静默失效一个月：失败只进日志，没有人看日志。提醒放在系统提示里，
+        agent 会看到并转告主人；全量自检较慢（要扫整份日志），这里只查最容易静默坏掉的那一项。
+        """
+        try:
+            from nexsandglass.core import semantic
+            hc = semantic.health_check()
+        except Exception as e:
+            return f"⚠️ Nyx 自检：语义索引状态读取失败（{e}）。请提醒主人运行 `python3 -m nexsandglass.doctor`。"
+        if hc.get("ok"):
+            return ""
+        why = "；".join(hc.get("problems") or [])[:200]
+        return (f"⚠️ Nyx 自检：语义检索这一路不可用（{why}）。词法召回正常。"
+                f"请提醒主人运行 `python3 -m nexsandglass.doctor`，或调用 nyx_health 查看详情。")
 
     def _signal_line(self) -> str:
         """偏移 + 情绪：主注入已有全貌，这里只给最动态的信号。"""
@@ -893,6 +917,13 @@ class NexSandglassProvider(MemoryProvider):
                 return self._handle_restore(args)
             if name == "nyx_quarantine":
                 return self._handle_quarantine(args)
+            if name == "nyx_health":
+                if _as_bool(args.get("quick"), False):
+                    from nexsandglass.core import semantic
+                    return json.dumps({"checks": {"semantic_index": semantic.health_check()}},
+                                      ensure_ascii=False, default=str)
+                from nexsandglass import doctor
+                return json.dumps(doctor.run(), ensure_ascii=False, default=str)
 
             return tool_error(f"Unknown NexSandglass tool: {name}")
 
