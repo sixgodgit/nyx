@@ -171,7 +171,7 @@ def test_every_tool_returns_json(hermes, monkeypatch):
                "fact_feedback": {"line_num": 1, "helpful": True}, "nyx_restore": {"mem_id": "m_x"}}
     for s in p.get_tool_schemas():
         if s["name"] in ("sandglass_offset", "sandglass_echo", "sandglass_recent",
-                         "sandglass_search", "nyx_belief", "nyx_quarantine"):
+                         "sandglass_search", "nyx_belief", "nyx_quarantine", "nyx_health"):
             continue   # 读类工具在行为测试里用隔离目录验证
         json.loads(p.handle_tool_call(s["name"], minimal.get(s["name"], {})))
     assert "error" in json.loads(p.handle_tool_call("no_such_tool", {}))

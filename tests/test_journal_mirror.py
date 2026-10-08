@@ -100,3 +100,86 @@ def test_fallback_results_identical_to_file_scan(env, monkeypatch):  # noqa: F81
         monkeypatch.delenv("NYX_JOURNAL_MIRROR_MB")
         jm.invalidate()
         assert mem == disk, q
+
+
+def test_new_message_extends_index_in_memory_without_rereading_file(env, monkeypatch):  # noqa: F811
+    """v7.13.2 实测：15 万条时，每写一句话，下一次查询都把 11MB 的 sandglass.idx 整份重读（1.6s）
+    再整份重写（0.6s）—— 真实对话里每轮查询 1.3–2.0 秒。现在新记录直接补进内存。"""
+    import builtins
+    from nexsandglass.core import sandglass_log
+    from nexsandglass.features import sandglass_vault as v
+    p = _provider()
+    for i in range(20):
+        p.sync_turn(f"第{i}条 背景记录 老周", "")
+    _reindex(env)
+    v._sync_index()
+    opened = []
+    real_open = builtins.open
+    monkeypatch.setattr(builtins, "open",
+                        lambda f, *a, **k: (opened.append(str(f)), real_open(f, *a, **k))[1])
+    monkeypatch.setattr(v, "PERSIST_EVERY_LINES", 10 ** 9)
+    monkeypatch.setattr(v, "PERSIST_EVERY_SECONDS", 10 ** 9)
+    sandglass_log.log_message("新写入的一句：护照放在书房抽屉 zz-unique-token", "user")
+    idx = v._sync_index()
+    assert "zz-unique-token" in idx or any(t in idx for t in ("uniq", "uniqu", "护照"))
+    assert not [f for f in opened if os.path.abspath(f) == os.path.abspath(v._IDX)], \
+        "有新行时又去整份读 / 写 idx 文件了"
+
+
+def test_deferred_index_persistence_round_trips(env, monkeypatch):  # noqa: F811
+    """攒着没落盘的增量：flush 后冷启动读回来的索引与内存里的一致；不 flush 也只是从文件覆盖的行起重补。"""
+    from nexsandglass.features import sandglass_vault as v
+    p = _provider()
+    for i in range(10):
+        p.sync_turn(f"第{i}条 记录 甲乙", "")
+    _reindex(env)
+    v._sync_index()
+    monkeypatch.setattr(v, "PERSIST_EVERY_LINES", 10 ** 9)
+    monkeypatch.setattr(v, "PERSIST_EVERY_SECONDS", 10 ** 9)
+    for i in range(10):
+        p.sync_turn(f"后来的第{i}条 丙丁 mark{i}x", "")
+    live = {k: sorted(set(x)) for k, x in v._sync_index().items()}
+    v._idx_cache, v._idx_mtime = None, 0                     # 没 flush 就"重启"
+    assert {k: sorted(set(x)) for k, x in v._sync_index().items()} == live
+    v.flush_index()
+    v._idx_cache, v._idx_mtime = None, 0                     # flush 之后再"重启"
+    assert {k: sorted(set(x)) for k, x in v._sync_index().items()} == live
+    hdr = [l for l in open(v._IDX, encoding="utf-8") if l.startswith("# covered_lines:")]
+    assert int(hdr[0].split(":")[1]) == v._journal_lines()
+
+
+def test_background_persist_never_overwrites_a_purge(env, monkeypatch):  # noqa: F811
+    """后台落盘写的是旧快照；如果期间发生了遗忘，那份快照不能盖掉刚抹掉 posting 的文件。"""
+    import threading
+    import time
+    from nexsandglass.core import memid
+    from nexsandglass.features import sandglass_vault as v
+    p = _provider()
+    p.sync_turn("要被遗忘的 secretword 记录", "")
+    for i in range(5):
+        p.sync_turn(f"普通记录 {i}", "")
+    _reindex(env)
+    v._sync_index()
+    line = memid.get_conn().execute("SELECT line_start FROM memories WHERE text LIKE '%secretword%'").fetchone()[0]
+    gate = threading.Event()
+    real_body = v._write_idx_body
+
+    def slow_body(f, idx, covered, lens=None):
+        if lens is not None:
+            gate.wait(5)                                      # 后台落盘卡在写的中途
+        return real_body(f, idx, covered, lens)
+
+    monkeypatch.setattr(v, "_write_idx_body", slow_body)
+    with v._idx_lock:
+        v._persist_async()                                   # 拿到遗忘之前的快照
+    out = json.loads(p.handle_tool_call("nyx_forget", {"contains": "secretword", "confirm": True}))
+    assert out["status"] == "quarantined"
+    gate.set()
+    for _ in range(250):
+        if not v._persisting:
+            break
+        time.sleep(0.02)
+    assert not v._persisting
+    still = [l.split(":")[0] for l in open(v._IDX, encoding="utf-8")
+             if not l.startswith("#") and ":" in l and str(line) in l.strip().split(":", 1)[1].split(",")]
+    assert not still, f"后台落盘用旧快照把遗忘之前的索引写回去了：{still}"

@@ -2,7 +2,7 @@
 
 > **Nyx — 把「检索失败」也当作一类信号的记忆系统**
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.13.2-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.13.3-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 ## 别的记忆系统回答「找到了什么」，Nyx 还回答「我是不是见过」
 
@@ -134,14 +134,15 @@ nexsandglass/
 │   ├── sandglass_sqlite.py          # FTS5 全文索引
 │   ├── search_router.py             # 检索路由：FTS5 / 倒排 / TF-IDF / 影子沙 + 语义，RRF 融合
 │   ├── journal_mirror.py            # 日志增量内存镜像：行数与兜底扫描不再随历史变长而变慢（v7.13.2）
-│   ├── semantic.py                  # 🔍 语义检索（v7.13）
+│   ├── semantic.py                  # 🔍 语义检索（v7.13；v7.13.3 起独立的 semantic.db + 结构校验 + 自检）
+│   ├── fsutil.py                    # 原子写文件（唯一临时文件名，v7.13.3）
 │   ├── erasure.py                   # 🗑️ 擦除级联 + 验收（v7.4）
 │   ├── quarantine.py                # 🕯️ 遗忘隔离区：还原 / 到期擦除（v7.6）
 │   ├── provenance.py                # 🛡️ 来源与信任（v7.8）
 │   ├── understand.py                # 🗣️ 一句话 → 带时间的事实（v7.10–v7.11）
 │   ├── clock.py                     # 可注入时钟（评测 / 回放用）
 │   ├── memory_provider.py           # 🔌 Hermes MemoryProvider 实现（v7.12）
-│   ├── embedding_provider.py, vector_store.py, vector_search.py   # 旧向量组件（v3.4，召回主路径不用）
+│   ├── embedding_provider.py, vector_store.py, vector_search.py   # 旧向量组件（v3.4，已弃用，召回主路径不用）
 │   └── sandglass_paths.py, sandglass_archive.py, l0_buffer.py, emotion_vocab.py, llm_extract.py, …
 ├── runtime/                     # 对外 API：observe / recall / feedback / forget / restore / consolidate
 │   ├── facade.py                    # 稳定门面
@@ -154,6 +155,7 @@ nexsandglass/
 ├── l3/                          # 画像、场景、偏移率、矛盾检测、待办
 ├── dejavu/                      # 👻 Déjà Vu 独立子包（Veil Bloom + Mist SQLite）
 ├── interfaces/                  # sandglass_mcp.py（MCP 服务）、nyx.py（Déjà Vu 适配）
+├── doctor.py                    # `python3 -m nexsandglass.doctor`：一条命令自检（v7.13.3）
 ├── nyx_server.py                # NyxBook 的 HTTP API（FastAPI，可选）
 └── utils/
 nexsandglass_hermes/             # Hermes 插件入口：entry point + plugin.yaml + 配置（v7.12）
@@ -186,7 +188,7 @@ python3 benchmarks/longmemeval_eval.py longmemeval_s_cleaned.json --workers 8 --
 | `benchmarks/forget_restore_drill.py` | 误删 150 条 → 逐字节还原；真删仍不可逆 | v7.6 |
 | `tests/integration/hermes_real_check.py` | 对真实 Hermes 源码跑插件全链路（需 `HERMES_AGENT_SRC`） | v7.12 |
 | `benchmarks/dejavu_bench.py` | Déjà Vu「熟悉 / 陌生」分类 | v7.5 |
-| `benchmarks/recall_latency.py` | 3 万 / 15 万条记忆下 Hermes 插件的启动、首轮与每轮召回耗时 | v7.13.2 |
+| `benchmarks/recall_latency.py` | 3 万 / 15 万条记忆下 Hermes 插件的启动、首轮、每轮召回耗时；conversation 模式按真实对话节奏（写一句、查一句） | v7.13.2–v7.13.3 |
 
 > 旧版这里放过 `tests/eval/run_eval.py` 的「词法检索召回率 75%」。那个脚本用自带的简易分词给一个内存列表打分，
 > **不经过 nyx 的检索链路**，不代表 nyx 的召回质量，已撤下。
@@ -254,6 +256,9 @@ cp -r skills/nyx ~/.hermes/skills/memory/
 
 ## 🔧 配置
 
+**自检**：`python3 -m nexsandglass.doctor`（`--json` 机读；有项目失败时退出码 1）。每一项单独给出是否正常与原因，
+包括中枢与日志一致性、全文 / 倒排 / 语义索引、遗忘完整性、隔离区到期、规则投毒。升级后、或觉得「记得不对」时先跑它。
+
 **Hermes 用户**：`config.yaml` 里 `memory.provider: nyx`，其余用 `hermes memory setup`（写入 `$HERMES_HOME/nyx.json`，
 键见 [`nexsandglass_hermes/README.md`](nexsandglass_hermes/README.md)）。
 
@@ -288,7 +293,7 @@ cp -r skills/nyx ~/.hermes/skills/memory/
 | `memory_feedback` | 召回反馈（强化 / 弱化） |
 | `memory_forget` | 遗忘：`memory_id` / `contains` / `dry_run`；**默认进隔离区**，保留期内可还原；什么都没删时返回 `ok=false` |
 | `sandglass_search` / `sandglass_semantic` | 关键词搜索 / 同义词 + SimHash + TF-IDF 搜索 |
-| `sandglass_recent` / `sandglass_ping` | 最近 N 条 / 健康检查 |
+| `sandglass_recent` / `sandglass_ping` | 最近 N 条 / 健康检查（语义索引坏了时 `status=degraded`） |
 | `sandglass_persona` / `sandglass_tasks` | 主人画像 / 待办 |
 | `sandglass_offset` / `sandglass_echo` / `sandglass_chart` | 偏移率 / 情感风向 / 情绪熵图 |
 | `sandglass_dejavu` | Déjà Vu 模糊感知 |
@@ -329,7 +334,7 @@ restore(r["preview"][0]["mem_id"])                     # 隔离期内原样还�
 | `nyx.db` | ID 中枢（mem_id ↔ 行号）、墓碑、来源与信任、遗忘隔离区 |
 | `sandglass.db` / `sandglass.idx` | FTS5 全文索引 / 倒排索引 |
 | `shadow_sand.db` | 影子沙（信任评分、实体、标签）+ 双时态事实 `wthread_triples` |
-| `vectors.db` | 语义索引（v7.13；没有嵌入后端时不创建） |
+| `semantic.db` | 语义索引（表 `embeddings`；v7.13.3 起。没有嵌入后端时不创建）。旧版的 `vectors.db` 不再使用 |
 | `engram_store.jsonl` | engram 加工层（四类记忆 + 衰减） |
 | `veil.bin` / `mist.db` | Déjà Vu（Bloom Filter / 出现记录） |
 | `persona/`、`archive/` | 画像与决策日志 / 冷归档 |
@@ -339,6 +344,69 @@ Hermes 用户：数据目录在 `HERMES_HOME` 之外时，`hermes backup` 会自
 ---
 
 ## 📝 更新日志
+
+### v7.13.3 (2026-10-08) — 语义索引静默失效的根治 + 同类问题一并清掉
+
+**起因**：2026-10-09 一台生产机的 agent 上报诊断报告 —— 语义检索这一路自建库起**一条向量都没写进去过**，持续一个月，
+自检与 ping 全绿。报告的根因判断正确：数据目录恰好是 `~/.hermes/nexsandglass`，旧 `vector_store` 先在那里建了
+2 列的 `vectors` 表；v7.13 语义层同名文件、同名表、6 列，`CREATE TABLE IF NOT EXISTS` 静默跳过，此后每次写入
+`no such column: model`，失败被降级成一行 warning。报告提出的「把文件挪开」只能治标，这里从代码层面根治。
+
+**根治语义索引**
+- 独立文件 `semantic.db`、独立表 `embeddings`，与任何旧模块都不重名；`semantic_meta` 记录所有者与结构版本
+- 打开时校验结构、所有语句先编译一遍；结构不对就挪到 `semantic.db.mismatch-<时间>` 并重建（向量是派生数据）
+- 升级无需手工操作：同目录的 `vectors.db` 若是 v7.13 语义层写对了的，向量直接搬过来（不重新嵌入）；
+  若是旧 `vector_store` 的表，**原样不碰**；Hermes 插件启动后在后台回填
+- 旧 `vector_store` 退场：不再在任何共享位置建库，默认存到专属的 `legacy_vector_store.*`，表名 `legacy_vectors`，
+  `get_vector_store()` 给出弃用提示（报告的决策项①）
+
+**失败不再静默**（报告的决策项②，以及「为何长期不可见」）
+- `python3 -m nexsandglass.doctor`：一条命令看每一项，失败退出码 1；`memid.health()` 新增 `semantic_index` 一项
+- 判为故障：配了后端却用不了（如 `NYX_EMBED=local` 但没装 sentence-transformers）、最近一次补索引 / 检索失败、
+  模型加载失败、记忆写入超过 10 分钟仍没有向量且回填没有进展、向量指向已遗忘的记忆。回填进行中不算故障
+- Hermes 插件：自检失败时在系统提示里给 agent 一行提醒（agent 会转告主人）；新工具 `nyx_health`
+- MCP `sandglass_ping` 不再恒报 ok：语义这一路坏了报 `degraded`
+- 同一个错误只按 ERROR 报一次，不刷屏；`stats()` 失败时如实报告待补条数（以前报 0，看起来像全部完成）
+
+**报告漏掉的，同一类问题（多个写入方没有协调 + 失败被吞）**
+
+| 问题 | 实测后果 | 修法 |
+|---|---|---|
+| 遗忘 / 还原改写日志时不拿锁 | 并发压测每轮**丢 1–5 条真实对话**（中枢有、日志没了） | 改写与追加同一把锁（可重入、跨进程），遗忘与还原全程持锁 |
+| ID 中枢全进程共用一个数据库连接 | 一个线程的 commit 把别的线程的半截写一起提交；`cannot start a transaction within a transaction` | 每个线程一个连接 |
+| 8 处固定名字的临时文件（报告里的 `sandglass.idx.tmp`） | 报告认为无害；实际那次查询倒排与 TF-IDF 两路拿到空索引，最坏情况两个写入方交错拼出坏文件被换上去 | `core/fsutil.atomic_write`：唯一临时文件名 |
+| `cold_migration` 删日志行 | 记忆满 1000 条时触发一次，之后所有记忆的行号整体错位 | 有 ID 中枢时拒绝执行 |
+| 语义「明显高于背景」的门槛在记忆很少时失效 | 只有两条记忆时门槛高过命中本身，新用户语义召回为空 | 估背景时排除最像的几条 |
+
+**更正 v7.13.2 的性能数字**：v7.13.2 的基准只连续查询、中间不写入。按真实对话节奏（写一句、查一句）实测，
+15 万条记忆时每轮查询 **1.3–2.0 秒** —— 每次有新行，倒排索引都把 11MB 的文件整份重读再整份重写，
+全文索引的增量同步也要把整份日志从头逐行读过去。现在新记录从 ID 中枢按行号增量补进内存，
+索引文件攒够 500 行或 10 分钟才在后台写（写回前确认期间没有被遗忘 / 还原替换，否则放弃）：
+
+| 15 万条记忆 | v7.13.2 | v7.13.3 |
+|---|---|---|
+| 真实对话每轮查询 p50 / p95 | 1.3–2.0 s | **89 / 188 ms** |
+| 一次遗忘（期间写入需排队） | 3.0 s | 0.9 s |
+| 一次还原 | ~1.6 s 起 | 1.1 s |
+
+3 万条：真实对话每轮 p50 / p95 32 / 56 ms。`benchmarks/recall_latency.py` 新增 conversation 模式。
+
+**防复发**
+- `tests/test_structural_guards.py`（扫源码）：同一个表名只能有一种列定义；多个模块共用的数据库文件名必须在白名单里写明理由；
+  不允许固定名字的临时文件。在 v7.13.2 的代码上运行，**4 项全红，其中一项准确指出 `vectors` 表在 semantic 与 vector_store 里列不同**
+- `tests/test_concurrency.py`：追加与遗忘 / 还原并发不丢、跨进程不丢、线程间事务隔离、并发写索引不坏、冷迁移拒绝改行号
+  （在 v7.13.2 上 6 项中 5 项失败；跨进程那一项在旧代码上没能复现竞态，保留作回归）
+- `tests/test_semantic_store_guard.py`：报告原始现场（同一条建表语句）、v7.13 数据迁移、结构不对时重建、
+  失败在 stats / health / doctor / ping / Hermes 系统提示里都可见且只报一次、回填中不误报
+
+**更正报告里的一处判断**：Déjà Vu 只用标准库（Bloom 过滤器 + SQLite），不依赖向量，这次没有受影响。
+
+**其他机器**：小宝、马维斯升级到 7.13.3 后运行 `python3 -m nexsandglass.doctor` 即可确认；不需要手工挪文件。
+
+**验证**：全量 492 项通过（逐文件独立全绿）；事故 / 投毒演练、真实 Hermes 检查在语义开 / 关两种模式下通过；
+纵向评测三轨与 v7.11 逐项相同；LongMemEval 小样本召回指标不变。按报告里的「第三步验收」在模拟生产目录
+（`.hermes/nexsandglass` + 旧 2 列 `vectors.db` + 3 万条记忆）上演练：升级后后台回填 30000 条，
+`SELECT COUNT(*) FROM embeddings` = 30000，模型与维度一致，旧 `vectors.db` 未被改动，doctor 全绿。
 
 ### v7.13.2 (2026-10-06) — 召回提速：查询不再随历史变长而变慢
 

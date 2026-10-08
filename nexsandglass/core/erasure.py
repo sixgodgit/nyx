@@ -160,14 +160,16 @@ def _redact_journal(rows: list, reason: str, journal_path: str) -> int:
         for n in range(ls + 1, (le or ls) + 1):
             mark[n] = REDACTED_CONT
 
-    tmp = journal_path + ".redact.tmp"
+    from nexsandglass.core.fsutil import atomic_write
     n_lines = 0
-    with open(journal_path, "r", encoding="utf-8", errors="replace") as src, \
-            open(tmp, "w", encoding="utf-8") as dst:
-        for n, line in enumerate(src, 1):
-            dst.write(mark[n] + "\n" if n in mark else line)
-            n_lines += 1
-    os.replace(tmp, journal_path)
+    # 必须和追加写入用同一把锁（v7.13.3）：读整份 → 写临时文件 → 替换，中间有人追加的那一行会被替换掉，
+    # 中枢里有它、日志里没了（压测实测每轮丢 1–5 条）。锁是可重入的：forget 外层已经持有
+    with memid.journal_lock(journal_path):
+        with open(journal_path, "r", encoding="utf-8", errors="replace") as src, \
+                atomic_write(journal_path) as dst:
+            for n, line in enumerate(src, 1):
+                dst.write(mark[n] + "\n" if n in mark else line)
+                n_lines += 1
     memid._line_count_cache.pop(journal_path, None)
     return len(mark)
 
@@ -205,12 +207,10 @@ def _redact_backup(rows: list, reason: str, journal_path: str) -> dict:
         out["journal_lines"] = n_journal
         return out
 
-    tmp = bak + ".redact.tmp"
-    with open(bak, "r", encoding="utf-8", errors="replace") as src, \
-            open(tmp, "w", encoding="utf-8") as dst:
+    from nexsandglass.core.fsutil import atomic_write
+    with open(bak, "r", encoding="utf-8", errors="replace") as src, atomic_write(bak) as dst:
         for n, line in enumerate(src, 1):
             dst.write(mark[n] + "\n" if n in mark else line)
-    os.replace(tmp, bak)
     out["lines"] = len(mark)
     out["status"] = "redacted"
     return out
@@ -234,7 +234,7 @@ def _purge_idx(line_starts: list) -> int:
     if not line_starts:
         return 0
     drop = set(line_starts)
-    idx = v._sync_index()
+    idx = v.index_for_update()
     if not idx:
         return 0
     removed, out = 0, {}
@@ -243,8 +243,7 @@ def _purge_idx(line_starts: list) -> int:
         removed += len(lines) - len(keep)
         if keep:
             out[token] = keep
-    v._write_idx(out, v._journal_lines())
-    v._idx_cache, v._idx_mtime = out, v._journal_lines()
+    v._set_index(out, v._idx_mtime or v._journal_lines())
     return removed
 
 
@@ -314,11 +313,10 @@ def _purge_engram(ts_list: list) -> int:
             else:
                 kept.append(line)
     if removed:
-        tmp = store + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
+        from nexsandglass.core.fsutil import atomic_write
+        with atomic_write(store) as f:
             for l in kept:
                 f.write(l + "\n")
-        os.replace(tmp, store)
     return removed
 
 
@@ -339,6 +337,17 @@ def _purge_vectors(mem_ids: list) -> int:
 def forget(selector: dict, reason: str = "user_forget", apply: bool = False,
            journal_path: str = None, mode: str = "quarantine",
            retention_days: int = None) -> dict:
+    """见 _forget_impl。真正动手时整个过程持有日志锁（v7.13.3）：选中 → 留副本 → 抹正文 → 清索引 → 墓碑
+    之间不许有人追加，否则改写日志时会把新追加的那一行替换掉。预演不拿锁。"""
+    if not apply:
+        return _forget_impl(selector, reason, apply, journal_path, mode, retention_days)
+    with memid.journal_lock(journal_path or memid._journal_path()):
+        return _forget_impl(selector, reason, apply, journal_path, mode, retention_days)
+
+
+def _forget_impl(selector: dict, reason: str = "user_forget", apply: bool = False,
+                 journal_path: str = None, mode: str = "quarantine",
+                 retention_days: int = None) -> dict:
     """真正的删除：中枢 + 日志正文 + 全部索引。
 
     apply=False（默认）只列出会删什么，不动任何东西。
