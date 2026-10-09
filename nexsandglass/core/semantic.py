@@ -44,6 +44,8 @@ import sqlite3
 import threading
 from typing import Iterable, List, Optional, Tuple
 
+from nexsandglass.core import sqlite_open
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_LOCAL_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
@@ -328,12 +330,17 @@ def _migrate_from_v713(c: sqlite3.Connection, path: str) -> int:
         return 0
 
 
+def _create_schema(c: sqlite3.Connection) -> None:
+    c.executescript(_SCHEMA)
+    c.execute("INSERT OR REPLACE INTO semantic_meta VALUES ('owner', ?)", (OWNER,))
+    c.execute("INSERT OR REPLACE INTO semantic_meta VALUES ('schema_version', ?)", (SCHEMA_VERSION,))
+    c.commit()
+
+
 def _conn(path: str = None) -> sqlite3.Connection:
     """打开语义库。第一次打开时校验结构：对不上就挪开重建；所有语句先编译一遍。"""
     path = path or _db_path()
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    c = sqlite3.connect(path, timeout=30)
-    c.execute("PRAGMA journal_mode=WAL")
+    c = sqlite_open.connect(path, timeout=30)
     try:
         key = (path, os.stat(path).st_ino)
     except OSError:
@@ -346,13 +353,9 @@ def _conn(path: str = None) -> sqlite3.Connection:
         if problems:
             c.close()
             _move_aside(path, "；".join(problems))
-            c = sqlite3.connect(path, timeout=30)
-            c.execute("PRAGMA journal_mode=WAL")
+            c = sqlite_open.connect(path, timeout=30)
             fresh = True
-        c.executescript(_SCHEMA)
-        c.execute("INSERT OR REPLACE INTO semantic_meta VALUES ('owner', ?)", (OWNER,))
-        c.execute("INSERT OR REPLACE INTO semantic_meta VALUES ('schema_version', ?)", (SCHEMA_VERSION,))
-        c.commit()
+        sqlite_open.retry_locked(c, _create_schema, 30)
         for sql in _STATEMENTS:
             c.execute("EXPLAIN " + sql, tuple([None] * sql.count("?")))
         if fresh:

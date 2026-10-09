@@ -2,7 +2,7 @@
 
 > **Nyx — 把「检索失败」也当作一类信号的记忆系统**
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.13.3-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.13.4-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 ## 别的记忆系统回答「找到了什么」，Nyx 还回答「我是不是见过」
 
@@ -136,6 +136,7 @@ nexsandglass/
 │   ├── journal_mirror.py            # 日志增量内存镜像：行数与兜底扫描不再随历史变长而变慢（v7.13.2）
 │   ├── semantic.py                  # 🔍 语义检索（v7.13；v7.13.3 起独立的 semantic.db + 结构校验 + 自检）
 │   ├── fsutil.py                    # 原子写文件（唯一临时文件名，v7.13.3）
+│   ├── sqlite_open.py               # 开库唯一入口：WAL + 建表串行化、撞锁重试（v7.13.4）
 │   ├── erasure.py                   # 🗑️ 擦除级联 + 验收（v7.4）
 │   ├── quarantine.py                # 🕯️ 遗忘隔离区：还原 / 到期擦除（v7.6）
 │   ├── provenance.py                # 🛡️ 来源与信任（v7.8）
@@ -345,6 +346,36 @@ Hermes 用户：数据目录在 `HERMES_HOME` 之外时，`hermes backup` 会自
 
 ## 📝 更新日志
 
+### v7.13.4 (2026-10-09) — 并发首次开库不再撞锁（v7.13.3 被发布流水线拦下，未上 PyPI）
+
+**起因**：v7.13.3 的发布流水线在 Python 3.11 上失败，构建与发布两步没有执行，**PyPI 上没有 7.13.3**。
+失败的是 `test_threads_get_distinct_connections`：4 个线程同时第一次打开 ID 中枢库，其中一个在
+`PRAGMA journal_mode=WAL` 上抛 `database is locked`。连接设了 30 秒超时也没用：切换日志模式要排他锁，
+SQLite 发现锁成环（一边持共享锁等升级、一边在建表）时不等待，直接报错。
+这不只是测试不稳：Hermes 启动时预热线程、语义补索引线程、写入线程几乎同时开库，网关进程和 MCP 进程同时启动也一样。
+
+**同类问题一共 7 处**：ID 中枢、语义库、全文索引、影子沙、织线、双时态事实、Déjà Vu 各自 `connect` + 设 WAL + 建表。
+本地复现（每轮一个新库、14 个线程同一瞬间开）：旧代码 60 轮失败 32 次 —— 语义库 / 全文索引 / Déjà Vu 撞锁；
+影子沙另有一个竞态：共享连接被两个线程同时创建，另一个线程拿到还没建表的连接，报 `no such table: trust`。
+
+**修法**：新增 `core/sqlite_open.connect()`，所有开库都走它
+- 同一进程内，同一个库文件的「开库 + WAL + 建表 / 迁移」按路径串行
+- 已经是 WAL 就不再切换（WAL 写在库文件里，切过一次之后只需读一下）
+- 跨进程撞锁：回滚后退避重试，直到超时才报错；建表函数都改成幂等（织线的补列只补缺的列）
+- 影子沙的共享连接加锁创建
+
+**防复发**
+- `tests/test_sqlite_open.py`：每个开库入口 25 轮 × 一群线程同一瞬间开新库；6 个进程同时开同一个新库；
+  重试 / 不重试 / 超时放弃 / 等另一个连接释放排他锁。在 v7.13.3 的代码上：全入口那项 3 次运行 3 次失败，跨进程那项 3 次中 1 次失败
+- 原来那项 `test_threads_get_distinct_connections` 本身也有个洞：比较的是已结束线程的连接 `id()`，连接被回收后地址会复用。开库串行化之后 Python 3.10 上 4 个 id 全相同。现在让 4 个线程同时持有连接再比较
+- `tests/test_structural_guards.py` 新增两项（扫源码）：除 `sqlite_open` 外不许设 `journal_mode`；
+  不许 `sqlite3.connect` 之后在同一个函数里自己建表 / 改表（已弃用的 `vector_store` 写明理由豁免）
+- 新增 `.github/workflows/ci.yml`：每个 PR 和推到 main 都在 Python 3.10–3.13 上跑全量测试。
+  以前这套矩阵只在打发布 tag 时才跑，所以这个问题到发布那一刻才暴露
+
+**验证**：全量测试通过；新代码 200 轮 × 14 线程零失败；并发相关测试连续 8 次全绿；
+Python 3.10 / 3.11 / 3.12 / 3.13 的干净环境按发布流水线同样的方式安装后全量通过。
+
 ### v7.13.3 (2026-10-08) — 语义索引静默失效的根治 + 同类问题一并清掉
 
 **起因**：2026-10-09 一台生产机的 agent 上报诊断报告 —— 语义检索这一路自建库起**一条向量都没写进去过**，持续一个月，
@@ -401,7 +432,7 @@ Hermes 用户：数据目录在 `HERMES_HOME` 之外时，`hermes backup` 会自
 
 **更正报告里的一处判断**：Déjà Vu 只用标准库（Bloom 过滤器 + SQLite），不依赖向量，这次没有受影响。
 
-**其他机器**：小宝、马维斯升级到 7.13.3 后运行 `python3 -m nexsandglass.doctor` 即可确认；不需要手工挪文件。
+**其他机器**：小宝、马维斯升级（7.13.4）后运行 `python3 -m nexsandglass.doctor` 即可确认；不需要手工挪文件。
 
 **验证**：全量 492 项通过（逐文件独立全绿）；事故 / 投毒演练、真实 Hermes 检查在语义开 / 关两种模式下通过；
 纵向评测三轨与 v7.11 逐项相同；LongMemEval 小样本召回指标不变。按报告里的「第三步验收」在模拟生产目录

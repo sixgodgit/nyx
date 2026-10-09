@@ -119,14 +119,21 @@ def test_each_thread_has_its_own_transaction(env):  # noqa: F811
 
 
 def test_threads_get_distinct_connections(env):  # noqa: F811
+    # 比较连接对象本身，并让 4 个线程同时活着：线程结束后它的连接被回收，
+    # 比 id() 会碰上地址复用（v7.13.4 开库串行化之后，Python 3.10 上 4 个 id 全相同）
     from nexsandglass.core import memid
-    got = []
-    ts = [threading.Thread(target=lambda: got.append(id(memid.get_conn()))) for _ in range(4)]
+    got, all_in = [], threading.Barrier(4)
+
+    def grab():
+        got.append(memid.get_conn())
+        all_in.wait(30)
+
+    ts = [threading.Thread(target=grab) for _ in range(4)]
     for t in ts:
         t.start()
     for t in ts:
         t.join()
-    assert len(set(got)) == 4
+    assert len(got) == 4 and len({id(c) for c in got}) == 4
     assert memid.get_conn() is memid.get_conn()            # 同一线程内仍是同一个连接
 
 

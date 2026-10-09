@@ -9,6 +9,7 @@ import os
 import logging
 from datetime import datetime, timezone
 
+from nexsandglass.core import sqlite_open
 from nexsandglass.core.sandglass_paths import _NB
 
 _DB = os.path.join(_NB, "shadow_sand.db")
@@ -34,9 +35,11 @@ _EXTRACT_PATTERNS = [
 logger = logging.getLogger(__name__)
 
 def _ensure_table():
-    """确保 wthread_triples 表存在"""
-    conn = sqlite3.connect(_DB, timeout=10)
-    conn.execute("PRAGMA journal_mode=WAL")
+    """确保 wthread_triples 表存在（开库 + WAL + 建表走 sqlite_open，并发撞锁时重试）"""
+    sqlite_open.connect(_DB, timeout=10, setup=_create_table).close()
+
+
+def _create_table(conn) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS wthread_triples (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,22 +57,12 @@ def _ensure_table():
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wthread_subject ON wthread_triples(subject)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wthread_relation ON wthread_triples(relation)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wthread_object ON wthread_triples(object)")
-    # 新增 source 列（兼容旧表）
-    try:
-        conn.execute("ALTER TABLE wthread_triples ADD COLUMN source TEXT DEFAULT 'regex'")
-    except Exception:
-        pass  # 列已存在
-    # 时序事实列（Task 5，兼容旧表）
-    try:
-        conn.execute("ALTER TABLE wthread_triples ADD COLUMN valid_from TEXT")
-    except Exception:
-        pass
-    try:
-        conn.execute("ALTER TABLE wthread_triples ADD COLUMN valid_until TEXT")
-    except Exception:
-        pass
+    # 新增 source 列、时序事实列（Task 5）、来源 mem_id 列 —— 兼容旧表，只补缺的列
+    have = {r[1] for r in conn.execute("PRAGMA table_info(wthread_triples)")}
+    for col in ("source TEXT DEFAULT 'regex'", "valid_from TEXT", "valid_until TEXT", "source_mem_id TEXT"):
+        if col.split()[0] not in have:
+            conn.execute(f"ALTER TABLE wthread_triples ADD COLUMN {col}")
     conn.commit()
-    conn.close()
 
 
 
@@ -154,14 +147,6 @@ def wthread_store(text: str, line_num: int = 0, subject: str = "user",
     93 条 source_line=0 —— 知识图谱完全无法回溯来源。
     """
     _ensure_table()
-    try:
-        _c = sqlite3.connect(_DB, timeout=10)
-        if "source_mem_id" not in [r[1] for r in _c.execute("PRAGMA table_info(wthread_triples)")]:
-            _c.execute("ALTER TABLE wthread_triples ADD COLUMN source_mem_id TEXT")
-            _c.commit()
-        _c.close()
-    except Exception:
-        pass
     if os.environ.get("WTHREAD_LLM_EXTRACTION"):
         triples_with_source = wthread_extract_with_source(text, line_num)
     else:

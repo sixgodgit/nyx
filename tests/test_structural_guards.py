@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS 静默跳过，此后每次写入都失败，失败�
   1. 同一个表名在整个包里只能有一种列定义
   2. 一个 .db 文件名被多个模块引用，必须在下面的白名单里写明理由
   3. 不允许 `path + ".tmp"` 这种固定名字的临时文件（用 core/fsutil.atomic_write）
+  4. 开库 + 设 WAL + 建表只能走 core/sqlite_open.connect（v7.13.4：v7.13.3 发布流水线上
+     4 个线程同时第一次开库，一个在 PRAGMA journal_mode=WAL 上撞出 database is locked）
 """
 import ast
 import pathlib
@@ -107,3 +109,45 @@ def test_no_fixed_name_temp_files():
                     and node.right.value.endswith(".tmp")):
                 hits.append(f"{p.relative_to(ROOT)}:{node.lineno}: ... + {node.right.value!r}")
     assert not hits, "固定名字的临时文件（并发写会互相截断）—— 改用 core.fsutil.atomic_write：\n" + "\n".join(hits)
+
+
+# 直接 sqlite3.connect 后自己建表的函数 —— 只允许下面这些，并写明理由
+DIRECT_DDL_ALLOWED = {
+    "core/vector_store.py:_init_db": "已废弃的 sqlite-vec 后端（get_vector_store 不再返回它），不在任何默认路径上",
+}
+
+
+def _ddl_functions():
+    out = []
+    for p, src in _sources():
+        for fn in ast.walk(ast.parse(src)):
+            if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            nodes = list(ast.walk(fn))
+            if not any(isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "connect"
+                       and isinstance(n.func.value, ast.Name) and n.func.value.id == "sqlite3" for n in nodes):
+                continue
+            if any((isinstance(n, ast.Constant) and isinstance(n.value, str)
+                    and re.search(r"\b(?:CREATE\s+(?:VIRTUAL\s+)?(?:TABLE|INDEX)|ALTER\s+TABLE)\b", n.value, re.I))
+                   or (isinstance(n, ast.Attribute) and n.attr == "executescript") for n in nodes):
+                out.append(f"{p.relative_to(ROOT).as_posix()}:{fn.name}")
+    return out
+
+
+def test_only_sqlite_open_switches_journal_mode():
+    hits = []
+    for p, src in _sources():
+        if p == ROOT / "core" / "sqlite_open.py":
+            continue
+        for c in _code_strings(ast.parse(src)):
+            if re.search(r"journal_mode", c.value, re.I):
+                hits.append(f"{p.relative_to(ROOT)}:{c.lineno}: {c.value.strip()[:60]!r}")
+    assert not hits, ("自己设 journal_mode 的开库方式在并发首次开库时会撞出 database is locked —— "
+                      "改用 core.sqlite_open.connect(path, setup=建表函数)：\n" + "\n".join(hits))
+
+
+def test_no_direct_connect_then_ddl():
+    bad = [f for f in _ddl_functions() if f not in DIRECT_DDL_ALLOWED]
+    assert not bad, ("这些函数 sqlite3.connect 之后自己建表 / 改表：并发首次开库时会撞锁，而且没有重试 —— "
+                     "把建表挪进 core.sqlite_open.connect(path, setup=...)：\n" + "\n".join(bad))
+    assert set(DIRECT_DDL_ALLOWED) <= set(_ddl_functions()), "白名单里有已经不存在的条目，删掉它"
