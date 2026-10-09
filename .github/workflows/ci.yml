@@ -1,0 +1,46 @@
+# 每个 PR、每次推到 main：Python 3.10–3.13 全量测试（与 release.yml 的测试步骤相同）
+#
+# 为什么要有它（v7.13.4）：以前这套矩阵只在打发布 tag 时才跑。v7.13.3 的并发开库问题
+# 本地 3.11 反复全绿，直到发布那一刻在 GitHub 的 3.11 上才暴露 —— 发布被拦下，但已经晚了一步。
+# 现在合并之前就在四个版本上各跑一遍；fail-fast 关掉，一个版本挂了也能看到其余版本的结果。
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . pytest fastapi httpx
+      - name: Run tests
+        env:
+          # 测试只写临时目录；任何一项写进真实数据目录都会在这里暴露
+          NEXSANDBASE_HOME: ${{ runner.temp }}/nyx-home
+        run: python -m pytest tests -q -p no:cacheprovider

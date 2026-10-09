@@ -69,6 +69,7 @@ from typing import Optional
 
 from nexsandglass.core.sandglass_paths import _NB
 from nexsandglass.core import provenance as _prov
+from nexsandglass.core import sqlite_open as _sqlite_open
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +198,21 @@ def _close_local() -> None:
     _local.conn = None
 
 
+def _ensure_schema(c: sqlite3.Connection, path: str) -> None:
+    """建表（同一个库文件只跑一次）。在 sqlite_open 的开库锁里调用，撞锁会被重试，所以必须幂等。"""
+    try:
+        key = (path, os.stat(path).st_ino)
+    except OSError:
+        key = None
+    if key is not None and key in _schema_ready:
+        return
+    c.executescript(_SCHEMA)
+    _prov.ensure(c)
+    c.commit()
+    if key is not None:
+        _schema_ready.add(key)
+
+
 def get_conn() -> sqlite3.Connection:
     """当前线程的 ID 中枢库连接（每线程一个；同一线程内反复调用拿到同一个连接）。
 
@@ -212,21 +228,10 @@ def get_conn() -> sqlite3.Connection:
         _close_local()
         c = None
     if c is None:
-        os.makedirs(os.path.dirname(want) or ".", exist_ok=True)
-        c = sqlite3.connect(want, timeout=30, check_same_thread=False)
-        c.execute("PRAGMA journal_mode=WAL")
-        c.execute("PRAGMA synchronous=NORMAL")
+        # 开库 + WAL + 建表走 sqlite_open：多个线程同时第一次开库时不再撞出 database is locked（v7.13.4）
+        c = _sqlite_open.connect(want, timeout=30, check_same_thread=False, synchronous="NORMAL",
+                                 setup=lambda conn: _ensure_schema(conn, want))
         c.execute("PRAGMA foreign_keys=ON")
-        try:
-            key = (want, os.stat(want).st_ino)
-        except OSError:
-            key = None
-        if key is None or key not in _schema_ready:
-            c.executescript(_SCHEMA)
-            _prov.ensure(c)
-            c.commit()
-            if key is not None:
-                _schema_ready.add(key)
         _local.conn, _local.path, _local.gen = c, want, _conn_gen
     _conn_path = want
     return c

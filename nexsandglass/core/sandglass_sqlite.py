@@ -13,6 +13,7 @@ import threading
 
 logger = logging.getLogger(__name__)
 
+from nexsandglass.core import sqlite_open
 from nexsandglass.core.sandglass_paths import _NB
 _DB = os.path.join(_NB, "sandglass.db")
 _lock = threading.Lock()
@@ -33,10 +34,11 @@ def _tokenize(text: str) -> str:
 
 
 def _get_db():
-    os.makedirs(os.path.dirname(_DB), exist_ok=True)
-    conn = sqlite3.connect(_DB)
-    conn.execute("PRAGMA journal_mode=WAL")  # 支持多进程并发
-    conn.execute("PRAGMA synchronous=NORMAL")  # 性能优化，安全够用
+    # WAL（支持多进程并发）+ synchronous=NORMAL；开库与建表走 sqlite_open，撞锁会重试（v7.13.4）
+    return sqlite_open.connect(_DB, timeout=10, synchronous="NORMAL", setup=_setup)
+
+
+def _setup(conn) -> None:
     conn.execute("CREATE TABLE IF NOT EXISTS sandglass "
                  "(id INTEGER PRIMARY KEY, ts TEXT, sender TEXT, text TEXT, line_end INTEGER)")
     conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS sandglass_fts USING fts5(tokens)")
@@ -50,7 +52,6 @@ def _get_db():
                      "(id INTEGER PRIMARY KEY, ts TEXT, sender TEXT, text TEXT, line_end INTEGER)")
         conn.execute("CREATE VIRTUAL TABLE sandglass_fts USING fts5(tokens)")
     conn.commit()
-    return conn
 
 
 def sync_all() -> int:

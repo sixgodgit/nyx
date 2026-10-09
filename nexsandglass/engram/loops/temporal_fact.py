@@ -59,6 +59,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
 
+from nexsandglass.core import sqlite_open
+
 logger = logging.getLogger(__name__)
 
 
@@ -145,32 +147,32 @@ def _ensure_table(db_path: str) -> None:
     的写入口被调用。第三方若直接使用本模块而未先触发 weavethread 初始化，
     `wthread_triples` 不存在 → `no such table`，写路径被吞、读路径崩溃。
     """
-    conn = sqlite3.connect(db_path, timeout=10)
-    try:
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS wthread_triples (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                subject TEXT NOT NULL,
-                relation TEXT NOT NULL,
-                object TEXT NOT NULL,
-                source_line INTEGER,
-                confidence REAL DEFAULT 0.5,
-                source TEXT DEFAULT 'regex',
-                valid_from TEXT,
-                valid_until TEXT,
-                created_at TEXT DEFAULT (datetime('now'))
-            )
-        """)
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_wthread_subject ON wthread_triples(subject)")
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_wthread_relation ON wthread_triples(relation)")
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_wthread_object ON wthread_triples(object)")
-        conn.commit()
-    finally:
-        conn.close()
+    # 开库 + WAL + 建表走 sqlite_open：并发首次开库撞锁时重试（v7.13.4）
+    sqlite_open.connect(db_path, timeout=10, setup=_create_table).close()
+
+
+def _create_table(conn: sqlite3.Connection) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS wthread_triples (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subject TEXT NOT NULL,
+            relation TEXT NOT NULL,
+            object TEXT NOT NULL,
+            source_line INTEGER,
+            confidence REAL DEFAULT 0.5,
+            source TEXT DEFAULT 'regex',
+            valid_from TEXT,
+            valid_until TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_wthread_subject ON wthread_triples(subject)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_wthread_relation ON wthread_triples(relation)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_wthread_object ON wthread_triples(object)")
+    conn.commit()
 
 
 def _migrate(conn: sqlite3.Connection) -> None:

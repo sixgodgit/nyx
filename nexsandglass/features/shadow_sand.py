@@ -12,6 +12,7 @@ import logging
 import threading
 from collections import defaultdict
 
+from nexsandglass.core import sqlite_open
 from nexsandglass.core.sandglass_paths import _NB
 
 logger = logging.getLogger(__name__)
@@ -73,15 +74,18 @@ _db_lock = threading.Lock()  # 共享连接由 SearchRouter 多线程并发访�
 def _get_conn():
     global _conn
     if _conn is None:
-        _conn = sqlite3.connect(_SHADOW_DB, timeout=10, check_same_thread=False)
-        # WAL 模式：允许读写并发，显著降低同库多连接时的锁竞争
-        try:
-            _conn.execute("PRAGMA journal_mode=WAL")
-        except Exception:
-            pass
-        _conn.executescript(_SCHEMA)
-        _conn.commit()
+        # WAL 模式：允许读写并发，显著降低同库多连接时的锁竞争。
+        # 开库 + WAL + 建表走 sqlite_open：并发首次开库撞锁时重试，不再吞掉 WAL 失败（v7.13.4）
+        with sqlite_open.path_lock(_SHADOW_DB):
+            if _conn is None:
+                _conn = sqlite_open.connect(_SHADOW_DB, timeout=10, check_same_thread=False,
+                                            setup=_create_schema)
     return _conn
+
+
+def _create_schema(db) -> None:
+    db.executescript(_SCHEMA)
+    db.commit()
 
 def _ensure_memid_cols(db) -> bool:
     """确保 mem_id / mem_ids 列存在（迁移过的库已有，全新库没有）。

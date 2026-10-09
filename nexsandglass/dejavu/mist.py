@@ -23,6 +23,8 @@ import threading
 from datetime import datetime
 from typing import List, Optional
 
+from nexsandglass.core import sqlite_open
+
 from .types import Phantom
 
 logger = logging.getLogger(__name__)
@@ -70,21 +72,21 @@ class Mist:
         with self._lock:
             if self._con is not None:
                 return self._con
-            d = os.path.dirname(os.path.abspath(self._path))
-            os.makedirs(d, exist_ok=True)
             # check_same_thread=False：连接可能被不同线程访问（MCP / server）。
             # 缺省 True 时跨线程用会在 3.11+ 抛 ProgrammingError，被外层
             # except 吞掉 → phantom 数据静默丢失。
-            self._con = sqlite3.connect(self._path, timeout=10,
-                                        check_same_thread=False)
-            self._con.execute("PRAGMA journal_mode=WAL")
+            # 开库 + WAL + 建表走 sqlite_open：并发首次开库撞锁时重试（v7.13.4）
+            self._con = sqlite_open.connect(self._path, timeout=10, check_same_thread=False,
+                                            setup=self._setup)
             self._con.execute("PRAGMA busy_timeout=5000")
-            self._migrate(self._con)
-            self._con.executescript(_SCHEMA)
-            self._con.commit()
             return self._con
 
-    @staticmethod
+    @classmethod
+    def _setup(cls, con: sqlite3.Connection) -> None:
+        cls._migrate(con)
+        con.executescript(_SCHEMA)
+        con.commit()
+
     @staticmethod
     def _migrate(con: sqlite3.Connection) -> None:
         """旧库兼容：``traces`` 列改名为 ``refs``（语义由行号放宽为任意 key）。"""
