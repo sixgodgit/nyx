@@ -81,6 +81,24 @@ def _pairs(turns: list) -> list:
     return out
 
 
+def map_to_seqs(conn, objects) -> list:
+    """召回结果 → ID 中枢的 seq（按原顺序；对不上的给 None）。先按行号，再按正文（去掉「未经证实」标注）。"""
+    by_line = dict(conn.execute("SELECT line_start, seq FROM memories WHERE deleted_at IS NULL"))
+    by_text = {}
+    for seq, text in conn.execute("SELECT seq, text FROM memories WHERE deleted_at IS NULL"):
+        by_text.setdefault(text.strip()[:200], seq)
+    out = []
+    for o in objects or []:
+        seq = None
+        sid = getattr(o, "source_id", None)
+        if sid is not None and str(sid).isdigit():
+            seq = by_line.get(int(sid))
+        if seq is None:
+            seq = by_text.get(_LABEL.sub("", str(o.content or "")).strip()[:200])
+        out.append(seq)
+    return out
+
+
 # ══════════════════════════════════════════════════════════
 # 子进程：一道题
 # ══════════════════════════════════════════════════════════
@@ -129,18 +147,8 @@ def run_instance(inst: dict, *, budget: int, prefetch_tokens: int, want_context:
     mc = get_orchestrator().recall(inst["question"], token_budget=budget)
     recall_ms = (time.time() - t1) * 1000
 
-    by_line = dict(conn.execute("SELECT line_start, seq FROM memories WHERE deleted_at IS NULL"))
-    by_text = {}
-    for seq, text in conn.execute("SELECT seq, text FROM memories WHERE deleted_at IS NULL"):
-        by_text.setdefault(text.strip()[:200], seq)
     ranked_sessions, ranked_answer_hits, unmapped = [], [], 0
-    for o in mc.objects:
-        seq = None
-        sid = getattr(o, "source_id", None)
-        if sid is not None and str(sid).isdigit():
-            seq = by_line.get(int(sid))
-        if seq is None:
-            seq = by_text.get(_LABEL.sub("", str(o.content or "")).strip()[:200])
+    for seq in map_to_seqs(conn, mc.objects):
         if seq is None or seq not in seq_session:
             unmapped += 1
             continue
