@@ -48,9 +48,15 @@ class ModulePolicy:
     priority: int = 50        # 聚合权重
 
 
+# 聚合按 priority 从高到低**整段拼接**，所以 priority 决定的是「谁的结果排在最前面」。
+# 影子沙必须排在 SearchRouter 后面（v7.13.5）：它按「问句里某个词是实体名的一部分」取出所有提到该实体的行，
+# 再按信任分排序 —— 与问句其余部分完全无关。以前它优先级最高（80），LoCoMo 上问到人名的题，
+# 前几名全是「Hey Caroline!」这种打招呼的句子（实体抽取把 "Hey Caroline" 当成了专名），
+# 真正的证据句（SearchRouter 已排第 1）被挤到后面：recall@5 0.046，最朴素的 BM25 是 0.498。
+# SearchRouter 本来就把影子沙的命中并进候选、按相关度 × 信任分排序，影子沙的信任分没有丢。
 _DEFAULT_POLICIES: dict[str, ModulePolicy] = {
     "search_router": ModulePolicy(timeout=3.0, limit=10, priority=60),
-    "shadow":        ModulePolicy(timeout=1.5, limit=8,  priority=80),
+    "shadow":        ModulePolicy(timeout=1.5, limit=8,  priority=55),
     "wthread":       ModulePolicy(timeout=1.5, limit=8,  priority=40),
     "persona":       ModulePolicy(timeout=2.0, limit=5,  priority=70),
     "nyx":           ModulePolicy(timeout=1.5, limit=8,  priority=50),

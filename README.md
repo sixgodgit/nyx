@@ -2,7 +2,7 @@
 
 > **Nyx — 把「检索失败」也当作一类信号的记忆系统**
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.13.4-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.13.5-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 ## 别的记忆系统回答「找到了什么」，Nyx 还回答「我是不是见过」
 
@@ -160,13 +160,38 @@ nexsandglass/
 ├── nyx_server.py                # NyxBook 的 HTTP API（FastAPI，可选）
 └── utils/
 nexsandglass_hermes/             # Hermes 插件入口：entry point + plugin.yaml + 配置（v7.12）
-benchmarks/                      # LongMemEval / 纵向评测 / 投毒演练 / 事故演练 / Déjà Vu
+benchmarks/                      # LongMemEval / LoCoMo / 纵向评测 / 投毒演练 / 事故演练 / Déjà Vu
 scripts/nyx_quarantine.py        # 隔离区命令行：list / restore / purge（仓库里有，pip 包里没有）
 ```
 
 ---
 
 ## 📊 Benchmark
+
+**公开基准 LoCoMo：检索证据召回**（`benchmarks/locomo_eval.py`，v7.13.5，结果 `benchmarks/results/locomo_retrieval.json`）
+
+10 段两人长对话（共 5882 轮、272 个会话，跨数月），计分 1536 题（对抗题 446、无证据标注 4 题按惯例不计）。
+逐轮走 Hermes 插件真实的写入路径；指标是「前 k 条召回里，标注的证据句找到了多少」。零 LLM，可复现。
+参照是同一批句子上最朴素的 BM25（底线，不是对手）。语义检索**关闭**（开发环境没有嵌入后端）：
+
+| 类别 | 题数 | nyx R@5 | BM25 R@5 | nyx R@10 | BM25 R@10 | nyx 全部证据进前 10 |
+|---|---|---|---|---|---|---|
+| 多跳 | 282 | **0.289** | 0.180 | **0.383** | 0.264 | 0.170 |
+| 时间 | 321 | **0.666** | 0.611 | **0.726** | 0.678 | 0.701 |
+| 开放域推理 | 92 | **0.282** | 0.243 | **0.328** | 0.272 | 0.228 |
+| 单跳 | 841 | **0.615** | 0.590 | **0.690** | 0.655 | 0.674 |
+| **总体** | 1536 | **0.546** | 0.498 | **0.619** | 0.565 | 0.561 |
+
+怎么读这张表：
+- 这是**检索**，不是别人报的 LoCoMo 分数。Mem0 92.5%、Zep 94.7% 这类数字是「大模型读召回结果作答、再由大模型裁判」的
+  问答准确率，口径不同，不能拿上表去比
+- 前 10 条里至少有一句证据的题是 69%：剩下 31% 的题，读答案的模型一句证据都看不到。短板在多跳（证据分散在多个会话）
+- v7.13.4 及以前这张表的 nyx 一列 R@5 是 **0.046** —— 召回聚合的排序缺陷，见 v7.13.5 更新日志
+
+```bash
+# 数据 https://github.com/snap-research/locomo（CC BY-NC 4.0，仓库里不放）
+python3 benchmarks/locomo_eval.py locomo10.json --workers 10 --json benchmarks/results/locomo_retrieval.json
+```
 
 **公开基准 LongMemEval**（`benchmarks/longmemeval_eval.py`，v7.12）：每题独立目录，按会话日期冻结时钟，
 逐轮走 Hermes 插件真实的写入路径，再按官方定义算会话级 recall_any@k / recall_all@k（零 LLM，可复现）；
@@ -184,6 +209,7 @@ python3 benchmarks/longmemeval_eval.py longmemeval_s_cleaned.json --workers 8 --
 
 | 评测 | 测什么 | 版本 |
 |---|---|---|
+| `benchmarks/locomo_eval.py` | LoCoMo 检索证据召回（见上），附 BM25 参照 | v7.13.5 |
 | `benchmarks/longitudinal_eval.py` | 一个人半年的生活：现在 / 当时以为 / 过去某刻，三个问题分开打分；含留出句式 | v7.9–v7.11 |
 | `benchmarks/poisoning_drill.py` | 记忆投毒：16 条攻击 0 条无标注进 prompt，主人 8 条 0 误伤 | v7.8 |
 | `benchmarks/forget_restore_drill.py` | 误删 150 条 → 逐字节还原；真删仍不可逆 | v7.6 |
@@ -345,6 +371,49 @@ Hermes 用户：数据目录在 `HERMES_HOME` 之外时，`hermes backup` 会自
 ---
 
 ## 📝 更新日志
+
+### v7.13.5 (2026-10-12) — 第一次在公开基准的真实数据上测：LoCoMo 查出召回排序缺陷
+
+**新增 LoCoMo 检索评测** `benchmarks/locomo_eval.py`：10 段两人长对话、1536 道计分题，逐轮走 Hermes 插件真实的写入路径，
+算「前 k 条召回里找到了多少标注的证据句」，零 LLM、可复现；同一批句子上跑一个最朴素的 BM25 作底线。
+数据是 CC BY-NC 4.0，不进仓库。
+
+**第一次跑就查出问题**：nyx 的 recall@5 是 **0.046**，最朴素的 BM25 是 **0.498**。
+逐路排查：SearchRouter 自己是对的（问「Caroline 什么时候去的 LGBTQ 互助小组」，它的第 1 名就是证据句）；
+错在把几路结果合起来的那一步 ——
+- 聚合按来源优先级**整段拼接**，影子沙优先级最高（80，SearchRouter 是 60），它返回什么就占住最前面
+- 影子沙只看「问句里某个词是不是某个实体名的一部分」，取出提到这个实体的所有行，再按信任分排序，
+  **与问句其余部分无关**；英文专名抽取又把句首的「Hey Caroline」当成了实体名
+- 结果：问到人名的题，前几名全是「Hey Caroline! Good to see you!」这种打招呼的句子
+
+**修法**：影子沙排到 SearchRouter 后面（优先级 80 → 55）。SearchRouter 本来就把影子沙的命中并进候选、
+按「相关度 × 信任分」排序，信任反馈没有丢。
+
+| LoCoMo（语义关闭） | v7.13.4 | v7.13.5 | BM25 |
+|---|---|---|---|
+| 总体 recall@5 | 0.046 | **0.546** | 0.498 |
+| 总体 recall@10 | 0.459 | **0.619** | 0.565 |
+| 多跳 recall@5 | 0.033 | **0.289** | 0.180 |
+
+**没有调到测试集上**：缺陷是在第 1 段对话上定位的；没参与诊断的第 2–10 段从 0.037 → 0.546，幅度相同。
+只改了一个优先级，没有任何针对 LoCoMo 的参数。
+
+**为什么以前没发现**：英文专名抽取对中文基本不产出实体，中文场景下影子沙几乎不返回东西；
+纵向评测是中文的，LongMemEval 小样本里没有反复出现的人名。这正是要跑公开基准的原因。
+
+**其他评测不受影响**：纵向评测 35 个种子逐项与 v7.13.3 相同；LongMemEval 小样本中英文分数相同；
+投毒演练（16 条攻击 0 条无标注进 prompt、主人 0 误伤）与事故演练结果相同；真实 Hermes 检查通过。
+
+**防复发**：`tests/test_locomo_harness.py` 用我写的同格式小样本（两个人、三个会话）端到端跑评测框架，
+断言证据句排第 1；把优先级改回 80，这项测试失败，前几名正是「Hey Ava!」这种打招呼的句子。
+
+**还差什么**（如实说明）
+- 这是检索，不是别人报的问答准确率（Mem0 92.5%、Zep 94.7% 是「大模型作答 + 大模型裁判」的分数，口径不同）
+- 前 10 条里至少有一句证据的题 69%，多跳题证据全部进前 10 只有 17% —— 下一步的重点
+- 语义检索关闭：开发环境连不到 HuggingFace，没有嵌入模型
+- LongMemEval 真实数据同样卡在 HuggingFace
+
+**验证**：全量 510 项通过；真实 Hermes 检查通过。
 
 ### v7.13.4 (2026-10-09) — 并发首次开库不再撞锁（v7.13.3 被发布流水线拦下，未上 PyPI）
 

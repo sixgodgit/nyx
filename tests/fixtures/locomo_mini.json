@@ -1,0 +1,42 @@
+[
+ {
+  "sample_id": "mini-1",
+  "conversation": {
+   "speaker_a": "Ava",
+   "speaker_b": "Ben",
+   "session_1_date_time": "10:00 am on 3 March, 2024",
+   "session_1": [
+    {"speaker": "Ava", "dia_id": "D1:1", "text": "Hey Ben! Good to see you! How have you been?"},
+    {"speaker": "Ben", "dia_id": "D1:2", "text": "Hey Ava! Good to see you! Work has been crazy. Anything new?"},
+    {"speaker": "Ava", "dia_id": "D1:3", "text": "I went to a pottery class yesterday and made my first bowl.",
+     "img_url": ["https://example.invalid/bowl.jpg"], "blip_caption": "a photo of a blue ceramic bowl"},
+    {"speaker": "Ben", "dia_id": "D1:4", "text": "That's awesome! I started training for a half marathon in Utrecht."},
+    {"speaker": "Ava", "dia_id": "D1:5", "text": "Good luck with the training, Ben!"}
+   ],
+   "session_2_date_time": "2:30 pm on 20 March, 2024",
+   "session_2": [
+    {"speaker": "Ben", "dia_id": "D2:1", "text": "Hey Ava! Long time no talk! How's it going?"},
+    {"speaker": "Ava", "dia_id": "D2:2", "text": "Hey Ben! Great to hear from you. I adopted a cat named Mochi last week."},
+    {"speaker": "Ben", "dia_id": "D2:3", "text": "Mochi is a cute name! My half marathon is next Sunday."},
+    {"speaker": "Ava", "dia_id": "D2:4", "text": "You will do great!"}
+   ],
+   "session_3_date_time": "9:15 am on 2 April, 2024",
+   "session_3": [
+    {"speaker": "Ava", "dia_id": "D3:1", "text": "Hey Ben! How was the race?"},
+    {"speaker": "Ben", "dia_id": "D3:2", "text": "Hey Ava! I finished the half marathon in Utrecht in 1 hour 52 minutes."},
+    {"speaker": "Ava", "dia_id": "D3:3", "text": "Amazing! Mochi knocked my pottery bowl off the shelf this morning and broke it."},
+    {"speaker": "Ben", "dia_id": "D3:4", "text": "Oh no! Will you make another one at the class?"}
+   ]
+  },
+  "qa": [
+   {"question": "When did Ava go to the pottery class?", "answer": "2 March 2024", "evidence": ["D1:3"], "category": 2},
+   {"question": "What is the name of Ava's cat?", "answer": "Mochi", "evidence": ["D2:2"], "category": 4},
+   {"question": "What happened to the bowl Ava made in her pottery class?", "answer": "Her cat Mochi broke it",
+    "evidence": ["D1:3; D3:3"], "category": 1},
+   {"question": "How long did Ben take to finish his half marathon?", "answer": "1 hour 52 minutes",
+    "evidence": ["D:3:2"], "category": 4},
+   {"question": "What is Ben's cat called?", "evidence": ["D2:2"], "category": 5, "adversarial_answer": "Mochi"},
+   {"question": "What city does Ben live in?", "answer": "Utrecht", "evidence": [], "category": 4}
+  ]
+ }
+]
