@@ -567,5 +567,392 @@
     "budget": 1500
    }
   }
+ },
+ "v7.13.7_semantic_breadth": {
+  "backend": "local:paraphrase-multilingual-MiniLM-L12-v2",
+  "settings": "NYX_EMBED_Z=3, NYX_EMBED_WEIGHT=0.5, NYX_BREADTH_LINES=20",
+  "scores": {
+   "1 multi-hop": {
+    "n": 282,
+    "nyx": {
+     "recall@1": 0.0973,
+     "hit@1": 0.2553,
+     "all@1": 0.0,
+     "recall@5": 0.3009,
+     "hit@5": 0.5603,
+     "all@5": 0.117,
+     "recall@10": 0.3973,
+     "hit@10": 0.6773,
+     "all@10": 0.1773,
+     "recall@20": 0.42,
+     "hit@20": 0.7057,
+     "all@20": 0.1879
+    },
+    "bm25": {
+     "recall@1": 0.0589,
+     "hit@1": 0.1596,
+     "all@1": 0.0,
+     "recall@5": 0.1803,
+     "hit@5": 0.3688,
+     "all@5": 0.0532,
+     "recall@10": 0.2641,
+     "hit@10": 0.4929,
+     "all@10": 0.1028,
+     "recall@20": 0.3485,
+     "hit@20": 0.6028,
+     "all@20": 0.1525
+    },
+    "nyx_in_view": 0.4128,
+    "nyx_returned_p50": 18,
+    "recall_ms_p50": 46.3
+   },
+   "2 temporal": {
+    "n": 321,
+    "nyx": {
+     "recall@1": 0.4909,
+     "hit@1": 0.5202,
+     "all@1": 0.4673,
+     "recall@5": 0.6742,
+     "hit@5": 0.704,
+     "all@5": 0.648,
+     "recall@10": 0.7438,
+     "hit@10": 0.7695,
+     "all@10": 0.7196,
+     "recall@20": 0.7682,
+     "hit@20": 0.7944,
+     "all@20": 0.7445
+    },
+    "bm25": {
+     "recall@1": 0.3409,
+     "hit@1": 0.3645,
+     "all@1": 0.324,
+     "recall@5": 0.6114,
+     "hit@5": 0.6417,
+     "all@5": 0.5857,
+     "recall@10": 0.6783,
+     "hit@10": 0.7072,
+     "all@10": 0.648,
+     "recall@20": 0.7163,
+     "hit@20": 0.7445,
+     "all@20": 0.6822
+    },
+    "nyx_in_view": 0.7557,
+    "nyx_returned_p50": 18,
+    "recall_ms_p50": 46.6
+   },
+   "3 open-domain": {
+    "n": 92,
+    "nyx": {
+     "recall@1": 0.154,
+     "hit@1": 0.2174,
+     "all@1": 0.0978,
+     "recall@5": 0.2726,
+     "hit@5": 0.3696,
+     "all@5": 0.1848,
+     "recall@10": 0.3521,
+     "hit@10": 0.5,
+     "all@10": 0.2391,
+     "recall@20": 0.3591,
+     "hit@20": 0.5109,
+     "all@20": 0.2391
+    },
+    "bm25": {
+     "recall@1": 0.1123,
+     "hit@1": 0.1413,
+     "all@1": 0.087,
+     "recall@5": 0.2431,
+     "hit@5": 0.3261,
+     "all@5": 0.1739,
+     "recall@10": 0.2716,
+     "hit@10": 0.3696,
+     "all@10": 0.1848,
+     "recall@20": 0.3188,
+     "hit@20": 0.4348,
+     "all@20": 0.2283
+    },
+    "nyx_in_view": 0.3584,
+    "nyx_returned_p50": 18,
+    "recall_ms_p50": 47.5
+   },
+   "4 single-hop": {
+    "n": 841,
+    "nyx": {
+     "recall@1": 0.3807,
+     "hit@1": 0.3936,
+     "all@1": 0.3698,
+     "recall@5": 0.6615,
+     "hit@5": 0.6766,
+     "all@5": 0.6457,
+     "recall@10": 0.7251,
+     "hit@10": 0.7384,
+     "all@10": 0.7111,
+     "recall@20": 0.7342,
+     "hit@20": 0.7479,
+     "all@20": 0.7194
+    },
+    "bm25": {
+     "recall@1": 0.3543,
+     "hit@1": 0.3639,
+     "all@1": 0.346,
+     "recall@5": 0.5896,
+     "hit@5": 0.6017,
+     "all@5": 0.5767,
+     "recall@10": 0.655,
+     "hit@10": 0.6659,
+     "all@10": 0.6433,
+     "recall@20": 0.7297,
+     "hit@20": 0.742,
+     "all@20": 0.717
+    },
+    "nyx_in_view": 0.7319,
+    "nyx_returned_p50": 18,
+    "recall_ms_p50": 48.7
+   },
+   "_overall": {
+    "n": 1536,
+    "nyx": {
+     "recall@1": 0.3381,
+     "hit@1": 0.3841,
+     "all@1": 0.306,
+     "recall@5": 0.5747,
+     "hit@5": 0.6426,
+     "all@5": 0.5215,
+     "recall@10": 0.6465,
+     "hit@10": 0.7194,
+     "all@10": 0.5866,
+     "recall@20": 0.6612,
+     "hit@20": 0.7357,
+     "all@20": 0.5983
+    },
+    "bm25": {
+     "recall@1": 0.2828,
+     "hit@1": 0.3132,
+     "all@1": 0.2624,
+     "recall@5": 0.4982,
+     "hit@5": 0.5508,
+     "all@5": 0.4583,
+     "recall@10": 0.5651,
+     "hit@10": 0.625,
+     "all@10": 0.5176,
+     "recall@20": 0.6323,
+     "hit@20": 0.6986,
+     "all@20": 0.5768
+    },
+    "nyx_in_view": 0.6559,
+    "nyx_returned_p50": 18,
+    "recall_ms_p50": 47.9
+   },
+   "_meta": {
+    "conversations": 10,
+    "errors": 0,
+    "questions_scored": 1536,
+    "skipped": {
+     "no evidence": 4,
+     "adversarial": 446
+    },
+    "turns": 5882,
+    "ingest_s_total": 873.0,
+    "unmapped_objects": 0,
+    "semantic_backend": [
+     "local:paraphrase-multilingual-MiniLM-L12-v2"
+    ],
+    "data": "locomo10.json",
+    "wall_s": 267.9,
+    "budget": 1500
+   }
+  }
+ },
+ "v7.13.7_breadth_off": {
+  "settings": "NYX_BREADTH_LINES=0（= v7.13.6 行为）",
+  "scores": {
+   "1 multi-hop": {
+    "n": 282,
+    "nyx": {
+     "recall@1": 0.0991,
+     "hit@1": 0.2589,
+     "all@1": 0.0,
+     "recall@5": 0.3009,
+     "hit@5": 0.5638,
+     "all@5": 0.1135,
+     "recall@10": 0.3967,
+     "hit@10": 0.6773,
+     "all@10": 0.1773,
+     "recall@20": 0.4135,
+     "hit@20": 0.7021,
+     "all@20": 0.1809
+    },
+    "bm25": {
+     "recall@1": 0.0589,
+     "hit@1": 0.1596,
+     "all@1": 0.0,
+     "recall@5": 0.1803,
+     "hit@5": 0.3688,
+     "all@5": 0.0532,
+     "recall@10": 0.2641,
+     "hit@10": 0.4929,
+     "all@10": 0.1028,
+     "recall@20": 0.3485,
+     "hit@20": 0.6028,
+     "all@20": 0.1525
+    },
+    "nyx_in_view": 0.4062,
+    "nyx_returned_p50": 18,
+    "recall_ms_p50": 49.4
+   },
+   "2 temporal": {
+    "n": 321,
+    "nyx": {
+     "recall@1": 0.4847,
+     "hit@1": 0.514,
+     "all@1": 0.4611,
+     "recall@5": 0.6804,
+     "hit@5": 0.7103,
+     "all@5": 0.6542,
+     "recall@10": 0.7375,
+     "hit@10": 0.7632,
+     "all@10": 0.7134,
+     "recall@20": 0.7593,
+     "hit@20": 0.785,
+     "all@20": 0.7352
+    },
+    "bm25": {
+     "recall@1": 0.3409,
+     "hit@1": 0.3645,
+     "all@1": 0.324,
+     "recall@5": 0.6114,
+     "hit@5": 0.6417,
+     "all@5": 0.5857,
+     "recall@10": 0.6783,
+     "hit@10": 0.7072,
+     "all@10": 0.648,
+     "recall@20": 0.7163,
+     "hit@20": 0.7445,
+     "all@20": 0.6822
+    },
+    "nyx_in_view": 0.7407,
+    "nyx_returned_p50": 18,
+    "recall_ms_p50": 48.2
+   },
+   "3 open-domain": {
+    "n": 92,
+    "nyx": {
+     "recall@1": 0.154,
+     "hit@1": 0.2174,
+     "all@1": 0.0978,
+     "recall@5": 0.2726,
+     "hit@5": 0.3696,
+     "all@5": 0.1848,
+     "recall@10": 0.3521,
+     "hit@10": 0.5,
+     "all@10": 0.2391,
+     "recall@20": 0.3609,
+     "hit@20": 0.5217,
+     "all@20": 0.2391
+    },
+    "bm25": {
+     "recall@1": 0.1123,
+     "hit@1": 0.1413,
+     "all@1": 0.087,
+     "recall@5": 0.2431,
+     "hit@5": 0.3261,
+     "all@5": 0.1739,
+     "recall@10": 0.2716,
+     "hit@10": 0.3696,
+     "all@10": 0.1848,
+     "recall@20": 0.3188,
+     "hit@20": 0.4348,
+     "all@20": 0.2283
+    },
+    "nyx_in_view": 0.3548,
+    "nyx_returned_p50": 18,
+    "recall_ms_p50": 51.6
+   },
+   "4 single-hop": {
+    "n": 841,
+    "nyx": {
+     "recall@1": 0.3819,
+     "hit@1": 0.3948,
+     "all@1": 0.371,
+     "recall@5": 0.6603,
+     "hit@5": 0.6754,
+     "all@5": 0.6445,
+     "recall@10": 0.7287,
+     "hit@10": 0.742,
+     "all@10": 0.7146,
+     "recall@20": 0.7319,
+     "hit@20": 0.7455,
+     "all@20": 0.717
+    },
+    "bm25": {
+     "recall@1": 0.3543,
+     "hit@1": 0.3639,
+     "all@1": 0.346,
+     "recall@5": 0.5896,
+     "hit@5": 0.6017,
+     "all@5": 0.5767,
+     "recall@10": 0.655,
+     "hit@10": 0.6659,
+     "all@10": 0.6433,
+     "recall@20": 0.7297,
+     "hit@20": 0.742,
+     "all@20": 0.717
+    },
+    "nyx_in_view": 0.7295,
+    "nyx_returned_p50": 18,
+    "recall_ms_p50": 48.3
+   },
+   "_overall": {
+    "n": 1536,
+    "nyx": {
+     "recall@1": 0.3378,
+     "hit@1": 0.3841,
+     "all@1": 0.3053,
+     "recall@5": 0.5753,
+     "hit@5": 0.6439,
+     "all@5": 0.5215,
+     "recall@10": 0.647,
+     "hit@10": 0.7201,
+     "all@10": 0.5872,
+     "recall@20": 0.6569,
+     "hit@20": 0.7324,
+     "all@20": 0.5938
+    },
+    "bm25": {
+     "recall@1": 0.2828,
+     "hit@1": 0.3132,
+     "all@1": 0.2624,
+     "recall@5": 0.4982,
+     "hit@5": 0.5508,
+     "all@5": 0.4583,
+     "recall@10": 0.5651,
+     "hit@10": 0.625,
+     "all@10": 0.5176,
+     "recall@20": 0.6323,
+     "hit@20": 0.6986,
+     "all@20": 0.5768
+    },
+    "nyx_in_view": 0.65,
+    "nyx_returned_p50": 18,
+    "recall_ms_p50": 48.7
+   },
+   "_meta": {
+    "conversations": 10,
+    "errors": 0,
+    "questions_scored": 1536,
+    "skipped": {
+     "no evidence": 4,
+     "adversarial": 446
+    },
+    "turns": 5882,
+    "ingest_s_total": 326.0,
+    "unmapped_objects": 0,
+    "semantic_backend": [
+     "local:paraphrase-multilingual-MiniLM-L12-v2"
+    ],
+    "data": "locomo10.json",
+    "wall_s": 130.8,
+    "budget": 1500
+   }
+  }
  }
 }
