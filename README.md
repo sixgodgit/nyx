@@ -298,7 +298,9 @@ cp -r skills/nyx ~/.hermes/skills/memory/
 | `NYX_EMBED` | `auto` | 语义检索后端：`auto` / `local` / `api` / `off` |
 | `NYX_EMBED_MODEL` | 本地 `paraphrase-multilingual-MiniLM-L12-v2`；API `text-embedding-3-small` | 嵌入模型 |
 | `EMBEDDING_API_URL` / `EMBEDDING_API_KEY` | 空 | OpenAI 兼容 `/embeddings` |
-| `NYX_EMBED_Z` | `2` | 语义命中要比背景高出多少（稳健 z 分数）才算证据 |
+| `NYX_EMBED_Z` | `3` | 语义命中要比背景高出多少（稳健 z 分数）才算证据 |
+| `NYX_EMBED_WEIGHT` | `0.5` | 融合时语义这一票的权重（词法一票是 1） |
+| `NYX_EMBED_CACHE` | `~/.cache/nexsandglass/models` | 本地嵌入模型的存放目录 |
 | `NYX_UNDERSTAND_LLM` | 关 | `1` = 事实抽取走 LLM（结果必须过校验；失败退回规则） |
 | `LLM_EXTRACT_API_URL` / `NYX_UNDERSTAND_MODEL` | 空 / `deepseek-v4-flash` | 抽取用的 OpenAI 兼容网关与模型 |
 | `NYX_FORGET_RETENTION_DAYS` | `30` | 遗忘隔离期 |

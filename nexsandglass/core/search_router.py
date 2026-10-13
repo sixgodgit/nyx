@@ -303,6 +303,18 @@ class MmapFallback:
 _AUTO = object()
 RRF_K = 60
 PIN_MIN_COVERAGE = 0.6
+# 语义这一票的权重（v7.13.5；NYX_EMBED_WEIGHT 可调）。词法一票是 1。
+# 等权时，嵌入模型比词法弱的场景下它会把好的词法结果挤出去：LoCoMo（默认本地模型）recall@5
+# 词法单独 0.545，等权融合后反而 0.524；权重 0.5 + 门槛 Z=3 → 0.578，10 段对话里 9 段变好。
+# 不再往下压：权重 0.3 时分数相近，但与问句零字面重叠的证据（同义改写）一条也进不了前 10，语义只剩重排
+VECTOR_WEIGHT = 0.5
+
+
+def _vector_weight() -> float:
+    try:
+        return float(os.environ.get("NYX_EMBED_WEIGHT", VECTOR_WEIGHT))
+    except ValueError:
+        return VECTOR_WEIGHT
 
 
 class SearchRouter:
@@ -419,8 +431,9 @@ class SearchRouter:
         score = {}
         for r, item in enumerate(ranked):
             score[item[0]] = score.get(item[0], 0.0) + 1.0 / (RRF_K + r + 1)
+        w = _vector_weight()
         for r, ln in enumerate(vector_lines):
-            score[ln] = score.get(ln, 0.0) + 1.0 / (RRF_K + r + 1)
+            score[ln] = score.get(ln, 0.0) + w / (RRF_K + r + 1)
         lows = {item[0]: (item[2] if len(item) > 2 else "").lower() for item in ranked}
         # 只认在候选里真实出现过的词：中文 2-gram 会跨过被剔除的数字拼出「第条」这种
         # 哪条记录里都没有的幻影词，带上它就永远没有记录能「完整命中」

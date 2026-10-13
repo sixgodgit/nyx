@@ -81,6 +81,18 @@ def _pairs(turns: list) -> list:
     return out
 
 
+def check_semantic(sem: dict) -> dict:
+    """语义后端开着、索引却没建成 → 这一题按出错处理，不许把纯词法的结果记成「语义开」。
+
+    v7.13.5 实测：本地模型加载失败（模型不在 NYX_EMBED_CACHE、又设了离线），LoCoMo 10 段、LongMemEval 500 题
+    全部「已索引 0、待补全部」，报告里的后端却写着 local:模型名 —— 两组「语义开」的分数其实都是纯词法。
+    """
+    if sem.get("enabled") and (sem.get("pending") or not sem.get("indexed")):
+        raise RuntimeError(f"语义后端 {sem.get('backend')} 已启用，但索引没建成（已索引 {sem.get('indexed')}，"
+                           f"待补 {sem.get('pending')}，错误：{sem.get('last_error') or sem.get('error')}）")
+    return sem
+
+
 def map_to_seqs(conn, objects) -> list:
     """召回结果 → ID 中枢的 seq（按原顺序；对不上的给 None）。先按行号，再按正文（去掉「未经证实」标注）。"""
     by_line = dict(conn.execute("SELECT line_start, seq FROM memories WHERE deleted_at IS NULL"))
@@ -138,7 +150,7 @@ def run_instance(inst: dict, *, budget: int, prefetch_tokens: int, want_context:
     from nexsandglass.core import semantic
     semantic.wait_idle(600)                  # 后台补索引跑完
     semantic.index_all()                     # 兜底，保证全部入索引
-    sem = semantic.stats()
+    sem = check_semantic(semantic.stats())
     ingest_s = time.time() - t0
 
     clock.set_global(parse_date(inst["question_date"]))

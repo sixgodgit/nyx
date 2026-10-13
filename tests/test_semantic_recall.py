@@ -187,3 +187,37 @@ def test_mmap_fallback_follows_current_journal(env, tmp_path):  # noqa: F811
     fb = MmapFallback()
     assert fb._path() == sandglass_vault._SANDGLASS == env.journal
     assert not any("橘猫" in h[2] for h in fb.search("橘猫", 5))
+
+
+def _lex(n):
+    return [(i, "2026-10-01 10:00", f"lexical {i}") for i in range(1, n + 1)]
+
+
+def test_vector_vote_weighs_less_than_lexical(monkeypatch):
+    """v7.13.5：语义一票减半。等权时，一个比词法弱的嵌入模型会把词法第 1 名挤下去
+    （LoCoMo 实测：等权融合 recall@5 0.524，比纯词法 0.545 还低）。"""
+    from nexsandglass.core.search_router import SearchRouter
+    monkeypatch.delenv("NYX_EMBED_WEIGHT", raising=False)
+    # 与 SearchRouter.search 一致：纯向量命中先并进候选（排在词法候选末尾），再融合。
+    # 真实库里词法候选通常有 60–90 条（三路各 30 条去重）
+    ranked = _lex(90) + [(ln, "2026-10-01 10:00", f"vector only {ln}") for ln in (900, 901, 902)]
+    out = [it[0] for it in SearchRouter._rrf(ranked, [900, 901, 902])]
+    assert out[0] == 1, out[:5]                               # 词法第 1 名不被纯向量命中顶掉
+    monkeypatch.setenv("NYX_EMBED_WEIGHT", "1")
+    assert [it[0] for it in SearchRouter._rrf(ranked, [900, 901, 902])][0] == 900   # 等权时会被顶掉（对照）
+
+
+def test_vector_agreement_lifts_a_lexical_candidate(monkeypatch):
+    from nexsandglass.core.search_router import SearchRouter
+    monkeypatch.delenv("NYX_EMBED_WEIGHT", raising=False)
+    out = [it[0] for it in SearchRouter._rrf(_lex(30), [12])]
+    assert out.index(12) < 3, out[:5]                         # 词法排 12、语义第 1 → 提到前 3
+
+
+def test_paraphrase_still_reaches_top10_when_few_candidates(monkeypatch):
+    """权重不能压到让同义改写（与问句零字面重叠）完全进不来 —— 那就只剩重排了。"""
+    from nexsandglass.core.search_router import SearchRouter
+    monkeypatch.delenv("NYX_EMBED_WEIGHT", raising=False)
+    ranked = _lex(5) + [(900, "2026-10-01 10:00", "joined Contoso last spring")]   # 纯向量命中排在候选末尾
+    out = [it[0] for it in SearchRouter._rrf(ranked, [900])]
+    assert out.index(900) < 3, out
