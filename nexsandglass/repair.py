@@ -24,6 +24,7 @@ _LABELS = [
     ("aligned", "对得上"),
     ("erased_ok", "已正确遗忘"),
     ("misplaced", "错位（内容对、seq 不对）→ 挪回原位，id 不变"),
+    ("text_normalized", "正文只差换行符（\\r）→ 换成日志里的写法，id 不变"),
     ("overwritten", "被覆盖的真实记忆（id 认得出来）→ 把正文还回去，id 与来源不变"),
     ("missing_from_hub", "中枢里缺的（日志里有）→ 补进中枢"),
     ("orphans", "合成孤儿（日志里没有）→ 从中枢和所有派生数据里撤下"),

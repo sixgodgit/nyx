@@ -54,8 +54,13 @@ def _now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _norm(text) -> str:
+    # 日志按文本模式读回来时 \r\n、\r 都变成 \n：中枢里原样存着 \r 的那条，读回来的正文就不一样了
+    return (text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+
+
 def _key(ts, sender, text) -> tuple:
-    return (ts or "", (sender or "").strip(), (text or "").strip())
+    return (ts or "", (sender or "").strip(), _norm(text))
 
 
 def _base(mem_id: str) -> str:
@@ -74,8 +79,8 @@ def _load(journal_path: str):
 def _plan(recs: list, hub: list, tombs: list) -> dict:
     """算出「对齐到日志之后」的中枢应该长什么样，并给每一类不一致分账。纯计算，不写任何东西。
 
-    第一遍按内容配对（正文相同就是同一条，不管它现在在哪个 seq）；
-    第二遍处理剩下的日志记录：按 mem_id 认回被覆盖的行 → 认出没做完的遗忘 → 都不是才当缺失补进来。
+    先认能确定的：抹过的行按 mem= 标记、其余按内容（正文相同就是同一条，不管它现在在哪个 seq）；
+    再处理剩下的日志记录：按 mem_id 认回被覆盖的行 → 认出没做完的遗忘 → 都不是才当缺失补进来。
     """
     J = {r["seq"]: r for r in recs}
     redacted = {s for s, r in J.items() if memid.is_redacted(r)}
@@ -103,24 +108,38 @@ def _plan(recs: list, hub: list, tombs: list) -> dict:
         r = J[s]
         slot[s] = dict(seq=s, line_start=r["line_start"], line_end=r["line_end"], **kw)
 
-    # ── 第一遍：按内容配对 ──
+    # ── 第一遍：抹过的行按 mem= 标记认（先于按位置认：隔离区还原靠这个 id 找回原文）──
+    for s in sorted(redacted):
+        m = _RED_MEM.search(J[s]["text"])
+        h = dead_by_mid.get(m.group(1)) if m else None
+        if h is not None and h[1] not in used:
+            used.add(h[1])
+            put(s, mem_id=h[1], ts=h[2], sender=h[3], text="", deleted_at=h[5], kind="erased")
+    # ── 第二遍：按内容配对（正文相同就是同一条，不管它现在在哪个 seq）──
     for s in sorted(J):
-        r = J[s]
         if s in redacted:
-            m = _RED_MEM.search(r["text"])
-            h = dead_by_mid.get(m.group(1)) if m else None
-            if h is None or h[1] in used:
-                h = dead_by_seq.get(s)
-            if h is not None and h[1] not in used:
-                used.add(h[1])
-                put(s, mem_id=h[1], ts=h[2], sender=h[3], text="", deleted_at=h[5], kind="erased")
             continue
+        r = J[s]
         cands = [h for h in by_key.get(_key(r["ts"], r["sender"], r["text"]), []) if h[1] not in used]
         h = next((c for c in cands if c[0] == s), None) or (cands[0] if cands else None)
         if h is not None:
             used.add(h[1])
-            put(s, mem_id=h[1], ts=h[2], sender=h[3], text=h[4], deleted_at=None,
-                kind="kept" if h[0] == s else "moved")
+            same = (h[4] or "").strip() == r["text"].strip()
+            put(s, mem_id=h[1], ts=h[2], sender=h[3], text=h[4] if same else r["text"], deleted_at=None,
+                kind=("kept" if h[0] == s else "moved") if same else "text_fixed")
+    # 没有标记的抹除行（旧版本抹的）：抹除行还留着时间和发送者 —— 先按这两样认已删除的行，再按同一个 seq 认
+    dead_by_ts = defaultdict(list)
+    for h in dead:
+        dead_by_ts[(h[2], (h[3] or "").strip())].append(h)
+    for s in sorted(redacted):
+        if s in slot:
+            continue
+        h = next((x for x in dead_by_ts.get((J[s]["ts"], J[s]["sender"]), []) if x[1] not in used), None)
+        if h is None:
+            h = dead_by_seq.get(s)
+        if h is not None and h[1] not in used:
+            used.add(h[1])
+            put(s, mem_id=h[1], ts=h[2], sender=h[3], text="", deleted_at=h[5], kind="erased")
 
     def new_mid(r):
         base = memid.compute_mem_id(r["ts"], r["sender"], r["text"])
@@ -130,7 +149,7 @@ def _plan(recs: list, hub: list, tombs: list) -> dict:
             mid = f"{base}-{n}"
         return mid
 
-    # ── 第二遍：剩下的日志记录 ──
+    # ── 剩下的日志记录 ──
     for s in sorted(J):
         if s in slot:
             continue
@@ -201,7 +220,7 @@ def _summary(plan: dict, journal_path: str) -> dict:
         # 对得上的
         "aligned": n("kept"), "erased_ok": n("erased"),
         # 要修的（中枢那一侧）
-        "misplaced": n("moved"),
+        "misplaced": n("moved"), "text_normalized": n("text_fixed"),
         "overwritten": n("overwritten"), "overwritten_seqs": _ranges(t["seq"] for t in by.get("overwritten", [])),
         "missing_from_hub": n("restored"), "missing_seqs": _ranges(t["seq"] for t in by.get("restored", [])),
         "orphans": len(orph), "orphans_by_sender": dict(Counter(h[3] for h in orph).most_common()),
@@ -215,7 +234,7 @@ def _summary(plan: dict, journal_path: str) -> dict:
         "unfinished_erasure_seqs": _ranges(t["seq"] for t in by.get("unfinished_erasure", [])),
         "suspect_senders_in_journal": dict(suspect_in_journal.most_common()),
     }
-    out["hub_clean"] = not (out["misplaced"] or out["overwritten"] or out["missing_from_hub"] or out["orphans"]
+    out["hub_clean"] = not (out["misplaced"] or out["text_normalized"] or out["overwritten"] or out["missing_from_hub"] or out["orphans"]
                             or out["redacted_unregistered"] or out["stray_tombstones"]
                             or out["stray_deleted_rows"])
     out["clean"] = out["hub_clean"] and not out["unfinished_erasures"]
@@ -394,8 +413,9 @@ def repair(apply: bool = False, journal_path: str = None, finish_erasures: bool 
         rep["applied"] = False
         return rep
     nb = os.path.dirname(os.path.abspath(jp))
-    report = {"applied": True, "backup": _backup(nb)}
+    report = {"applied": True}
     with memid.journal_lock(jp):
+        report["backup"] = _backup(nb)        # 锁里备份：备份就是修之前那一刻的样子
         recs, hub, tombs = _load(jp)
         plan = _plan(recs, hub, tombs)
         report["before"] = _summary(plan, jp)

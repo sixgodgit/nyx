@@ -321,3 +321,54 @@ def test_vectors_follow_the_repair(env, monkeypatch, tmp_path):  # noqa: F811
     finally:
         assert semantic.wait_idle()
         semantic.set_provider(None)
+
+
+def test_carriage_return_text_is_not_mistaken_for_an_orphan(env, monkeypatch):  # noqa: F811
+    """正文里带 \\r 的记忆：日志读回来变成 \\n。按原样比会把它当成合成孤儿撤掉（连同派生数据）。"""
+    from nexsandglass.core import forensics, memid
+    monkeypatch.setenv("NYX_EMBED", "off")
+    a = memid.allocate("从 Windows 粘贴的\r\n两行笔记", "user", ts=_ts(1))
+    b = memid.allocate("普通的一句", "user", ts=_ts(2))
+    _reindex(env)
+    d = forensics.diagnose()
+    assert d["orphans"] == 0 and d["missing_from_hub"] == 0 and d["text_normalized"] == 1
+    forensics.repair(apply=True)
+    assert [h[1] for h in _hub(memid)] == [a, b], "id 不变"
+    assert memid.verify()["ok"] and forensics.diagnose()["clean"]
+
+
+def test_redaction_marker_wins_over_position(env, monkeypatch):  # noqa: F811
+    """抹过的行按 mem= 标记认，不按位置认：隔离区还原靠这个 id。旧版本抹的行没有标记，按时间 + 发送者认。"""
+    from nexsandglass.core import erasure, forensics, memid
+    monkeypatch.setenv("NYX_EMBED", "off")
+    ids = [memid.allocate(t, s, ts=_ts(i)) for i, (s, t) in enumerate(REAL[:3])]
+    for mid in ids[1:]:
+        assert erasure.forget({"mem_id": mid}, apply=True, mode="quarantine")["ok"]
+    lines = open(env.journal, encoding="utf-8").read().splitlines()
+    lines[1] = lines[1].split(" mem=")[0] + "]"          # 第 2 行：旧版本的抹除格式，没有 mem=
+    open(env.journal, "w", encoding="utf-8").write("\n".join(lines) + "\n")
+    conn = memid.get_conn()                              # 中枢里两条已删除的行互换了位置
+    conn.execute("UPDATE memories SET seq=-1 WHERE mem_id=?", (ids[1],))
+    conn.execute("UPDATE memories SET seq=2 WHERE mem_id=?", (ids[2],))
+    conn.execute("UPDATE memories SET seq=3 WHERE mem_id=?", (ids[1],))
+    conn.commit()
+    _reindex(env)
+    forensics.repair(apply=True)
+    assert [h[1] for h in _hub(memid)] == ids
+    r = erasure.restore(ids[2])
+    assert r.get("ok"), r
+    assert memid.get(ids[2])["text"] == REAL[2][1]
+    assert memid.parse_journal_records()[2]["text"] == REAL[2][1]
+
+
+def test_backup_is_taken_under_the_journal_lock(env, scene, monkeypatch):  # noqa: F811
+    from nexsandglass.core import forensics, memid
+    seen = {}
+    orig = forensics._backup
+
+    def spy(nb):
+        seen["held"] = bool(getattr(memid._jl, "held", {}).get(os.path.abspath(env.journal)))
+        return orig(nb)
+    monkeypatch.setattr(forensics, "_backup", spy)
+    forensics.repair(apply=True)
+    assert seen["held"], "备份要在日志锁里做：备份和修复看到的是同一个状态"
