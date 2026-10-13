@@ -32,8 +32,9 @@ memory:
 
 ## 每轮做什么
 
-- **prefetch**：对本轮问题现做本地召回（实测 10–50ms），每条带「哪天说的」；问到住处 / 公司 / 职位等时，
-  附上双时态的当前信念（「user 住在 上海（自 2026-09-01）」）。界面上显示 `🧠 Nyx — recalled N memories`
+- **prefetch**：对本轮问题现做本地召回（每轮约 30–140ms），每条带「哪天说的」；问到住处 / 公司 / 职位等时，
+  附上双时态的当前信念（「user 住在 上海（自 2026-09-01）」）。默认注入 12 条；问「一共几次 / 隔了多久 / 哪个先 / 之前之后」时
+  20 条（`NYX_BREADTH_LINES`，0 = 关闭）。界面上显示 `🧠 Nyx — recalled N memories`
 - **sync_turn**：原文落沙（审计日志）+ 晋升门 + 事实抽取；按 `turn_author` 绑定来源
 - **subagent / cron / flush 上下文只读**：不写记忆，写类工具直接拒绝
 
@@ -59,3 +60,5 @@ memory:
 - 一个进程一份 nyx 记忆：网关里多个 Hermes profile 共进程时共用同一个 `data_dir`
 - 语义检索需要嵌入后端（本地模型或 API）；没有时同义改写召不回来（问 company、原话是 joined Contoso）
 - 从 v7.13.2 及更早版本升级后，首次启动会在后台回填全部历史记忆的向量（本地 CPU 模型几千条约几十分钟），期间语义召回逐步变全
+- 隔离区到期不会自动真删：定期执行 `python3 -c "from nexsandglass.core import erasure; print(erasure.purge(apply=True))"`；到期没清时自检会提醒
+- v3.x 的 `install.sh` 装过的机器：删掉 `~/.hermes/plugins/memory/nexsandglass` 与 `~/.hermes/plugins/sandglass`（旧的复制式插件，会让同一句话记两遍）

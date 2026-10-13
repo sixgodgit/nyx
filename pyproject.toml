@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "nyx-memory"
 dynamic = ["version"]
-description = "夜神 Nyx — 跨会话记忆感知系统。把「检索失败」也当作一类信号：Déjà Vu 告诉 agent 它是否曾经见过。"
+description = "Nyx 夜神 — 单用户、本地、写入零 LLM 的 agent 长期记忆：双时态事实、来源信任（防记忆投毒）、可还原的遗忘；Hermes 官方记忆提供器 + MCP"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}

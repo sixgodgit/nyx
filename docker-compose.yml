@@ -1,16 +1,15 @@
-version: "3.8"
-
+# 只用来构建镜像、管理数据卷。MCP 服务走 stdio，由 MCP 客户端启动（不是后台常驻服务）：
+#   docker compose build
+#   MCP 客户端里配置：docker run -i --rm -v nyx-data:/data nyx-memory
+#   手动试跑：docker compose run --rm nyx      （从标准输入读 JSON-RPC，一行一条）
 services:
-  nexsandglass:
+  nyx:
     build: .
-    container_name: nexsandglass
+    image: nyx-memory
+    stdin_open: true
     volumes:
-      - sandglass_data:/data
-    ports:
-      - "8765:8765"
-    restart: unless-stopped
-    environment:
-      - NEXSANDBASE_HOME=/data
+      - nyx-data:/data
 
 volumes:
-  sandglass_data:
+  nyx-data:
+    name: nyx-data

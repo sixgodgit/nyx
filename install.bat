@@ -1,33 +1,37 @@
 @echo off
 chcp 65001 >nul
-echo ╔══════════════════════════════════╗
-echo ║  NexSandglass V3.4.1 安装程序    ║
-echo ║  沙漏记忆 · 跨会话 · 零外部依赖  ║
-echo ╚══════════════════════════════════╝
-echo.
+:: Nyx 夜神 —— 从源码仓库安装（Windows）
+::
+:: 一般用户直接：pip install nyx-memory（或带语义检索：pip install "nyx-memory[vector]"）
+:: 这个脚本用于从克隆下来的仓库安装：
+::   install.bat            基础安装（零依赖）
+::   install.bat --vector   加语义检索（本地多语言模型，首次运行下载约 470MB）
+setlocal
+cd /d "%~dp0"
 
-:: 1. 创建数据目录
-if not exist "%USERPROFILE%\.neurobase\scripts" mkdir "%USERPROFILE%\.neurobase\scripts"
-if not exist "%USERPROFILE%\.neurobase\persona" mkdir "%USERPROFILE%\.neurobase\persona"
-if not exist "%USERPROFILE%\.neurobase\archive" mkdir "%USERPROFILE%\.neurobase\archive"
-if not exist "%LOCALAPPDATA%\hermes\plugins\memory\nexsandglass" mkdir "%LOCALAPPDATA%\hermes\plugins\memory\nexsandglass"
-if not exist "%LOCALAPPDATA%\hermes\plugins\sandglass" mkdir "%LOCALAPPDATA%\hermes\plugins\sandglass"
-echo ✅ 数据目录已创建
-
-:: 2. 安装 Python 包
-python -m pip install "%~dp0"
+python -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
 if errorlevel 1 (
-    echo ⚠️ pip 安装失败，请手动执行：python -m pip install "%~dp0"
-) else (
-    echo ✅ NexSandglass Python 包已安装
+    echo ❌ 需要 Python 3.10 或更新版本，并且 python 在 PATH 里
+    exit /b 1
 )
 
-:: 3. 部署 Hermes 插件
-copy /Y "%~dp0nexsandglass\core\memory_provider.py" "%LOCALAPPDATA%\hermes\plugins\memory\nexsandglass\__init__.py" >nul 2>&1
-copy /Y "%~dp0nexsandglass\interfaces\plugin.py" "%LOCALAPPDATA%\hermes\plugins\sandglass\__init__.py" >nul 2>&1
-echo ✅ Hermes 插件已部署（memory_provider + gateway）
+set EXTRAS=
+if "%~1"=="--vector" set EXTRAS=[vector]
+python -m pip install ".%EXTRAS%"
+if errorlevel 1 (
+    echo ❌ pip 安装失败
+    exit /b 1
+)
+
+:: v3.x 的旧安装脚本复制过的 Hermes 插件文件：留着会和现在的插件同时生效，同一句话可能被记两遍
+if exist "%LOCALAPPDATA%\hermes\plugins\memory\nexsandglass" echo ⚠️  发现旧版安装留下的 %LOCALAPPDATA%\hermes\plugins\memory\nexsandglass ，请删除它
+if exist "%LOCALAPPDATA%\hermes\plugins\sandglass" echo ⚠️  发现旧版安装留下的 %LOCALAPPDATA%\hermes\plugins\sandglass ，请删除它
+if exist "%USERPROFILE%\.hermes\plugins\memory\nexsandglass" echo ⚠️  发现旧版安装留下的 %USERPROFILE%\.hermes\plugins\memory\nexsandglass ，请删除它
+if exist "%USERPROFILE%\.hermes\plugins\sandglass" echo ⚠️  发现旧版安装留下的 %USERPROFILE%\.hermes\plugins\sandglass ，请删除它
 
 echo.
-echo 🚀 重启 Hermes Gateway 即可自动落沙
-echo.
-pause
+echo ✅ 已安装 nyx-memory
+echo    Hermes：config.yaml 里设 memory.provider: nyx，然后重启 Hermes
+echo    MCP：   python -m nexsandglass.interfaces.sandglass_mcp
+echo    自检：  python -m nexsandglass.doctor
+endlocal
