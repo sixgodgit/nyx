@@ -556,6 +556,26 @@ def delete(mem_ids: Iterable[str]) -> int:
     return n
 
 
+def realign(line_by_mem: dict) -> int:
+    """中枢对齐到日志之后（core/forensics.repair），把向量上记的行号改成中枢里的新行号。
+    召回按行号返回 —— 不改的话，挪过位置的记忆会把别的记录带出来。返回改动条数。"""
+    path = _db_path()
+    if not line_by_mem or not os.path.exists(path):
+        return 0
+    with _lock:
+        c = _conn(path)
+        n = 0
+        for mid, ln in c.execute(f"SELECT mem_id, line_start FROM {TABLE}").fetchall():
+            want = line_by_mem.get(mid)
+            if want is not None and want != ln:
+                c.execute(f"UPDATE {TABLE} SET line_start=? WHERE mem_id=?", (want, mid))
+                n += 1
+        c.commit()
+        c.close()
+    _matrix_cache.pop(path, None)
+    return n
+
+
 # ══════════════════════════════════════════════════════════
 # 召回
 # ══════════════════════════════════════════════════════════

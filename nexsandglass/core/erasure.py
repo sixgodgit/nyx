@@ -72,9 +72,28 @@ def is_redacted_text(text: str) -> bool:
 # ══════════════════════════════════════════════════════════
 
 def _select(selector: dict) -> list:
-    """把 selector 解析为 mem_id 列表。**只选，不删。**"""
+    """把 selector 解析为 mem_id 列表。**只选，不删。**
+
+    sender / senders（v7.13.9）：发送者精确匹配。单独用 = 选这些发送者的全部在世记录；
+    和别的键一起用 = 只在别的键选中的里面留这些发送者的（收窄，不扩大 —— 删除宁少勿多）。
+    注意 mcp 也是正常的生产发送者（MCP 写入的默认值），按发送者删之前先看 dry-run。
+    """
     conn = memid.get_conn()
     out: list = []
+
+    senders = [selector[k] for k in ("sender",) if selector.get(k)]
+    senders += list(selector.get("senders") or [])
+    senders = [s.strip() for s in senders if isinstance(s, str) and s.strip()]
+    if senders:
+        q = ",".join("?" * len(senders))
+        by_sender = [r[0] for r in conn.execute(
+            f"SELECT mem_id FROM memories WHERE deleted_at IS NULL AND sender IN ({q}) ORDER BY seq", senders)]
+        rest = {k: v for k, v in selector.items() if k not in ("sender", "senders")
+                and v is not None and v is not False and not (isinstance(v, (str, list, tuple, set)) and not v)}
+        if not rest:
+            return by_sender
+        allowed = set(by_sender)
+        return [m for m in _select(rest) if m in allowed]
 
     if selector.get("all"):
         return [r[0] for r in conn.execute(

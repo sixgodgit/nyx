@@ -2,7 +2,7 @@
 
 > **给 agent 一份跟着你一辈子的记忆** —— 单用户、本地、写入不调用大模型。记得住，找得到，信得过，忘得掉。
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.13.8-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.13.9-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx 是 agent 的长期记忆层：接进 [Hermes](https://github.com/NousResearch/hermes-agent)（官方记忆提供器）、
 Claude Desktop / Claude Code 等任意 MCP 客户端，或者你自己的 Python 程序。
@@ -107,6 +107,7 @@ restore(r["preview"][0]["mem_id"])                     # 隔离期内原样还�
 | 🛡️ **来源信任** | `core/provenance.py` | trusted / unverified / tainted；只有主人亲口说的能成为规则（防 OWASP ASI06 记忆投毒） |
 | 🕯️ **遗忘隔离区** | `core/quarantine.py`、`core/erasure.py` | 两段式遗忘：隔离 → 还原或到期擦除；擦除贯通日志、索引、图谱、向量，可独立验收 |
 | 🩺 **自检** | `doctor.py` | 中枢与日志一致性、各索引、遗忘完整性、隔离区到期、规则投毒，逐项给出原因 |
+| 🧯 **体检与修复** | `repair.py`、`core/forensics.py` | 中枢对不上日志时按内容逐条核对：补缺失、挪错位、认回被覆盖的记忆、撤下合成记录及其派生「事实」；先备份，不改日志 |
 | 🔌 **Hermes 记忆提供器** | `nexsandglass_hermes/`、`core/memory_provider.py` | 官方 `MemoryProvider` 契约，entry point 自动注册；多人会话按 `owner_ids` 绑定来源 |
 | 🔌 **MCP 服务** | `interfaces/sandglass_mcp.py` | stdio，纯标准库，26 个工具 |
 | 👻 **Déjà Vu** | `dejavu/`（独立子包） | 分清「没聊过」和「聊过但找不到」，见下一节 |
@@ -287,6 +288,8 @@ Hermes 用户：数据目录在 `HERMES_HOME` 之外时，`hermes backup` 会自
 
 **系统提示里出现「⚠️ Nyx 自检：…」？** 某个子系统坏了（比如语义索引），召回照常但不完整。跑 `doctor` 看具体原因。
 
+**`doctor` 里 `hub_vs_journal` / `fts_index` / `erasure_integrity` 红了？** 中枢和日志对不上了（比如测试或别的程序往数据目录里写过东西）。先跑 `python3 -m nexsandglass.repair`：只读体检，按内容分出缺失、错位、被覆盖、合成孤儿、真假「泄漏」，只给计数和 seq 范围。然后停掉 Hermes 网关 / MCP 服务，`python3 -m nexsandglass.repair --apply`（先自动备份到 `<数据目录>/backups/`，日志一个字节不改），修完重启服务。**不要按 `erasure_integrity` 报的 seq 去 `forget`**：墓碑可能指错了位置，抹掉的会是真实记忆。体检里「遗忘没做完」的记录（日志正文还在）要 `--finish-erasures` 才会在日志里抹掉；日志里也有测试数据的发送者时，确认后可以加 `--forget-senders golden,e2e`（进隔离区，30 天内可还原）。
+
 ---
 
 ## ⚠️ 已知局限
@@ -375,6 +378,7 @@ python3 benchmarks/locomo_eval.py locomo10.json --workers 10 --json benchmarks/r
 
 ## 📝 最近更新
 
+- **v7.13.9**：测试再也写不进真实数据目录（会话级隔离 + 运行时守卫）；新增 `python3 -m nexsandglass.repair` —— 中枢被污染时按内容体检与修复，真实记忆一条不少、被遗忘的不复活、合成「事实」连同派生数据撤下
 - **v7.13.8**：README 重写（快速开始、工作原理、隐私、常见问题、已知局限）；全新安装时 `doctor` 不再误报 ❌；安装脚本与 Docker 修好（旧脚本会装一个让每句话记两遍的网关插件）
 - **v7.13.7**：问「一共几次 / 隔了多久 / 哪个先 / 之前之后」时多给 agent 10 条 —— 多会话汇总题 agent 看到的含答案轮次 0.701 → 0.804，时间推理 0.715 → 0.804
 - **v7.13.6**：第一次用真实嵌入模型测公开基准：LongMemEval-S 前 5 命中 98.1%；语义融合按分半验证重新定参
