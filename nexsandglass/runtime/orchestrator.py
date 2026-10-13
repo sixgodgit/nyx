@@ -404,10 +404,14 @@ class RecallPlanner:
             self._intent_mod = im
         return self._intent_mod
 
+    def _router_limit(self, query: str) -> int:
+        """SearchRouter 返回几条：汇总 / 时长 / 先后类问题放宽（见 intent.wants_breadth）。"""
+        return max(self.policy.limit("search_router"), self._get_intent().breadth_lines(query))
+
     def _adapt_search_router(self, query: str) -> list[MemoryObject]:
         from nexsandglass.core.search_router import SearchRouter
         router = SearchRouter()
-        results = router.search(query, limit=self.policy.limit("search_router"))
+        results = router.search(query, limit=self._router_limit(query))
         return [_from_search_item(item, "search_router") for item in results]
 
     def _adapt_shadow(self, query: str) -> list[MemoryObject]:
@@ -534,7 +538,8 @@ class RecallPlanner:
                 with ThreadPoolExecutor(max_workers=1) as ex:
                     fut = ex.submit(fn, query)
                     items = fut.result(timeout=self.policy.timeout(name))
-                tr.items = items[: self.policy.limit(name)]
+                cap = self._router_limit(query) if name == "search_router" else self.policy.limit(name)
+                tr.items = items[:cap]
                 tr.ok = True
             except FutureTimeout:
                 tr.error = f"timeout>{self.policy.timeout(name)}s"

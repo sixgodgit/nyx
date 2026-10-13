@@ -579,6 +579,8 @@ class NexSandglassProvider(MemoryProvider):
                 lines = [str(o.content) for o in objs] or \
                         [s for s in (mc.strings or []) if s and str(s).strip()]
                 cap = max(12, self._prefetch_budget // 100)   # 600 → 12 条；4000 → 40 条
+                from nexsandglass.runtime import intent as _intent
+                cap = max(cap, _intent.breadth_lines(query))   # 汇总 / 时长 / 先后：答案分散在几次对话里（v7.13.7）
                 if self._prefetch_budget and lines:
                     dates = _said_on(objs[:cap])
                     parts.append("## Nyx 记忆（与本轮相关，[日期]=说这句话的时间）")

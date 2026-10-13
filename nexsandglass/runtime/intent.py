@@ -145,6 +145,35 @@ def _detect_types_needed(intent: MemoryIntent) -> list[str]:
 # 意图解析 + 路由策略
 # ══════════════════════════════════════════════════════════
 
+# 需要「多看几条」的问题（v7.13.7）：汇总（一共几次、花了多少）、时长与先后（隔了多久、哪个先、之前之后）。
+# 答案分散在好几次对话里，而同一次对话的几条记录往往正是含答案的句子 —— 所以要放宽条数，不能去重压缩。
+# LongMemEval-S（分半验证，留出一半）：agent 看到的记录里含答案轮次的比例 0.810 → 0.870，
+# 其中多会话汇总 0.729 → 0.794、时间推理 0.692 → 0.808；LoCoMo 0.637 → 0.644。
+# 代价：只有这类问题多给 10 条（LongMemEval 平均每题 10 → 17 条，LoCoMo 10 → 11 条）。
+# 「同一次对话最多 N 条」的去重方案反而让答案覆盖 0.818 → 0.746（N=3）/ 0.670（N=2），没有采用。
+_BREADTH = re.compile(
+    r"\b(how many|how much|how long|how often|in total|total|altogether|times|number of|count|"
+    r"days|weeks|months|years|first|last|before|after|earlier|later|order|since|until|ago)\b"
+    r"|多少|几次|几个|一共|总共|多久|多长时间|几天|最早|最后|先后|顺序|之前|之后", re.I)
+BREADTH_LINES = 20          # NYX_BREADTH_LINES 可调；0 = 关闭（与 v7.13.6 相同）
+
+
+def wants_breadth(query: str) -> bool:
+    """问题的答案是否可能分散在多次对话里（汇总 / 时长 / 先后）。"""
+    return bool(_BREADTH.search(query or ""))
+
+
+def breadth_lines(query: str) -> int:
+    """这一问需要放宽到几条；不需要 / 已关闭 → 0。召回（SearchRouter 条数）与注入（prefetch 条数）共用。"""
+    if not wants_breadth(query):
+        return 0
+    import os
+    try:
+        return max(0, int(os.environ.get("NYX_BREADTH_LINES", BREADTH_LINES)))
+    except ValueError:
+        return BREADTH_LINES
+
+
 def parse_intent(query: str) -> MemoryIntent:
     """解析查询为 MemoryIntent。失败降级为 generic_semantic。"""
     intent = MemoryIntent(raw_query=query)

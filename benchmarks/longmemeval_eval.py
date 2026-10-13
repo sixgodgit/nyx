@@ -83,6 +83,9 @@ def _pairs(turns: list) -> list:
     return out
 
 
+VIEW_LINES = 12          # provider.prefetch 默认注入条数（prefetch_tokens=600）
+
+
 def check_semantic(sem: dict) -> dict:
     """语义后端开着、索引却没建成 → 这一题按出错处理，不许把纯词法的结果记成「语义开」。
 
@@ -162,7 +165,12 @@ def run_instance(inst: dict, *, budget: int, prefetch_tokens: int, want_context:
     recall_ms = (time.time() - t1) * 1000
 
     ranked_sessions, ranked_answer_hits, unmapped = [], [], 0
-    for seq in map_to_seqs(conn, mc.objects):
+    seqs = map_to_seqs(conn, mc.objects)
+    # agent 实际看到的条数：与 provider.prefetch 相同（默认 12 条；汇总 / 时长 / 先后类问题 20 条）
+    from nexsandglass.runtime import intent as _intent
+    view_n = max(VIEW_LINES, _intent.breadth_lines(inst["question"]))
+    seen_answers = {sq for sq in seqs[:view_n] if sq in answer_seqs}
+    for seq in seqs:
         if seq is None or seq not in seq_session:
             unmapped += 1
             continue
@@ -177,6 +185,7 @@ def run_instance(inst: dict, *, budget: int, prefetch_tokens: int, want_context:
         "answer_session_ids": inst.get("answer_session_ids", []),
         "ranked_sessions": ranked_sessions[:50], "answer_turn_hits": ranked_answer_hits[:50],
         "n_answer_turns": len(answer_seqs), "n_objects": len(mc.objects), "unmapped": unmapped,
+        "view_n": view_n, "answer_in_view": len(seen_answers),
         "n_sessions": len(sessions), "n_turns": n_turns, "n_memories": max_seq(),
         "ingest_s": round(ingest_s, 3), "recall_ms": round(recall_ms, 1),
         "semantic": {k: sem.get(k) for k in ("backend", "indexed", "pending")},
@@ -246,6 +255,10 @@ def score(results: list, ks=(1, 3, 5, 10)) -> dict:
         if with_turns:
             row["turn_hit@10"] = round(sum(any(r["answer_turn_hits"][:10]) for r in with_turns)
                                        / len(with_turns), 4)
+            if all("answer_in_view" in r for r in with_turns):
+                # agent 实际看到的记录里，含答案的轮次找到了多少（v7.13.7）
+                row["answer_in_view"] = round(sum(r["answer_in_view"] / r["n_answer_turns"] for r in with_turns)
+                                              / len(with_turns), 4)
         row["recall_ms_p50"] = sorted(r["recall_ms"] for r in rs)[len(rs) // 2]
         out[g] = row
     errs = [r for r in results if "error" in r]
@@ -329,7 +342,7 @@ def main(argv=None) -> int:
         if g != "_meta":
             print(f"{g:28s} n={row['n']:4d}  any@5={row['recall_any@5']:.3f}  all@5={row['recall_all@5']:.3f}"
                   f"  any@10={row['recall_any@10']:.3f}  all@10={row['recall_all@10']:.3f}"
-                  f"  p50={row['recall_ms_p50']}ms")
+                  f"  in_view={row.get('answer_in_view', float('nan')):.3f}  p50={row['recall_ms_p50']}ms")
     print(json.dumps(report["_meta"], ensure_ascii=False))
     for r in results:
         if "error" in r:
