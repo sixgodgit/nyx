@@ -53,7 +53,7 @@ from datetime import datetime, timedelta
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from longmemeval_eval import map_to_seqs  # noqa: E402
+from longmemeval_eval import check_semantic, map_to_seqs  # noqa: E402
 
 CATEGORIES = {1: "multi-hop", 2: "temporal", 3: "open-domain", 4: "single-hop", 5: "adversarial"}
 SCORED = (1, 2, 3, 4)
@@ -173,7 +173,7 @@ def run_conversation(sample: dict, *, budget: int) -> dict:
     sandglass_vault.rebuild_index()
     semantic.wait_idle(600)
     semantic.index_all()
-    sem = semantic.stats()
+    sem = check_semantic(semantic.stats())          # 后端开着、索引没建成 → 报错，不记成「语义开」
     ingest_s = time.time() - t0
 
     bm25 = BM25(texts)

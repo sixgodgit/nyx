@@ -30,7 +30,9 @@ LongMemEval（Wu et al., ICLR 2025, MIT）是 Hindsight / Zep / Mem0 等报分�
   python3 benchmarks/longmemeval_eval.py data/longmemeval_s_cleaned.json --qa --hyp hyp.jsonl
 
 如实说明
-  - 这个环境连不到 HuggingFace，仓库里没有真实数据上的分数；tests/ 里用的是同格式的小样本
+  - 真实数据上的检索分数见 README 与 benchmarks/results/longmemeval_s_retrieval.json（v7.13.6）；
+    tests/ 里用的是同格式的小样本，只防回归
+  - 语义后端开着、索引却没建成（如本地模型加载失败）时，这一题按出错处理（check_semantic）
   - nyx 的规则抽取以中文为主；LongMemEval 是英文。英文上召回主要靠全文检索与倒排索引
 """
 from __future__ import annotations
@@ -79,6 +81,18 @@ def _pairs(turns: list) -> list:
     if pending is not None:
         out.append((pending[0], "", pending[1], False))
     return out
+
+
+def check_semantic(sem: dict) -> dict:
+    """语义后端开着、索引却没建成 → 这一题按出错处理，不许把纯词法的结果记成「语义开」。
+
+    v7.13.5 实测：本地模型加载失败（模型不在 NYX_EMBED_CACHE、又设了离线），LoCoMo 10 段、LongMemEval 500 题
+    全部「已索引 0、待补全部」，报告里的后端却写着 local:模型名 —— 两组「语义开」的分数其实都是纯词法。
+    """
+    if sem.get("enabled") and (sem.get("pending") or not sem.get("indexed")):
+        raise RuntimeError(f"语义后端 {sem.get('backend')} 已启用，但索引没建成（已索引 {sem.get('indexed')}，"
+                           f"待补 {sem.get('pending')}，错误：{sem.get('last_error') or sem.get('error')}）")
+    return sem
 
 
 def map_to_seqs(conn, objects) -> list:
@@ -138,7 +152,7 @@ def run_instance(inst: dict, *, budget: int, prefetch_tokens: int, want_context:
     from nexsandglass.core import semantic
     semantic.wait_idle(600)                  # 后台补索引跑完
     semantic.index_all()                     # 兜底，保证全部入索引
-    sem = semantic.stats()
+    sem = check_semantic(semantic.stats())
     ingest_s = time.time() - t0
 
     clock.set_global(parse_date(inst["question_date"]))

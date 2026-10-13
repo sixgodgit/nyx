@@ -2,7 +2,7 @@
 
 > **Nyx — 把「检索失败」也当作一类信号的记忆系统**
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.13.5-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.13.6-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 ## 别的记忆系统回答「找到了什么」，Nyx 还回答「我是不是见过」
 
@@ -168,42 +168,55 @@ scripts/nyx_quarantine.py        # 隔离区命令行：list / restore / purge�
 
 ## 📊 Benchmark
 
-**公开基准 LoCoMo：检索证据召回**（`benchmarks/locomo_eval.py`，v7.13.5，结果 `benchmarks/results/locomo_retrieval.json`）
+两个公开基准都只测**检索**（零 LLM、可复现），逐轮走 Hermes 插件真实的写入路径。
+语义检索用默认的本地模型 `paraphrase-multilingual-MiniLM-L12-v2`（`pip install "nyx-memory[vector]"`）。
 
-10 段两人长对话（共 5882 轮、272 个会话，跨数月），计分 1536 题（对抗题 446、无证据标注 4 题按惯例不计）。
-逐轮走 Hermes 插件真实的写入路径；指标是「前 k 条召回里，标注的证据句找到了多少」。零 LLM，可复现。
-参照是同一批句子上最朴素的 BM25（底线，不是对手）。语义检索**关闭**（开发环境没有嵌入后端）：
+**LongMemEval-S**（`benchmarks/longmemeval_eval.py`，500 题、每题约 50 个会话 / 490 轮；按官方定义算会话级召回，
+「该拒答」的 30 题不计；结果 `benchmarks/results/longmemeval_s_retrieval.json`）
 
-| 类别 | 题数 | nyx R@5 | BM25 R@5 | nyx R@10 | BM25 R@10 | nyx 全部证据进前 10 |
+| 题型 | 题数 | 前 5 命中 | 前 5 全中 | 前 10 全中 | 纯词法 前 5 全中 |
+|---|---|---|---|---|---|
+| 信息更新 | 72 | 1.000 | 0.986 | 1.000 | 0.889 |
+| 多会话汇总 | 121 | 0.984 | 0.785 | 0.802 | 0.603 |
+| 助手说过的话 | 56 | 1.000 | 1.000 | 1.000 | 0.982 |
+| 用户偏好 | 30 | 0.900 | 0.900 | 0.900 | 0.700 |
+| 用户说过的话 | 64 | 1.000 | 1.000 | 1.000 | 0.984 |
+| 时间推理 | 127 | 0.969 | 0.724 | 0.787 | 0.693 |
+| **总体** | 470 | **0.981** | **0.862** | **0.885** | 0.774 |
+
+「前 5 命中」= 前 5 条召回里至少有一个答案所在会话；「前 5 全中」= 答案分散在几个会话时，前 5 条把它们全找到了。
+
+**LoCoMo**（`benchmarks/locomo_eval.py`，10 段两人长对话、5882 轮、跨数月；计分 1536 题，对抗题 446、无证据标注 4 题按惯例不计；
+指标是标注的证据句在前 k 条里找到了多少；参照是同一批句子上最朴素的 BM25；结果 `benchmarks/results/locomo_retrieval.json`）
+
+| 类别 | 题数 | nyx R@5 | 纯词法 R@5 | BM25 R@5 | nyx R@10 | BM25 R@10 |
 |---|---|---|---|---|---|---|
-| 多跳 | 282 | **0.289** | 0.180 | **0.383** | 0.264 | 0.170 |
-| 时间 | 321 | **0.666** | 0.611 | **0.726** | 0.678 | 0.701 |
-| 开放域推理 | 92 | **0.282** | 0.243 | **0.328** | 0.272 | 0.228 |
-| 单跳 | 841 | **0.615** | 0.590 | **0.690** | 0.655 | 0.674 |
-| **总体** | 1536 | **0.546** | 0.498 | **0.619** | 0.565 | 0.561 |
+| 多跳 | 282 | **0.297** | 0.289 | 0.180 | **0.398** | 0.264 |
+| 时间 | 321 | **0.677** | 0.666 | 0.611 | **0.738** | 0.678 |
+| 开放域推理 | 92 | 0.273 | **0.282** | 0.243 | **0.352** | 0.272 |
+| 单跳 | 841 | **0.661** | 0.615 | 0.590 | **0.728** | 0.655 |
+| **总体** | 1536 | **0.575** | 0.546 | 0.498 | **0.647** | 0.565 |
 
-怎么读这张表：
-- 这是**检索**，不是别人报的 LoCoMo 分数。Mem0 92.5%、Zep 94.7% 这类数字是「大模型读召回结果作答、再由大模型裁判」的
-  问答准确率，口径不同，不能拿上表去比
-- 前 10 条里至少有一句证据的题是 69%：剩下 31% 的题，读答案的模型一句证据都看不到。短板在多跳（证据分散在多个会话）
-- v7.13.4 及以前这张表的 nyx 一列 R@5 是 **0.046** —— 召回聚合的排序缺陷，见 v7.13.5 更新日志
-
-```bash
-# 数据 https://github.com/snap-research/locomo（CC BY-NC 4.0，仓库里不放）
-python3 benchmarks/locomo_eval.py locomo10.json --workers 10 --json benchmarks/results/locomo_retrieval.json
-```
-
-**公开基准 LongMemEval**（`benchmarks/longmemeval_eval.py`，v7.12）：每题独立目录，按会话日期冻结时钟，
-逐轮走 Hermes 插件真实的写入路径，再按官方定义算会话级 recall_any@k / recall_all@k（零 LLM，可复现）；
-`--qa` 生成官方格式的答案文件，交给官方 `evaluate_qa.py` 打分。
-**目前还没有真实数据上的分数** —— 数据在 HuggingFace，开发环境连不到。在部署环境运行
-（开 / 关语义各跑一次，差值就是语义检索的贡献）：
+怎么读这两张表：
+- 这是**检索**，不是别人报的分数。Mem0、Zep、Hindsight 报的 LongMemEval / LoCoMo 分数是「大模型读召回结果作答、
+  再由大模型裁判」的问答准确率，口径不同，不能拿上表去比；端到端问答还没跑（需要大模型 API）
+- 两个基准差别很大：LongMemEval 里大部分会话是与问题无关的填充对话，语义很好区分；LoCoMo 是同样两个人
+  从头聊到尾，句句都像，靠人名与关键词。nyx 的融合（v7.13.6）按两个基准各取一半选参数、在另一半上验证，
+  两边都不比纯词法差。代价：LongMemEval「前 5 全中」比旧融合低约 3 个点（主要是多会话汇总题），
+  记忆更像 LongMemEval 的用户可以设 `NYX_EMBED_Z=2 NYX_EMBED_WEIGHT=1` 回到旧融合
+- 短板：LoCoMo 多跳题证据全部进前 10 只有 18%；LongMemEval 时间推理「前 5 全中」0.72
+- v7.13.4 及以前，LoCoMo 的 nyx R@5 是 **0.046**（召回聚合的排序缺陷，见 v7.13.5 更新日志）
 
 ```bash
-pip install "nyx-memory[vector]"
+pip install "nyx-memory[vector]"     # 首次运行把模型下载到 ~/.cache/nexsandglass/models（NYX_EMBED_CACHE 可改）
+# LongMemEval（MIT）：https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned
 python3 benchmarks/longmemeval_eval.py longmemeval_s_cleaned.json --workers 8 --json benchmarks/results/longmemeval_s.json
-python3 benchmarks/longmemeval_eval.py longmemeval_s_cleaned.json --workers 8 --no-semantic --json benchmarks/results/longmemeval_s_lexical.json
+python3 benchmarks/longmemeval_eval.py longmemeval_s_cleaned.json --workers 8 --no-semantic --json longmemeval_s_lexical.json
+# LoCoMo（CC BY-NC 4.0，仓库里不放）：https://github.com/snap-research/locomo
+python3 benchmarks/locomo_eval.py locomo10.json --workers 10 --json benchmarks/results/locomo.json
 ```
+
+语义后端开着、索引却没建成时，两个评测框架都直接报错（v7.13.6）—— 不会把纯词法的结果记成「语义开」。
 
 **仓库里可复现的评测**（结果在 `benchmarks/results/`）：
 
@@ -298,7 +311,9 @@ cp -r skills/nyx ~/.hermes/skills/memory/
 | `NYX_EMBED` | `auto` | 语义检索后端：`auto` / `local` / `api` / `off` |
 | `NYX_EMBED_MODEL` | 本地 `paraphrase-multilingual-MiniLM-L12-v2`；API `text-embedding-3-small` | 嵌入模型 |
 | `EMBEDDING_API_URL` / `EMBEDDING_API_KEY` | 空 | OpenAI 兼容 `/embeddings` |
-| `NYX_EMBED_Z` | `2` | 语义命中要比背景高出多少（稳健 z 分数）才算证据 |
+| `NYX_EMBED_Z` | `3` | 语义命中要比背景高出多少（稳健 z 分数）才算证据 |
+| `NYX_EMBED_WEIGHT` | `0.5` | 融合时语义这一票的权重（词法一票是 1） |
+| `NYX_EMBED_CACHE` | `~/.cache/nexsandglass/models` | 本地嵌入模型的存放目录 |
 | `NYX_UNDERSTAND_LLM` | 关 | `1` = 事实抽取走 LLM（结果必须过校验；失败退回规则） |
 | `LLM_EXTRACT_API_URL` / `NYX_UNDERSTAND_MODEL` | 空 / `deepseek-v4-flash` | 抽取用的 OpenAI 兼容网关与模型 |
 | `NYX_FORGET_RETENTION_DAYS` | `30` | 遗忘隔离期 |
@@ -371,6 +386,49 @@ Hermes 用户：数据目录在 `HERMES_HOME` 之外时，`hermes backup` 会自
 ---
 
 ## 📝 更新日志
+
+### v7.13.6 (2026-10-13) — 第一次用真实嵌入模型测公开基准：语义融合重新定参
+
+**LongMemEval-S 第一次有了真实数据上的分数**（500 题，检索，零 LLM）：答案所在会话进前 5 的题 **98.1%**，
+答案分散在几个会话时前 5 条全找到 **86.2%**；纯词法时是 94.9% / 77.4%。用户偏好题 70% → 90%，
+多会话汇总题全找到 60% → 79%。LoCoMo recall@5 0.546 → **0.575**。详见 Benchmark 一节。
+
+**先更正一件事**：本版开发中途我报告过「语义检索几乎没有贡献」，那是错的。那几组「语义开」的跑分，
+本地模型其实没加载成功（我把模型下到了 HuggingFace 的缓存，nyx 用的是自己的 `~/.cache/nexsandglass/models`，
+又设了离线），10 段对话、500 道题全部「已索引 0」，报告里的后端却照样写着模型名 —— 分数全是纯词法。
+产品本身没问题（用真实模型实测：中文问「宠物猫叫什么」召回英文原话 "I adopted a cat named Mochi"），
+是评测框架没有检查。现在两个框架都会拒绝这种情况（`check_semantic`）：后端开着、索引没建成就按出错处理。
+
+**真实向量进来之后，旧融合在 LoCoMo 上反而拖后腿**：纯词法 recall@5 0.546，语义打开后 0.527。
+原因不是门槛太严，而是语义与词法等权投票：默认的小型多语言模型在英文闲聊里单独用只有 0.424（比 BM25 还低），
+等权时它的票把好的词法结果挤出去。
+
+**新融合**：门槛 Z 2 → 3（`NYX_EMBED_Z`）、语义一票权重 1 → 0.5（新增 `NYX_EMBED_WEIGHT`）。
+- 选法：两个基准各分两半，候选 Z∈{2,3} × 权重∈{1, 0.5, 0.3}，在 A 半上按事先定死的规则
+  （LoCoMo recall@5 与 LongMemEval 前 5 全中的平均）选出 Z=3、权重 0.5；只在没碰过的 B 半上报告
+- B 半：LoCoMo recall@5 纯词法 0.539 / 旧融合 0.510 / 新融合 **0.566**；LongMemEval 前 5 命中
+  0.957 / 0.983 / **0.987**，前 5 全中 0.753 / **0.872** / 0.843
+- 新融合是唯一一个在两个基准上都不比纯词法差的；**代价**是 LongMemEval「前 5 全中」比旧融合低约 3 个点
+  （多会话汇总题）。记忆更像 LongMemEval（和 agent 聊大量不相关话题）的用户可以设
+  `NYX_EMBED_Z=2 NYX_EMBED_WEIGHT=1` 回到旧融合
+- 权重没有压到 0.3：分数相近，但与问句零字面重叠的证据（同义改写）一条也进不了前 10，语义只剩重排
+- 两个基准差别的来源：LongMemEval 大部分会话是与问题无关的填充对话，语义很好区分；LoCoMo 是同样两个人
+  从头聊到尾，句句都像
+
+**其他评测不受影响**：纵向评测 35 个种子在「语义关 / 假模型 + 新融合 / 假模型 + 旧融合」三种模式下都与 v7.13.3 逐项相同；
+投毒演练（16 条攻击 0 条无标注进 prompt、主人 0 误伤）与事故演练在三种模式下都通过。
+
+**防复发**
+- `tests/test_semantic_recall.py` 新增 3 项：语义一票轻于词法（权重改回 1 时失败）、语义认可能把排在后面的
+  词法候选提上来、候选少时同义改写仍进前 3
+- 两个评测框架的 `check_semantic`：用之前的错误配置重跑，直接报错退出
+
+**还差什么**（如实说明）
+- 只测了检索；端到端问答准确率（别人报的分数）需要大模型 API，还没跑
+- LoCoMo 开放域推理类（92 题）语义打开后比纯词法低 0.9 个点；多跳题证据全进前 10 只有 18%
+- 默认本地模型偏小；换成更强的嵌入模型（API）时最优权重可能不同，两个参数都可以调
+
+**验证**：全量 513 项通过；真实 Hermes 检查通过；LoCoMo 与 LongMemEval 都用 nyx 真实代码实跑（不是模拟）。
 
 ### v7.13.5 (2026-10-12) — 第一次在公开基准的真实数据上测：LoCoMo 查出召回排序缺陷
 

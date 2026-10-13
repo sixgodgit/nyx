@@ -638,7 +638,9 @@ def _standout_threshold(scores: List[float]) -> float:
     向量检索永远会返回最像的几条，哪怕全都不相关；把这些背景噪声送进 RRF，
     它们会凭两票把精确的字面命中挤出前几名（v7.13 事故演练实测）。
     只有和背景拉开距离的命中才算语义证据。全部一样像（MAD=0）→ 只有严格高于中位数
-    一个最小间隔的才算。Z 由 NYX_EMBED_Z 配置，默认 2。
+    一个最小间隔的才算。Z 由 NYX_EMBED_Z 配置，默认 3（v7.13.5；以前 2）。
+    在 LoCoMo 上用真实本地模型测：Z=2 时放进来的「略高于背景」的命中多是闲聊句，等权融合后
+    recall@5 比纯词法还低（0.524 vs 0.545）；Z=3 加上语义一票减半（search_router.VECTOR_WEIGHT）→ 0.578。
     """
     if not scores:
         return float("inf")
@@ -653,9 +655,9 @@ def _standout_threshold(scores: List[float]) -> float:
     dev = sorted(abs(x - med) for x in bg)
     mad = dev[n // 2] if n % 2 else (dev[n // 2 - 1] + dev[n // 2]) / 2
     try:
-        z = float(os.environ.get("NYX_EMBED_Z", "2") or 2)
+        z = float(os.environ.get("NYX_EMBED_Z", "3") or 3)
     except ValueError:
-        z = 2.0
+        z = 3.0
     return med + max(z * 1.4826 * mad, 0.02)
 
 

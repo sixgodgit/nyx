@@ -1,0 +1,246 @@
+{
+ "benchmark": "LongMemEval-S (longmemeval_s_cleaned.json) — 会话级 recall_any@k / recall_all@k，官方定义，abstention 不计",
+ "data_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+ "v7.13.6_semantic": {
+  "backend": "local:paraphrase-multilingual-MiniLM-L12-v2",
+  "fusion": "NYX_EMBED_Z=3, NYX_EMBED_WEIGHT=0.5",
+  "scores": {
+   "_overall": {
+    "n": 470,
+    "recall_any@1": 0.9128,
+    "recall_all@1": 0.3191,
+    "recall_any@3": 0.9745,
+    "recall_all@3": 0.8064,
+    "recall_any@5": 0.9809,
+    "recall_all@5": 0.8617,
+    "recall_any@10": 0.9851,
+    "recall_all@10": 0.8851,
+    "turn_hit@10": 0.9064,
+    "recall_ms_p50": 138.8
+   },
+   "knowledge-update": {
+    "n": 72,
+    "recall_any@1": 0.9861,
+    "recall_all@1": 0.0,
+    "recall_any@3": 1.0,
+    "recall_all@3": 0.9583,
+    "recall_any@5": 1.0,
+    "recall_all@5": 0.9861,
+    "recall_any@10": 1.0,
+    "recall_all@10": 1.0,
+    "turn_hit@10": 0.9861,
+    "recall_ms_p50": 127.0
+   },
+   "multi-session": {
+    "n": 121,
+    "recall_any@1": 0.9256,
+    "recall_all@1": 0.0,
+    "recall_any@3": 0.9752,
+    "recall_all@3": 0.6364,
+    "recall_any@5": 0.9835,
+    "recall_all@5": 0.7851,
+    "recall_any@10": 0.9835,
+    "recall_all@10": 0.8017,
+    "turn_hit@10": 0.9256,
+    "recall_ms_p50": 134.4
+   },
+   "single-session-assistant": {
+    "n": 56,
+    "recall_any@1": 0.9643,
+    "recall_all@1": 0.9643,
+    "recall_any@3": 1.0,
+    "recall_all@3": 1.0,
+    "recall_any@5": 1.0,
+    "recall_all@5": 1.0,
+    "recall_any@10": 1.0,
+    "recall_all@10": 1.0,
+    "turn_hit@10": 0.9464,
+    "recall_ms_p50": 163.1
+   },
+   "single-session-preference": {
+    "n": 30,
+    "recall_any@1": 0.6667,
+    "recall_all@1": 0.6667,
+    "recall_any@3": 0.8667,
+    "recall_all@3": 0.8667,
+    "recall_any@5": 0.9,
+    "recall_all@5": 0.9,
+    "recall_any@10": 0.9,
+    "recall_all@10": 0.9,
+    "turn_hit@10": 0.7667,
+    "recall_ms_p50": 136.4
+   },
+   "single-session-user": {
+    "n": 64,
+    "recall_any@1": 0.9531,
+    "recall_all@1": 0.9531,
+    "recall_any@3": 1.0,
+    "recall_all@3": 1.0,
+    "recall_any@5": 1.0,
+    "recall_all@5": 1.0,
+    "recall_any@10": 1.0,
+    "recall_all@10": 1.0,
+    "turn_hit@10": 0.9688,
+    "recall_ms_p50": 132.2
+   },
+   "temporal-reasoning": {
+    "n": 127,
+    "recall_any@1": 0.874,
+    "recall_all@1": 0.1181,
+    "recall_any@3": 0.9606,
+    "recall_all@3": 0.685,
+    "recall_any@5": 0.9685,
+    "recall_all@5": 0.7244,
+    "recall_any@10": 0.9843,
+    "recall_all@10": 0.7874,
+    "turn_hit@10": 0.8268,
+    "recall_ms_p50": 140.0
+   },
+   "_meta": {
+    "questions": 500,
+    "errors": 0,
+    "abstention_skipped": 30,
+    "ingest_s_total": 5958.4,
+    "unmapped_objects": 0,
+    "data": "longmemeval_s_cleaned.json",
+    "wall_s": 1935.7,
+    "budget": 1500,
+    "workers": 4,
+    "semantic_backend": [
+     "local:paraphrase-multilingual-MiniLM-L12-v2"
+    ]
+   }
+  }
+ },
+ "lexical_only": {
+  "backend": "off",
+  "scores": {
+   "_overall": {
+    "n": 470,
+    "recall_any@1": 0.7766,
+    "recall_all@1": 0.2787,
+    "recall_any@3": 0.9085,
+    "recall_all@3": 0.6936,
+    "recall_any@5": 0.9489,
+    "recall_all@5": 0.7745,
+    "recall_any@10": 0.9681,
+    "recall_all@10": 0.8191,
+    "turn_hit@10": 0.783,
+    "recall_ms_p50": 111.8
+   },
+   "knowledge-update": {
+    "n": 72,
+    "recall_any@1": 0.9028,
+    "recall_all@1": 0.0,
+    "recall_any@3": 0.9722,
+    "recall_all@3": 0.8472,
+    "recall_any@5": 0.9861,
+    "recall_all@5": 0.8889,
+    "recall_any@10": 1.0,
+    "recall_all@10": 0.9167,
+    "turn_hit@10": 0.9167,
+    "recall_ms_p50": 109.6
+   },
+   "multi-session": {
+    "n": 121,
+    "recall_any@1": 0.719,
+    "recall_all@1": 0.0,
+    "recall_any@3": 0.9256,
+    "recall_all@3": 0.4545,
+    "recall_any@5": 0.9752,
+    "recall_all@5": 0.6033,
+    "recall_any@10": 0.9917,
+    "recall_all@10": 0.6777,
+    "turn_hit@10": 0.7438,
+    "recall_ms_p50": 103.6
+   },
+   "single-session-assistant": {
+    "n": 56,
+    "recall_any@1": 0.9107,
+    "recall_all@1": 0.9107,
+    "recall_any@3": 0.9821,
+    "recall_all@3": 0.9821,
+    "recall_any@5": 0.9821,
+    "recall_all@5": 0.9821,
+    "recall_any@10": 0.9821,
+    "recall_all@10": 0.9821,
+    "turn_hit@10": 0.8571,
+    "recall_ms_p50": 136.0
+   },
+   "single-session-preference": {
+    "n": 30,
+    "recall_any@1": 0.2667,
+    "recall_all@1": 0.2667,
+    "recall_any@3": 0.5333,
+    "recall_all@3": 0.5333,
+    "recall_any@5": 0.7,
+    "recall_all@5": 0.7,
+    "recall_any@10": 0.8,
+    "recall_all@10": 0.8,
+    "turn_hit@10": 0.1667,
+    "recall_ms_p50": 104.6
+   },
+   "single-session-user": {
+    "n": 64,
+    "recall_any@1": 0.9219,
+    "recall_all@1": 0.9219,
+    "recall_any@3": 0.9531,
+    "recall_all@3": 0.9531,
+    "recall_any@5": 0.9844,
+    "recall_all@5": 0.9844,
+    "recall_any@10": 0.9844,
+    "recall_all@10": 0.9844,
+    "turn_hit@10": 0.9219,
+    "recall_ms_p50": 107.0
+   },
+   "temporal-reasoning": {
+    "n": 127,
+    "recall_any@1": 0.748,
+    "recall_all@1": 0.1024,
+    "recall_any@3": 0.8898,
+    "recall_all@3": 0.6142,
+    "recall_any@5": 0.9291,
+    "recall_all@5": 0.6929,
+    "recall_any@10": 0.9528,
+    "recall_all@10": 0.748,
+    "turn_hit@10": 0.7874,
+    "recall_ms_p50": 116.8
+   },
+   "_meta": {
+    "questions": 500,
+    "errors": 0,
+    "abstention_skipped": 30,
+    "ingest_s_total": 1812.2,
+    "unmapped_objects": 0,
+    "data": "longmemeval_s_cleaned.json",
+    "wall_s": 502.4,
+    "budget": 1500,
+    "workers": 4,
+    "semantic_backend": [
+     "off"
+    ]
+   }
+  }
+ },
+ "fusion_selection": {
+  "protocol": "候选 Z∈{2,3}×w∈{1,0.5,0.3}；A 半（LoCoMo 第 1–5 段、LongMemEval 偶数题）上取 mean(LoCoMo recall@5, LongMemEval all@5) 最高者；B 半（另一半）只用来报告。检索结果由离线复现 SearchRouter 融合得到（与实跑对照：LoCoMo 0.578 vs 0.575，LongMemEval 纯词法 0.951 vs 0.949）",
+  "selected": "Z=3, w=0.5",
+  "held_out_B": {
+   "lexical": {
+    "locomo_recall@5": 0.539,
+    "lme_any@5": 0.957,
+    "lme_all@5": 0.753
+   },
+   "old_fusion_Z2_w1": {
+    "locomo_recall@5": 0.51,
+    "lme_any@5": 0.983,
+    "lme_all@5": 0.872
+   },
+   "selected_Z3_w0.5": {
+    "locomo_recall@5": 0.566,
+    "lme_any@5": 0.987,
+    "lme_all@5": 0.843
+   }
+  }
+ }
+}
