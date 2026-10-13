@@ -8,7 +8,12 @@ NexSandglass 路径配置 — 单一真相来源 V2.2
 import os
 
 _NB = os.environ.get("NEXSANDBASE_HOME") or os.path.join(os.path.expanduser("~"), ".neurobase")
-__version__ = '7.13.8'
+
+# 很多模块在 import 时就把路径定死了（_NB 及其派生路径），之后改环境变量也追不回来。
+# 所以测试进程在这里、在任何文件被写之前就要拦下（v7.13.9，2026-09-13 事故：测试把合成记忆写进了生产库）。
+from nexsandglass.core import prodguard as _prodguard  # noqa: E402
+_prodguard.check(_NB, "数据目录")
+__version__ = '7.13.9'
 _SCRIPTS = os.path.join(_NB, "scripts")
 _PERSONA = os.path.join(_NB, "persona")
 _ARCHIVE = os.path.join(_NB, "archive")

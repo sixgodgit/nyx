@@ -69,6 +69,7 @@ from typing import Optional
 
 from nexsandglass.core.sandglass_paths import _NB
 from nexsandglass.core import provenance as _prov
+from nexsandglass.core import prodguard as _prodguard
 from nexsandglass.core import sqlite_open as _sqlite_open
 
 logger = logging.getLogger(__name__)
@@ -81,7 +82,9 @@ def _nb() -> str:
     同进程切换数据目录）时，ID 中枢会继续写旧库，导致行号落到别处、
     /api/memories 读不到刚写入的记忆。
     """
-    return os.environ.get("NEXSANDBASE_HOME") or _NB
+    nb = os.environ.get("NEXSANDBASE_HOME") or _NB
+    _prodguard.check(nb, "数据目录")           # 测试进程只能用临时目录（v7.13.9）
+    return nb
 
 
 # 显式覆盖（set_db_path / 测试 monkeypatch），带「归属目录」标记。
@@ -514,6 +517,8 @@ def allocate(text: str, sender: str = "agent", ts: str = None,
             prov.sensitive = True
     conn = get_conn()
     jpath = journal_path or _journal_path()
+    if write_journal:
+        _prodguard.check(jpath, "记忆日志")     # 测试进程不许写临时目录以外的日志（v7.13.9）；必须在拿锁之前
 
     with journal_lock(jpath):
         mem_id = _unique_mem_id(conn, ts, sender, text)

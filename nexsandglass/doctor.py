@@ -52,6 +52,11 @@ def main(argv=None) -> int:
         for name, c in h["checks"].items():
             print("  " + _line(name, c))
         print("结论：" + ("全部正常" if h["ok"] else "有项目失败（见 ❌）"))
+        if any(not h["checks"].get(k, {}).get("ok", True)
+               for k in ("hub_vs_journal", "fts_index", "erasure_integrity")):
+            # 这三项一起红的时候，最顺手的做法（按 seq 去 forget「泄漏」的那几条）恰恰会抹掉真实记忆
+            print("下一步：python3 -m nexsandglass.repair    （只读体检：按内容分出缺失 / 错位 / 合成孤儿 / 真假泄漏）\n"
+                  "        不要按 erasure_integrity 报的 seq 去 forget —— 墓碑可能指错了位置，抹掉的会是真实记忆")
     return 0 if h["ok"] else 1
 
 
