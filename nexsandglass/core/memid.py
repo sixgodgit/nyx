@@ -942,9 +942,13 @@ def health(journal_path: str = None, window_days: int = 3) -> dict:
     try:
         from nexsandglass.features.sandglass_vault import _sync_index
         sizes = [len(_sync_index()) for _ in range(3)]
+        # 还没有任何在世记忆时，索引本来就该是空的（v7.13.8）：以前这里一律判失败，
+        # 新装的用户第一次跑 doctor 就看到 ❌
+        live = get_conn().execute("SELECT COUNT(*) FROM memories WHERE deleted_at IS NULL").fetchone()[0]
         out["checks"]["inverted_index"] = {
-            "ok": len(set(sizes)) == 1 and sizes[0] > 0,
+            "ok": len(set(sizes)) == 1 and (sizes[0] > 0 or live == 0),
             "sizes": sizes,
+            "no_data": live == 0,
         }
     except Exception as e:
         out["checks"]["inverted_index"] = {"ok": False, "error": str(e)}

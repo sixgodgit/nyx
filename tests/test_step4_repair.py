@@ -189,6 +189,15 @@ def test_health_all_green(hub):
     assert h["checks"]["hub_vs_journal"]["coverage"] == 1.0
 
 
+def test_health_green_on_fresh_install(hub):
+    """v7.13.8：新装、还没有任何记忆时 doctor 必须全绿。以前倒排索引一项把「空」一律判失败，
+    新用户第一次跑自检就看到 ❌。"""
+    memid, home, sq, vault, shadow = hub
+    h = memid.health()
+    assert h["ok"] is True, {k: v for k, v in h["checks"].items() if not v.get("ok")}
+    assert h["checks"]["inverted_index"]["no_data"] is True
+
+
 def test_health_catches_stale_fts(hub):
     memid, home, sq, vault, shadow = hub
     _seed(memid, 5)
