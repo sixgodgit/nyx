@@ -53,7 +53,7 @@ from datetime import datetime, timedelta
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from longmemeval_eval import check_semantic, map_to_seqs  # noqa: E402
+from longmemeval_eval import VIEW_LINES, check_semantic, map_to_seqs  # noqa: E402
 
 CATEGORIES = {1: "multi-hop", 2: "temporal", 3: "open-domain", 4: "single-hop", 5: "adversarial"}
 SCORED = (1, 2, 3, 4)
@@ -178,6 +178,7 @@ def run_conversation(sample: dict, *, budget: int) -> dict:
 
     bm25 = BM25(texts)
     clock.set_global((sess[-1][1] if sess else datetime.now()) + timedelta(days=1))
+    from nexsandglass.runtime import intent as _intent
     from nexsandglass.runtime.orchestrator import get_orchestrator
     orch = get_orchestrator()
     qs = []
@@ -198,8 +199,10 @@ def run_conversation(sample: dict, *, budget: int) -> dict:
                 base.append(dia_order[j])
             if len(base) >= 50:
                 break
+        view_n = max(VIEW_LINES, _intent.breadth_lines(str(q.get("question") or "")))
         qs.append({"i": i, "category": q.get("category"), "evidence": evidence(q.get("evidence")),
-                   "ranked": ranked[:50], "bm25": base, "unmapped": unmapped, "recall_ms": round(ms, 1)})
+                   "ranked": ranked[:50], "bm25": base, "unmapped": unmapped, "recall_ms": round(ms, 1),
+                   "view_n": view_n})
     clock.set_global(None)
     return {"sample_id": sample.get("sample_id"), "n_sessions": len(sess), "n_turns": len(dia_order),
             "n_memories": max_seq(), "ingest_s": round(ingest_s, 2),
@@ -266,7 +269,11 @@ def score(results: list) -> dict:
             groups["_overall"].append(q)
     out = {}
     for g, rows in sorted(groups.items()):
+        view = [r for r in rows if "view_n" in r]
         out[g] = {"n": len(rows), "nyx": _metrics(rows, "ranked"), "bm25": _metrics(rows, "bm25"),
+                  # agent 实际看到的记录里（默认 12 条，汇总 / 时长 / 先后类 20 条）证据句找到了多少（v7.13.7）
+                  "nyx_in_view": round(sum(len(set(r["ranked"][:r["view_n"]]) & set(r["evidence"])) / len(r["evidence"])
+                                           for r in view) / len(view), 4) if view else None,
                   "nyx_returned_p50": sorted(len(r["ranked"]) for r in rows)[len(rows) // 2],
                   "recall_ms_p50": sorted(r["recall_ms"] for r in rows)[len(rows) // 2]}
     ok = [c for c in results if "error" not in c]
@@ -316,13 +323,13 @@ def main(argv=None) -> int:
         pass
 
     print(f"{'':16s} {'n':>5s}   {'nyx R@5':>8s} {'BM25 R@5':>8s}   {'nyx R@10':>8s} {'BM25 R@10':>9s}"
-          f"   {'nyx all@10':>10s} {'BM25 all@10':>11s}")
+          f"   {'nyx all@10':>10s} {'BM25 all@10':>11s}   {'nyx 视野内':>8s}")
     for g, row in report.items():
         if g == "_meta":
             continue
         a, b = row["nyx"], row["bm25"]
         print(f"{g:16s} {row['n']:5d}   {a['recall@5']:8.3f} {b['recall@5']:8.3f}   {a['recall@10']:8.3f}"
-              f" {b['recall@10']:9.3f}   {a['all@10']:10.3f} {b['all@10']:11.3f}")
+              f" {b['recall@10']:9.3f}   {a['all@10']:10.3f} {b['all@10']:11.3f}   {row['nyx_in_view'] or 0:8.3f}")
     print(json.dumps(report["_meta"], ensure_ascii=False))
     for r in results:
         if "error" in r:
