@@ -30,7 +30,9 @@ LongMemEval（Wu et al., ICLR 2025, MIT）是 Hindsight / Zep / Mem0 等报分�
   python3 benchmarks/longmemeval_eval.py data/longmemeval_s_cleaned.json --qa --hyp hyp.jsonl
 
 如实说明
-  - 这个环境连不到 HuggingFace，仓库里没有真实数据上的分数；tests/ 里用的是同格式的小样本
+  - 真实数据上的检索分数见 README 与 benchmarks/results/longmemeval_s_retrieval.json（v7.13.6）；
+    tests/ 里用的是同格式的小样本，只防回归
+  - 语义后端开着、索引却没建成（如本地模型加载失败）时，这一题按出错处理（check_semantic）
   - nyx 的规则抽取以中文为主；LongMemEval 是英文。英文上召回主要靠全文检索与倒排索引
 """
 from __future__ import annotations
