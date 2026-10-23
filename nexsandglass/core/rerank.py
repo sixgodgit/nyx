@@ -9,6 +9,7 @@ core/rerank.py — 交叉编码器重排（v7.15.0，默认关）
   NYX_RERANK        off（默认）/ local
   NYX_RERANK_MODEL  默认 cross-encoder/mmarco-mMiniLMv2-L12-H384-v1（多语言，含中文；Apache-2.0）
   NYX_RERANK_DEPTH  路由先取多少条再重排，默认 30
+  NYX_RERANK_MAXLEN 每对（问句 + 记忆）截到多少 token，默认 128：长记忆上耗时减半（4 线程 30 条：1.2 秒 → 0.5 秒）
   NYX_RERANK_MODE   pure：完全按交叉编码器排
                     rrf：交叉编码器的名次与原名次各投一票（RRF）
                     pinned：问句的词全部出现的那几条（路由本来就钉在最前）不动，其余按交叉编码器排
@@ -51,6 +52,13 @@ def mode() -> str:
     return m if m in ("pure", "rrf", "pinned") else "rrf"
 
 
+def max_len() -> int:
+    try:
+        return max(32, int(os.environ.get("NYX_RERANK_MAXLEN") or 128))
+    except ValueError:
+        return 128
+
+
 def model_name() -> str:
     return (os.environ.get("NYX_RERANK_MODEL") or DEFAULT_MODEL).strip()
 
@@ -58,7 +66,7 @@ def model_name() -> str:
 def _load():
     """加载交叉编码器（只加载一次；换了 NYX_RERANK_MODEL 重新加载）。失败返回 None。"""
     global _model, _model_name, _failed
-    name = model_name()
+    name = f"{model_name()}@{max_len()}"
     with _lock:
         if _model is not None and _model_name == name:
             return _model
@@ -70,9 +78,9 @@ def _load():
             cache = os.environ.get("NYX_EMBED_CACHE") or os.path.join(os.path.expanduser("~"), ".cache",
                                                                       "nexsandglass", "models")
             try:
-                _model = CrossEncoder(name, max_length=256, device="cpu", cache_folder=cache)
+                _model = CrossEncoder(model_name(), max_length=max_len(), device="cpu", cache_folder=cache)
             except TypeError:                               # 旧版 sentence-transformers 没有 cache_folder
-                _model = CrossEncoder(name, max_length=256, device="cpu")
+                _model = CrossEncoder(model_name(), max_length=max_len(), device="cpu")
             _failed = None
             return _model
         except Exception as e:
@@ -101,7 +109,7 @@ def warm_async() -> None:
 
 
 def ready() -> bool:
-    return _model is not None and _model_name == model_name()
+    return _model is not None and _model_name == f"{model_name()}@{max_len()}"
 
 
 def _pinned(items: list, query: str) -> set:
@@ -148,5 +156,5 @@ def rerank(query: str, items: list, how: str = None) -> list:
 
 
 def status() -> dict:
-    return {"enabled": enabled(), "model": model_name(), "depth": depth(), "mode": mode(),
-            "loaded": _model is not None and _model_name == model_name(), "error": _failed}
+    return {"enabled": enabled(), "model": model_name(), "depth": depth(), "mode": mode(), "max_len": max_len(),
+            "loaded": ready(), "error": _failed}
