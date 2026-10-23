@@ -71,6 +71,25 @@ def _ensure_wal(c: sqlite3.Connection) -> str:
     return mode
 
 
+def vacuum(path: str, timeout: float = 30.0) -> Optional[str]:
+    """把删掉的内容从库文件里真正抹掉：WAL 合并回主库 + VACUUM（重写整个文件，空闲页不再留着旧正文）。
+
+    SQLite 删行只是把页面标成可复用，原文还在文件里，直到被覆盖。成功返回 None，失败返回原因
+    （常见：别的进程正开着事务 —— 停掉 Hermes / MCP 服务再跑）。
+    """
+    try:
+        c = sqlite3.connect(path, timeout=timeout)
+        try:
+            c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            c.execute("VACUUM")
+            c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        finally:
+            c.close()
+        return None
+    except sqlite3.Error as e:
+        return str(e)
+
+
 def connect(path: str, *, timeout: float = 30.0, check_same_thread: bool = True,
             synchronous: Optional[str] = None,
             setup: Optional[Callable[[sqlite3.Connection], None]] = None) -> sqlite3.Connection:

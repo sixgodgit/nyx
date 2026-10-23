@@ -387,7 +387,9 @@ def _now() -> str:
 # ══════════════════════════════════════════════════════════
 
 def _texts_for(text: str) -> str:
-    return (text or "").strip()[:2000]
+    # 发给嵌入后端（可能是外部 API）之前：中枢里的正文已经隐去过，查询还没有（v7.14.0）
+    from nexsandglass.core import secret_filter
+    return secret_filter.clean(text or "").strip()[:2000]
 
 
 def index_pending(limit: Optional[int] = 256, batch: int = 32) -> int:

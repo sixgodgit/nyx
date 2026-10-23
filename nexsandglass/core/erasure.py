@@ -339,6 +339,47 @@ def _purge_engram(ts_list: list) -> int:
     return removed
 
 
+def wipe_free_space() -> dict:
+    """真删之后：删掉的正文不留在任何库文件里（v7.14.0）。
+
+    以前只有隔离区 purge 对 nyx.db 做了 VACUUM。全文库 sandglass.db 自己也存整段正文，
+    删行后正文还在空闲页里；FTS5 更麻烦 —— 删掉的词元留在索引段里，**VACUUM 都清不掉**，
+    要先 optimize 合并段（实测）。影子沙、向量库同样。这些地方 verify_erasure 用 SQL 是查不到的，
+    按原始字节一读就出来了。返回每个库的结果：ok 或失败原因。
+    """
+    from nexsandglass.core import sandglass_sqlite as sq
+    from nexsandglass.core import semantic, sqlite_open
+    from nexsandglass.features import shadow_sand as sh
+    out = {}
+    try:
+        with sq._lock:
+            if os.path.exists(sq._DB):
+                c = sq._get_db()
+                try:
+                    c.execute("INSERT INTO sandglass_fts(sandglass_fts) VALUES('optimize')")
+                    c.commit()
+                finally:
+                    c.close()
+                out[os.path.basename(sq._DB)] = sqlite_open.vacuum(sq._DB) or "ok"
+    except Exception as e:
+        out["fts"] = str(e)
+    with sh._db_lock:
+        if sh._conn is not None:
+            try:
+                sh._conn.commit()
+            except Exception:
+                pass
+        if os.path.exists(sh._SHADOW_DB):
+            out[os.path.basename(sh._SHADOW_DB)] = sqlite_open.vacuum(sh._SHADOW_DB) or "ok"
+    for path in (memid._db_path(), semantic._db_path()):
+        if os.path.exists(path):
+            out[os.path.basename(path)] = sqlite_open.vacuum(path) or "ok"
+    bad = {k: v for k, v in out.items() if v != "ok"}
+    if bad:
+        logger.warning("[erasure] 空闲页没抹干净（停掉 Hermes / MCP 服务再跑 purge）: %s", bad)
+    return out
+
+
 def _purge_vectors(mem_ids: list) -> int:
     """语义索引（数据目录里的 vectors.db）级联删除。
 
@@ -478,6 +519,12 @@ def _forget_impl(selector: dict, reason: str = "user_forget", apply: bool = Fals
         problems.append("影子副本行数对不上（backup=%s journal=%s），正文可能仍在"
                         % (report["backup"].get("backup_lines"),
                            report["backup"].get("journal_lines")))
+    if mode == "purge":
+        # 当场不可逆 = 磁盘上也没了：库文件空闲页、FTS5 段里的旧词元（v7.14.0）
+        report["disk"] = wipe_free_space()
+        bad = {k: v for k, v in report["disk"].items() if v != "ok"}
+        if bad:
+            problems.append("库文件空闲页没抹干净：" + "；".join(f"{k} {v}" for k, v in bad.items()))
     report["ok"] = not problems
     report["problems"] = problems
     report["removed"] = report["hub"]

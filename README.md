@@ -2,7 +2,7 @@
 
 > **给 agent 一份跟着你一辈子的记忆** —— 单用户、本地、写入不调用大模型。记得住，找得到，信得过，忘得掉。
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.13.9-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.14.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx 是 agent 的长期记忆层：接进 [Hermes](https://github.com/NousResearch/hermes-agent)（官方记忆提供器）、
 Claude Desktop / Claude Code 等任意 MCP 客户端，或者你自己的 Python 程序。
@@ -17,6 +17,7 @@ Claude Desktop / Claude Code 等任意 MCP 客户端，或者你自己的 Python
 | **信得过** | 写入时绑定来源与信任：只有主人亲口说的能成为规则；别人转述的、网页抄来的，召回时带「未经证实」标注 | 投毒演练：16 条攻击 0 条无标注进入 agent 提示，主人的 8 条正常信息 0 误伤 |
 | **忘得掉、救得回** | 遗忘先进隔离区（检索立刻读不到），保留期（默认 30 天）内原样还原；到期后清理即真删，并验收向量、索引、图谱都清干净了 | 误删 150 条，逐字节救回；真删不可逆 |
 | **便宜、私密** | 写入零 LLM 调用、零 API key、零运行时依赖；默认不联网（[例外](#privacy)） | 全部数据在 `~/.neurobase` |
+| **密钥不进记忆** | 聊天里贴的 token、API key、私钥、密码，在写进任何地方之前换成 `[已隐去: HF token …a1b2]` | LongMemEval-S 近 20 万轮真实对话只触发 19 轮（0.01%），全是贴出来的代码配置；普通句子 0 误伤 |
 | **坏了看得见** | `python3 -m nexsandglass.doctor` 一条命令查每一项；Hermes 里自检失败会让 agent 转告你 | 语义索引、全文索引、遗忘完整性、规则投毒…… 每项 ✅ / ❌ + 原因 |
 
 > 上面的检索数字是**检索**指标（零 LLM、可复现），不是 Mem0 / Zep 们报的「大模型作答 + 大模型裁判」的问答准确率，
@@ -106,6 +107,7 @@ restore(r["preview"][0]["mem_id"])                     # 隔离期内原样还�
 | 🕰️ **双时态事实** | `engram/loops/temporal_fact.py`、`core/understand.py` | `as_of` 问世界、`known_at` 问当时的信念、`belief_timeline` 问看法怎么变的；假设的时间不冒充陈述的时间 |
 | 🛡️ **来源信任** | `core/provenance.py` | trusted / unverified / tainted；只有主人亲口说的能成为规则（防 OWASP ASI06 记忆投毒） |
 | 🕯️ **遗忘隔离区** | `core/quarantine.py`、`core/erasure.py` | 两段式遗忘：隔离 → 还原或到期擦除；擦除贯通日志、索引、图谱、向量，可独立验收 |
+| 🔑 **密钥不进记忆** | `core/secret_filter.py`、`scrub.py` | 写入前隐去 token / API key / 私钥 / 连接串 / 密码；已经存下的用 `scrub` 原地隐去，按原始字节复查 |
 | 🩺 **自检** | `doctor.py` | 中枢与日志一致性、各索引、遗忘完整性、隔离区到期、规则投毒，逐项给出原因 |
 | 🧯 **体检与修复** | `repair.py`、`core/forensics.py` | 中枢对不上日志时按内容逐条核对：补缺失、挪错位、认回被覆盖的记忆、撤下合成记录及其派生「事实」；先备份，不改日志 |
 | 🔌 **Hermes 记忆提供器** | `nexsandglass_hermes/`、`core/memory_provider.py` | 官方 `MemoryProvider` 契约，entry point 自动注册；多人会话按 `owner_ids` 绑定来源 |
@@ -197,6 +199,7 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 | `NYX_EMBED_Z` | `3` | 语义命中要比背景高出多少（稳健 z 分数）才算证据 |
 | `NYX_EMBED_WEIGHT` | `0.5` | 融合时语义这一票的权重（词法一票是 1） |
 | `NYX_EMBED_CACHE` | `~/.cache/nexsandglass/models` | 本地嵌入模型的存放目录 |
+| `NYX_SECRET_FILTER` | `on` | 密钥 / 密码写入前隐去：`on`（token + 密码 + `<private>`）/ `tokens`（不动密码）/ `off` |
 | `NYX_BREADTH_LINES` | `20` | 问「一共几次 / 隔了多久 / 哪个先 / 之前之后」时召回与注入的条数；`0` = 不放宽 |
 | `NYX_UNDERSTAND_LLM` | 关 | `1` = 事实抽取走 LLM（结果必须过校验；失败退回规则） |
 | `WTHREAD_LLM_EXTRACTION` | 关 | 知识图谱补充抽取走 LLM（需要 `LLM_EXTRACT_API_URL`） |
@@ -258,6 +261,16 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 
 Hermes 用户：数据目录在 `HERMES_HOME` 之外时，`hermes backup` 会自动把它带上（插件的 `backup_paths`）。
 
+**密钥和密码不进记忆**（v7.14.0）：聊天里贴的 token（Hugging Face、GitHub、OpenAI / DeepSeek / Anthropic / OpenRouter、
+PyPI、AWS、Google、Slack、Stripe、Telegram、JWT…）、私钥、带密码的连接串、`XXX_API_KEY=…` 这类赋值、「密码是 …」，
+以及 `<private>…</private>` 包住的内容，**在写进任何地方之前**就换成占位符：token 留末 4 位（`[已隐去: HF token …a1b2]`，
+agent 还能说出「你给过一个 HF token」），密码一个字符不留。日志、中枢、索引、影子沙、图谱、向量里都只有占位符；
+发给嵌入 API 的问句也先隐去。`NYX_SECRET_FILTER=tokens` 只管 token，`off` 关闭。
+Hermes 自己的会话记录（`~/.hermes` 下）不归 Nyx 管。
+
+**删了就是没了**：遗忘到期清理（或 `mode="purge"`）之后，Nyx 会合并全文索引并 VACUUM 每个库 ——
+SQLite 删行后原文还留在文件的空闲页里，FTS5 删掉的词元连 VACUUM 都清不掉（v7.14.0 以前就是这样）。
+
 **什么时候会联网**：默认什么都不配，Nyx 不发起任何对外请求。以下情况例外 —— 括号里是会被发出去的内容：
 - 装了 `[vector]` 后第一次运行：从 HuggingFace 下载嵌入模型（不发送你的数据）
 - 设了 `EMBEDDING_API_URL`：语义检索改用你指定的嵌入 API（记忆原文与问句）
@@ -285,6 +298,11 @@ Hermes 用户：数据目录在 `HERMES_HOME` 之外时，`hermes backup` 会自
 
 **多个 agent / 多台机器共用一份记忆？** 指向同一个 `NEXSANDBASE_HOME` 即可（同一台机器上多个进程同时读写是安全的：写入有跨进程锁）。
 跨机器请用 `sandglass_export` / `sandglass_migrate` 打包迁移，不要用网盘同步正在写的数据目录。
+
+**以前在聊天里贴过 token / 密码？** v7.14.0 之后的写入会自动隐去；之前存下来的，跑 `python3 -m nexsandglass.scrub`
+看有几处、在哪（只读，不输出原文），停掉 Hermes / MCP 服务后 `--apply` 原地隐去。它会重建索引、VACUUM，
+最后按原始字节把整个数据目录扫一遍。旧的修复备份（`backups/` 下的 `.db`）不会被改，会列出来，确认没用就删掉。
+**另外记得去对应的平台把那个 token 吊销** —— 它已经发给过你用的大模型服务了，Nyx 删掉的只是自己存的那份。
 
 **系统提示里出现「⚠️ Nyx 自检：…」？** 某个子系统坏了（比如语义索引），召回照常但不完整。跑 `doctor` 看具体原因。
 
@@ -378,6 +396,7 @@ python3 benchmarks/locomo_eval.py locomo10.json --workers 10 --json benchmarks/r
 
 ## 📝 最近更新
 
+- **v7.14.0**：密钥和密码不进记忆（写入前隐去；已存下的 `scrub` 原地隐去）；真删之后磁盘上也没了（以前全文库里还留着）
 - **v7.13.9**：测试再也写不进真实数据目录（会话级隔离 + 运行时守卫）；新增 `python3 -m nexsandglass.repair` —— 中枢被污染时按内容体检与修复，真实记忆一条不少、被遗忘的不复活、合成「事实」连同派生数据撤下
 - **v7.13.8**：README 重写（快速开始、工作原理、隐私、常见问题、已知局限）；全新安装时 `doctor` 不再误报 ❌；安装脚本与 Docker 修好（旧脚本会装一个让每句话记两遍的网关插件）
 - **v7.13.7**：问「一共几次 / 隔了多久 / 哪个先 / 之前之后」时多给 agent 10 条 —— 多会话汇总题 agent 看到的含答案轮次 0.701 → 0.804，时间推理 0.715 → 0.804

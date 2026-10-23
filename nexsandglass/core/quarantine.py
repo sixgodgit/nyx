@@ -689,6 +689,13 @@ def purge(mem_ids: list = None, *, older_than: bool = True, apply: bool = False,
             report["vacuum_error"] = str(e)
             logger.warning("[quarantine] VACUUM 失败，空闲页里可能仍有正文: %s", e)
 
+        # 隔离区那份在 nyx.db；全文库、影子沙、向量库里删掉的也要从空闲页抹掉（v7.14.0）
+        try:
+            from nexsandglass.core import erasure
+            report["disk"] = erasure.wipe_free_space()
+        except Exception as e:
+            report["disk"] = {"error": str(e)}
+
     report["ok"] = report["purged"] == len(ids)
     report["action"] = "purged"
     return report

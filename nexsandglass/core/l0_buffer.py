@@ -20,7 +20,9 @@ L0_MAX = 5  # 最多保留5轮
 
 def l0_remember(text: str, speaker: str = "user") -> None:
     """记入L0缓冲区。满L0_MAX时蒸馏最旧一条到L1。"""
-    entry = {"ts": datetime.now().isoformat(), "speaker": speaker, "text": text[:500]}
+    from nexsandglass.core import secret_filter
+    entry = {"ts": datetime.now().isoformat(), "speaker": speaker,
+             "text": secret_filter.clean(text)[:500]}       # 先隐去再截断（v7.14.0）
     os.makedirs(os.path.dirname(L0_PATH), exist_ok=True)
 
     with open(L0_PATH, "a", encoding="utf-8") as f:

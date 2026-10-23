@@ -170,10 +170,13 @@ check("倒排索引里也回来了（该行重新挂到 %d 个词条上）" % le
 
 # ── 7. 真删 + purge：不可逆必须仍然可达 ──────────────────
 print("\n[7] 真删一条并到期擦除（不可逆路径仍然可达）")
-sandglass_log.log_message("误粘贴的凭据 sk-LIVE-DEADBEEF-0001", sender="user")
+# 凭据本身从 v7.14.0 起根本进不了日志（写入前隐去）—— 这里先验这一条，再拿一条误粘贴的他人隐私走真删
+sandglass_log.log_message("误粘贴的凭据 sk-" + "0123456789abcdefDEADBEEF0001", sender="user")
+check("凭据没进日志（写入前隐去，v7.14.0）", "DEADBEEF0001" not in open(SG, encoding="utf-8").read())
+sandglass_log.log_message("误粘贴的他人隐私：张三的病历号 MRN-DEADBEEF-0001", sender="user")
 reindex()
-gone = memid.resolve(401)
-rep2 = erasure.forget({"contains": "sk-LIVE-DEADBEEF"}, apply=True, journal_path=SG,
+gone = memid.resolve(402)
+rep2 = erasure.forget({"contains": "MRN-DEADBEEF"}, apply=True, journal_path=SG,
                       retention_days=1)
 check("先进隔离区", rep2["quarantined"] == 1)
 pr = quarantine.purge(apply=True, now=__import__("datetime").datetime.now()
@@ -181,7 +184,7 @@ pr = quarantine.purge(apply=True, now=__import__("datetime").datetime.now()
 check("到期擦除成功", pr["purged"] == 1 and pr["ok"])
 check("VACUUM 执行了（否则不能说磁盘上没了）", pr["vacuumed"] is True)
 check("purge 之后还原拿不回来", erasure.restore(gone)["found"] is False)
-v3 = erasure.verify_erasure(["sk-LIVE-DEADBEEF"], SG)
+v3 = erasure.verify_erasure(["MRN-DEADBEEF"], SG)
 check("fully_purged 为真", v3["fully_purged"] is True, v3["found_in"])
 
 rep3 = erasure.forget({"contains": f"第{alive_seq}条"}, apply=True, journal_path=SG, mode="purge")
