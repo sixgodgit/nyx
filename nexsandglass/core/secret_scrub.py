@@ -307,11 +307,9 @@ def _bytes_scan(path: str, mode: str, needles: List[str] = ()) -> int:
     # JSON 转义过的中文（\u5bc6\u7801 = 密码）也要认得出来
     text = re.sub(r"\\u([0-9a-fA-F]{4})", lambda m: chr(int(m.group(1), 16)), text)
     low = text.lower()
-    n = sum(low.count(nd.lower()) for nd in needles)
-    for chunk in text.split("\x00"):
-        if len(chunk) >= 8:
-            n += len(secret_filter.scrub(chunk, mode).findings)
-    return n
+    literal = sum(low.count(nd.lower()) for nd in needles)
+    by_rule = sum(len(secret_filter.scrub(chunk, mode).findings) for chunk in text.split("\x00") if len(chunk) >= 8)
+    return max(literal, by_rule)          # 同一处常常两种方法都认得出：不重复计数
 
 
 def _walk(nb: str):

@@ -2,6 +2,60 @@
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。数字的测法见 README 的 Benchmark 一节与 `benchmarks/`。
 
+### v7.14.0 (2026-10-23) — 密钥和密码不进记忆；真删之后磁盘上也没了
+
+**问题**：Nyx 把对话原样写进日志。在聊天里贴一个 token（「帮我配一下，key 是 hf_…」），它就以明文留在日志、中枢、
+全文 / 倒排索引、影子副本、备份里，之后还会被召回、塞回提示词 —— 多人会话里塞给别人看；语义检索走 API 时，
+问句里的 token 还会被发给嵌入服务。用户几乎从不希望记忆替他保管这些。（这个点子来自 agentmemory：入库前去掉 API key 和 `<private>`。）
+
+**写入前隐去**（`core/secret_filter.py`）：
+- 认得出的：已知前缀的 token（Hugging Face、GitHub、GitLab、OpenAI / DeepSeek / Anthropic / OpenRouter、PyPI、npm、AWS、
+  Google、Slack、Stripe、SendGrid、Telegram、Discord）、JWT、PEM 私钥块、带密码的连接串、`XXX_API_KEY=…` / `api_key = …` /
+  `Bearer …`、「密码是 …」/「password: …」、`<private>…</private>`。调用方先截断再写时，句尾的半截 token 也算
+- 占位符：token 留末 4 位（`[已隐去: HF token …a1b2]`，agent 还能说出「你给过一个 HF token」），密码、私钥一个字符不留；
+  不以 `[REDACTED` 开头（那是遗忘标记，整条记录会被索引跳过）；幂等
+- 接在每一个入口、**截断之前**：Hermes 的 `sync_turn` / `prefetch`（问句）/ `on_session_end` / `on_delegation` / `on_memory_write`，
+  `FormationEngine.observe`（MCP、编排层都走这里），`log_message`，`memid.allocate`（兜底），l0 缓冲，发给嵌入后端的文本
+- 档位 `NYX_SECRET_FILTER`：`on`（默认）/ `tokens`（不动密码）/ `off`
+
+**误伤审计**（真实对话）：LongMemEval-S 去重后 199,509 轮，触发 19 轮（0.010%）—— 全部是对话里贴出来的代码和配置
+（连接串 4、密码字段 5、`KEY=` 赋值 6、GitHub token 3、私钥 1，多为 `password="your_password"` 这类示例值）；普通句子 0 误伤。
+LoCoMo 5,882 轮 0 触发。普通句子每条写入多花 4–9 µs（含密钥的约 40 µs）；doctor 新的一项在 15 万条日志上 1.7 秒。
+
+**已经存下来的**（`python3 -m nexsandglass.scrub`，`core/secret_scrub.py`）：默认只读，报每个存储里有几处、什么类别，不输出原文；
+`--apply` 原地隐去：
+- 日志格式的文件（日志、影子副本、archive、备份里的日志）逐条记录改，**行数不变**（行号是别处的主键）；
+  中枢、隔离区（含嵌在 payload 里的 engram 行 —— JSON 套 JSON，且按默认 `ensure_ascii` 写的「密码」是 `密码`，
+  按纯文本改认不出来，所以按字段改）、engram、信念、实体、标签、数据目录里 nyx 自己的文本文件
+- 实体抽取会把引号里的密码单独存成实体名 —— 一个没有上下文的裸字符串，规则认不出。所以从日志 / 中枢里隐去的原文
+  记在内存里（不写盘、不输出），去别的存储里按字面找（太短、纯数字的不拿来找，免得误伤订单号）
+- 全文库整个删掉重建、倒排重建、改过正文的向量删掉后按新正文重补、每个库 VACUUM；最后**按原始字节**扫一遍整个数据目录。
+  备份里的索引副本删掉（能从同一份备份里的日志重建）；备份里的 `.db` 不改，列出来
+- 不做备份：备份会把密钥再复制一份
+- `doctor` 新增 `secrets` 一项（日志里还有几处），红的时候提示跑 `scrub`
+
+**真删之后磁盘上也没了**（顺带查出的老问题）：
+- 以前只有隔离区到期 purge 对 nyx.db 做了 VACUUM。全文库 sandglass.db 自己存着整段正文，删行后还在空闲页里；
+  FTS5 删掉的词元留在索引段里，**VACUUM 都清不掉**，要先 optimize（实测）；影子沙、语义库同样。`verify_erasure` 用 SQL 查，看不到这些。
+  现在 `forget(mode="purge")` 和到期 purge 之后都会 `erasure.wipe_free_space()`：全文库 optimize + VACUUM，其余库 VACUUM
+- 晋升路径给影子沙建索引时拿不到 mem_id，用「日志现在有几行」当行号（多行消息是末行；数据目录换过就是别的日志）。
+  遗忘按首行和 mem_id 删，这一份删不到 —— 被遗忘的那句话以实体名留在影子沙里，挂在别人的行号上。
+  现在编排层按内容认回刚写进去的那条（只认最近几条），影子沙、engram、信念都用它真实的 mem_id 和首行号
+
+**验证**：`tests/test_secret_filter.py`（62 项：30 种格式的正例、26 句普通话的反例、档位与行数；Hermes 每个写入钩子 / MCP / 编排层
+进来的密钥，按原始字节在数据目录里一处都找不到，发给嵌入后端的文本里也没有；升级前存下的密钥 `scrub --apply` 后只剩备份里的 `.db`，
+中枢与日志一致、内容体检干净、隔离区还原有效）；`tests/test_erasure_disk.py`（真删 / 隔离后到期清理，按原始字节找不到）。
+关掉 VACUUM、关掉按字面查找、关掉 `wipe_free_space`，对应的测试都会失败。
+纵向评测 35 个种子前后输出逐字相同；投毒演练不变（16 条攻击 0 条无标注进 prompt，主人 8 条 0 误伤）；
+遗忘还原演练第 7 节原来拿「误粘贴的凭据」走真删 —— 现在凭据根本进不了日志，改成一条误粘贴的他人隐私，并加了「凭据没进日志」一项。
+全量 611 项通过。
+
+**没做到的（如实）**：
+- 没有上下文的裸密码（一句话里只有「Tr0ub4dor3x」）写入时认不出来
+- Hermes 自己的会话记录不归 Nyx 管
+- 两个检索基准没有重跑：受影响的只有上面那 19 轮
+- 已经发给大模型服务的 token，Nyx 删掉的只是自己存的那份 —— 该吊销还是要吊销
+
 ### v7.13.9 (2026-10-14) — 测试不再能写真实数据；被污染的中枢能体检、能修
 
 **事故**（2026-09-13，生产环境）：测试把 107 条合成记忆（发送者 golden / test / e2e / mcp）写进了生产的 ID 中枢 ——

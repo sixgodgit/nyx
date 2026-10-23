@@ -68,8 +68,9 @@ def log_message(text: str, sender: str = "agent", return_id: bool = False):
     """
     fail = "" if return_id else False
     try:
-        from nexsandglass.core import secret_filter
-        text = secret_filter.clean(text)        # 密钥 / 密码不进日志（v7.14.0）
+        if isinstance(text, str):
+            from nexsandglass.core import secret_filter
+            text = secret_filter.clean(text)    # 密钥 / 密码不进日志（v7.14.0）
         # AI 低价值回复过滤（V2.1）—— 这类内容不入沙漏，也不进中枢
         if sender == "agent" and _estimate_info_value(text) < 0.3:
             return fail
