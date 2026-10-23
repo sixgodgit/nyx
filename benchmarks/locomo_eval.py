@@ -141,12 +141,13 @@ class BM25:
 # 子进程：一段对话
 # ══════════════════════════════════════════════════════════
 
-def run_conversation(sample: dict, *, budget: int) -> dict:
+def run_conversation(sample: dict, *, budget: int, prefetch_tokens: int = 0, want_context: bool = False) -> dict:
+    """want_context：同时记下每道题 Hermes 会注入给 agent 的那段文字（provider.prefetch），给问答评测用。"""
     from nexsandglass.core import clock, memid
     from nexsandglass.core.memory_provider import NexSandglassProvider
 
     sess = sessions(sample["conversation"])
-    p = NexSandglassProvider({"prefetch_tokens": 0})
+    p = NexSandglassProvider({"prefetch_tokens": prefetch_tokens if want_context else 0})
     clock.set_global(sess[0][1] if sess else None)
     p.initialize("locomo", agent_context="primary", platform="eval")
     conn = memid.get_conn()
@@ -203,6 +204,8 @@ def run_conversation(sample: dict, *, budget: int) -> dict:
         qs.append({"i": i, "category": q.get("category"), "evidence": evidence(q.get("evidence")),
                    "ranked": ranked[:50], "bm25": base, "unmapped": unmapped, "recall_ms": round(ms, 1),
                    "view_n": view_n})
+        if want_context:
+            qs[-1]["context"] = p.prefetch(str(q.get("question") or ""), session_id="q")
     clock.set_global(None)
     return {"sample_id": sample.get("sample_id"), "n_sessions": len(sess), "n_turns": len(dia_order),
             "n_memories": max_seq(), "ingest_s": round(ingest_s, 2),
@@ -211,7 +214,8 @@ def run_conversation(sample: dict, *, budget: int) -> dict:
 
 def _worker(args) -> None:
     sample = json.load(open(args.instance_file, encoding="utf-8"))
-    res = run_conversation(sample, budget=args.budget)
+    res = run_conversation(sample, budget=args.budget, prefetch_tokens=args.prefetch_tokens,
+                           want_context=args.qa)
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(res, f, ensure_ascii=False)
 
@@ -233,7 +237,9 @@ def _spawn(sample: dict, args, tmp: str) -> dict:
     if args.no_semantic:
         env["NYX_EMBED"] = "off"
     cmd = [sys.executable, os.path.abspath(__file__), "--worker", "--instance-file", inf, "--out", outf,
-           "--budget", str(args.budget)]
+           "--budget", str(args.budget), "--prefetch-tokens", str(getattr(args, "prefetch_tokens", 600))]
+    if getattr(args, "qa", False):
+        cmd.append("--qa")
     r = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=args.timeout)
     if r.returncode != 0 or not os.path.exists(outf):
         return {"sample_id": sample.get("sample_id"), "error": (r.stderr or r.stdout)[-2000:]}
@@ -295,6 +301,8 @@ def main(argv=None) -> int:
     ap.add_argument("--timeout", type=int, default=3600, help="单段对话超时（秒）")
     ap.add_argument("--no-semantic", action="store_true", help="关掉语义检索（NYX_EMBED=off）")
     ap.add_argument("--json", default="", help="指标与逐题结果输出")
+    ap.add_argument("--prefetch-tokens", type=int, default=600, help=argparse.SUPPRESS)   # 问答评测用（qa_eval.py）
+    ap.add_argument("--qa", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--instance-file", help=argparse.SUPPRESS)
     ap.add_argument("--out", help=argparse.SUPPRESS)
