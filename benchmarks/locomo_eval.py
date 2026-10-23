@@ -242,6 +242,9 @@ def _spawn(sample: dict, args, tmp: str) -> dict:
     json.dump(sample, open(inf, "w", encoding="utf-8"), ensure_ascii=False)
     env = dict(os.environ, NEXSANDBASE_HOME=os.path.join(home, "nb"),
                PYTHONPATH=_REPO + os.pathsep + os.environ.get("PYTHONPATH", ""))
+    # 逐题可复现：排序里分数打平时先后由 set 的遍历顺序决定，而字符串哈希每个进程随机 ——
+    # 不固定的话同一题两次运行的排序有一半对不上（总体数字只差 ±0.004，但比较两个配置时会被这点噪声淹没）
+    env.setdefault("PYTHONHASHSEED", "0")
     for k in ("NYX_NOW", "HERMES_HOME", "NYX_UNDERSTAND_LLM"):
         env.pop(k, None)
     if args.no_semantic:
