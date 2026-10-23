@@ -213,6 +213,9 @@ def run_instance(inst: dict, *, budget: int, prefetch_tokens: int, want_context:
         "ingest_s": round(ingest_s, 3), "recall_ms": round(recall_ms, 1),
         "semantic": {k: sem.get(k) for k in ("backend", "indexed", "pending")},
     }
+    if rerank.enabled():
+        out["rerank"] = {k: rerank.status().get(k) for k in ("model", "depth", "mode", "max_len", "budget_ms",
+                                                             "calls", "cut", "last_ms")}
     if want_context:
         t2 = time.time()
         out["context"] = p.prefetch(inst["question"], session_id="q")

@@ -85,5 +85,24 @@ def test_off_by_default_and_deeper_pool_when_on(env, monkeypatch, fake):  # noqa
     monkeypatch.setenv("NYX_RERANK_DEPTH", "40")
     monkeypatch.setenv("NYX_RERANK_MODE", "pure")
     top2 = [str(o.content) for o in orch._adapt_search_router(q)]
-    assert len(top2) == len(top) and fake.calls and fake.calls[-1] > len(top), "先多取再重排"
+    assert len(top2) == len(top) and sum(fake.calls) > len(top), "先多取再重排（分批打分）"
     assert "团子" in top2[0]
+
+
+def test_time_budget_reranks_only_what_was_scored(fake, monkeypatch):
+    """到了时间预算还没打完：只在打过分的那部分里重排，其余按原顺序接在后面（不让路由撞上 3 秒超时）。"""
+    import time
+    from nexsandglass.core import rerank
+    items = [(i, "t", "无关") for i in range(40)] + [(99, "t", "领养了一只橘猫叫团子")]
+    slow = fake.predict
+
+    def predict(pairs, **kw):
+        time.sleep(0.05)
+        return slow(pairs, **kw)
+    monkeypatch.setattr(fake, "predict", predict)
+    monkeypatch.setenv("NYX_RERANK_BUDGET_MS", "1")
+    out = rerank.rerank("猫", items, "pure")
+    assert [it[0] for it in out] == [it[0] for it in items], "只打了第一批（前 16 条），答案在第 41 条：顺序不变"
+    assert rerank.status()["cut"] >= 1
+    monkeypatch.setenv("NYX_RERANK_BUDGET_MS", "5000")
+    assert rerank.rerank("猫", items, "pure")[0][0] == 99

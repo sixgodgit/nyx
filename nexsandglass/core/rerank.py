@@ -10,6 +10,8 @@ core/rerank.py — 交叉编码器重排（v7.15.0，默认关）
   NYX_RERANK_MODEL  默认 cross-encoder/mmarco-mMiniLMv2-L12-H384-v1（多语言，含中文；Apache-2.0）
   NYX_RERANK_DEPTH  路由先取多少条再重排，默认 30
   NYX_RERANK_MAXLEN 每对（问句 + 记忆）截到多少 token，默认 128：长记忆上耗时减半（4 线程 30 条：1.2 秒 → 0.5 秒）
+  NYX_RERANK_BUDGET_MS  一次重排最多花多少毫秒，默认 2000。分批打分，到点还没打完就只在打过分的那部分里重排、
+                    其余按原顺序接在后面 —— 编排层给路由 3 秒，超了路由这一路整个丢掉，比不重排还糟
   NYX_RERANK_MODE   pure：完全按交叉编码器排
                     rrf：交叉编码器的名次与原名次各投一票（RRF）
                     pinned：问句的词全部出现的那几条（路由本来就钉在最前）不动，其余按交叉编码器排
@@ -22,6 +24,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
+import time
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
@@ -34,6 +37,7 @@ _model = None
 _model_name: Optional[str] = None
 _failed: Optional[str] = None
 _loading = threading.Event()
+_stats = {"calls": 0, "cut": 0, "last_ms": None}
 
 
 def enabled() -> bool:
@@ -57,6 +61,13 @@ def max_len() -> int:
         return max(32, int(os.environ.get("NYX_RERANK_MAXLEN") or 128))
     except ValueError:
         return 128
+
+
+def budget_s() -> float:
+    try:
+        return max(0.1, int(os.environ.get("NYX_RERANK_BUDGET_MS") or 2000) / 1000)
+    except ValueError:
+        return 2.0
 
 
 def model_name() -> str:
@@ -135,15 +146,30 @@ def rerank(query: str, items: list, how: str = None) -> list:
     if model is None:
         return items
     how = how or mode()
+    t0, budget, scores = time.perf_counter(), budget_s(), []
     try:
         from nexsandglass.core import secret_filter
         q = secret_filter.clean(query)
-        scores = model.predict([(q, str(it[2] if len(it) > 2 else it[-1])[:1000]) for it in items],
-                               batch_size=32, show_progress_bar=False)
-        scores = [float(s) for s in scores]
+        # 从原排名靠前的开始分批打分；到了时间预算就停（剩下的按原顺序接在后面）
+        for i in range(0, len(items), 16):
+            batch = items[i:i + 16]
+            scores += [float(s) for s in model.predict(
+                [(q, str(it[2] if len(it) > 2 else it[-1])[:1000]) for it in batch],
+                batch_size=16, show_progress_bar=False)]
+            if i + 16 < len(items) and time.perf_counter() - t0 > budget:
+                _stats["cut"] += 1
+                break
     except Exception as e:
         logger.warning("[rerank] 打分失败，召回不重排: %s", e)
         return items
+    finally:
+        _stats["calls"] += 1
+        _stats["last_ms"] = round((time.perf_counter() - t0) * 1000)
+    rest, items = items[len(scores):], items[:len(scores)]
+    return _order(items, scores, how, query) + rest
+
+
+def _order(items: list, scores: list, how: str, query: str) -> list:
     by_ce = sorted(range(len(items)), key=lambda i: -scores[i])
     if how == "pure":
         return [items[i] for i in by_ce]
@@ -157,4 +183,4 @@ def rerank(query: str, items: list, how: str = None) -> list:
 
 def status() -> dict:
     return {"enabled": enabled(), "model": model_name(), "depth": depth(), "mode": mode(), "max_len": max_len(),
-            "loaded": ready(), "error": _failed}
+            "budget_ms": int(budget_s() * 1000), "loaded": ready(), "error": _failed, **_stats}

@@ -219,7 +219,9 @@ def run_conversation(sample: dict, *, budget: int, prefetch_tokens: int = 0, wan
     clock.set_global(None)
     return {"sample_id": sample.get("sample_id"), "n_sessions": len(sess), "n_turns": len(dia_order),
             "n_memories": max_seq(), "ingest_s": round(ingest_s, 2),
-            "semantic": {k: sem.get(k) for k in ("backend", "indexed", "pending")}, "questions": qs}
+            "semantic": {k: sem.get(k) for k in ("backend", "indexed", "pending")}, "questions": qs,
+            "rerank": ({k: rerank.status().get(k) for k in ("model", "depth", "mode", "max_len", "budget_ms", "calls",
+                                                           "cut")} if rerank.enabled() else None)}
 
 
 def _worker(args) -> None:
