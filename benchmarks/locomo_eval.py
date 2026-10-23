@@ -155,7 +155,12 @@ def run_conversation(sample: dict, *, budget: int, prefetch_tokens: int = 0, wan
 
     seq_dia, dia_order, texts = {}, [], []
     t0 = time.time()
-    for n, when, turns in sess:
+    mp = os.path.join(os.environ.get("NEXSANDBASE_HOME", ""), "eval_map.json")
+    reuse = os.environ.get("NYX_EVAL_REUSE") == "1" and os.path.exists(mp)
+    if reuse:                       # --work 留下的目录：只重跑召回
+        m = json.load(open(mp, encoding="utf-8"))
+        seq_dia, dia_order, texts = {int(k): v for k, v in m["seq_dia"].items()}, m["dia_order"], m["texts"]
+    for n, when, turns in ([] if reuse else sess):
         clock.set_global(when)
         for t in turns:
             dia = evidence([t.get("dia_id")])
@@ -168,16 +173,21 @@ def run_conversation(sample: dict, *, budget: int, prefetch_tokens: int = 0, wan
             texts.append(turn_text(t))
     from nexsandglass.core import sandglass_sqlite, semantic
     from nexsandglass.features import sandglass_vault
-    sandglass_sqlite._last_sync_mtime = 0
-    sandglass_sqlite.sync_all()
-    sandglass_vault._idx_cache = None
-    sandglass_vault.rebuild_index()
-    semantic.wait_idle(600)
-    semantic.index_all()
+    if not reuse:
+        sandglass_sqlite._last_sync_mtime = 0
+        sandglass_sqlite.sync_all()
+        sandglass_vault._idx_cache = None
+        sandglass_vault.rebuild_index()
+        semantic.wait_idle(600)
+        semantic.index_all()
+        json.dump({"seq_dia": seq_dia, "dia_order": dia_order, "texts": texts}, open(mp, "w", encoding="utf-8"))
     sem = check_semantic(semantic.stats())          # 后端开着、索引没建成 → 报错，不记成「语义开」
     ingest_s = time.time() - t0
 
     bm25 = BM25(texts)
+    from nexsandglass.core import rerank
+    if rerank.enabled() and not rerank.warm():       # 评测：先把重排模型加载好，不让第一次召回撞上超时
+        raise RuntimeError("NYX_RERANK 开着，模型却加载不了：" + str(rerank.status().get("error")))
     clock.set_global((sess[-1][1] if sess else datetime.now()) + timedelta(days=1))
     from nexsandglass.runtime import intent as _intent
     from nexsandglass.runtime.orchestrator import get_orchestrator
@@ -236,6 +246,8 @@ def _spawn(sample: dict, args, tmp: str) -> dict:
         env.pop(k, None)
     if args.no_semantic:
         env["NYX_EMBED"] = "off"
+    if getattr(args, "reuse", False):
+        env["NYX_EVAL_REUSE"] = "1"
     cmd = [sys.executable, os.path.abspath(__file__), "--worker", "--instance-file", inf, "--out", outf,
            "--budget", str(args.budget), "--prefetch-tokens", str(getattr(args, "prefetch_tokens", 600))]
     if getattr(args, "qa", False):
@@ -301,6 +313,8 @@ def main(argv=None) -> int:
     ap.add_argument("--timeout", type=int, default=3600, help="单段对话超时（秒）")
     ap.add_argument("--no-semantic", action="store_true", help="关掉语义检索（NYX_EMBED=off）")
     ap.add_argument("--json", default="", help="指标与逐题结果输出")
+    ap.add_argument("--work", default="", help="每段对话的数据目录放这里并保留（默认用完即删）")
+    ap.add_argument("--reuse", action="store_true", help="--work 里已经建好的目录直接用，只重跑召回")
     ap.add_argument("--prefetch-tokens", type=int, default=600, help=argparse.SUPPRESS)   # 问答评测用（qa_eval.py）
     ap.add_argument("--qa", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
@@ -318,7 +332,10 @@ def main(argv=None) -> int:
         data = data[: args.limit]
 
     t0 = time.time()
-    with tempfile.TemporaryDirectory(prefix="nyx-locomo-") as tmp:
+    if args.reuse and not args.work:
+        ap.error("--reuse 要和 --work 一起用")
+    from longmemeval_eval import _keep
+    with (_keep(args.work) if args.work else tempfile.TemporaryDirectory(prefix="nyx-locomo-")) as tmp:
         with ThreadPoolExecutor(max_workers=args.workers) as ex:
             results = list(ex.map(lambda s: _spawn(s, args, tmp), data))
     report = score(results)

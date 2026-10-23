@@ -301,6 +301,11 @@ class NexSandglassProvider(MemoryProvider):
                     semantic.warm_async()    # 后台：加载嵌入模型 + 回填历史向量（无后端时空操作）
                 except Exception as e:
                     logger.debug("语义索引回填未启动: %s", e)
+                try:
+                    from nexsandglass.core import rerank
+                    rerank.warm_async()      # NYX_RERANK 开着时后台加载重排模型（没开时空操作）
+                except Exception as e:
+                    logger.debug("重排模型预热未启动: %s", e)
             # Cognitive Memory OS feature flag：NYX_USE_FACADE=1 时走稳定门面（默认关）
             self._use_facade = os.environ.get("NYX_USE_FACADE", "0") == "1"
             self._initialized = True
