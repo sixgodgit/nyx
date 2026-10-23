@@ -95,6 +95,16 @@ def check_semantic(sem: dict) -> dict:
     if sem.get("enabled") and (sem.get("pending") or not sem.get("indexed")):
         raise RuntimeError(f"语义后端 {sem.get('backend')} 已启用，但索引没建成（已索引 {sem.get('indexed')}，"
                            f"待补 {sem.get('pending')}，错误：{sem.get('last_error') or sem.get('error')}）")
+    # 索引建好了还不够：模型没加载完时语义检索直接返回空（召回不等模型）。--reuse 跳过了写入，
+    # 写入阶段顺带加载模型这件事也就没发生 —— v7.15.0 开发时实测：复用的 296 题语义这一路全部缺席，
+    # 偏好题「agent 看到的」从 0.71 掉到 0.24，而报告照样写着「语义开」
+    if sem.get("enabled"):
+        from nexsandglass.core import semantic
+        p = semantic.provider()
+        if p is not None and hasattr(p, "load"):
+            p.load()
+        if p is None or not getattr(p, "ready", True):
+            raise RuntimeError(f"语义后端 {sem.get('backend')} 已启用，但模型没有就绪，召回会退回纯词法")
     return sem
 
 
