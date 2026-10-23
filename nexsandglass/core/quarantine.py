@@ -286,7 +286,8 @@ def capture(row: tuple, *, journal_path: str, engram_path: str = None) -> dict:
     pay["journal"] = _slice(journal_path, ls, le or ls)
     pay["backup"] = _slice(_backup_path(journal_path), ls, le or ls)
 
-    # engram_store.jsonl：按 ts 匹配（_purge_engram 就是按 ts 删的）
+    # engram_store.jsonl：按 ts 或来源 mem_id 匹配（与 _purge_engram 删的是同一批）。
+    # 只按 ts 会漏：记忆写进日志和写进 engram 跨过了秒的边界，时间戳就对不上（机器忙时实测到，v7.14.0）
     lines = []
     if engram_path and os.path.exists(engram_path):
         with open(engram_path, "r", encoding="utf-8", errors="replace") as f:
@@ -295,7 +296,8 @@ def capture(row: tuple, *, journal_path: str, engram_path: str = None) -> dict:
                 if not s.strip():
                     continue
                 try:
-                    if json.loads(s).get("ts") == ts:
+                    r = json.loads(s)
+                    if r.get("ts") == ts or (mem_id and r.get("source_mem_id") == mem_id):
                         lines.append(s)
                 except Exception:
                     continue

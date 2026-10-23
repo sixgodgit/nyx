@@ -37,7 +37,11 @@ LoCoMo 5,882 轮 0 触发。普通句子每条写入多花 4–9 µs（含密钥
 **真删之后磁盘上也没了**（顺带查出的老问题）：
 - 以前只有隔离区到期 purge 对 nyx.db 做了 VACUUM。全文库 sandglass.db 自己存着整段正文，删行后还在空闲页里；
   FTS5 删掉的词元留在索引段里，**VACUUM 都清不掉**，要先 optimize（实测）；影子沙、语义库同样。`verify_erasure` 用 SQL 查，看不到这些。
-  现在 `forget(mode="purge")` 和到期 purge 之后都会 `erasure.wipe_free_space()`：全文库 optimize + VACUUM，其余库 VACUUM
+  现在 `forget(mode="purge")` 和到期 purge 之后都会 `erasure.wipe_free_space()`：全文库 optimize + VACUUM，其余库 VACUUM。
+  **放在日志锁外面做**：第一版持锁做，机器忙的时候并发测试测出来 —— VACUUM 要几秒，别的进程（MCP、网关）追加日志
+  等锁超时、这条就写不进去，连删几条就丢消息。`tests/test_erasure_disk.py` 加了一项：VACUUM 时日志锁必须已经放开
+- 遗忘清 engram 只按时间戳匹配：记忆写进日志和写进 engram 跨过秒的边界（机器忙时实测到），这一行就删不掉、
+  隔离区也抓不到它（还原时回不来）。现在按时间戳**或**来源 mem_id 匹配，删和抓是同一批
 - 晋升路径给影子沙建索引时拿不到 mem_id，用「日志现在有几行」当行号（多行消息是末行；数据目录换过就是别的日志）。
   遗忘按首行和 mem_id 删，这一份删不到 —— 被遗忘的那句话以实体名留在影子沙里，挂在别人的行号上。
   现在编排层按内容认回刚写进去的那条（只认最近几条），影子沙、engram、信念都用它真实的 mem_id 和首行号
