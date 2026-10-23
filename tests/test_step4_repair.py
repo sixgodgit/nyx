@@ -185,7 +185,8 @@ def test_health_all_green(hub):
     assert h["ok"] is True, h["checks"]
     assert set(h["checks"]) == {"hub_vs_journal", "fts_index", "inverted_index",
                                 "entity_index", "erasure_integrity", "write_amplification",
-                                "pending_purge", "poisoned_rules", "semantic_index"}   # v7.13.3
+                                "pending_purge", "poisoned_rules", "semantic_index",   # v7.13.3
+                                "secrets"}                                             # v7.14.0
     assert h["checks"]["hub_vs_journal"]["coverage"] == 1.0
 
 

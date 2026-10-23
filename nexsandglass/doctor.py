@@ -52,6 +52,9 @@ def main(argv=None) -> int:
         for name, c in h["checks"].items():
             print("  " + _line(name, c))
         print("结论：" + ("全部正常" if h["ok"] else "有项目失败（见 ❌）"))
+        if not h["checks"].get("secrets", {}).get("ok", True):
+            print("下一步：python3 -m nexsandglass.scrub    （只读：数据目录里有几处密钥 / 密码，在哪；不输出原文）\n"
+                  "        确认后 python3 -m nexsandglass.scrub --apply 原地隐去")
         if any(not h["checks"].get(k, {}).get("ok", True)
                for k in ("hub_vs_journal", "fts_index", "erasure_integrity")):
             # 这三项一起红的时候，最顺手的做法（按 seq 去 forget「泄漏」的那几条）恰恰会抹掉真实记忆

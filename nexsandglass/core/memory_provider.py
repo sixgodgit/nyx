@@ -24,6 +24,8 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from nexsandglass.core import secret_filter as _secret
+
 # 条件导入——兼容赫姆斯环境和独立运行时
 try:
     from agent.memory_provider import MemoryProvider
@@ -567,6 +569,7 @@ class NexSandglassProvider(MemoryProvider):
         """
         self._last_recall = None           # recall_status 只反映最近这一次
         parts: List[str] = []
+        query = _secret.clean(query)       # 召回链路里可能有外部服务（嵌入 API、LLM 理解）：密钥不出去（v7.14.0）
         if not is_trivial_prompt(query):
             # 预热还没做完就等它：同时现场加载同一份索引只会互相抢 —— 实测首轮从 1.1 秒变成 3 秒
             warm = getattr(self, "_warm_thread", None)
@@ -645,6 +648,8 @@ class NexSandglassProvider(MemoryProvider):
         """
         if not self._can_write():
             return
+        # 密钥 / 密码在进入任何存储之前隐去：日志、中枢、engram、影子沙、图谱、向量都只见到占位符（v7.14.0）
+        user_content, assistant_content = _secret.clean(user_content), _secret.clean(assistant_content)
         user_src = self._user_source(turn_author)
         pairs = [(user_content, user_src, user_src), (assistant_content, "agent", "assistant")]
         try:
@@ -834,7 +839,7 @@ class NexSandglassProvider(MemoryProvider):
                 orch = get_orchestrator()
                 for msg in (messages or [])[-5:]:
                     role = msg.get("role", "user")
-                    content = msg.get("content", "")
+                    content = _secret.clean(str(msg.get("content", "") or ""))   # 先隐去再截断：截断会切开 token
                     if content and role in ("user", "assistant"):
                         src = self._user_source() if role == "user" else "assistant"
                         orch.observe(str(content)[:500], source=src, raw_already_logged=True)
@@ -860,8 +865,8 @@ class NexSandglassProvider(MemoryProvider):
             return
         try:
             from nexsandglass.runtime.orchestrator import get_orchestrator
-            get_orchestrator().observe(f"委派：{str(task)[:200]} → 结果：{str(result)[:500]}",
-                                       source="agent")
+            task, result = _secret.clean(str(task or "")), _secret.clean(str(result or ""))
+            get_orchestrator().observe(f"委派：{task[:200]} → 结果：{result[:500]}", source="agent")
         except Exception as e:
             logger.debug("on_delegation 失败: %s", e)
 
@@ -940,7 +945,7 @@ class NexSandglassProvider(MemoryProvider):
             return
         try:
             from nexsandglass.core.sandglass_log import log_message
-            text = f"[{action}] {target}: {(content or '')[:200]}"
+            text = f"[{action}] {target}: {_secret.clean(content or '')[:200]}"
             log_message(text, "memory_write")
         except Exception:
             pass

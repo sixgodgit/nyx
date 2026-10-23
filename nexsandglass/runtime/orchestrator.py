@@ -203,6 +203,9 @@ class FormationRouter:
         if not event:
             fr.message = "empty event"
             return fr
+        # 所有长期写入（engram / 影子沙 / 图谱 / 理解层的 LLM 抽取）都从这里过：密钥先隐去（v7.14.0）
+        from nexsandglass.core import secret_filter
+        event = secret_filter.clean(event)
 
         try:
             from nexsandglass.core import sandglass_log
@@ -225,6 +228,15 @@ class FormationRouter:
                 except Exception as e:
                     fr.errors["sandglass"] = str(e)
                     logger.warning("[Formation] sandglass 写入失败: %s", e)
+
+            # 1.2 调用方已经落过沙（Hermes sync_turn）：按内容到中枢里认回那一条，拿它真实的 mem_id 和首行号。
+            #     以前这里拿不到 mem_id，影子沙用「日志现在有几行」当行号 —— 多行消息是末行、换了数据目录是别的日志 ——
+            #     遗忘按首行和 mem_id 删，这一份删不到：被遗忘的那句话以实体名留在影子沙里（v7.14.0）
+            raw_line = 0
+            if not raw_mem_id:
+                raw_mem_id, raw_line = _find_logged(event)
+            else:
+                raw_line = (memid_row(raw_mem_id) or {}).get("line_start", 0)
 
             # 1.5 来源信任：优先取写入时绑定的那份，没有（调用方已落沙）再现场评估
             prov = (_prov.get(raw_mem_id) if raw_mem_id else None) or _prov.assess(event, origin)
@@ -320,8 +332,8 @@ class FormationRouter:
 
             # shadow 索引（信任/实体）
             try:
-                line_num = _last_sandglass_line()
-                shadow_index(event, category=mtype, line_num=line_num)
+                line_num = raw_line or _last_sandglass_line()
+                shadow_index(event, category=mtype, line_num=line_num, mem_id=raw_mem_id or None)
                 fr.routes_written.append("shadow")
             except Exception as e:
                 fr.errors["shadow"] = str(e)
@@ -333,7 +345,7 @@ class FormationRouter:
             if prov.origin_class == _prov.PRINCIPAL:
                 try:
                     from nexsandglass.features.weavethread import wthread_store
-                    wthread_store(event, line_num=_last_sandglass_line(), subject="user",
+                    wthread_store(event, line_num=raw_line or _last_sandglass_line(), subject="user",
                                   mem_id=raw_mem_id or None)
                     fr.routes_written.append("wthread")
                 except Exception as e:
@@ -359,6 +371,34 @@ class FormationRouter:
             logger.warning("[Formation] observe 失败: %s", e)
             fr.message = str(e)
             return fr
+
+
+def memid_row(mem_id: str):
+    try:
+        from nexsandglass.core import memid
+        return memid.get(mem_id)
+    except Exception:
+        return None
+
+
+def _find_logged(event: str):
+    """调用方刚落过沙的这条在中枢里是哪一条：(mem_id, 首行号)；找不到 → ("", 0)。
+
+    按 allocate 存进去的样子比（隐去密钥、转义伪造的记录头、去掉结尾换行），取最新的一条。
+    """
+    try:
+        from nexsandglass.core import memid, secret_filter
+        from nexsandglass.core import provenance as _prov
+        text, _ = _prov.escape_forged_headers(secret_filter.clean(event).rstrip("\n"))
+        conn = memid.get_conn()
+        # 只认最近几条：这一句要是没写进日志（低价值回复被过滤了），不能认到很久以前一模一样的另一条上
+        top = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM memories").fetchone()[0]
+        row = conn.execute(
+            "SELECT mem_id, line_start FROM memories WHERE content_hash=? AND deleted_at IS NULL AND seq > ?"
+            " ORDER BY seq DESC LIMIT 1", (memid.content_hash(text), top - 4)).fetchone()
+        return (row[0], row[1] or 0) if row else ("", 0)
+    except Exception:
+        return "", 0
 
 
 def _last_sandglass_line() -> int:

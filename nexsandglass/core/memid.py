@@ -504,6 +504,11 @@ def allocate(text: str, sender: str = "agent", ts: str = None,
     from nexsandglass.core import clock
     ts = ts or f"{clock.now():%Y-%m-%d %H:%M:%S}"
     text = text.rstrip("\n")
+    if write_journal:
+        # 最后一道：直接调 allocate 的写入方（NyxBook 日记、脚本）也不让密钥进日志（v7.14.0）。
+        # 迁移（write_journal=False）是给已有日志建索引，中枢必须和日志逐字一致，不在这里改
+        from nexsandglass.core import secret_filter
+        text = secret_filter.clean(text)
     # 正文里长成记录头的续行必须转义，否则重新解析日志时它会被切成一条独立记录，
     # sender 由正文作者（可能是网页、邮件）决定 —— 见 core/provenance.py「日志格式本身的伪造面」
     text, n_forged = _prov.escape_forged_headers(text)
@@ -1025,6 +1030,13 @@ def health(journal_path: str = None, window_days: int = 3) -> dict:
         }
     except Exception as e:
         out["checks"]["poisoned_rules"] = {"ok": False, "error": str(e)}
+
+    # 日志里还躺着的密钥 / 密码（v7.14.0）：之后的写入已经在入口隐去，这一项盯的是升级之前存下来的
+    try:
+        from nexsandglass.core.secret_scrub import journal_check
+        out["checks"]["secrets"] = journal_check(journal_path)
+    except Exception as e:
+        out["checks"]["secrets"] = {"ok": False, "error": str(e)}
 
     try:
         from nexsandglass.features.shadow_sand import entity_index_health
