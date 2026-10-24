@@ -261,7 +261,7 @@ class NexSandglassProvider(MemoryProvider):
         self._prefetch_budget = max(0, _as_int(cfg.get("prefetch_tokens"), _PREFETCH_TOKENS_DEFAULT))
         # 语义检索后端：配置只在环境变量没设时生效（环境变量 > nyx.json）
         for key, env in (("semantic", "NYX_EMBED"), ("embedding_model", "NYX_EMBED_MODEL"),
-                         ("embedding_api_url", "EMBEDDING_API_URL")):
+                         ("embedding_api_url", "EMBEDDING_API_URL"), ("rerank", "NYX_RERANK")):
             if cfg.get(key) and not os.environ.get(env):
                 os.environ[env] = str(cfg[key])
 
@@ -996,6 +996,9 @@ class NexSandglassProvider(MemoryProvider):
              "description": "OpenAI 兼容 /embeddings 地址（选填；semantic=api 或 auto 时使用）。"},
             {"key": "embedding_api_key", "type": "text", "secret": True, "env_var": "EMBEDDING_API_KEY",
              "description": "嵌入 API 的密钥（存进 .env，不写 nyx.json）。"},
+            {"key": "rerank", "type": "text", "default": "off", "choices": ["off", "local"],
+             "description": "召回后用本地多语言交叉编码器重排（需要 [vector]，首次下载约 470MB）。LoCoMo 证据召回 +4.7 个点，"
+                            "但偏好类问题变差、每轮召回多 0.3–1.5 秒（CPU）。默认关。"},
         ]
 
     def save_config(self, values: Dict[str, Any], hermes_home: str) -> None:

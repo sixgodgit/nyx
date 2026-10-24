@@ -223,7 +223,8 @@ def test_config_roundtrip_backup_and_identity(tmp_path, monkeypatch):
     p = NexSandglassProvider()
     keys = {f["key"] for f in p.get_config_schema()}
     assert keys == {"data_dir", "owner_ids", "bots_are_external", "prefetch_tokens",
-                    "semantic", "embedding_model", "embedding_api_url", "embedding_api_key"}
+                    "semantic", "embedding_model", "embedding_api_url", "embedding_api_key",
+                    "rerank"}                                                   # v7.14.0
     for f in p.get_config_schema():
         assert f["type"] in ("text", "integer", "number", "boolean")
 

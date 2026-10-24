@@ -8,13 +8,15 @@ core/rerank.py — 交叉编码器重排（v7.15.0，默认关）
 
   NYX_RERANK        off（默认）/ local
   NYX_RERANK_MODEL  默认 cross-encoder/mmarco-mMiniLMv2-L12-H384-v1（多语言，含中文；Apache-2.0）
-  NYX_RERANK_DEPTH  路由先取多少条再重排，默认 30
+  NYX_RERANK_DEPTH  路由先取多少条再重排，默认 50
   NYX_RERANK_MAXLEN 每对（问句 + 记忆）截到多少 token，默认 128：长记忆上耗时减半（4 线程 30 条：1.2 秒 → 0.5 秒）
   NYX_RERANK_BUDGET_MS  一次重排最多花多少毫秒，默认 2000。分批打分，到点还没打完就只在打过分的那部分里重排、
                     其余按原顺序接在后面 —— 编排层给路由 3 秒，超了路由这一路整个丢掉，比不重排还糟
   NYX_RERANK_MODE   pure：完全按交叉编码器排
                     rrf：交叉编码器的名次与原名次各投一票（RRF）
                     pinned：问句的词全部出现的那几条（路由本来就钉在最前）不动，其余按交叉编码器排
+默认值（深度 50、rrf、截 128 token）是按两个基准各取一半选的、在另一半上验证的（见 CHANGELOG v7.14.0）：
+LoCoMo 证据召回明显变好，LongMemEval 小幅变好，但**偏好类问题变差**、每轮召回多 0.3–1.5 秒 —— 所以默认关。
 模型没装 / 加载失败 / 打分出错：原样返回，召回不受影响（失败记日志，不抛）。
 模型在后台加载（Hermes 启动时、第一次用到时），**加载完之前召回照常、不重排** —— 编排层给路由的超时只有 3 秒，
 在召回路径上同步加载模型，第一次召回会超时，路由这一路整个丢掉。
@@ -46,9 +48,9 @@ def enabled() -> bool:
 
 def depth() -> int:
     try:
-        return max(1, int(os.environ.get("NYX_RERANK_DEPTH") or 30))
+        return max(1, int(os.environ.get("NYX_RERANK_DEPTH") or 50))
     except ValueError:
-        return 30
+        return 50
 
 
 def mode() -> str:
