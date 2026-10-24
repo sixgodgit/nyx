@@ -311,11 +311,12 @@ def _purge_shadow(mem_ids: list, line_starts: list) -> dict:
     return stats
 
 
-def _purge_engram(ts_list: list) -> int:
+def _purge_engram(ts_list: list, mem_ids: list = ()) -> int:
+    """按 ts 或来源 mem_id 删（只按 ts 会漏：写日志和写 engram 跨过秒的边界时时间戳对不上）。"""
     store = os.path.join(_NB, "engram_store.jsonl")
-    if not os.path.exists(ts_list and store or store) or not ts_list:
+    if not os.path.exists(store) or not (ts_list or mem_ids):
         return 0
-    drop = set(ts_list)
+    drop, drop_ids = set(ts_list or ()), set(mem_ids or ())
     kept, removed = [], 0
     with open(store, "r", encoding="utf-8", errors="replace") as f:
         for line in f:
@@ -327,7 +328,7 @@ def _purge_engram(ts_list: list) -> int:
             except Exception:
                 kept.append(line)
                 continue
-            if row.get("ts") in drop:
+            if row.get("ts") in drop or (row.get("source_mem_id") and row.get("source_mem_id") in drop_ids):
                 removed += 1
             else:
                 kept.append(line)
@@ -402,7 +403,17 @@ def forget(selector: dict, reason: str = "user_forget", apply: bool = False,
     if not apply:
         return _forget_impl(selector, reason, apply, journal_path, mode, retention_days)
     with memid.journal_lock(journal_path or memid._journal_path()):
-        return _forget_impl(selector, reason, apply, journal_path, mode, retention_days)
+        report = _forget_impl(selector, reason, apply, journal_path, mode, retention_days)
+    if report.get("mode") == "purge" and report.get("found"):
+        # 当场不可逆 = 磁盘上也没了：库文件空闲页、FTS5 段里的旧词元（v7.14.0）。
+        # **在日志锁外面做**：VACUUM 要几秒（库大时更久），持锁做的话，别的进程（MCP、网关）追加日志
+        # 等锁超时就写不进去 —— 连删几条就会丢消息（并发测试在机器忙的时候实测到）
+        report["disk"] = wipe_free_space()
+        bad = {k: v for k, v in report["disk"].items() if v != "ok"}
+        if bad:
+            report["problems"].append("库文件空闲页没抹干净：" + "；".join(f"{k} {v}" for k, v in bad.items()))
+            report["ok"], report["action"] = False, "partial"
+    return report
 
 
 def _forget_impl(selector: dict, reason: str = "user_forget", apply: bool = False,
@@ -491,7 +502,7 @@ def _forget_impl(selector: dict, reason: str = "user_forget", apply: bool = Fals
     report["fts"] = _purge_fts(line_starts)
     report["idx"] = _purge_idx(line_starts)
     report["shadow"] = _purge_shadow(ids, line_starts)
-    report["engram"] = _purge_engram(ts_list)
+    report["engram"] = _purge_engram(ts_list, ids)
     for mid in ids:
         if memid.tombstone(mid, reason=reason):
             report["hub"] += 1
@@ -519,12 +530,6 @@ def _forget_impl(selector: dict, reason: str = "user_forget", apply: bool = Fals
         problems.append("影子副本行数对不上（backup=%s journal=%s），正文可能仍在"
                         % (report["backup"].get("backup_lines"),
                            report["backup"].get("journal_lines")))
-    if mode == "purge":
-        # 当场不可逆 = 磁盘上也没了：库文件空闲页、FTS5 段里的旧词元（v7.14.0）
-        report["disk"] = wipe_free_space()
-        bad = {k: v for k, v in report["disk"].items() if v != "ok"}
-        if bad:
-            problems.append("库文件空闲页没抹干净：" + "；".join(f"{k} {v}" for k, v in bad.items()))
     report["ok"] = not problems
     report["problems"] = problems
     report["removed"] = report["hub"]

@@ -199,6 +199,7 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 | `NYX_EMBED_Z` | `3` | 语义命中要比背景高出多少（稳健 z 分数）才算证据 |
 | `NYX_EMBED_WEIGHT` | `0.5` | 融合时语义这一票的权重（词法一票是 1） |
 | `NYX_EMBED_CACHE` | `~/.cache/nexsandglass/models` | 本地嵌入模型的存放目录 |
+| `NYX_RERANK` | `off` | `local` = 召回后用本地交叉编码器重排（需要 `[vector]`）。更准、更慢，偏好类问题变差，见 [Benchmark](#benchmark)。`NYX_RERANK_MODEL` / `_DEPTH`（50）/ `_MODE`（rrf）/ `_MAXLEN`（128）/ `_BUDGET_MS`（2000）可调 |
 | `NYX_SECRET_FILTER` | `on` | 密钥 / 密码写入前隐去：`on`（token + 密码 + `<private>`）/ `tokens`（不动密码）/ `off` |
 | `NYX_BREADTH_LINES` | `20` | 问「一共几次 / 隔了多久 / 哪个先 / 之前之后」时召回与注入的条数；`0` = 不放宽 |
 | `NYX_UNDERSTAND_LLM` | 关 | `1` = 事实抽取走 LLM（结果必须过校验；失败退回规则） |
@@ -294,6 +295,9 @@ SQLite 删行后原文还留在文件的空闲页里，FTS5 删掉的词元连 V
 `python3 -c "from nexsandglass.core import erasure; print(erasure.purge(apply=True))"` 真删
 （源码仓库里也可以 `python3 scripts/nyx_quarantine.py purge --apply`），建议放进每天的 cron；到期没清时 `doctor` 会报 ❌。
 
+**想让召回更准？** 装了 `[vector]` 的话可以设 `NYX_RERANK=local`（Hermes 里是 `rerank: local`）：
+LoCoMo 证据召回 +4.7 个点，代价是每轮召回多 0.3–1.5 秒、偏好类问题变差（[Benchmark](#benchmark)）。
+
 **注入的记忆太多、太费 token？** Hermes 里调小 `prefetch_tokens`（默认 600 ≈ 12 条）；`NYX_BREADTH_LINES=0` 关掉「汇总 / 时间类问题多给 10 条」。
 
 **多个 agent / 多台机器共用一份记忆？** 指向同一个 `NEXSANDBASE_HOME` 即可（同一台机器上多个进程同时读写是安全的：写入有跨进程锁）。
@@ -314,7 +318,7 @@ SQLite 删行后原文还留在文件的空闲页里，FTS5 删掉的词元连 V
 
 - **单用户设计**：一个人一份记忆；一个进程同一时刻只服务一个数据目录
 - **端到端问答准确率还没测**：[Benchmark](#benchmark) 里都是检索指标；Mem0 / Zep 们报的是问答准确率（需要大模型作答与裁判）
-- **还弱的题型**：LoCoMo 多跳题 agent 看到的证据只有 41%；LongMemEval 偏好题 0.71
+- **还弱的题型**：LoCoMo 多跳题 agent 看到的证据只有 41%（开重排 48%）；LongMemEval 偏好题 0.71（开重排反而更低）
 - **英文事实抽取较少**：规则抽取以中文为主，英文主要靠检索原文 + 日期；可开 `NYX_UNDERSTAND_LLM` 用 LLM 抽取
 - **默认嵌入模型偏小**：本地多语言 MiniLM 胜在小而快；换更强的 API 模型时，融合权重可能需要重新调（`NYX_EMBED_Z` / `NYX_EMBED_WEIGHT`）
 
@@ -366,6 +370,21 @@ SQLite 删行后原文还留在文件的空闲页里，FTS5 删掉的词元连 V
 - 短板：LoCoMo 多跳题证据全部进前 10 只有 18%、agent 看到的只有 41%；LongMemEval 偏好题 0.71
 - v7.13.4 及以前，LoCoMo 的 nyx R@5 是 **0.046**（召回聚合的排序缺陷，见 v7.13.5 更新日志）
 
+**可选：交叉编码器重排**（`NYX_RERANK=local`，v7.14.0，默认关）。路由先取 50 条，本地多语言交叉编码器
+`mmarco-mMiniLMv2-L12` 逐对打分（与原排名各投一票），再取原来的条数。参数只在两个基准各一半的题上选，
+下表是**另一半**（留出）上的结果：
+
+| 留出半 | 不重排 | 重排 |
+|---|---|---|
+| LoCoMo：agent 看到的证据 | 0.681 | **0.728** |
+| LoCoMo：R@5 | 0.610 | **0.674** |
+| LongMemEval-S：agent 看到的含答案轮次 | 0.855 | **0.867** |
+| LongMemEval-S：前 5 全中 | 0.875 | **0.907** |
+| LongMemEval-S：其中偏好题 | **0.694** | 0.500 |
+
+代价：每轮召回多 0.3–1.5 秒（CPU；短记忆在 4 线程上约 0.2 秒，长记忆约 1 秒），模型约 470MB。偏好题（「给我推荐几个…」）
+变差：交叉编码器学的是「哪段话在回答这个问题」，会把通用的推荐排到用户自己说过的偏好前面。所以默认关。
+
 ```bash
 pip install "nyx-memory[vector]"     # 首次运行把模型下载到 ~/.cache/nexsandglass/models（NYX_EMBED_CACHE 可改）
 # LongMemEval（MIT）：https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned
@@ -396,7 +415,7 @@ python3 benchmarks/locomo_eval.py locomo10.json --workers 10 --json benchmarks/r
 
 ## 📝 最近更新
 
-- **v7.14.0**：密钥和密码不进记忆（写入前隐去；已存下的 `scrub` 原地隐去）；真删之后磁盘上也没了（以前全文库里还留着）
+- **v7.14.0**：密钥和密码不进记忆（写入前隐去；已存下的 `scrub` 原地隐去）；真删之后磁盘上也没了（以前全文库里还留着）；可选的交叉编码器重排（LoCoMo 证据召回 +4.7 个点，默认关）；端到端问答评测框架
 - **v7.13.9**：测试再也写不进真实数据目录（会话级隔离 + 运行时守卫）；新增 `python3 -m nexsandglass.repair` —— 中枢被污染时按内容体检与修复，真实记忆一条不少、被遗忘的不复活、合成「事实」连同派生数据撤下
 - **v7.13.8**：README 重写（快速开始、工作原理、隐私、常见问题、已知局限）；全新安装时 `doctor` 不再误报 ❌；安装脚本与 Docker 修好（旧脚本会装一个让每句话记两遍的网关插件）
 - **v7.13.7**：问「一共几次 / 隔了多久 / 哪个先 / 之前之后」时多给 agent 10 条 —— 多会话汇总题 agent 看到的含答案轮次 0.701 → 0.804，时间推理 0.715 → 0.804

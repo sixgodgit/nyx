@@ -67,3 +67,18 @@ def test_quarantine_then_purge_leaves_nothing_on_disk(env, seeded):  # noqa: F81
     p = erasure.purge(mem_ids=[seeded], apply=True)
     assert p["ok"] and p["vacuumed"], p
     assert _trace(env.home) == []
+
+
+def test_disk_wipe_runs_outside_the_journal_lock(env, seeded, monkeypatch):  # noqa: F811
+    """VACUUM 要几秒：持着日志锁做，别的进程（MCP、网关）追加日志会等锁超时、写不进去。"""
+    from nexsandglass.core import erasure, memid
+    held = []
+    real = erasure.wipe_free_space
+
+    def spy():
+        held.append(bool(getattr(memid._jl, "held", {}).get(os.path.abspath(env.journal))))
+        return real()
+    monkeypatch.setattr(erasure, "wipe_free_space", spy)
+    r = erasure.forget({"mem_id": seeded}, apply=True, mode="purge")
+    assert r["ok"] and held == [False], held
+    assert _trace(env.home) == []

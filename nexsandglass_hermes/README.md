@@ -29,6 +29,7 @@ memory:
 | `semantic` | `auto` | 语义检索：`auto`（配了 API 用 API；装了 `nyx-memory[vector]` 用本地模型；都没有则关）/ `local` / `api` / `off` |
 | `embedding_model` | 空 | 嵌入模型名；换模型后旧向量自动作废并后台重建 |
 | `embedding_api_url` / `embedding_api_key` | 空 | OpenAI 兼容 `/embeddings`；密钥只进 `.env` |
+| `rerank` | `off` | `local` = 召回后用本地多语言交叉编码器重排（需要 `[vector]`，首次下载约 470MB）。证据召回更准（LoCoMo +4.7 个点），但偏好类问题变差、每轮多 0.3–1.5 秒（CPU）。见主 README 的 Benchmark |
 
 ## 每轮做什么
 

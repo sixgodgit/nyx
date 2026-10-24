@@ -450,8 +450,14 @@ class RecallPlanner:
 
     def _adapt_search_router(self, query: str) -> list[MemoryObject]:
         from nexsandglass.core.search_router import SearchRouter
+        from nexsandglass.core import rerank
         router = SearchRouter()
-        results = router.search(query, limit=self._router_limit(query))
+        limit = self._router_limit(query)
+        if rerank.enabled():
+            # 多取几条再重排（v7.15.0，默认关）：只在前 limit 条里换顺序，排在后面的答案永远进不来
+            results = rerank.rerank(query, router.search(query, limit=max(limit, rerank.depth())))[:limit]
+        else:
+            results = router.search(query, limit=limit)
         return [_from_search_item(item, "search_router") for item in results]
 
     def _adapt_shadow(self, query: str) -> list[MemoryObject]:

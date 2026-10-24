@@ -95,6 +95,16 @@ def check_semantic(sem: dict) -> dict:
     if sem.get("enabled") and (sem.get("pending") or not sem.get("indexed")):
         raise RuntimeError(f"语义后端 {sem.get('backend')} 已启用，但索引没建成（已索引 {sem.get('indexed')}，"
                            f"待补 {sem.get('pending')}，错误：{sem.get('last_error') or sem.get('error')}）")
+    # 索引建好了还不够：模型没加载完时语义检索直接返回空（召回不等模型）。--reuse 跳过了写入，
+    # 写入阶段顺带加载模型这件事也就没发生 —— v7.15.0 开发时实测：复用的 296 题语义这一路全部缺席，
+    # 偏好题「agent 看到的」从 0.71 掉到 0.24，而报告照样写着「语义开」
+    if sem.get("enabled"):
+        from nexsandglass.core import semantic
+        p = semantic.provider()
+        if p is not None and hasattr(p, "load"):
+            p.load()
+        if p is None or not getattr(p, "ready", True):
+            raise RuntimeError(f"语义后端 {sem.get('backend')} 已启用，但模型没有就绪，召回会退回纯词法")
     return sem
 
 
@@ -134,7 +144,14 @@ def run_instance(inst: dict, *, budget: int, prefetch_tokens: int, want_context:
                       key=lambda x: parse_date(x[1]))
     seq_session, answer_seqs, n_turns = {}, set(), 0
     t0 = time.time()
-    for sid, date, turns in sessions:
+    # --reuse：这一题的数据目录上次已经建好（--work 留下的），只重跑召回 —— 换召回参数时不必重新写入
+    mp = os.path.join(os.environ.get("NEXSANDBASE_HOME", ""), "eval_map.json")
+    reuse = os.environ.get("NYX_EVAL_REUSE") == "1" and os.path.exists(mp)
+    if reuse:
+        m = json.load(open(mp, encoding="utf-8"))
+        seq_session = {int(k): v for k, v in m["seq_session"].items()}
+        answer_seqs, n_turns = set(m["answer_seqs"]), m["n_turns"]
+    for sid, date, turns in ([] if reuse else sessions):
         clock.set_global(parse_date(date))
         for u, a, u_ans, a_ans in _pairs(turns):
             before = max_seq()
@@ -148,17 +165,23 @@ def run_instance(inst: dict, *, budget: int, prefetch_tokens: int, want_context:
                     answer_seqs.add(seq)
     from nexsandglass.core import sandglass_sqlite
     from nexsandglass.features import sandglass_vault
-    sandglass_sqlite._last_sync_mtime = 0
-    sandglass_sqlite.sync_all()
-    sandglass_vault._idx_cache = None
-    sandglass_vault.rebuild_index()
     from nexsandglass.core import semantic
-    semantic.wait_idle(600)                  # 后台补索引跑完
-    semantic.index_all()                     # 兜底，保证全部入索引
+    if not reuse:
+        sandglass_sqlite._last_sync_mtime = 0
+        sandglass_sqlite.sync_all()
+        sandglass_vault._idx_cache = None
+        sandglass_vault.rebuild_index()
+        semantic.wait_idle(600)              # 后台补索引跑完
+        semantic.index_all()                 # 兜底，保证全部入索引
+        json.dump({"seq_session": seq_session, "answer_seqs": sorted(answer_seqs), "n_turns": n_turns},
+                  open(mp, "w", encoding="utf-8"))
     sem = check_semantic(semantic.stats())
     ingest_s = time.time() - t0
 
     clock.set_global(parse_date(inst["question_date"]))
+    from nexsandglass.core import rerank
+    if rerank.enabled() and not rerank.warm():       # 评测：先把重排模型加载好，不让第一次召回撞上超时
+        raise RuntimeError("NYX_RERANK 开着，模型却加载不了：" + str(rerank.status().get("error")))
     from nexsandglass.runtime.orchestrator import get_orchestrator
     t1 = time.time()
     mc = get_orchestrator().recall(inst["question"], token_budget=budget)
@@ -190,6 +213,9 @@ def run_instance(inst: dict, *, budget: int, prefetch_tokens: int, want_context:
         "ingest_s": round(ingest_s, 3), "recall_ms": round(recall_ms, 1),
         "semantic": {k: sem.get(k) for k in ("backend", "indexed", "pending")},
     }
+    if rerank.enabled():
+        out["rerank"] = {k: rerank.status().get(k) for k in ("model", "depth", "mode", "max_len", "budget_ms",
+                                                             "calls", "cut", "last_ms")}
     if want_context:
         t2 = time.time()
         out["context"] = p.prefetch(inst["question"], session_id="q")
@@ -218,12 +244,17 @@ def _spawn(inst: dict, args, tmp: str) -> dict:
     json.dump(inst, open(inf, "w", encoding="utf-8"), ensure_ascii=False)
     env = dict(os.environ, NEXSANDBASE_HOME=os.path.join(home, "nb"),
                PYTHONPATH=_REPO + os.pathsep + os.environ.get("PYTHONPATH", ""))
+    # 逐题可复现：排序里分数打平时先后由 set 的遍历顺序决定，而字符串哈希每个进程随机 ——
+    # 不固定的话同一题两次运行的排序有一半对不上（总体数字只差 ±0.004，但比较两个配置时会被这点噪声淹没）
+    env.setdefault("PYTHONHASHSEED", "0")
     for k in ("NYX_NOW", "HERMES_HOME"):
         env.pop(k, None)
     if not args.understand_llm:
         env.pop("NYX_UNDERSTAND_LLM", None)
     if args.no_semantic:
         env["NYX_EMBED"] = "off"
+    if getattr(args, "reuse", False):
+        env["NYX_EVAL_REUSE"] = "1"
     cmd = [sys.executable, os.path.abspath(__file__), "--worker", "--instance-file", inf, "--out", outf,
            "--budget", str(args.budget), "--prefetch-tokens", str(args.prefetch_tokens)]
     if args.qa:
@@ -233,6 +264,19 @@ def _spawn(inst: dict, args, tmp: str) -> dict:
         return {"question_id": inst["question_id"], "question_type": inst.get("question_type", "?"),
                 "error": (r.stderr or r.stdout)[-2000:]}
     return json.load(open(outf, encoding="utf-8"))
+
+
+class _keep:
+    """和 TemporaryDirectory 一样用，但不删（--work）。"""
+    def __init__(self, path):
+        self.path = os.path.abspath(path)
+
+    def __enter__(self):
+        os.makedirs(self.path, exist_ok=True)
+        return self.path
+
+    def __exit__(self, *exc):
+        return False
 
 
 def score(results: list, ks=(1, 3, 5, 10)) -> dict:
@@ -304,6 +348,8 @@ def main(argv=None) -> int:
     ap.add_argument("--qa", action="store_true", help="生成答案（需要 NYX_EVAL_API_URL）")
     ap.add_argument("--hyp", default="", help="QA 假设文件输出（官方 jsonl 格式）")
     ap.add_argument("--json", default="", help="检索指标与逐题结果输出")
+    ap.add_argument("--work", default="", help="每题的数据目录放这里并保留（默认用完即删）")
+    ap.add_argument("--reuse", action="store_true", help="--work 里已经建好的目录直接用，只重跑召回")
     ap.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--instance-file", help=argparse.SUPPRESS)
     ap.add_argument("--out", help=argparse.SUPPRESS)
@@ -325,7 +371,9 @@ def main(argv=None) -> int:
         data = data[: args.limit]
 
     t0 = time.time()
-    with tempfile.TemporaryDirectory(prefix="nyx-lme-") as tmp:
+    if args.reuse and not args.work:
+        ap.error("--reuse 要和 --work 一起用")
+    with (_keep(args.work) if args.work else tempfile.TemporaryDirectory(prefix="nyx-lme-")) as tmp:
         with ThreadPoolExecutor(max_workers=args.workers) as ex:
             results = list(ex.map(lambda d: _spawn(d, args, tmp), data))
     report = score(results)
