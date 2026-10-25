@@ -1,5 +1,5 @@
 name: nyx
-version: 7.15.2
+version: 7.15.3
 kind: exclusive
 # 从这一版起 hermes plugins install 会装 python_dependencies（v2026.9.21）；更老的走 python3 -m nexsandglass_hermes install
 requires_hermes: ">=0.21.4"

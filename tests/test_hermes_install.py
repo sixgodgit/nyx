@@ -292,6 +292,35 @@ def test_repo_plugin_dirs(tmp_path, sub, dep):
     assert p is not None and p.name == "nexsandglass"
 
 
+def _defines_memory_provider(path: str) -> bool:
+    """Hermes 主线版 plugins/memory/__init__.py 的 _defines_memory_provider：解析（不 import）插件目录顶层的 .py，
+    要有 register_memory_provider(...) 调用或 MemoryProvider 子类；注释、文档字符串里的字不算。"""
+    import ast
+    import glob
+    for module in sorted(glob.glob(os.path.join(path, "*.py"))):
+        tree = ast.parse(open(module, encoding="utf-8").read())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and "register_memory_provider" in (
+                    getattr(node.func, "attr", None), getattr(node.func, "id", None)):
+                return True
+            if isinstance(node, ast.ClassDef) and any(
+                    (getattr(b, "attr", None) or getattr(b, "id", None)) == "MemoryProvider" for b in node.bases):
+                return True
+    return False
+
+
+@pytest.mark.parametrize("sub", ["hermes-plugin", "hermes-plugin-vector"])
+def test_new_hermes_recognises_memory_provider(tmp_path, sub):
+    """v7.15.2 的入口文件只在注释里提到 register_memory_provider：主线版 Hermes 把它当普通插件，
+    `hermes plugins install --enable` 不设 memory.provider（实测）。调用要写在插件目录自己的文件里。"""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    assert _defines_memory_provider(os.path.join(root, sub))
+    target, _ = I.write_shim(str(tmp_path))                  # 老版本 Hermes 的安装路径写出的入口文件
+    assert _defines_memory_provider(target)
+    after = open(os.path.join(root, sub, "after-install.md"), encoding="utf-8").read()
+    assert after.startswith("## Nyx is installed") and "hermes config set memory.provider nyx" in after.split("---")[0]
+
+
 # ── hermes nyx …（v7.15.2）──────────────────────────────────────────────
 
 def _hermes_parser():
