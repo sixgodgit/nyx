@@ -140,16 +140,19 @@ class Result:
         return bool(self.findings)
 
 
-def _mark(label: str, value: str, tail: bool) -> str:
+def _mark(label: str, value: str, tail: bool, vid: Optional[int] = None) -> str:
     v = re.sub(r"[^A-Za-z0-9]", "", value)          # 末 4 位只取字母数字：不把引号、逗号带进占位符
-    return f"{MARK}{label}" + (f" …{v[-4:]}" if tail and len(v) >= 12 else "") + "]"
+    return (f"{MARK}{label}" + (f" …{v[-4:]}" if tail and len(v) >= 12 else "")
+            + (f" #v{vid}" if vid is not None else "") + "]")
 
 
-def scrub(text: Optional[str], mode: str = None, keep_lines: bool = False, capture: Optional[list] = None) -> Result:
+def scrub(text: Optional[str], mode: str = None, keep_lines: bool = False, capture: Optional[list] = None,
+          vault: Optional[Callable] = None) -> Result:
     """隐去 text 里的密钥 / 密码。返回 Result(text, findings)；findings 只有类别，没有原文。
 
     keep_lines：替换后行数不变（改写已经存下的日志时用 —— 行号是别处的主键）。
     capture：传一个 list 进来，被隐去的原文追加进去（只给存量清理在内存里用，去别的存储里找同一个字符串）。
+    vault：vault(kind, label, 原文) → 保险箱编号或 None（v7.15.0，core/secret_vault.py）；有编号的占位符带 #vN。
     幂等：占位符本身不会再被认成密钥。
     """
     mode = mode or level()
@@ -171,10 +174,10 @@ def scrub(text: Optional[str], mode: str = None, keep_lines: bool = False, captu
             if "v" in rule.rx.groupindex:
                 a, b = m.start("v") - m.start(), m.end("v") - m.start()
                 secret = whole[a:b]
-                out = whole[:a] + _mark(rule.label, secret, rule.tail) + whole[b:]
             else:
-                secret = whole
-                out = _mark(rule.label, whole, rule.tail)
+                a, b, secret = 0, len(whole), whole
+            vid = vault(rule.kind, rule.label, secret) if vault is not None else None
+            out = whole[:a] + _mark(rule.label, secret, rule.tail, vid) + whole[b:]
             if capture is not None:
                 capture.append(secret)
             return out + ("\n" * secret.count("\n") if keep_lines else "")

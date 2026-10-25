@@ -1038,6 +1038,13 @@ def health(journal_path: str = None, window_days: int = 3) -> dict:
     except Exception as e:
         out["checks"]["secrets"] = {"ok": False, "error": str(e)}
 
+    # 密钥保险箱（v7.15.0）：没开不算故障；开了就要真的能用，来源记忆真删之后它也要跟着删
+    try:
+        from nexsandglass.core import secret_vault
+        out["checks"]["vault"] = secret_vault.health()
+    except Exception as e:
+        out["checks"]["vault"] = {"ok": False, "error": str(e)}
+
     try:
         from nexsandglass.features.shadow_sand import entity_index_health
         h = entity_index_health()
