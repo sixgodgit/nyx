@@ -60,7 +60,7 @@ from nexsandglass.l3.offset_l3 import (
 )
 
 # ── LLM 配置（单一来源：offset_signals）──
-from nexsandglass.l3.offset_signals import _LLM_KEY, _LLM_ENDPOINT, _LLM_MODEL
+from nexsandglass.l3.offset_signals import llm_config as _llm_config, llm_on as _llm_on
 
 logger = logging.getLogger(__name__)
 
@@ -80,11 +80,12 @@ def _extract_md_section(content, section_name):
 from nexsandglass.l3.offset_signals import _fail_open
 
 def _llm(system: str, user: str, max_tokens: int = 2048) -> str:
-    """调 LLM，失败返回空字符串。"""
-    if not _LLM_KEY:
+    """调 LLM，失败返回空字符串。没打开 NYX_L3_LLM 时什么都不发。"""
+    key, endpoint, model = _llm_config()
+    if not key:
         return ""
     payload = json.dumps({
-        "model": _LLM_MODEL,
+        "model": model,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
@@ -93,14 +94,14 @@ def _llm(system: str, user: str, max_tokens: int = 2048) -> str:
         "temperature": 0.3,
     }).encode("utf-8")
     headers = {
-        "Authorization": f"Bearer {_LLM_KEY}",
+        "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
     }
-    if "openrouter" in _LLM_ENDPOINT:
+    if "openrouter" in endpoint:
         headers["HTTP-Referer"] = "https://neurobase.local"
         headers["X-Title"] = "Sandglass Layer 3"
     try:
-        req = urllib.request.Request(_LLM_ENDPOINT, data=payload, headers=headers)
+        req = urllib.request.Request(endpoint, data=payload, headers=headers)
         resp = urllib.request.urlopen(req, timeout=60)
         body = json.loads(resp.read().decode("utf-8"))
         return body["choices"][0]["message"].get("content") or body["choices"][0]["message"].get("reasoning_content", "")
@@ -808,7 +809,7 @@ def search_filter(query: str) -> dict:
 
 def _llm_expand_with_context(query: str, persona_ctx: str, scene_ctx: str, stage_ctx: str, dp_ctx: str = "", decision_bias: str = "") -> list:
     """LLM 结合画像+场景+阶段+决策粒子四维上下文扩展关键词。"""
-    if not _LLM_KEY:
+    if not _llm_on():
         return []
 
     system = """你是搜索关键词扩展器。根据用户的画像、当前场景、历史阶段和近期决策，扩展相关关键词。
@@ -864,7 +865,7 @@ def _parse_time_range(query: str) -> list:
     now_year = datetime.now().year
 
     # LLM模式
-    if _LLM_KEY:
+    if _llm_on():
         result = _llm(
             "你是时间解析器。返回JSON数组年份。'两三年前'→[2024,2023]，'去年'→[2025]，无时间→[]。只返回JSON。",
             query, max_tokens=100
@@ -1200,7 +1201,7 @@ _THREE_D_UNLOCK = 2000
 
 def _three_d_ready() -> bool:
     """3D 是否已解锁。本地累积够 + LLM 可用。"""
-    if not _LLM_KEY:
+    if not _llm_on():
         return False
     try:
         from nexsandglass.features.sandglass_vault import count
@@ -1323,7 +1324,7 @@ def _synthesize_3d(force: bool = False, trigger: str = "") -> dict:
     - 需要生成 → LLM 吃全量数据 → 保存为永久注解
     - 不接 LLM 返回空 dict → 上游走 2D 玻璃
     """
-    if not _LLM_KEY:
+    if not _llm_on():
         return {}
 
     # 检查是否该生成（除非强制或情绪波动触发）

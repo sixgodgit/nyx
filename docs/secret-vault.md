@@ -140,6 +140,8 @@ python3 -m nexsandglass.vault audit             # 最近的取回 / 删除记录
 
 原文不经过任何模型、任何聊天平台、任何 Hermes 会话记录。前提是主人能登上这台机器。
 
+在新版 Hermes 里，nyx-memory 装在 Hermes 自己的隔离环境里，系统 Python 里没有 nyx，所以要用 `hermes nyx vault …`（v7.15.2 起）。子命令和上面一样，比如 `hermes nyx vault show v3`。agent 转告给你的命令也会写成这个形式（`core/hints.py`）。
+
 ### 6.2 直达（Hermes 下的默认方式）
 
 思路：模型只拿到一个句柄，换成原文这一步发生在 Hermes 把回复发给主人之前。

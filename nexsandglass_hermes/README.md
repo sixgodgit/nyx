@@ -48,16 +48,30 @@ python3 -m nexsandglass_hermes install
 | 键 | 默认 | 说明 |
 |---|---|---|
 | `data_dir` | `~/.neurobase` | 记忆目录。默认与 nyx 的 MCP / CLI 共用一份记忆（一个人一份记忆）。`NEXSANDBASE_HOME` 优先。改动后重启 |
-| `owner_ids` | 空 | 主人在聊天平台上的 ID / 名字（逗号分隔）。设置后只有主人说的话按「主人亲口说的」记；其他参与者一律记为外部来源（未经证实），不会变成关于主人的事实。留空 = 单人使用 |
-| `bots_are_external` | `true` | 机器人发来的消息按外部来源记 |
 | `prefetch_tokens` | `600` | 每轮自动召回的预算；0 = 只注入偏移/情绪信号 |
 | `semantic` | `auto` | 语义检索：`auto`（配了 API 用 API；装了 `nyx-memory[vector]` 用本地模型；都没有则关）/ `local` / `api` / `off` |
 | `embedding_model` | 空 | 嵌入模型名；换模型后旧向量自动作废并后台重建 |
 | `embedding_api_url` / `embedding_api_key` | 空 | OpenAI 兼容 `/embeddings`；密钥只进 `.env` |
 | `rerank` | `off` | `local` = 召回后用本地多语言交叉编码器重排（需要 `[vector]`，首次下载约 470MB）。证据召回更准（LoCoMo +4.7 个点），但偏好类问题变差、每轮多 0.3–1.5 秒（CPU）。见主 README 的 Benchmark |
-| `vault` | `off` | 密钥保险箱（v7.15.0）：聊天里贴的 token / API key / 密码加密存起来，主人要时经确认交还。需要 `pip install 'nyx-memory[vault]'`。见下一节 |
+| `vault` | `off` | 密钥保险箱（v7.15.0）：聊天里贴的 token / API key / 密码加密存起来，主人要时经确认交还。Hermes 自己已带 cryptography，不用另装。见下面「密钥保险箱」 |
 | `vault_reveal` | `direct` | `direct` = 原文不经过模型（要启用配套插件 `nyx-reveal`）；`cli` = 只在终端里取；`llm` = 原文交给模型转述 |
 | `vault_kinds` | `all` | `tokens` = 不收密码 |
+| `l3_llm` | `off` | `on` = 画像 / 偏移率 / 幽灵决策这些 L3 分析调用 DeepSeek 或 OpenRouter（`DEEPSEEK_API_KEY` / `OPENROUTER_API_KEY`，按当前 profile 取），会把相关的记忆片段、画像、近期决策发给它们。v7.15.2 以前不用打开、有 key 就用 |
+
+## 终端命令：`hermes nyx …`（v7.15.2）
+
+新版 Hermes 把 nyx-memory 装在它自己的隔离环境里，系统 Python 里没有 nyx，`python3 -m nexsandglass.…` 用不了。
+nyx 是当前记忆插件时，Hermes 会多出 `hermes nyx` 这组命令（数据目录、保险箱开关按当前 profile 的 `nyx.json`）：
+
+| 命令 | 作用 |
+|---|---|
+| `hermes nyx doctor` | 自检：每一项 ✅ / ❌ + 原因 |
+| `hermes nyx vault list` / `show v3 [--copy]` / `delete v3` / `gc` / `rekey` / `audit` / `status` | 密钥保险箱 |
+| `hermes nyx scrub [--apply] [--to-vault]` | 已经存下来的密钥 / 密码：找出来、原地隐去 |
+| `hermes nyx repair [--apply]` | 中枢对不上日志时：按内容体检与修复 |
+| `hermes nyx status` | 版本、Python、数据目录、保险箱 |
+
+agent 转告给你的命令（自检警告、「在终端里取」）也会写成 `hermes nyx …`。
 
 ## 密钥保险箱（v7.15.0，默认关）
 
@@ -74,7 +88,7 @@ python3 -m nexsandglass_hermes install
 hermes plugins enable nyx-reveal      # 再在 hermes memory setup 里把 vault 设成 on，然后重启 Hermes
 ```
 
-最稳妥的方式永远是在终端里取：`python3 -m nexsandglass.vault show v3`。原文不经过任何模型或聊天平台。
+最稳妥的方式永远是在终端里取：`hermes nyx vault show v3`（不在 Hermes 里：`python3 -m nexsandglass.vault show v3`）。原文不经过任何模型或聊天平台。
 
 保险箱防不住两件事：
 - 密钥第一次贴进聊天的那一刻，原文已经发给了模型服务商，也留在了聊天平台上，所以贴过的密钥都应该换掉。

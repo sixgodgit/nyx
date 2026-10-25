@@ -571,10 +571,10 @@ def log(question: str, choice: str, ts: str = "", chain: list = None) -> None:
 def _has_llm() -> bool:
     """统一LLM检测——从offset_signals获取。"""
     try:
-        from nexsandglass.l3.offset_signals import _LLM_KEY
-        return bool(_LLM_KEY)
+        from nexsandglass.l3.offset_signals import llm_on
+        return llm_on()
     except ImportError:
-        return bool(os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENROUTER_API_KEY"))
+        return False
 
 
 # ═══════════════════════════════════════════════

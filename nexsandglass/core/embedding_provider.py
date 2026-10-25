@@ -96,7 +96,8 @@ class ExternalAPIProvider(EmbeddingProvider):
 
     def __init__(self, api_url: str = "", api_key: str = "", model: str = "text-embedding-3-small"):
         self._api_url = api_url or os.environ.get("EMBEDDING_API_URL", "")
-        self._api_key = api_key or os.environ.get("EMBEDDING_API_KEY", "")
+        from nexsandglass.core import credentials
+        self._api_key = api_key or credentials.get("EMBEDDING_API_KEY")
         self._model = model
         self._dim = EMBEDDING_DIM if "3-small" in model else 1536
 

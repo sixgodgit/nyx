@@ -222,17 +222,21 @@ def test_config_roundtrip_backup_and_identity(tmp_path, monkeypatch):
 
     p = NexSandglassProvider()
     keys = {f["key"] for f in p.get_config_schema()}
-    assert keys == {"data_dir", "owner_ids", "bots_are_external", "prefetch_tokens",
+    # v7.15.2：owner_ids / bots_are_external 不再出现在 hermes memory setup 里 —— Hermes 不向记忆提供器传发言人，
+    # 这两项在那里从来不起作用（docs/secret-vault.md §2）。手写进 nyx.json 的仍然读（给会传 turn_author 的宿主）
+    assert keys == {"data_dir", "prefetch_tokens",
                     "semantic", "embedding_model", "embedding_api_url", "embedding_api_key",
                     "rerank",                                                   # v7.14.0
-                    "vault", "vault_reveal", "vault_kinds"}                     # v7.15.0
+                    "vault", "vault_reveal", "vault_kinds",                     # v7.15.0
+                    "l3_llm"}                                                   # v7.15.2
     for f in p.get_config_schema():
         assert f["type"] in ("text", "integer", "number", "boolean")
 
     p.save_config({"owner_ids": "tg:42, alice", "prefetch_tokens": 300, "junk": 1,
                    "embedding_api_key": "sk-must-not-land-in-json"}, str(hh))
     cfg = json.load(open(hh / "nyx.json", encoding="utf-8"))
-    assert cfg == {"owner_ids": "tg:42, alice", "prefetch_tokens": 300}
+    assert cfg == {"prefetch_tokens": 300}
+    nh.save_config({"owner_ids": "tg:42, alice"}, str(hh))
     assert p.identity_signature() == {"nyx.owner_ids": ["alice", "tg:42"]}
 
     # 默认目录 ~/.neurobase 在 HERMES_HOME 外 → 交给 hermes backup

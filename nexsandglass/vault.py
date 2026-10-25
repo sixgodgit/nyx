@@ -166,7 +166,8 @@ def cmd_audit(args) -> int:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="python3 -m nexsandglass.vault", description="Nyx 密钥保险箱")
+    from nexsandglass.core import hints
+    ap = argparse.ArgumentParser(prog=hints.cmd("vault"), description="Nyx 密钥保险箱")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("status", help="开没开、后端、密钥文件、条目数")
     p.add_argument("--json", action="store_true")

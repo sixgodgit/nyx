@@ -6,7 +6,8 @@ NexSandglass MemoryProvider — Hermes Agent 官方记忆提供器接口实现
 
 零 API Key、零外部依赖——纯本地驱动。Nyx 独有、同类 provider 没有的：
   - 双时态事实：「现在是什么」与「第 K 天时我以为是什么」分开回答（nyx_belief）
-  - 写入时绑定来源与信任：多人会话里非主人说的话不会被当成主人的话（owner_ids）
+  - 写入时绑定来源与信任：工具 / 委派 / 机器人的话不会被当成主人的话（宿主传 turn_author 时，再按 owner_ids 区分参与者；
+    Hermes 目前不传发言人，那里按单人使用）
   - 两段式遗忘：agent 只能把记忆送进隔离区，保留期内可还原；永久擦除只留给主人（CLI）
 
 生命周期（MemoryManager 驱动）：
@@ -25,6 +26,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from nexsandglass.core import hints as _hints
 from nexsandglass.core import secret_filter as _secret
 from nexsandglass.core import secret_vault as _vault
 
@@ -295,7 +297,7 @@ class NexSandglassProvider(MemoryProvider):
         for key, env in (("semantic", "NYX_EMBED"), ("embedding_model", "NYX_EMBED_MODEL"),
                          ("embedding_api_url", "EMBEDDING_API_URL"), ("rerank", "NYX_RERANK"),
                          ("vault", "NYX_VAULT"), ("vault_reveal", "NYX_VAULT_REVEAL"),
-                         ("vault_kinds", "NYX_VAULT_KINDS")):
+                         ("vault_kinds", "NYX_VAULT_KINDS"), ("l3_llm", "NYX_L3_LLM")):
             if cfg.get(key) and not os.environ.get(env):
                 os.environ[env] = str(cfg[key])
 
@@ -585,12 +587,12 @@ class NexSandglassProvider(MemoryProvider):
             from nexsandglass.core import semantic
             hc = semantic.health_check()
         except Exception as e:
-            return f"⚠️ Nyx 自检：语义索引状态读取失败（{e}）。请提醒主人运行 `python3 -m nexsandglass.doctor`。"
+            return f"⚠️ Nyx 自检：语义索引状态读取失败（{e}）。请提醒主人运行 `{_hints.cmd('doctor')}`。"
         if hc.get("ok"):
             return ""
         why = "；".join(hc.get("problems") or [])[:200]
         return (f"⚠️ Nyx 自检：语义检索这一路不可用（{why}）。词法召回正常。"
-                f"请提醒主人运行 `python3 -m nexsandglass.doctor`，或调用 nyx_health 查看详情。")
+                f"请提醒主人运行 `{_hints.cmd('doctor')}`，或调用 nyx_health 查看详情。")
 
     def _signal_line(self) -> str:
         """偏移 + 情绪：主注入已有全貌，这里只给最动态的信号。"""
@@ -963,7 +965,7 @@ class NexSandglassProvider(MemoryProvider):
         ok, why = _vault.rate_ok()
         if not ok:
             return deny(why)
-        cli = f"python3 -m nexsandglass.vault show v{vid}"
+        cli = _hints.cmd("vault", f"show v{vid}")
         if mode == "cli" or (mode == "direct" and not _vault.hook_registered()):
             note = ("按设置原文只在终端里取。" if mode == "cli" else
                     "直达取回要先启用配套插件：hermes plugins enable nyx-reveal，然后重启 Hermes。在那之前只能在终端里取。")
@@ -1148,11 +1150,6 @@ class NexSandglassProvider(MemoryProvider):
             {"key": "data_dir", "type": "text", "default": default_dir,
              "description": "Nyx 记忆目录。默认与 nyx 的 MCP / CLI 共用同一份记忆；"
                             "环境变量 NEXSANDBASE_HOME 优先。改动后重启生效。"},
-            {"key": "owner_ids", "type": "text", "default": "",
-             "description": "主人在聊天平台上的身份 ID / 名字（逗号分隔）。设置后只有这些人说的话按"
-                            "「主人亲口说的」记，其他参与者一律记为外部来源（未经证实）。留空 = 单人使用。"},
-            {"key": "bots_are_external", "type": "boolean", "default": True,
-             "description": "机器人发来的消息按外部来源记（不当成主人的话）。"},
             {"key": "prefetch_tokens", "type": "integer", "default": _PREFETCH_TOKENS_DEFAULT,
              "minimum": 0, "maximum": 4000, "step": 100,
              "description": "每轮自动召回注入的预算（token）；0 = 只注入偏移/情绪信号。"},
@@ -1177,6 +1174,9 @@ class NexSandglassProvider(MemoryProvider):
                             "cli = 只在终端里取；llm = 原文交给模型转述（模型服务商和会话记录都会看到）。"},
             {"key": "vault_kinds", "type": "text", "default": "all", "choices": ["all", "tokens"],
              "description": "收哪些：all = token / API key / 私钥 / 密码；tokens = 不收密码。"},
+            {"key": "l3_llm", "type": "text", "default": "off", "choices": ["off", "on"],
+             "description": "画像 / 偏移率 / 幽灵决策这些 L3 分析调用 DeepSeek 或 OpenRouter（用 DEEPSEEK_API_KEY / "
+                            "OPENROUTER_API_KEY）。会把相关的记忆片段、画像、近期决策发给它们。默认关；v7.15.2 以前有 key 就用。"},
         ]
 
     def save_config(self, values: Dict[str, Any], hermes_home: str) -> None:

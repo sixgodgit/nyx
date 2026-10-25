@@ -31,7 +31,6 @@ logger = logging.getLogger(__name__)
 
 from nexsandglass.l3.offset_signals import _OFFSET_SIGNALS
 
-from nexsandglass.l3.offset_signals import _LLM_KEY, _LLM_ENDPOINT, _LLM_MODEL
 
 # Lazy imports — avoid circular dependency
 _fail_open = None; _llm = None; _extract_md_section = None

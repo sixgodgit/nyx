@@ -86,36 +86,14 @@ def _resolve_routes(routes: list, persona: dict) -> dict:
 
 
 def _resolve_key(key_env: str) -> str:
-    """解析密钥，优先 keys.json，其次环境变量，最后 .env"""
+    """解析密钥：Hermes 的密钥通道或环境变量（core/credentials.py）。
+
+    v7.15.2 以前还会自己去读 keys.json 和 ~/.nyx/.env —— 插件不该自己翻凭据文件（Hermes 插件目录规则 11），去掉了。
+    """
     if not key_env:
         return ""
-    # keys.json
-    keys_path = Path("REDACTED_PATH_KEYS")
-    try:
-        if keys_path.exists():
-            raw = json.loads(keys_path.read_text())
-            for alias, val in raw.items():
-                if alias == key_env:
-                    if isinstance(val, dict):
-                        return val["key"]
-                    return val
-    except Exception:
-        pass
-    # 环境变量
-    val = os.environ.get(key_env, "")
-    if val:
-        return val
-    # .env
-    try:
-        env_path = Path(os.environ.get("NYX_ENV_FILE",
-                                       str(Path.home() / ".nyx" / ".env")))
-        if env_path.exists():
-            for line in env_path.read_text().splitlines():
-                if line.startswith(key_env) and "=" in line:
-                    return line.split("=", 1)[1].strip()
-    except Exception:
-        pass
-    return ""
+    from nexsandglass.core import credentials
+    return credentials.get(key_env)
 
 
 def analyze(prompt: str, routes: list, max_tokens: int = 4096,

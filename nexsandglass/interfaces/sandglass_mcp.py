@@ -31,6 +31,7 @@ if not os.environ.get("DEBUG_NYX"):
         pass
 
 from nexsandglass.core.sandglass_paths import __version__
+from nexsandglass.core import hints
 
 
 def _send(obj):
@@ -82,7 +83,7 @@ def _handle_tool(name, args, request_id):
                     "text": json.dumps({"status": status, "sands": count(), "stage": _current_stage(),
                                         "semantic_index": {"state": sem.get("state"), "problems": sem.get("problems"),
                                                            "indexed": sem.get("indexed"), "pending": sem.get("pending")},
-                                        "full_check": "python3 -m nexsandglass.doctor"},
+                                        "full_check": hints.cmd("doctor")},
                                        ensure_ascii=False, default=str)
                 }]
             })

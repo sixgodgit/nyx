@@ -16,6 +16,8 @@ import argparse
 import json
 import sys
 
+from nexsandglass.core import hints
+
 
 def _print(rep: dict, title: str) -> None:
     print(title)
@@ -29,7 +31,7 @@ def _print(rep: dict, title: str) -> None:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="把已经存下来的密钥 / 密码原地隐去")
+    ap = argparse.ArgumentParser(prog=hints.cmd("scrub"), description="把已经存下来的密钥 / 密码原地隐去")
     ap.add_argument("--apply", action="store_true", help="真的改。不加只看")
     ap.add_argument("--tokens-only", action="store_true", help="只动 token / API key / 私钥，不动密码")
     ap.add_argument("--to-vault", action="store_true",
@@ -57,7 +59,7 @@ def main(argv=None) -> int:
         if rep["clean"]:
             print("结论：数据目录里没有找到密钥 / 密码。")
             return 0
-        print("结论：先停掉 Hermes 网关 / MCP 服务，再运行\n    python3 -m nexsandglass.scrub --apply\n"
+        print(f"结论：先停掉 Hermes 网关 / MCP 服务，再运行\n    {hints.cmd('scrub', '--apply')}\n"
               "（原地隐去，不做备份；token 留末 4 位，密码一个字符不留）")
         return 1
 

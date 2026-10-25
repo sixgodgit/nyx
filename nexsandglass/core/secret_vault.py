@@ -189,8 +189,13 @@ def _decode_key(text: str) -> bytes:
     return k
 
 
+def _env_key() -> str:
+    from nexsandglass.core import credentials
+    return credentials.get("NYX_VAULT_KEY")
+
+
 def _master_key(create: bool, missing_ok: bool = False) -> Optional[bytes]:
-    env = os.environ.get("NYX_VAULT_KEY")
+    env = _env_key()
     if env:
         return _decode_key(env)
     p = key_path()
@@ -581,7 +586,7 @@ def wipe() -> Optional[str]:
 
 def rekey() -> int:
     """换主密钥（file 后端）：全部解开、用新密钥重新加密，再换掉密钥文件。返回条数。"""
-    if backend() != "file" or os.environ.get("NYX_VAULT_KEY"):
+    if backend() != "file" or _env_key():
         raise VaultError("只有加密文件后端、且密钥在密钥文件里时才能 rekey")
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     with _lock:
@@ -643,7 +648,8 @@ def health() -> dict:
     stale = [e.id for e in es if e.state == "none" and e.created_at <= cutoff]
     out.update(entries=len(es), held=sum(1 for e in es if e.state == "held"), orphans=len(stale))
     if stale:
-        out.update(ok=False, problems=[f"{len(stale)} 条的来源记忆已被真删，保险箱里还留着：python3 -m nexsandglass.vault gc"])
+        from nexsandglass.core import hints
+        out.update(ok=False, problems=[f"{len(stale)} 条的来源记忆已被真删，保险箱里还留着：{hints.cmd('vault', 'gc')}"])
     if out["reveal"] == "direct":
         out["hermes_plugin"] = {True: "已启用", False: "没启用（hermes plugins enable nyx-reveal）",
                                 None: "不知道（没找到 Hermes 配置）"}[_hermes_plugin_enabled()]
@@ -656,8 +662,9 @@ def status() -> dict:
            "enabled": enabled(), "reason": unavailable_reason(), "hook": hook_registered()}
     if be == "file":
         p = key_path()
-        out["key"] = "NYX_VAULT_KEY" if os.environ.get("NYX_VAULT_KEY") else p
-        if not os.environ.get("NYX_VAULT_KEY") and os.path.exists(p) and os.name != "nt":
+        env = _env_key()
+        out["key"] = "NYX_VAULT_KEY" if env else p
+        if not env and os.path.exists(p) and os.name != "nt":
             out["key_mode"] = oct(os.stat(p).st_mode & 0o777)
     try:
         es = entries()

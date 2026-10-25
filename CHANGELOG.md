@@ -2,6 +2,40 @@
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。数字的测法见 README 的 Benchmark 一节与 `benchmarks/`。
 
+### v7.15.2 (2026-10-25) — L3 分析不再默认用你的 key 往外发数据；`hermes nyx …` 命令；为进入 Hermes 官方插件目录做准备
+
+**隐私修复（行为变化）：L3 分析调用外部大模型改成必须主动开启**
+
+以前只要环境里有 `DEEPSEEK_API_KEY` 或 `OPENROUTER_API_KEY`，画像、偏移率、幽灵决策这些 L3 分析就会调用 DeepSeek / OpenRouter。在 Hermes 里，这一条几乎总是成立：主模型多半就走 OpenRouter，Hermes 启动时又会把 `~/.hermes/.env` 读进进程环境。于是每次搭系统提示，`search_filter("")` 都会把画像（前 200 字）、场景、阶段轨迹、决策倾向和最近 15 条决策记录发给 OpenRouter，而你从来没有选过要这样。README 里写的办法是「启动 Nyx 时把 key 从环境里去掉」，可在 Hermes 里做不到，因为两者在同一个进程里。
+
+复现：在一个新进程里只设 `OPENROUTER_API_KEY`，初始化、写一轮、搭一次系统提示，旧代码向 OpenRouter 发了 2 个请求，新代码 0 个。
+
+- 现在要设 `NYX_L3_LLM=1`（Hermes 里是 `hermes memory setup` 中的 `l3_llm: on`）才会发。依赖这些分析的话，请把它打开。
+- 调用时才现读开关和 key，不再在 import 时定死。
+- 所有外部服务的密钥（`EMBEDDING_API_KEY`、`DEEPSEEK_API_KEY`、`OPENROUTER_API_KEY`、`NYX_VAULT_KEY`）统一经 `core/credentials.py` 读取：在 Hermes 里走 `agent.secret_scope.get_secret`，按当前 profile 取值，Hermes 拒绝时按「没有」处理，不会退回去读进程环境；不在 Hermes 里时读环境变量。
+- `features/multi_analysis.py` 不再自己去翻 `keys.json` 和 `~/.nyx/.env`。
+
+**`hermes nyx …`**
+
+新版 Hermes 把 nyx-memory 装在它自己的隔离环境里，系统 Python 里没有 nyx，`python3 -m nexsandglass.vault show v3` 这类命令用不了。所以插件目录里多了 `cli.py`：nyx 是当前记忆插件时，Hermes 会注册 `hermes nyx` 这组命令（`plugins/memory/__init__.py` 的 `discover_plugin_cli_commands`）。
+
+- `hermes nyx vault …`、`doctor`、`scrub`、`repair`、`status`。
+- 数据目录和保险箱开关按当前 profile 的 `nyx.json`。
+- 后面的参数原样交给各个工具。光用 `REMAINDER` 不够，紧跟在子命令后的 `--json` 会冒到 hermes 顶层报 unrecognized arguments（测试发现）。
+- 给你的提示也跟着环境走（`core/hints.py`）：agent 转告的「在终端里取」、自检警告、doctor 的「下一步」，在 Hermes 里写成 `hermes nyx …`，在 Hermes 外仍是 `python3 -m nexsandglass.…`。
+- 已在真实的稳定版 Hermes（v2026.9.24）上验证：`hermes nyx status`、`doctor --json`、`vault -h` 都正常，读到的是 `nyx.json` 配的数据目录和保险箱开关。
+
+**为进入 Hermes 官方插件目录做准备**
+
+- 插件目录的依赖加上上限：`nyx-memory>=7.15.2,<8`。
+- 声明 `requires_hermes: ">=0.21.4"`：从这个版本起，`hermes plugins install` 会装插件声明的依赖。
+- 插件目录里补了英文 README，按目录规则 13 写清楚会碰哪些数据、哪些网络请求是可选的、密钥从哪里读、有哪些后台线程、怎么走审批。
+- `hermes plugins validate --install-deps`（主线版 Hermes）全部通过。
+
+**删掉 `owner_ids` / `bots_are_external` 的说明**
+
+Hermes 不向记忆提供器传发言人，这两项在 Hermes 下从来不起作用。现在把它们从 README 和 `hermes memory setup` 里拿掉。代码里的支持保留，手写在 `nyx.json` 里的仍然会读，给会传 `turn_author` 的其它宿主用。
+
 ### v7.15.1 (2026-10-25) — Hermes 用自己的插件命令装：`hermes plugins install sixgodgit/nyx/hermes-plugin --enable`
 
 **问题**：v7.15.0 的 `python3 -m nexsandglass_hermes install` 在新版 Hermes 上装不上。我在三代 Hermes 上逐个复现过（PyPI 上的 0.19.0、稳定版 v2026.9.24、主线版），原因有三个：

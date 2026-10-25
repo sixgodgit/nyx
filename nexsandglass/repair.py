@@ -18,6 +18,8 @@ import argparse
 import json
 import sys
 
+from nexsandglass.core import hints
+
 _LABELS = [
     ("journal_records", "日志记录"),
     ("hub_rows", "中枢行（含已删除）"),
@@ -56,7 +58,7 @@ def _print_summary(s: dict, title: str) -> None:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="nyx 中枢 / 日志 / 墓碑体检与修复")
+    ap = argparse.ArgumentParser(prog=hints.cmd("repair"), description="nyx 中枢 / 日志 / 墓碑体检与修复")
     ap.add_argument("--apply", action="store_true", help="真的修（先自动备份）。不加只体检")
     ap.add_argument("--finish-erasures", action="store_true", help="把遗忘没做完的那几条在日志里抹掉")
     ap.add_argument("--forget-senders", default="", help="对齐之后把这些发送者的记录送进隔离区，逗号分隔")
@@ -82,7 +84,7 @@ def main(argv=None) -> int:
             print("结论：中枢、日志、墓碑逐条对得上。")
         else:
             print("结论：有要修的。先停掉 Hermes 网关 / MCP 服务，再运行\n"
-                  "    python3 -m nexsandglass.repair --apply\n"
+                  f"    {hints.cmd('repair', '--apply')}\n"
                   "（自动备份；日志不改；修完重启服务）")
         return 0 if rep["clean"] else 1
 
@@ -111,7 +113,7 @@ def main(argv=None) -> int:
     print("自检：" + " ".join(f"{'✅' if v else '❌'}{k}" for k, v in rep["health_after"].items()))
     if rep["after"]["unfinished_erasures"] and "finished_erasures" not in rep:
         print("还剩遗忘没做完的记录：它们已经从中枢和检索里撤下，但日志正文还在。\n"
-              "    python3 -m nexsandglass.repair --apply --finish-erasures")
+              f"    {hints.cmd('repair', '--apply --finish-erasures')}")
     print("记得重启 Hermes 网关 / MCP 服务。")
     return 0 if ok else 1
 

@@ -14,10 +14,31 @@ _OFFSET_SIGNALS = {
 }
 
 # ── LLM 配置（单一来源）──
-_LLM_KEY = os.environ.get("DEEPSEEK_API_KEY", "") or os.environ.get("OPENROUTER_API_KEY", "")
-_deepseek_key = bool(os.environ.get("DEEPSEEK_API_KEY"))
-_LLM_ENDPOINT = "https://api.deepseek.com/v1/chat/completions" if _deepseek_key else "https://openrouter.ai/api/v1/chat/completions"
-_LLM_MODEL = "deepseek-v4-flash" if _deepseek_key else "deepseek/deepseek-v4-flash"
+# v7.15.2 起要明确打开：NYX_L3_LLM=1（Hermes 里是 nyx.json 的 l3_llm: on）。以前只要环境里有 DEEPSEEK_API_KEY /
+# OPENROUTER_API_KEY 就用 —— 在 Hermes 里这几乎总是成立（主模型多半就走 OpenRouter），于是每次搭系统提示，
+# 画像和最近的决策记录都被发给了 OpenRouter，主人没有选过。往第三方发数据必须由主人自己打开（Hermes 插件目录规则 13）。
+# 每次调用时现读（不在 import 时定死）：nyx.json 的开关、Hermes 按 profile 给的 key 都在 import 之后才有。
+
+def l3_llm_enabled() -> bool:
+    return (os.environ.get("NYX_L3_LLM") or "").strip().lower() in ("1", "on", "true", "yes")
+
+
+def llm_config() -> tuple:
+    """(key, endpoint, model)；没打开或没有 key → ("", "", "")。"""
+    if not l3_llm_enabled():
+        return "", "", ""
+    from nexsandglass.core import credentials
+    ds = credentials.get("DEEPSEEK_API_KEY")
+    if ds:
+        return ds, "https://api.deepseek.com/v1/chat/completions", "deepseek-v4-flash"
+    orr = credentials.get("OPENROUTER_API_KEY")
+    if orr:
+        return orr, "https://openrouter.ai/api/v1/chat/completions", "deepseek/deepseek-v4-flash"
+    return "", "", ""
+
+
+def llm_on() -> bool:
+    return bool(llm_config()[0])
 
 
 def _fail_open(default):
