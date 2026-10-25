@@ -1,10 +1,12 @@
 name: nyx
-version: 7.15.1
+version: 7.15.2
 kind: exclusive
+# 从这一版起 hermes plugins install 会装 python_dependencies（v2026.9.21）；更老的走 python3 -m nexsandglass_hermes install
+requires_hermes: ">=0.21.4"
 author: sixgodgit
 description: >-
   Nyx 夜神 — 单用户、本地、写入零 LLM 的 agent 长期记忆：双时态事实、来源信任、可还原的遗忘、
   密钥不进记忆（可选的密钥保险箱）。
 # Hermes 安装插件时把它装进自己的环境（hermes update 之后重新应用）。Hermes 本身已带 cryptography，保险箱不用另装
 python_dependencies:
-  - nyx-memory>=7.15.0
+  - nyx-memory>=7.15.2,<8

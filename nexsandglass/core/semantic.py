@@ -45,6 +45,7 @@ import threading
 from typing import Iterable, List, Optional, Tuple
 
 from nexsandglass.core import sqlite_open
+from nexsandglass.core.hints import cmd as _hints_cmd
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +180,8 @@ def _resolve():
     if mode == "api" or (mode == "auto" and url):
         if not url:
             return _problem("NYX_EMBED=api 但没有设置 EMBEDDING_API_URL，语义检索不可用")
-        return _Api(url, os.environ.get("EMBEDDING_API_KEY", ""), model or "text-embedding-3-small")
+        from nexsandglass.core import credentials
+        return _Api(url, credentials.get("EMBEDDING_API_KEY"), model or "text-embedding-3-small")
     if mode in ("local", "auto"):
         import importlib.util
         if importlib.util.find_spec("sentence_transformers") is None:
@@ -245,7 +247,7 @@ def _fail(where: str, e: BaseException, path: str = None) -> None:
     if (path, where, msg) not in _logged:
         _logged.add((path, where, msg))
         logger.error("[semantic] %s 失败：%s —— 语义检索这一路不可用（词法召回不受影响）。"
-                     "运行 `python3 -m nexsandglass.doctor` 查看。库：%s", where, msg, path)
+                     "运行 `%s` 查看。库：%s", where, msg, _hints_cmd("doctor"), path)
     else:
         logger.debug("[semantic] %s 再次失败: %s", where, msg)
 

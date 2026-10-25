@@ -19,6 +19,7 @@ import sys
 import pytest
 
 from nexsandglass_hermes import install as I
+from tests.test_hermes_provider import env  # noqa: F401  复用隔离目录
 
 
 def _load_like_hermes(target):
@@ -72,7 +73,7 @@ def test_old_full_copy_is_replaced_foreign_dir_is_not(tmp_path):
     old = os.path.join(home, "plugins", "nyx")
     shutil.copytree(os.path.dirname(nexsandglass_hermes.__file__), old)   # v7.14.0 README 的第二种装法
     assert I.write_shim(home)[1] == "替换旧的整目录拷贝"
-    assert sorted(os.listdir(old)) == ["__init__.py", "plugin.yaml"], "升级之后旧拷贝还在跑旧代码 —— 换成入口文件"
+    assert sorted(os.listdir(old)) == ["__init__.py", "cli.py", "plugin.yaml"], "升级之后旧拷贝还在跑旧代码 —— 换成入口文件"
     other = os.path.join(home, "plugins", "nyx2")
     os.makedirs(other)
     open(os.path.join(other, "__init__.py"), "w").write("# 别人的插件\n")
@@ -251,7 +252,9 @@ def test_new_hermes_gets_its_own_plugin_install(tmp_path, monkeypatch, capsys):
     assert ["plugins", "install", I.SOURCE, "--enable", "--force"] in argv
     assert ["config", "set", "memory.provider", "nyx"] in argv and ["plugins", "enable", "nyx-reveal"] in argv
     assert "provider 是 nyx，可用" in out and json.load(open(home / "nyx.json"))["vault"] == "on"
-    assert open(home / "plugins" / "nyx" / "plugin.yaml", encoding="utf-8").read().count("python_dependencies") == 1
+    import re
+    assert len(re.findall(r"^python_dependencies:", open(home / "plugins" / "nyx" / "plugin.yaml", encoding="utf-8").read(),
+                          re.M)) == 1
     assert I.main(["--hermes-home", str(home), "--check"]) == 0
     assert I.main(["--hermes-home", str(tmp_path / "h2"), "--vector"]) == 0
     assert ["plugins", "install", I.SOURCE + "-vector", "--enable"] in [json.loads(l) for l in open(calls)]
@@ -276,11 +279,94 @@ def test_repo_plugin_dirs(tmp_path, sub, dep):
     assert re.search(r"^name:\s*nyx\s*$", yml, re.M), "目录名由 manifest 的 name 定：$HERMES_HOME/plugins/nyx"
     m = re.search(r"^\s*-\s*(\S+)\s*$", yml.split("python_dependencies:", 1)[1], re.M)
     assert m and m.group(1).startswith(dep), m
-    floor = tuple(int(x) for x in m.group(1).split(">=")[1].split("."))
+    floor = tuple(int(x) for x in re.search(r">=([\d.]+)", m.group(1)).group(1).split("."))
     assert floor <= tuple(int(x) for x in I._version().split(".")), "最低版本不能高于当前版本"
+    assert re.search(r",<\d+", m.group(1)), "依赖要有上限（Hermes 插件目录规则 10）"
+    assert re.search(r'^requires_hermes:\s*">=\d+\.\d+\.\d+"', yml, re.M), "SemVer 下限（规则 14）"
+    assert os.path.exists(os.path.join(src_dir, "README.md")), "插件目录页显示的就是这里的 README"
     assert re.search(r"^version:\s*(\S+)", yml, re.M).group(1) == I._version()
     import shutil
     t = tmp_path / "plugins" / "nyx"
     shutil.copytree(src_dir, t)
     p = _load_like_hermes(str(t))
     assert p is not None and p.name == "nexsandglass"
+
+
+# ── hermes nyx …（v7.15.2）──────────────────────────────────────────────
+
+def _hermes_parser():
+    """Hermes 的做法（hermes_cli/main.py 的 _attach_plugin_cli_command）：顶层 subparsers 里加 nyx，交给 register_cli。"""
+    import argparse
+    from nexsandglass_hermes import cli
+    root = argparse.ArgumentParser(prog="hermes")
+    subs = root.add_subparsers(dest="command")
+    p = subs.add_parser("nyx")
+    cli.register_cli(p)
+    p.set_defaults(func=cli.nyx_command)
+    return root
+
+
+def test_hermes_nyx_dispatch(env, tmp_path, monkeypatch, capsys):  # noqa: F811
+    import nexsandglass_hermes as nh
+    from tests.test_secret_filter import HF
+    from nexsandglass.core import secret_vault
+    hh = tmp_path / "hermes"
+    monkeypatch.setenv("HERMES_HOME", str(hh))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    # nyx_command 会直接改进程环境（NYX_VIA_HERMES、按 nyx.json 补 NYX_VAULT）。先用 setenv 登记，结束时 monkeypatch 还原；
+    # delenv 一个本来不存在的变量不登记还原，改动会漏到后面的测试里（实测）
+    for k in ("NYX_VAULT", "NYX_VIA_HERMES", "NYX_VAULT_REVEAL", "NYX_VAULT_KINDS", "NYX_L3_LLM"):
+        monkeypatch.setenv(k, "")
+    nh.save_config({"vault": "on"}, str(hh))                  # 开关在当前 profile 的 nyx.json 里
+    if not secret_vault._have_crypto():
+        pytest.skip("要装 cryptography")
+    root = _hermes_parser()
+    args = root.parse_args(["nyx", "status"])
+    assert args.func(args) == 0 and "开" in capsys.readouterr().out, "nyx.json 的 vault: on 要生效"
+    from tests.test_hermes_provider import _provider
+    _provider().sync_turn(f"帮我配一下 Hugging Face，key 是 {HF}", "好的，记下了，之后需要随时问我")
+    vid = secret_vault.entries()[0].id
+    args = root.parse_args(["nyx", "vault", "show", f"v{vid}"])
+    assert args.func(args) == 0 and capsys.readouterr().out.strip() == HF
+    args = root.parse_args(["nyx", "doctor", "--json"])          # 选项原样交给那个工具自己的 argparse
+    args.func(args)
+    assert json.loads(capsys.readouterr().out)["checks"]["vault"]["state"] == "on"
+    from nexsandglass.core import hints
+    assert hints.cmd("vault", "show v3") == "hermes nyx vault show v3", "经 hermes nyx 进来：提示写成 hermes nyx …"
+    monkeypatch.setenv("NYX_VIA_HERMES", "")
+    assert hints.cmd("vault", "show v3") == "python3 -m nexsandglass.vault show v3"
+    args = root.parse_args(["nyx"])
+    assert args.func(args) == 2
+
+
+@pytest.mark.parametrize("sub", ["hermes-plugin", "hermes-plugin-vector"])
+def test_plugin_cli_shims(sub, tmp_path, monkeypatch, capsys):
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    path = os.path.join(root, sub, "cli.py")
+    assert open(path, encoding="utf-8").read() == I.CLI_SHIM, "仓库里的 cli.py 和 install 写的入口文件一字不差"
+    # Hermes 的加载方式：_hermes_user_memory.<名字>.cli，只载入 cli.py、不执行插件的 __init__.py
+    spec = importlib.util.spec_from_file_location("_hermes_user_memory.nyx.cli", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    from nexsandglass_hermes import cli
+    assert mod.register_cli is cli.register_cli and mod.nyx_command is cli.nyx_command
+    monkeypatch.setitem(sys.modules, "nexsandglass_hermes.cli", None)     # Hermes 的环境里没有 nyx-memory
+    mod2 = importlib.util.module_from_spec(importlib.util.spec_from_file_location("_x.cli", path))
+    mod2.__spec__.loader.exec_module(mod2)
+
+    class P:
+        def set_defaults(self, **kw):
+            self.kw = kw
+    p = P()
+    mod2.register_cli(p)
+    assert p.kw["func"](None) == 1 and "hermes plugins install" in capsys.readouterr().out
+    target, _ = I.write_shim(str(tmp_path))
+    assert open(os.path.join(target, "cli.py"), encoding="utf-8").read() == I.CLI_SHIM
+
+
+def test_tool_hint_inside_hermes(monkeypatch):
+    """agent 进程里（hermes_cli 已加载）：转告主人的命令是 hermes nyx …，新版 Hermes 的系统 Python 里没有 nyx。"""
+    from nexsandglass.core import hints
+    monkeypatch.delenv("NYX_VIA_HERMES", raising=False)
+    monkeypatch.setitem(sys.modules, "hermes_cli", type(sys)("hermes_cli"))
+    assert hints.cmd("doctor") == "hermes nyx doctor"

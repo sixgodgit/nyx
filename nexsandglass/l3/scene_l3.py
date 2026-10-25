@@ -41,7 +41,6 @@ def scene_mode(mode: str = None) -> str:
     except: return 'normal'
 
 # ── LLM 配置 ──
-from nexsandglass.l3.offset_signals import _LLM_KEY, _LLM_ENDPOINT, _LLM_MODEL
 
 def scene_add(tag: str) -> list:
     """添加一个场景标签。返回当前全部标签。"""

@@ -54,8 +54,7 @@ python3 -m nexsandglass_hermes install       # 也认新版：新版上它就是
 </details>
 
 之后每轮对话自动记忆、自动召回；agent 还多了 `nyx_belief`（现在 / 当时信什么）、`nyx_forget` / `nyx_restore`
-（遗忘与还原）、`nyx_health`（自检）等工具。群聊里请用 `hermes memory setup` 填 `owner_ids`（谁是主人），
-其他人说的话就不会被当成关于你的事实。完整说明见 [`nexsandglass_hermes/README.md`](https://github.com/sixgodgit/nyx/blob/main/nexsandglass_hermes/README.md)。
+（遗忘与还原）、`nyx_health`（自检）等工具；终端里有 `hermes nyx doctor` / `hermes nyx vault …` 等命令。完整说明见 [`nexsandglass_hermes/README.md`](https://github.com/sixgodgit/nyx/blob/main/nexsandglass_hermes/README.md)。
 
 ### MCP（Claude Desktop / Claude Code / 任意 MCP 客户端）
 
@@ -194,9 +193,9 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 
 ## 🔧 配置
 
-**自检**：`python3 -m nexsandglass.doctor`（`--json` 机读；有项目失败时退出码 1）。升级后、或者觉得「记得不对」时先跑它。
+**自检**：`python3 -m nexsandglass.doctor`（Hermes 里是 `hermes nyx doctor`；`--json` 机读；有项目失败时退出码 1）。升级后、或者觉得「记得不对」时先跑它。
 
-**Hermes 用户**：`hermes memory setup` 写入 `$HERMES_HOME/nyx.json`（`data_dir`、`owner_ids`、`bots_are_external`、`prefetch_tokens`、
+**Hermes 用户**：`hermes memory setup` 写入 `$HERMES_HOME/nyx.json`（`data_dir`、`prefetch_tokens`、
 语义检索的 `semantic` / `embedding_model` / `embedding_api_url` / `embedding_api_key`；密钥只进 `.env`），
 键见 [`nexsandglass_hermes/README.md`](https://github.com/sixgodgit/nyx/blob/main/nexsandglass_hermes/README.md)。
 
@@ -205,7 +204,6 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 | 变量 | 默认 | 作用 |
 |---|---|---|
 | `NEXSANDBASE_HOME` | `~/.neurobase` | 记忆数据目录 |
-| `NYX_OWNER_IDS` | 空 | 多人会话里主人的 ID / 名字（逗号分隔）；其他人说的话按外部来源记 |
 | `NYX_EMBED` | `auto` | 语义检索后端：`auto` / `local` / `api` / `off` |
 | `NYX_EMBED_MODEL` | 本地 `paraphrase-multilingual-MiniLM-L12-v2`；API `text-embedding-3-small` | 嵌入模型 |
 | `EMBEDDING_API_URL` / `EMBEDDING_API_KEY` | 空 | OpenAI 兼容 `/embeddings` |
@@ -214,6 +212,7 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 | `NYX_EMBED_CACHE` | `~/.cache/nexsandglass/models` | 本地嵌入模型的存放目录 |
 | `NYX_RERANK` | `off` | `local` = 召回后用本地交叉编码器重排（需要 `[vector]`）。更准、更慢，偏好类问题变差，见 [Benchmark](#benchmark)。`NYX_RERANK_MODEL` / `_DEPTH`（50）/ `_MODE`（rrf）/ `_MAXLEN`（128）/ `_BUDGET_MS`（2000）可调 |
 | `NYX_SECRET_FILTER` | `on` | 密钥 / 密码写入前隐去：`on`（token + 密码 + `<private>`）/ `tokens`（不动密码）/ `off` |
+| `NYX_L3_LLM` | 关 | `1` = L3 分析（画像 / 偏移率 / 幽灵决策）调用 DeepSeek / OpenRouter（`DEEPSEEK_API_KEY` / `OPENROUTER_API_KEY`）。v7.15.2 以前有 key 就用 |
 | `NYX_VAULT` | `off` | `on` = 隐去的原文加密存进保险箱（要 `pip install 'nyx-memory[vault]'`）。`NYX_VAULT_REVEAL`（`direct` / `cli` / `llm`）、`NYX_VAULT_KINDS`（`all` / `tokens`）、`NYX_VAULT_BACKEND`（`auto` / `file` / `keyring`）、`NYX_VAULT_KEY`，见 [docs/secret-vault.md](docs/secret-vault.md) |
 | `NYX_BREADTH_LINES` | `20` | 问「一共几次 / 隔了多久 / 哪个先 / 之前之后」时召回与注入的条数；`0` = 不放宽 |
 | `NYX_UNDERSTAND_LLM` | 关 | `1` = 事实抽取走 LLM（结果必须过校验；失败退回规则） |
@@ -298,8 +297,9 @@ SQLite 删行后原文还留在文件的空闲页里，FTS5 删掉的词元连 V
 - 装了 `[vector]` 后第一次运行：从 HuggingFace 下载嵌入模型（不发送你的数据）
 - 设了 `EMBEDDING_API_URL`：语义检索改用你指定的嵌入 API（记忆原文与问句）
 - `NYX_UNDERSTAND_LLM=1` 或 `WTHREAD_LLM_EXTRACTION` 并配了 `LLM_EXTRACT_API_URL`：事实 / 图谱抽取走你指定的 LLM（被抽取的那句话）
-- **环境里有 `DEEPSEEK_API_KEY` 或 `OPENROUTER_API_KEY`**：画像、偏移率、幽灵决策这些 L3 分析会调用 DeepSeek / OpenRouter
-  （相关的记忆片段）。如果你只是为别的程序设了这个 key，又不想让 Nyx 用它，启动 Nyx 时把它从环境里去掉
+- `NYX_L3_LLM=1`（Hermes 里是 `l3_llm: on`）并且有 `DEEPSEEK_API_KEY` 或 `OPENROUTER_API_KEY`：画像、偏移率、幽灵决策这些
+  L3 分析调用 DeepSeek / OpenRouter（相关的记忆片段、画像、近期决策）。**v7.15.2 以前不用打开，环境里有 key 就用** ——
+  在 Hermes 里主模型多半就走 OpenRouter，于是每次搭系统提示，画像和近期决策都被发了出去。现在默认关
 
 ---
 
@@ -437,6 +437,7 @@ python3 benchmarks/locomo_eval.py locomo10.json --workers 10 --json benchmarks/r
 
 ## 📝 最近更新
 
+- **v7.15.2**：L3 分析调用 DeepSeek / OpenRouter 改成要主动打开（`l3_llm: on`）—— 以前在 Hermes 里几乎总是默认发出画像和近期决策；新增 `hermes nyx …` 终端命令
 - **v7.15.1**：Hermes 用自己的插件命令装：`hermes plugins install sixgodgit/nyx/hermes-plugin --enable`（v7.15.0 的安装命令在新版 Hermes 上装不上）
 - **v7.15.0**：可选的密钥保险箱 —— 聊天里贴过的 key 之后还能让 agent 交还给你（人工确认；直达取回时模型服务商看不到原文，真实 Hermes 实测）；Hermes 安装方式修好
 - **v7.14.0**：密钥和密码不进记忆（写入前隐去；已存下的 `scrub` 原地隐去）；真删之后磁盘上也没了（以前全文库里还留着）；可选的交叉编码器重排（LoCoMo 证据召回 +4.7 个点，默认关）；端到端问答评测框架

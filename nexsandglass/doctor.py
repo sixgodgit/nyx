@@ -15,6 +15,8 @@ import argparse
 import json
 import sys
 
+from nexsandglass.core import hints
+
 
 def run() -> dict:
     from nexsandglass.core import memid
@@ -41,7 +43,7 @@ def _line(name: str, c: dict) -> str:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="nyx 自检")
+    ap = argparse.ArgumentParser(prog=hints.cmd("doctor"), description="nyx 自检")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
     h = run()
@@ -53,12 +55,12 @@ def main(argv=None) -> int:
             print("  " + _line(name, c))
         print("结论：" + ("全部正常" if h["ok"] else "有项目失败（见 ❌）"))
         if not h["checks"].get("secrets", {}).get("ok", True):
-            print("下一步：python3 -m nexsandglass.scrub    （只读：数据目录里有几处密钥 / 密码，在哪；不输出原文）\n"
-                  "        确认后 python3 -m nexsandglass.scrub --apply 原地隐去")
+            print(f"下一步：{hints.cmd('scrub')}    （只读：数据目录里有几处密钥 / 密码，在哪；不输出原文）\n"
+                  f"        确认后 {hints.cmd('scrub', '--apply')} 原地隐去")
         if any(not h["checks"].get(k, {}).get("ok", True)
                for k in ("hub_vs_journal", "fts_index", "erasure_integrity")):
             # 这三项一起红的时候，最顺手的做法（按 seq 去 forget「泄漏」的那几条）恰恰会抹掉真实记忆
-            print("下一步：python3 -m nexsandglass.repair    （只读体检：按内容分出缺失 / 错位 / 合成孤儿 / 真假泄漏）\n"
+            print(f"下一步：{hints.cmd('repair')}    （只读体检：按内容分出缺失 / 错位 / 合成孤儿 / 真假泄漏）\n"
                   "        不要按 erasure_integrity 报的 seq 去 forget —— 墓碑可能指错了位置，抹掉的会是真实记忆")
     return 0 if h["ok"] else 1
 

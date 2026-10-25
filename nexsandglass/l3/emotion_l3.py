@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 from nexsandglass.features.sandglass_vault import recent, search as vs
 
 import os as _os
-from nexsandglass.l3.offset_signals import _LLM_KEY, _LLM_ENDPOINT, _LLM_MODEL
+from nexsandglass.l3.offset_signals import llm_on as _llm_on
 try:
     from nexsandglass.features.sandglass_think import (
         _fail_open, _llm, _three_d_ready, _latest_annotation,
@@ -130,7 +130,7 @@ def entropy_mirror(question: str) -> dict:
         logger.warning(f"entropy_mirror: 偏移趋势获取失败: {e}")
 
     # ④ 画像提示（有 LLM 时总结）
-    if _LLM_KEY and result["past_decisions"]:
+    if _llm_on() and result["past_decisions"]:
         try:
             persona_text = ""
             if os.path.exists(_PERSONA):
@@ -236,7 +236,7 @@ def entropy_ghost(question: str) -> dict:
             )
 
     # ④ LLM 增强（200分）
-    if _LLM_KEY:  # 即使无历史模式也允许 LLM 推演（平行时空）
+    if _llm_on():  # 即使无历史模式也允许 LLM 推演（平行时空）
         try:
             persona_text = ""
             if os.path.exists(_PERSONA):
@@ -413,7 +413,7 @@ def memo_mode() -> str:
     lines.append("")
     
     # LLM 增强
-    if _LLM_KEY:
+    if _llm_on():
         try:
             ctx = "\n".join(lines)
             result = _get_llm()(
