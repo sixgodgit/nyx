@@ -454,7 +454,7 @@ class RecallPlanner:
         router = SearchRouter()
         limit = self._router_limit(query)
         if rerank.enabled():
-            # 多取几条再重排（v7.15.0，默认关）：只在前 limit 条里换顺序，排在后面的答案永远进不来
+            # 多取几条再重排（v7.14.0，默认关）：只在前 limit 条里换顺序，排在后面的答案永远进不来
             results = rerank.rerank(query, router.search(query, limit=max(limit, rerank.depth())))[:limit]
         else:
             results = router.search(query, limit=limit)
