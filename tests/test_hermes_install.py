@@ -108,8 +108,9 @@ def test_find_hermes_python_from_shebang(tmp_path, monkeypatch):
     assert exe == str(d / "hermes") and py == sys.executable
     assert I._same_python(py), "同一个环境（比 sys.prefix）"
     assert I.nyx_in(py) == I._version()
-    (d / "hermes").write_text("#!/usr/bin/env python3\n")                 # env 式的 #! 认不出解释器
-    assert I.find_hermes() == (str(d / "hermes"), None)
+    (d / "hermes").write_text("#!/usr/bin/env python3\n")                 # env 式的 #!：运行时用的就是 PATH 上那个
+    import shutil
+    assert I.find_hermes() == (str(d / "hermes"), shutil.which("python3"))
     assert I.find_hermes("/opt/hermes/venv/bin/python")[1] == "/opt/hermes/venv/bin/python"
 
 
@@ -162,7 +163,9 @@ def test_full_run(tmp_path, monkeypatch, capsys):
     # 已经是 nyx：不再改；--check 不改任何东西
     n = len(argv)
     assert I.main(["--hermes-home", str(home), "--check"]) == 0
-    assert [json.loads(l) for l in open(calls)][n:] == []
+    later = [json.loads(l) for l in open(calls)][n:]
+    assert all(a[-1] == "--help" or a[:2] in (["config", "get"], ["memory", "status"]) for a in later), \
+        f"--check 只能读：{later}"
     # 旧版安装留下的网关插件：要报出来
     os.makedirs(home / "plugins" / "sandglass")
     assert I.main(["--hermes-home", str(home), "--no-config"]) == 1
@@ -175,3 +178,109 @@ def test_module_entry_is_inert_on_import():
     path = os.path.join(os.path.dirname(nexsandglass_hermes.__file__), "__main__.py")
     spec = importlib.util.spec_from_file_location("_hermes_user_memory.nyx.__main__", path)
     spec.loader.exec_module(importlib.util.module_from_spec(spec))      # 不退出、不打印用法
+
+
+# ── 新版 Hermes（v7.15.1）：启动文件是 shell 包装；插件依赖交给 hermes plugins install ──────────────
+
+def _write(p, text, mode=0o755):
+    p.write_text(text, encoding="utf-8")
+    p.chmod(mode)
+    return str(p)
+
+
+def test_interpreter_behind_shell_wrappers(tmp_path, monkeypatch):
+    """新版官方安装、/usr/local/bin/hermes、profile 包装都是 #!/bin/sh：v7.15.0 把 /bin/sh 当成了 Hermes 的 Python。"""
+    py = sys.executable
+    direct = _write(tmp_path / "direct", f"#!{py}\nimport sys\n")
+    assert I._interpreter_of(direct) == py
+    sh = _write(tmp_path / "hermes", f"#!/bin/sh\nexec '{py}' -I -c 'import sys; sys.exit(0)' \"$@\"\n")
+    assert I._interpreter_of(sh) == py
+    prof = _write(tmp_path / "work", f"#!/bin/sh\nexec {sh} -p work \"$@\"\n")     # profile 包装：exec 另一个 hermes
+    assert I._interpreter_of(prof) == py
+    monkeypatch.setenv("NYX_TEST_PYDIR", os.path.dirname(py))
+    var = _write(tmp_path / "var", "#!/bin/sh\nexec \"$NYX_TEST_PYDIR/" + os.path.basename(py) + "\" -I -c x \"$@\"\n")
+    assert I._interpreter_of(var) == os.path.join(os.path.dirname(py), os.path.basename(py))
+    assert I._interpreter_of(_write(tmp_path / "junk", "#!/bin/sh\necho hi\n")) is None
+    monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ.get("PATH", ""))
+    assert I.find_hermes() == (sh, py)
+
+
+def _fake_new_hermes(tmp_path, plugin_src):
+    """会装插件依赖的 Hermes（plugins install 有 --no-deps）：plugins install 把插件目录拷进 $HERMES_HOME/plugins/nyx。"""
+    d = tmp_path / "newbin"
+    d.mkdir()
+    calls = tmp_path / "calls.jsonl"
+    _write(d / "hermes", f"""#!{sys.executable}
+import json, os, shutil, sys
+home = os.environ["HERMES_HOME"]
+a = sys.argv[1:]
+with open({str(calls)!r}, "a") as f:
+    f.write(json.dumps(a) + "\\n")
+cfg = os.path.join(home, "provider.txt")
+if a[:3] == ["plugins", "install", "--help"]:
+    print("usage: hermes plugins install [--force] [--no-deps] [--enable | --no-enable] identifier")
+elif a[:2] == ["plugins", "install"]:
+    t = os.path.join(home, "plugins", "nyx")
+    if os.path.exists(t) and "--force" not in a:
+        print("Error: already installed"); sys.exit(1)
+    shutil.rmtree(t, ignore_errors=True)
+    shutil.copytree({plugin_src!r}, t)
+    print("✓ Installed Python dependencies: nyx-memory>=7.15.0")
+elif a[:3] == ["config", "get", "memory.provider"]:
+    print(open(cfg).read() if os.path.exists(cfg) else "")
+elif a[:2] == ["config", "set"]:
+    open(cfg, "w").write(a[3])
+elif a[:2] == ["memory", "status"]:
+    p = open(cfg).read() if os.path.exists(cfg) else "built-in"
+    ok = os.path.exists(os.path.join(home, "plugins", "nyx", "__init__.py"))
+    print(f"  Provider:  {{p}}\\n  Status:    {{'available ✓' if ok else 'not available'}}")
+""")
+    return d, calls
+
+
+def test_new_hermes_gets_its_own_plugin_install(tmp_path, monkeypatch, capsys):
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    d, calls = _fake_new_hermes(tmp_path, os.path.join(root, "hermes-plugin"))
+    monkeypatch.setenv("PATH", str(d) + os.pathsep + os.environ.get("PATH", ""))
+    monkeypatch.setattr(I, "pip_install", lambda *a, **k: pytest.fail("新版 Hermes 不许往它的环境里 pip 装"))
+    home = tmp_path / "hh"
+    I.write_shim(str(home))                                   # v7.15.0 的安装命令留下的入口文件：要接管过来
+    assert I.main(["--hermes-home", str(home), "--vault"]) == 0
+    out = capsys.readouterr().out
+    argv = [json.loads(l) for l in open(calls)]
+    assert ["plugins", "install", I.SOURCE, "--enable", "--force"] in argv
+    assert ["config", "set", "memory.provider", "nyx"] in argv and ["plugins", "enable", "nyx-reveal"] in argv
+    assert "provider 是 nyx，可用" in out and json.load(open(home / "nyx.json"))["vault"] == "on"
+    assert open(home / "plugins" / "nyx" / "plugin.yaml", encoding="utf-8").read().count("python_dependencies") == 1
+    assert I.main(["--hermes-home", str(home), "--check"]) == 0
+    assert I.main(["--hermes-home", str(tmp_path / "h2"), "--vector"]) == 0
+    assert ["plugins", "install", I.SOURCE + "-vector", "--enable"] in [json.loads(l) for l in open(calls)]
+    other = tmp_path / "h3" / "plugins" / "nyx"
+    other.mkdir(parents=True)
+    (other / "__init__.py").write_text("# 别人的\n")
+    with pytest.raises(SystemExit, match="不是 nyx 的插件"):
+        I.main(["--hermes-home", str(tmp_path / "h3")])
+
+
+@pytest.mark.parametrize("sub,dep", [("hermes-plugin", "nyx-memory>="), ("hermes-plugin-vector", "nyx-memory[vector]>=")])
+def test_repo_plugin_dirs(tmp_path, sub, dep):
+    """hermes plugins install sixgodgit/nyx/hermes-plugin 装的就是这两个目录：Hermes 认得出是记忆插件、依赖写对、加载得出来。"""
+    import re
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    src_dir = os.path.join(root, sub)
+    src = open(os.path.join(src_dir, "__init__.py"), encoding="utf-8").read()
+    assert "register_memory_provider" in src[:8192]
+    top = [l for l in src.splitlines() if re.match(r"^(from|import)\s", l)]
+    assert not any("nexsandglass" in l for l in top), "顶层 import nexsandglass 会把数据目录定死；只能在 try 里 import nexsandglass_hermes"
+    yml = open(os.path.join(src_dir, "plugin.yaml"), encoding="utf-8").read()
+    assert re.search(r"^name:\s*nyx\s*$", yml, re.M), "目录名由 manifest 的 name 定：$HERMES_HOME/plugins/nyx"
+    m = re.search(r"^\s*-\s*(\S+)\s*$", yml.split("python_dependencies:", 1)[1], re.M)
+    assert m and m.group(1).startswith(dep), m
+    floor = tuple(int(x) for x in m.group(1).split(">=")[1].split("."))
+    assert floor <= tuple(int(x) for x in I._version().split(".")), "最低版本不能高于当前版本"
+    assert re.search(r"^version:\s*(\S+)", yml, re.M).group(1) == I._version()
+    import shutil
+    t = tmp_path / "plugins" / "nyx"
+    shutil.copytree(src_dir, t)
+    p = _load_like_hermes(str(t))
+    assert p is not None and p.name == "nexsandglass"

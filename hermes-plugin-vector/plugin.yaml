@@ -1,0 +1,10 @@
+name: nyx
+version: 7.15.1
+kind: exclusive
+author: sixgodgit
+description: >-
+  Nyx 夜神 — 单用户、本地、写入零 LLM 的 agent 长期记忆：双时态事实、来源信任、可还原的遗忘、
+  密钥不进记忆（可选的密钥保险箱）。
+# 同 hermes-plugin/，另带语义检索的本地模型（sentence-transformers，首次运行下载约 470MB）
+python_dependencies:
+  - nyx-memory[vector]>=7.15.0
