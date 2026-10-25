@@ -20,16 +20,16 @@ import threading
 from dataclasses import dataclass, field
 from typing import Optional
 
+from nexsandglass.core.sandglass_paths import _NB
 from nexsandglass.engram.types import Memory, MemoryObject
 
 logger = logging.getLogger(__name__)
 
-# 快照目录（可回滚）
-_SNAPSHOT_DIR = os.path.join(
-    os.environ.get("NEXSANDBASE_HOME",
-                   os.path.join(os.path.expanduser("~"), ".nyx")),
-    "consolidation_snapshots",
-)
+# 快照目录（可回滚）。快照里是记忆全文，必须和别的数据在同一个数据目录里：
+# 以前没设 NEXSANDBASE_HOME 时落到 ~/.nyx（真正的默认是 ~/.neurobase），
+# 不在文档里、不在备份里，遗忘和 scrub 也都找不到它。
+# 遗忘（core/erasure.py 的 _purge_snapshots）和 scrub 都会进这个目录。
+_SNAPSHOT_DIR = os.path.join(_NB, "consolidation_snapshots")
 
 
 # ══════════════════════════════════════════════════════════
@@ -87,7 +87,10 @@ def _has_internal_conflict(text: str) -> bool:
 # ══════════════════════════════════════════════════════════
 
 def _snapshot(memories: list[Memory], tag: str) -> str:
-    """保存可回滚快照。"""
+    """保存可回滚快照。
+
+    source_id（来源 mem_id）一起存：遗忘时按它把这条从快照里删掉，不用只靠正文去对。
+    """
     os.makedirs(_SNAPSHOT_DIR, exist_ok=True)
     path = os.path.join(_SNAPSHOT_DIR, f"{tag}.json")
     data = []
@@ -99,7 +102,7 @@ def _snapshot(memories: list[Memory], tag: str) -> str:
             "valence": m.valence, "arousal": m.arousal,
             "decay_weight": m.decay_weight, "access_count": m.access_count,
             "created_at": m.created_at, "last_accessed": m.last_accessed,
-            "superseded_by": m.superseded_by,
+            "superseded_by": m.superseded_by, "source_id": m.source_id,
         })
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=1)

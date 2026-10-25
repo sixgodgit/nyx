@@ -270,6 +270,7 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 | `shadow_sand.db` | 影子沙（信任评分、实体、标签）+ 双时态事实 `wthread_triples` |
 | `semantic.db` | 语义索引（表 `embeddings`；v7.13.3 起。没有嵌入后端时不创建）。旧版的 `vectors.db` 不再使用 |
 | `engram_store.jsonl` | engram 加工层（四类记忆 + 衰减） |
+| `consolidation_snapshots/` | 巩固（consolidation，默认关）运行前的回滚快照，含记忆全文；遗忘和 `scrub` 都会处理 |
 | `veil.bin` / `mist.db` | Déjà Vu（Bloom Filter / 出现记录） |
 | `persona/`、`archive/` | 画像与决策日志 / 冷归档 |
 

@@ -26,6 +26,10 @@ for _candidate in (
         sys.path.insert(0, _candidate)
         break
 
+if __name__ == "__main__":
+    # 独立运行时没有 conftest：快照写在数据目录里，不能落进真实的数据目录
+    os.environ["NEXSANDBASE_HOME"] = tempfile.mkdtemp(prefix="nyx-consolidation-")
+
 from nexsandglass.runtime.consolidation import (
     ConsolidationEngine,
     restore_snapshot,

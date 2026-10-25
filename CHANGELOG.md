@@ -2,6 +2,25 @@
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。数字的测法见 README 的 Benchmark 一节与 `benchmarks/`。
 
+### 未发布 — 巩固快照放回数据目录；遗忘和 scrub 都管得到快照
+
+**隐私修复（潜伏：巩固默认关）**
+
+`runtime/consolidation.py` 每次巩固之前，把这批记忆的全文存成快照（`consolidation_snapshots/*.json`，给 `restore_snapshot()` 回滚）。这里有两个问题：
+
+- **目录不对**：快照目录是自己算的，没设 `NEXSANDBASE_HOME` 时落到 `~/.nyx/consolidation_snapshots`，可真正的默认数据目录是 `~/.neurobase`。MCP 服务、直接用 Python 时就是这样（Hermes 里没事：插件注册时总会先设好 `NEXSANDBASE_HOME`）。那个目录不在文档里，也不在备份里。现在改从 `core/sandglass_paths._NB` 取，和别的数据放在同一个数据目录里；README 的数据目录表补上了这一项。
+- **遗忘不管快照**：`core/erasure.py` 和 `core/quarantine.py` 都不碰这个目录。README 说隔离区到期之后，被遗忘的记忆就从磁盘上没了，可快照里那一份还在，回滚一次就回来了。现在：
+  - `forget()`（两种 mode 都是）把快照里这条记忆的副本整条删掉，文件里一条不剩就删掉文件。认法是来源 mem_id（快照现在存 `source_id`，由 `facade.consolidate` 从 engram 行的 `source_mem_id` 带进来），或者正文相同（engram 只存前 300 字）。**不按 `engram:<ts>` 认**：同一秒写进来的记忆共用这个 ts，按它删会连别的记忆的回滚点一起删掉。
+  - 隔离区到期 `purge()` 时再删一遍，兜住修复之前就忘掉的记忆，以及之后才写出来的快照。
+  - 快照文件读不懂、里面又还有被删的正文时，不改这个文件，并且如实报出来：`forget` 报 `partial`，`purge` 报 `ok=false`。文件改不动（权限、磁盘满）也一样报出来，但不打断级联，墓碑照样打上。
+  - `verify_erasure()` 也查快照（`found_in["snapshots"]`）。
+  - 快照是可再生的回滚点，所以隔离期内 `restore()` 不会把快照里删掉的那一条还原回去。
+- `scrub` 本来就扫整个数据目录、按 JSON 字段隐去；快照挪进数据目录之后它就扫得到了，补了测试钉住。
+
+巩固默认关（`orchestrator` 的 policy 里 `enabled=False`），只有设了 `NYX_USE_FACADE=1`、走 `facade.consolidate` 才会跑到，所以目前应该没人碰上。如果你在 Hermes 之外跑过巩固，看看 `~/.nyx/consolidation_snapshots` 在不在，在的话可以直接删掉：nyx 不再读写那里，遗忘和 scrub 也管不到它。
+
+测试：`tests/test_consolidation_snapshots.py`（9 项）。
+
 ### v7.15.2 (2026-10-25) — L3 分析不再默认用你的 key 往外发数据；`hermes nyx …` 命令；为进入 Hermes 官方插件目录做准备
 
 **隐私修复（行为变化）：L3 分析调用外部大模型改成必须主动开启**

@@ -367,6 +367,7 @@ def consolidate(*, tag: str = "consolidation") -> dict:
                         type=r.get("type", "semantic"),
                         content=r["content"],
                         created_at=r.get("ts", ""),
+                        source_id=r.get("source_mem_id"),    # 进快照：遗忘时按它删
                     ))
                 except Exception:
                     continue

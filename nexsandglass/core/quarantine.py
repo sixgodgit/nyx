@@ -674,13 +674,20 @@ def purge(mem_ids: list = None, *, older_than: bool = True, apply: bool = False,
         return report
 
     ids = [r[0] for r in rows]
-    refs = set()
-    from nexsandglass.core import secret_vault
+    refs, texts = set(), []
+    from nexsandglass.core import erasure, secret_vault
     for i in range(0, len(ids), 400):
         part = ids[i:i + 400]
         q = ",".join("?" * len(part))
         for text, payload in conn.execute(f"SELECT text, payload FROM quarantine WHERE mem_id IN ({q})", part):
             refs.update(secret_vault.refs_in((text, payload)))
+            texts.append(text)
+    # 巩固快照里的副本**先于**删隔离区那份：删了隔离区就没有正文可以拿去对了。
+    # forget 当时已经删过一遍；这里兜底 —— 修复之前忘掉的、之后才写出来的快照文件
+    report["snapshots"] = erasure._purge_snapshots(ids, texts)
+    for i in range(0, len(ids), 400):
+        part = ids[i:i + 400]
+        q = ",".join("?" * len(part))
         cur = conn.execute(f"DELETE FROM quarantine WHERE mem_id IN ({q})", part)
         report["purged"] += cur.rowcount
     conn.commit()
@@ -704,11 +711,11 @@ def purge(mem_ids: list = None, *, older_than: bool = True, apply: bool = False,
 
         # 隔离区那份在 nyx.db；全文库、影子沙、向量库里删掉的也要从空闲页抹掉（v7.14.0）
         try:
-            from nexsandglass.core import erasure
             report["disk"] = erasure.wipe_free_space()
         except Exception as e:
             report["disk"] = {"error": str(e)}
 
-    report["ok"] = report["purged"] == len(ids)
+    # 快照文件读不懂、里面还有正文：不能说「磁盘上没了」
+    report["ok"] = report["purged"] == len(ids) and not report["snapshots"]["left"]
     report["action"] = "purged"
     return report

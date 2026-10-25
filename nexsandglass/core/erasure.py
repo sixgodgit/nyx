@@ -12,7 +12,7 @@ core/erasure.py — 真正的删除（Step 5）
 
 用户点了"忘记"，助理还记得，而且还会说出来。这不是安全问题，是**正确性问题**。
 
-一条记忆现在散落在 7 个地方，删除必须全部覆盖：
+一条记忆现在散落在 8 个地方，删除必须全部覆盖：
 
     1. nyx.db          memories 行（中枢身份）
     2. sandglass.txt   日志正文 ← 召回真正读的地方
@@ -21,6 +21,7 @@ core/erasure.py — 真正的删除（Step 5）
     5. shadow_sand.db  trust / entities / fact_tags
     6. shadow_sand.db  wthread_triples（知识图谱）
     7. engram_store.jsonl
+    8. consolidation_snapshots/*.json（巩固快照：记忆全文，restore_snapshot 能捞回来）
 
 为什么日志能就地抹除
 ====================
@@ -340,6 +341,80 @@ def _purge_engram(ts_list: list, mem_ids: list = ()) -> int:
     return removed
 
 
+_ENGRAM_CLIP = 300      # engram 只存正文前 300 字（bridge.ingest / ingest_classified）
+
+
+def _snapshot_files() -> list:
+    """runtime/consolidation.py 的 _snapshot() 写在数据目录的 consolidation_snapshots/ 下。"""
+    d = os.path.join(_NB, "consolidation_snapshots")
+    try:
+        names = sorted(os.listdir(d))
+    except OSError:
+        return []
+    return [os.path.join(d, n) for n in names if n.endswith(".json")]
+
+
+def _snapshot_hit(entry: dict, ids: set, texts: list) -> bool:
+    """快照里的这一条是不是被删记忆的副本：来源 mem_id 对上，或者正文相同（engram 只存前 300 字）。
+
+    快照条目来自 engram 行（facade.consolidate）：source_id = 来源 mem_id，content = 正文前 300 字。
+    **不按 memory_id = engram:<ts> 认**：同一秒写进来的记忆共用这个 ts（批量写入时几十条），
+    按它删会把别的记忆的回滚点一起删掉。
+    """
+    mid, src = entry.get("memory_id"), entry.get("source_id")
+    if (isinstance(mid, str) and mid in ids) or (isinstance(src, str) and src in ids):
+        return True
+    c = str(entry.get("content") or "").strip()
+    return bool(c) and any(c == t or c == t[:_ENGRAM_CLIP].strip() for t in texts)
+
+
+def _purge_snapshots(mem_ids: Iterable[str], texts: Iterable[str] = ()) -> dict:
+    """巩固快照里被删记忆的副本：整条删掉，文件里一条不剩就删文件。
+
+    快照存记忆全文，给 restore_snapshot() 回滚用。不删的话，「忘记」之后原文还在磁盘上，回滚一次还会捞回来。
+    快照是可再生的回滚点，这里删掉的条目 restore() 不还原。
+    读不懂格式的文件不改；里面还有被删正文的，报在 left 里（调用方据此判 partial，不假装删干净了）。
+    """
+    ids = {m for m in mem_ids if m}
+    texts = [t.strip() for t in texts if t and t.strip()]
+    out = {"files": 0, "entries": 0, "left": []}
+    if not ids and not texts:
+        return out
+    from nexsandglass.core.fsutil import atomic_write
+    for p in _snapshot_files():
+        name = os.path.basename(p)
+        try:
+            with open(p, "r", encoding="utf-8", errors="replace") as f:
+                raw = f.read()
+        except OSError as e:
+            out["left"].append(f"{name}（读不了：{e}）")
+            continue
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            data = None
+        if not isinstance(data, list):
+            if any(t[:_ENGRAM_CLIP].strip() in raw for t in texts):
+                out["left"].append(name)
+            continue
+        keep = [e for e in data if not (isinstance(e, dict) and _snapshot_hit(e, ids, texts))]
+        if len(keep) == len(data):
+            continue
+        # 改不动也只记下来、不抛：forget 走到这里时日志已经抹了，抛出去墓碑就打不上了
+        try:
+            if keep:
+                with atomic_write(p) as f:
+                    json.dump(keep, f, ensure_ascii=False, indent=1)
+            else:
+                os.unlink(p)
+        except OSError as e:
+            out["left"].append(f"{name}（改不了：{e}）")
+            continue
+        out["entries"] += len(data) - len(keep)
+        out["files"] += 1
+    return out
+
+
 def wipe_free_space() -> dict:
     """真删之后：删掉的正文不留在任何库文件里（v7.14.0）。
 
@@ -473,7 +548,7 @@ def _forget_impl(selector: dict, reason: str = "user_forget", apply: bool = Fals
         "preview": [{"seq": r[5], "mem_id": r[0], "ts": r[3],
                      "text": r[6][:60].replace("\n", " ⏎ ")} for r in rows[:10]],
         "hub": 0, "journal_lines": 0, "fts": 0, "idx": 0,
-        "shadow": {}, "engram": 0, "vectors": 0, "backup": {},
+        "shadow": {}, "engram": 0, "vectors": 0, "backup": {}, "snapshots": {},
         "mode": mode, "quarantined": 0, "purge_after": "", "recoverable": False,
     }
     if not apply or not rows:
@@ -521,6 +596,7 @@ def _forget_impl(selector: dict, reason: str = "user_forget", apply: bool = Fals
     report["idx"] = _purge_idx(line_starts)
     report["shadow"] = _purge_shadow(ids, line_starts)
     report["engram"] = _purge_engram(ts_list, ids)
+    report["snapshots"] = _purge_snapshots(ids, [r[6] for r in rows])
     for mid in ids:
         if memid.tombstone(mid, reason=reason):
             report["hub"] += 1
@@ -548,6 +624,9 @@ def _forget_impl(selector: dict, reason: str = "user_forget", apply: bool = Fals
         problems.append("影子副本行数对不上（backup=%s journal=%s），正文可能仍在"
                         % (report["backup"].get("backup_lines"),
                            report["backup"].get("journal_lines")))
+    if report["snapshots"].get("left"):
+        problems.append("巩固快照里正文仍在（文件读不懂或改不了）：%s"
+                        % "、".join(report["snapshots"]["left"]))
     report["ok"] = not problems
     report["problems"] = problems
     report["removed"] = report["hub"]
@@ -643,6 +722,23 @@ def verify_erasure(needles: Iterable[str], journal_path: str = None) -> dict:
                 for nd in needles:
                     if nd in line:
                         hit("engram", line.strip())
+
+    # 巩固快照：记忆全文，restore_snapshot() 能把它捞回来。先按 JSON 读一遍再找，
+    # 按 ensure_ascii 写的文件里中文是 \uXXXX，直接按字面找不到
+    for p in _snapshot_files():
+        try:
+            with open(p, "r", encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        except OSError as e:
+            hit("snapshots_error", f"{os.path.basename(p)}: {e}")
+            continue
+        try:
+            text = json.dumps(json.loads(text), ensure_ascii=False)
+        except ValueError:
+            pass
+        for nd in needles:
+            if nd in text:
+                hit("snapshots", os.path.basename(p))
 
     # 语义索引里不存正文，按「指向已删除记忆的向量」验收：遗忘之后必须为 0
     try:

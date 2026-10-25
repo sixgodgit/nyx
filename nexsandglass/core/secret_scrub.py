@@ -8,6 +8,7 @@ scan()  只读：每个存储里有几处、什么类别（**从不输出原文*
 scrub(apply=True)：
   - nyx 认识格式的，原地换成占位符：日志格式的文件（sandglass.txt / .backup / archive）逐条记录改、
     **行数不变**（行号是别处的主键）；中枢、隔离区、engram、信念、实体、数据目录里 nyx 自己的文本文件
+    （含巩固快照 consolidation_snapshots/*.json：按 JSON 字段改）
   - 派生的重建：全文库整个删掉重建（FTS5 删行后旧词元还在段里），倒排索引重建，
     改过正文的向量删掉、按隐去后的正文重新补
   - 改过的 SQLite 库 wal_checkpoint + VACUUM：删掉的原文不留在空闲页里
