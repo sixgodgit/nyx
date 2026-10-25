@@ -2,6 +2,17 @@
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。数字的测法见 README 的 Benchmark 一节与 `benchmarks/`。
 
+### v7.15.3 (2026-10-25) — 新版 Hermes 认得出 Nyx 是记忆插件：`--enable` 会设好 `memory.provider`
+
+**问题**：Hermes 主线版改用语法树判断一个插件目录是不是记忆插件——在插件目录的 `.py` 里找 `register_memory_provider(...)` 调用（`plugins/memory/__init__.py` 的 `_defines_memory_provider`），注释和文档字符串里的字不算。Nyx 的入口文件只是把调用转给 nyx-memory，这个词只出现在注释里，于是被当成普通插件：`hermes plugins install … --enable` 只把它写进 `plugins.enabled`、打出「Plugin nyx enabled」，`memory.provider` 没设，Nyx 其实没在工作（用 PyPI 上的 7.15.2 在主线版 Hermes 上实测）。稳定版（v2026.9.24）还是按字面找这个词，不受影响，但它安装时本来就不设 `memory.provider`。
+
+**改动**
+- 两个插件目录的入口文件 `__init__.py` 自己调用 `ctx.register_memory_provider(NexSandglassProvider())`（先按当前 profile 的 nyx.json 定数据目录），老版本 Hermes 用的 `python3 -m nexsandglass_hermes install` 写出的入口文件同样改了。行为不变；用到的接口 7.15.2 就有，依赖下限仍是 `nyx-memory>=7.15.2,<8`。
+- 安装完 Hermes 显示的说明（`after-install.md`）改成英文在前，中文在后。原来写「没加 `--enable` 才需要 `hermes config set memory.provider nyx`」，在稳定版上不对，照做的人 Nyx 不会启用；现在这一步写成必做（再执行一次也没关系），并列出 `hermes nyx …` 终端命令。
+- 新测试按 Hermes 主线版的语法树规则检查两个插件目录和 install 写出的入口文件。
+
+**实测**（主线版 Hermes，全新 HERMES_HOME）：`hermes plugins install` 加 `--enable` 之后 `memory status` 显示 `Provider: nyx`。
+
 ### v7.15.2 (2026-10-25) — L3 分析不再默认用你的 key 往外发数据；`hermes nyx …` 命令；为进入 Hermes 官方插件目录做准备
 
 **隐私修复（行为变化）：L3 分析调用外部大模型改成必须主动开启**

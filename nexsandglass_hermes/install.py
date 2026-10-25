@@ -39,27 +39,29 @@ _SHIM_MARK = "nexsandglass_hermes 安装的入口文件"
 SHIM = '''"""Nyx 夜神 —— Hermes 记忆插件入口（{mark}，v{version}）
 
 hermes-agent 只按目录找记忆插件（$HERMES_HOME/plugins/<名字>/），不看 pip 的入口点；这里只是转一下：
-真正的代码在 pip 装的 nyx-memory 里（nexsandglass_hermes.register → ctx.register_memory_provider），
-pip 升级之后这个文件不用动。重新生成：python3 -m nexsandglass_hermes install
+真正的代码在 pip 装的 nyx-memory 里，pip 升级之后这个文件不用动。重新生成：python3 -m nexsandglass_hermes install
 """
 import logging
 import sys
 
 try:
-    from nexsandglass_hermes import register as _register
+    from nexsandglass_hermes import apply_data_dir as _apply_data_dir
     _missing = None
 except ImportError as e:
-    _register, _missing = None, e
+    _apply_data_dir, _missing = None, e
 
 
 def register(ctx):
-    if _register is None:
+    if _missing is not None:
         logging.getLogger("nyx").error(
             "Nyx：Hermes 用的 Python（%s）里没有 nyx-memory（%s）。运行：hermes plugins install "
             "sixgodgit/nyx/hermes-plugin --force（老版本 Hermes：%s -m pip install nyx-memory），然后重启 Hermes",
             sys.executable, _missing, sys.executable)
         return
-    _register(ctx)
+    _apply_data_dir()
+    from nexsandglass.core.memory_provider import NexSandglassProvider
+    # 调用写在这个文件里：新版 Hermes 按语法树里的 register_memory_provider(...) 认记忆插件，注释里的字不算
+    ctx.register_memory_provider(NexSandglassProvider())
 '''
 
 CLI_SHIM = '''"""hermes nyx … —— Nyx 的命令行（vault / doctor / scrub / repair / status）。
