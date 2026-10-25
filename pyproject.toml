@@ -28,12 +28,18 @@ vector = ["sentence-transformers>=2.0", "numpy>=1.20"]
 api = ["httpx>=0.24"]
 chroma = ["chromadb>=0.4"]
 sqlitevec = ["sqlite-vec>=0.1"]
+vault = ["cryptography>=41"]
+vault-keyring = ["keyring>=24"]
 
 # Hermes Agent 记忆提供器（官方发现机制：entry point 组 hermes_agent.memory_providers）
 # 配置里写 memory.provider: nyx（旧名 nexsandglass 同样可用）
 [project.entry-points."hermes_agent.memory_providers"]
 nyx = "nexsandglass_hermes"
 nexsandglass = "nexsandglass_hermes"
+
+# 密钥保险箱的直达取回（v7.15.0）：Hermes 普通插件，hermes plugins enable nyx-reveal 启用
+[project.entry-points."hermes_agent.plugins"]
+nyx-reveal = "nexsandglass_hermes_reveal"
 
 [tool.setuptools.dynamic]
 version = {attr = "nexsandglass.__version__"}

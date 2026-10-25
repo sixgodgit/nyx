@@ -674,12 +674,23 @@ def purge(mem_ids: list = None, *, older_than: bool = True, apply: bool = False,
         return report
 
     ids = [r[0] for r in rows]
+    refs = set()
+    from nexsandglass.core import secret_vault
     for i in range(0, len(ids), 400):
         part = ids[i:i + 400]
         q = ",".join("?" * len(part))
+        for text, payload in conn.execute(f"SELECT text, payload FROM quarantine WHERE mem_id IN ({q})", part):
+            refs.update(secret_vault.refs_in((text, payload)))
         cur = conn.execute(f"DELETE FROM quarantine WHERE mem_id IN ({q})", part)
         report["purged"] += cur.rowcount
     conn.commit()
+    if refs:
+        # 保险箱里只被这几条提到的密钥跟着真删（v7.15.0）
+        try:
+            report["vault_deleted"] = [f"v{i}" for i in secret_vault.drop_unreferenced(sorted(refs))]
+        except Exception as e:
+            report["vault_error"] = str(e)
+            logger.warning("[quarantine] 保险箱里对应的条目没删掉: %s", e)
 
     if vacuum:
         try:

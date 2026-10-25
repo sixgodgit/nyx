@@ -25,5 +25,8 @@ os.environ["NYX_EMBED"] = "off"
 for _k in ("NYX_EMBED_PROVIDER", "NYX_EMBED_MODEL", "EMBEDDING_API_URL", "EMBEDDING_API_KEY", "NYX_RERANK",
            "NYX_SECRET_FILTER", "NYX_UNDERSTAND_LLM", "WTHREAD_LLM_EXTRACTION", "LLM_EXTRACT_API_URL",
            "DEEPSEEK_API_KEY", "OPENROUTER_API_KEY", "NYX_EVAL_API_URL", "NYX_EVAL_API_KEY", "NYX_JUDGE_API_URL",
-           "NYX_JUDGE_API_KEY"):
+           "NYX_JUDGE_API_KEY", "NYX_VAULT", "NYX_VAULT_BACKEND", "NYX_VAULT_REVEAL", "NYX_VAULT_KINDS",
+           "NYX_VAULT_KEY", "HERMES_CRON_SESSION"):
     os.environ.pop(_k, None)
+# 保险箱的主密钥在 $XDG_CONFIG_HOME/nyx/vault.key（v7.15.0）：不碰开发者真实的密钥文件
+os.environ["XDG_CONFIG_HOME"] = os.path.join(_SESSION, "config")

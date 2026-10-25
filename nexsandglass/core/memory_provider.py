@@ -19,12 +19,14 @@ import json
 import logging
 import os
 import re
+import secrets
 import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from nexsandglass.core import secret_filter as _secret
+from nexsandglass.core import secret_vault as _vault
 
 # 条件导入——兼容赫姆斯环境和独立运行时
 try:
@@ -150,6 +152,33 @@ _TOOL_SCHEMAS = [
 
 _WRITE_TOOLS = {"fact_feedback", "nyx_forget", "nyx_restore"}
 
+# 密钥保险箱（v7.15.0，NYX_VAULT=on 才出现）。原文永远不进这两个工具的描述 / 列表；取回规则见 docs/secret-vault.md
+_VAULT_TOOL_SCHEMAS = [
+    _fn("nyx_secret_list",
+        "列出保险箱里存着的密钥 / 密码：编号（v3）、类别、末 4 位、保存日期、当时的上下文。**不含原文**。"
+        "主人问「我之前给过你的那个 token / key / 密码」时先用它找是哪一条。",
+        {"query": {"type": "string", "description": "可选：按类别 / 上下文过滤，如 HF、GitHub、wifi"}}),
+    _fn("nyx_secret_reveal",
+        "把保险箱里的一条原文交还给主人。只在主人这一轮明确要求看原文时调用；需要主人确认。"
+        "返回 queued 时原文不经过你：在回复里原样写上返回的句柄，nyx 发出前替换。不要猜测、拼凑或复述原文。",
+        {"id": {"type": "string", "description": "编号，如 v3"}}, ["id"]),
+]
+
+# 主人这一轮的原话要像在要密钥（闸门 2）：防召回内容、网页、文件里埋的提示注入让 agent 自己去取
+_ASK_VERB = re.compile(r"给我|告诉我|发我|发给我|显示|看看|看一下|查看|取回|拿回|找回|调出|是多少|是什么|多少|"
+                       r"\breveal\b|\bshow\b|\btell me\b|\bgive me\b|\bwhat(?:'s| is)\b", re.I)
+_ASK_NOUN = re.compile(r"token|key|密钥|秘钥|密码|口令|凭据|凭证|令牌|password|passwd|secret|#?\bv\d+\b", re.I)
+
+
+def _asked_for_secret(message: str) -> bool:
+    m = message or ""
+    return bool(_ASK_VERB.search(m) and _ASK_NOUN.search(m))
+
+
+def _clean(text: Optional[str]) -> str:
+    """写入 / 发往外部服务之前：取回过的原文按字面隐去，其余按规则隐去。"""
+    return _secret.clean(_vault.redact_revealed(text))
+
 
 def _as_bool(v, default: bool) -> bool:
     if v is None or v == "":
@@ -212,6 +241,9 @@ class NexSandglassProvider(MemoryProvider):
     _turn_author: Optional[dict] = None
     _last_recall: Optional[int] = None
     _warm_thread = None
+    _platform = ""
+    _turn_no = 0
+    _turn_message = ""
 
     def __init__(self, config: dict = None):
         self._config = config or {}
@@ -261,7 +293,9 @@ class NexSandglassProvider(MemoryProvider):
         self._prefetch_budget = max(0, _as_int(cfg.get("prefetch_tokens"), _PREFETCH_TOKENS_DEFAULT))
         # 语义检索后端：配置只在环境变量没设时生效（环境变量 > nyx.json）
         for key, env in (("semantic", "NYX_EMBED"), ("embedding_model", "NYX_EMBED_MODEL"),
-                         ("embedding_api_url", "EMBEDDING_API_URL"), ("rerank", "NYX_RERANK")):
+                         ("embedding_api_url", "EMBEDDING_API_URL"), ("rerank", "NYX_RERANK"),
+                         ("vault", "NYX_VAULT"), ("vault_reveal", "NYX_VAULT_REVEAL"),
+                         ("vault_kinds", "NYX_VAULT_KINDS")):
             if cfg.get(key) and not os.environ.get(env):
                 os.environ[env] = str(cfg[key])
 
@@ -276,6 +310,7 @@ class NexSandglassProvider(MemoryProvider):
             self._session_id = session_id or ""
             self._hermes_home = kwargs.get("hermes_home") or self._hermes_home
             self._agent_context = str(kwargs.get("agent_context") or "primary")
+            self._platform = str(kwargs.get("platform") or "")
             self._load_settings()
             if self._initialized:
                 return
@@ -531,6 +566,9 @@ class NexSandglassProvider(MemoryProvider):
 
             tail = f"沙漏: {total}条 | 阶段: {stage}"
             warn = self._health_warning()
+            if _vault.level() == "on":
+                tail += ("\n记忆里的 `#vN` 是密钥保险箱的编号。主人明确要看原文时调用 nyx_secret_reveal；"
+                         "不要猜测、拼凑或复述原文。")
             return (body + "\n\n" + tail + (("\n" + warn) if warn else "")).strip()
         except Exception:
             logger.warning("system_prompt_block 整体失败", exc_info=True)
@@ -574,7 +612,7 @@ class NexSandglassProvider(MemoryProvider):
         """
         self._last_recall = None           # recall_status 只反映最近这一次
         parts: List[str] = []
-        query = _secret.clean(query)       # 召回链路里可能有外部服务（嵌入 API、LLM 理解）：密钥不出去（v7.14.0）
+        query = _clean(query)              # 召回链路里可能有外部服务（嵌入 API、LLM 理解）：密钥不出去（v7.14.0）
         if not is_trivial_prompt(query):
             # 预热还没做完就等它：同时现场加载同一份索引只会互相抢 —— 实测首轮从 1.1 秒变成 3 秒
             warm = getattr(self, "_warm_thread", None)
@@ -616,7 +654,11 @@ class NexSandglassProvider(MemoryProvider):
         return None
 
     def on_turn_start(self, turn_number: int, message: str, **kwargs) -> None:
-        """记下这一轮是谁写的（多人会话里 sync_turn 可能拿不到 turn_author）。"""
+        """记下这一轮是谁写的（多人会话里 sync_turn 可能拿不到 turn_author）；核对保险箱的确认短语。"""
+        self._turn_no = int(turn_number or 0)
+        self._turn_message = message if isinstance(message, str) else ""
+        if _vault.level() == "on":
+            _vault.check_confirm(self._session_id, self._turn_message, self._turn_no)
         aid, aname = kwargs.get("author_id"), kwargs.get("author_name")
         if aid is None and aname is None and not kwargs.get("author_is_bot"):
             self._turn_author = None
@@ -654,7 +696,7 @@ class NexSandglassProvider(MemoryProvider):
         if not self._can_write():
             return
         # 密钥 / 密码在进入任何存储之前隐去：日志、中枢、engram、影子沙、图谱、向量都只见到占位符（v7.14.0）
-        user_content, assistant_content = _secret.clean(user_content), _secret.clean(assistant_content)
+        user_content, assistant_content = self._scrub_turn(user_content, assistant_content)
         user_src = self._user_source(turn_author)
         pairs = [(user_content, user_src, user_src), (assistant_content, "agent", "assistant")]
         try:
@@ -693,6 +735,19 @@ class NexSandglassProvider(MemoryProvider):
                 self._index_semantic()
             except Exception as e2:
                 logger.warning("sync_turn fallback 落沙失败: %s", e2)
+
+    @staticmethod
+    def _scrub_turn(user_content: str, assistant_content: str):
+        """保险箱开着时：用户一侧的密钥收进保险箱（占位符带 #vN）；助手回复里只认已有的编号，不新收。"""
+        user_content = _vault.redact_revealed(user_content)
+        assistant_content = _vault.redact_revealed(assistant_content)
+        if _vault.level() != "on":
+            return _secret.clean(user_content), _secret.clean(assistant_content)
+        col = _vault.Collector()
+        user_content = _secret.scrub(user_content, vault=col).text
+        col.finish(user_content)
+        assistant_content = _secret.scrub(assistant_content, vault=_vault.Collector(only_lookup=True)).text
+        return user_content, assistant_content
 
     @staticmethod
     def _index_semantic() -> None:
@@ -832,6 +887,116 @@ class NexSandglassProvider(MemoryProvider):
         items = erasure.quarantine_list(limit=max(1, min(_as_int(args.get("limit"), 20), 200)))
         return json.dumps({"items": items}, ensure_ascii=False, default=str)
 
+    # ═══════ 密钥保险箱（v7.15.0） ═══════
+
+    def _vault_context_error(self) -> str:
+        if not self._can_write():
+            return f"只有主 agent 能用保险箱（当前是 {self._agent_context}）"
+        if _as_bool(os.environ.get("HERMES_CRON_SESSION"), False):
+            return "定时任务里不能用保险箱（没有主人在场）"
+        return ""
+
+    def _handle_secret_list(self, args: dict) -> str:
+        why = _vault.unavailable_reason() or self._vault_context_error()
+        if why:
+            return json.dumps({"status": "unavailable", "reason": why}, ensure_ascii=False)
+        items = [e.public() for e in _vault.entries(str(args.get("query") or ""))][-50:]
+        return json.dumps({"items": items, "note": "这里没有原文。主人要看哪一条，用 nyx_secret_reveal(id)。"},
+                          ensure_ascii=False)
+
+    @staticmethod
+    def _hermes_approval(e) -> Optional[bool]:
+        """Hermes 自带的人工审批（tools/approval.py:request_tool_approval，模型跳不过去）。
+
+        None = 用不了（不在 Hermes 里 / 旧版本 / 主人用 --yolo、/yolo、approvals.mode: off 关掉了审批 ——
+        关掉命令审批不等于同意交出密钥，这时改走确认码）。rule_key 每次都是新的：审批界面上有「本会话 / 永远允许」，
+        固定 key 的话点一次「永远」，以后的取回就都不问了。
+        """
+        try:
+            from tools import approval as ap
+        except Exception:
+            return None
+        if not (hasattr(ap, "request_tool_approval") and hasattr(ap, "is_approval_bypass_active")):
+            return None
+        try:
+            if ap.is_approval_bypass_active():
+                return None
+            tail = f" {e.public()['tail']}" if e.last4 else ""
+            r = ap.request_tool_approval(
+                "nyx_secret_reveal", f"显示保险箱 v{e.id}（{e.label}{tail}，{e.created_at[:10]} 存）的原文",
+                rule_key=f"nyx_vault:{secrets.token_hex(8)}")
+            return bool((r or {}).get("approved"))
+        except Exception as ex:
+            logger.warning("Hermes 审批出错，按拒绝处理: %s", ex)
+            return False
+
+    def _handle_secret_reveal(self, args: dict) -> str:
+        sid, plat = self._session_id, self._platform
+        vid = _vault.parse_id(args.get("id"))
+        mode = _vault.reveal_mode()
+
+        def out(status: str, **kw) -> str:
+            return json.dumps({"status": status, **kw}, ensure_ascii=False)
+
+        def deny(reason: str) -> str:
+            _vault.audit("reveal", vid, "denied", reason, mode, plat)
+            return out("denied", reason=reason)
+
+        why = _vault.unavailable_reason()
+        if why:
+            return out("unavailable", reason=why)
+        if vid is None:
+            return tool_error("nyx_secret_reveal 需要编号，如 v3（先用 nyx_secret_list 找）")
+        why = self._vault_context_error()
+        if why:
+            return deny(why)
+        ok_code = _vault.confirmed(sid, vid, self._turn_no)
+        if not ok_code and not _asked_for_secret(self._turn_message):
+            return deny("主人这一轮没有明确要求看原文。只在主人明确要看时调用")
+        e = _vault.entry(vid)
+        if e is None:
+            return deny(f"保险箱里没有 v{vid}")
+        if e.state != "live":
+            return deny(e.public()["state"])
+        if _vault.locked(sid):
+            return deny("确认短语连错太多次，15 分钟后再试")
+        ok, why = _vault.rate_ok()
+        if not ok:
+            return deny(why)
+        cli = f"python3 -m nexsandglass.vault show v{vid}"
+        if mode == "cli" or (mode == "direct" and not _vault.hook_registered()):
+            note = ("按设置原文只在终端里取。" if mode == "cli" else
+                    "直达取回要先启用配套插件：hermes plugins enable nyx-reveal，然后重启 Hermes。在那之前只能在终端里取。")
+            _vault.audit("reveal", vid, "use_cli", note, mode, plat)
+            return out("use_cli", command=cli, note=note + "把命令告诉主人。")
+        if not ok_code:
+            approved = self._hermes_approval(e)
+            if approved is False:
+                return deny("主人没有批准（拒绝或超时）")
+            if approved is None:
+                phrase = _vault.confirm_phrase(vid, _vault.new_code(sid, vid))
+                _vault.audit("reveal", vid, "need_confirm", "", mode, plat)
+                if mode == "direct":
+                    _vault.queue_notice(sid, f"🔐 要显示 v{vid}（{e.label}），请在 5 分钟内回复：{phrase}")
+                    return out("need_confirm", note="需要主人确认。nyx 会在你这条回复的末尾附上确认短语（你看不到确认码）；"
+                                                    "请告诉主人照着回复那句话。不要编造确认码。")
+                return out("need_confirm", phrase=phrase,
+                           note="需要主人确认：把这句话原样告诉主人，请主人在 5 分钟内回复它。不要替主人回复。")
+        _vault.consume_confirmation(sid, vid)
+        try:
+            value = _vault.get(vid)
+        except _vault.VaultError as ex:
+            return deny(str(ex))
+        _vault.mark_revealed(vid)
+        _vault.remember_revealed(vid, e.label, value)
+        _vault.audit("reveal", vid, "ok", "", mode, plat)
+        if mode == "direct":
+            h = _vault.queue_reveal(sid, e, value)
+            return out("queued", handle=h,
+                       note="原文不经过你。在回复里原样写上这个句柄，nyx 在发给主人之前替换成原文。不要复述或猜测原文。")
+        return out("value", id=f"v{vid}", label=e.label, value=value,
+                   note="转告主人。提醒主人：这条原文也发给了模型服务商、留在了会话记录里。")
+
     def on_session_end(self, messages: List[Dict[str, Any]]) -> None:
         """会话结束——偏移检查；宿主没调过 sync_turn 时才补落最后几轮（B1 兜底）。
 
@@ -844,7 +1009,7 @@ class NexSandglassProvider(MemoryProvider):
                 orch = get_orchestrator()
                 for msg in (messages or [])[-5:]:
                     role = msg.get("role", "user")
-                    content = _secret.clean(str(msg.get("content", "") or ""))   # 先隐去再截断：截断会切开 token
+                    content = _clean(str(msg.get("content", "") or ""))   # 先隐去再截断：截断会切开 token
                     if content and role in ("user", "assistant"):
                         src = self._user_source() if role == "user" else "assistant"
                         orch.observe(str(content)[:500], source=src, raw_already_logged=True)
@@ -870,7 +1035,7 @@ class NexSandglassProvider(MemoryProvider):
             return
         try:
             from nexsandglass.runtime.orchestrator import get_orchestrator
-            task, result = _secret.clean(str(task or "")), _secret.clean(str(result or ""))
+            task, result = _clean(str(task or "")), _clean(str(result or ""))
             get_orchestrator().observe(f"委派：{task[:200]} → 结果：{result[:500]}", source="agent")
         except Exception as e:
             logger.debug("on_delegation 失败: %s", e)
@@ -878,7 +1043,8 @@ class NexSandglassProvider(MemoryProvider):
     # ═══════ 工具暴露 ═══════
 
     def get_tool_schemas(self) -> List[Dict[str, Any]]:
-        return [dict(s) for s in _TOOL_SCHEMAS]
+        extra = _VAULT_TOOL_SCHEMAS if _vault.level() == "on" else []
+        return [dict(s) for s in _TOOL_SCHEMAS + extra]
 
     def handle_tool_call(self, tool_name: str, args: Dict[str, Any] = None, **kwargs) -> str:
         name = tool_name
@@ -929,6 +1095,10 @@ class NexSandglassProvider(MemoryProvider):
                 return self._handle_restore(args)
             if name == "nyx_quarantine":
                 return self._handle_quarantine(args)
+            if name == "nyx_secret_list":
+                return self._handle_secret_list(args)
+            if name == "nyx_secret_reveal":
+                return self._handle_secret_reveal(args)
             if name == "nyx_health":
                 if _as_bool(args.get("quick"), False):
                     from nexsandglass.core import semantic
@@ -950,7 +1120,7 @@ class NexSandglassProvider(MemoryProvider):
             return
         try:
             from nexsandglass.core.sandglass_log import log_message
-            text = f"[{action}] {target}: {_secret.clean(content or '')[:200]}"
+            text = f"[{action}] {target}: {_clean(content or '')[:200]}"
             log_message(text, "memory_write")
         except Exception:
             pass
@@ -999,6 +1169,14 @@ class NexSandglassProvider(MemoryProvider):
             {"key": "rerank", "type": "text", "default": "off", "choices": ["off", "local"],
              "description": "召回后用本地多语言交叉编码器重排（需要 [vector]，首次下载约 470MB）。LoCoMo 证据召回 +4.7 个点，"
                             "但偏好类问题变差、每轮召回多 0.3–1.5 秒（CPU）。默认关。"},
+            {"key": "vault", "type": "text", "default": "off", "choices": ["off", "on"],
+             "description": "密钥保险箱：聊天里贴的 token / API key / 密码加密存起来，主人要时经确认交还"
+                            "（需要 pip install 'nyx-memory[vault]'）。默认关 = 只隐去、原文丢掉。见 docs/secret-vault.md。"},
+            {"key": "vault_reveal", "type": "text", "default": "direct", "choices": ["direct", "cli", "llm"],
+             "description": "怎么取回：direct = 原文不经过模型（要启用配套插件：hermes plugins enable nyx-reveal）；"
+                            "cli = 只在终端里取；llm = 原文交给模型转述（模型服务商和会话记录都会看到）。"},
+            {"key": "vault_kinds", "type": "text", "default": "all", "choices": ["all", "tokens"],
+             "description": "收哪些：all = token / API key / 私钥 / 密码；tokens = 不收密码。"},
         ]
 
     def save_config(self, values: Dict[str, Any], hermes_home: str) -> None:

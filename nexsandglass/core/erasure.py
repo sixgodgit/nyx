@@ -375,6 +375,13 @@ def wipe_free_space() -> dict:
     for path in (memid._db_path(), semantic._db_path()):
         if os.path.exists(path):
             out[os.path.basename(path)] = sqlite_open.vacuum(path) or "ok"
+    try:
+        from nexsandglass.core import secret_vault       # v7.15.0：来源记忆都没了的密钥条目也删掉
+        if os.path.exists(secret_vault.db_path()):
+            secret_vault.gc()
+            out[secret_vault.DB_NAME] = secret_vault.wipe() or "ok"
+    except Exception as e:
+        out["vault"] = str(e)
     bad = {k: v for k, v in out.items() if v != "ok"}
     if bad:
         logger.warning("[erasure] 空闲页没抹干净（停掉 Hermes / MCP 服务再跑 purge）: %s", bad)
@@ -405,6 +412,14 @@ def forget(selector: dict, reason: str = "user_forget", apply: bool = False,
     with memid.journal_lock(journal_path or memid._journal_path()):
         report = _forget_impl(selector, reason, apply, journal_path, mode, retention_days)
     if report.get("mode") == "purge" and report.get("found"):
+        # 保险箱里只被这几条提到的密钥跟着真删（v7.15.0）
+        refs = report.pop("vault_refs", None)
+        if refs:
+            try:
+                from nexsandglass.core import secret_vault
+                report["vault_deleted"] = [f"v{i}" for i in secret_vault.drop_unreferenced(refs)]
+            except Exception as e:
+                report["problems"].append(f"保险箱里对应的条目没删掉：{e}")
         # 当场不可逆 = 磁盘上也没了：库文件空闲页、FTS5 段里的旧词元（v7.14.0）。
         # **在日志锁外面做**：VACUUM 要几秒（库大时更久），持锁做的话，别的进程（MCP、网关）追加日志
         # 等锁超时就写不进去 —— 连删几条就会丢消息（并发测试在机器忙的时候实测到）
@@ -476,6 +491,9 @@ def _forget_impl(selector: dict, reason: str = "user_forget", apply: bool = Fals
     line_starts = [r[1] for r in rows]
     ids = [r[0] for r in rows]
     ts_list = [r[3] for r in rows]
+    if mode == "purge":
+        from nexsandglass.core import secret_vault
+        report["vault_refs"] = secret_vault.refs_in(r[6] for r in rows)
 
     # 隔离区**先于**级联清除 —— 先留副本再动手。
     # 反过来的话，级联中途失败就会留下「正文已抹、副本没留」的不可恢复状态。

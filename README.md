@@ -108,6 +108,7 @@ restore(r["preview"][0]["mem_id"])                     # 隔离期内原样还�
 | 🛡️ **来源信任** | `core/provenance.py` | trusted / unverified / tainted；只有主人亲口说的能成为规则（防 OWASP ASI06 记忆投毒） |
 | 🕯️ **遗忘隔离区** | `core/quarantine.py`、`core/erasure.py` | 两段式遗忘：隔离 → 还原或到期擦除；擦除贯通日志、索引、图谱、向量，可独立验收 |
 | 🔑 **密钥不进记忆** | `core/secret_filter.py`、`scrub.py` | 写入前隐去 token / API key / 私钥 / 连接串 / 密码；已经存下的用 `scrub` 原地隐去，按原始字节复查 |
+| 🔐 **密钥保险箱**（可选） | `core/secret_vault.py`、`vault.py` | 隐去的原文加密存起来，主人要时经人工确认交还；直达取回时模型只拿到句柄、看不到原文（真实 Hermes 实测） |
 | 🩺 **自检** | `doctor.py` | 中枢与日志一致性、各索引、遗忘完整性、隔离区到期、规则投毒，逐项给出原因 |
 | 🧯 **体检与修复** | `repair.py`、`core/forensics.py` | 中枢对不上日志时按内容逐条核对：补缺失、挪错位、认回被覆盖的记忆、撤下合成记录及其派生「事实」；先备份，不改日志 |
 | 🔌 **Hermes 记忆提供器** | `nexsandglass_hermes/`、`core/memory_provider.py` | 官方 `MemoryProvider` 契约，entry point 自动注册；多人会话按 `owner_ids` 绑定来源 |
@@ -201,6 +202,7 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 | `NYX_EMBED_CACHE` | `~/.cache/nexsandglass/models` | 本地嵌入模型的存放目录 |
 | `NYX_RERANK` | `off` | `local` = 召回后用本地交叉编码器重排（需要 `[vector]`）。更准、更慢，偏好类问题变差，见 [Benchmark](#benchmark)。`NYX_RERANK_MODEL` / `_DEPTH`（50）/ `_MODE`（rrf）/ `_MAXLEN`（128）/ `_BUDGET_MS`（2000）可调 |
 | `NYX_SECRET_FILTER` | `on` | 密钥 / 密码写入前隐去：`on`（token + 密码 + `<private>`）/ `tokens`（不动密码）/ `off` |
+| `NYX_VAULT` | `off` | `on` = 隐去的原文加密存进保险箱（要 `pip install 'nyx-memory[vault]'`）。`NYX_VAULT_REVEAL`（`direct` / `cli` / `llm`）、`NYX_VAULT_KINDS`（`all` / `tokens`）、`NYX_VAULT_BACKEND`（`auto` / `file` / `keyring`）、`NYX_VAULT_KEY`，见 [docs/secret-vault.md](docs/secret-vault.md) |
 | `NYX_BREADTH_LINES` | `20` | 问「一共几次 / 隔了多久 / 哪个先 / 之前之后」时召回与注入的条数；`0` = 不放宽 |
 | `NYX_UNDERSTAND_LLM` | 关 | `1` = 事实抽取走 LLM（结果必须过校验；失败退回规则） |
 | `WTHREAD_LLM_EXTRACTION` | 关 | 知识图谱补充抽取走 LLM（需要 `LLM_EXTRACT_API_URL`） |
@@ -268,6 +270,14 @@ PyPI、AWS、Google、Slack、Stripe、Telegram、JWT…）、私钥、带密码
 agent 还能说出「你给过一个 HF token」），密码一个字符不留。日志、中枢、索引、影子沙、图谱、向量里都只有占位符；
 发给嵌入 API 的问句也先隐去。`NYX_SECRET_FILTER=tokens` 只管 token，`off` 关闭。
 Hermes 自己的会话记录（`~/.hermes` 下）不归 Nyx 管。
+
+**想让 agent 之后还能把 key 告诉你？**（v7.15.0，默认关）打开密钥保险箱：`NYX_VAULT=on`（Hermes 里是 `vault: on`），
+`pip install 'nyx-memory[vault]'`。隐去的原文加密存起来（主密钥在 `~/.config/nyx/vault.key`，不在数据目录里），占位符带编号
+（`[已隐去: HF token …a1b2 #v3]`）。你说「把我之前给你的 HF token 发我」，agent 调 `nyx_secret_reveal`：先经人工确认
+（Hermes 的审批；审批被 `/yolo` 关掉时改成回复一句确认短语），再由配套插件在回复发出前把句柄换成原文 ——
+**模型服务商看不到原文**，Hermes 的会话记录里也只有句柄（`hermes plugins enable nyx-reveal` 启用一次）。
+最稳的是在终端里取：`python3 -m nexsandglass.vault show v3`。贴进聊天的那一刻原文已经发给了模型服务商，所以贴过的 key 还是该换掉；
+机器人在群里的话，群里任何人都会被当成主人。威胁模型与实测见 [docs/secret-vault.md](docs/secret-vault.md)。
 
 **删了就是没了**：遗忘到期清理（或 `mode="purge"`）之后，Nyx 会合并全文索引并 VACUUM 每个库 ——
 SQLite 删行后原文还留在文件的空闲页里，FTS5 删掉的词元连 VACUUM 都清不掉（v7.14.0 以前就是这样）。
@@ -415,6 +425,7 @@ python3 benchmarks/locomo_eval.py locomo10.json --workers 10 --json benchmarks/r
 
 ## 📝 最近更新
 
+- **v7.15.0**：可选的密钥保险箱 —— 聊天里贴过的 key 之后还能让 agent 交还给你（人工确认；直达取回时模型服务商看不到原文，真实 Hermes 实测）
 - **v7.14.0**：密钥和密码不进记忆（写入前隐去；已存下的 `scrub` 原地隐去）；真删之后磁盘上也没了（以前全文库里还留着）；可选的交叉编码器重排（LoCoMo 证据召回 +4.7 个点，默认关）；端到端问答评测框架
 - **v7.13.9**：测试再也写不进真实数据目录（会话级隔离 + 运行时守卫）；新增 `python3 -m nexsandglass.repair` —— 中枢被污染时按内容体检与修复，真实记忆一条不少、被遗忘的不复活、合成「事实」连同派生数据撤下
 - **v7.13.8**：README 重写（快速开始、工作原理、隐私、常见问题、已知局限）；全新安装时 `doctor` 不再误报 ❌；安装脚本与 Docker 修好（旧脚本会装一个让每句话记两遍的网关插件）

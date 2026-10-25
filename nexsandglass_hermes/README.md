@@ -30,6 +30,33 @@ memory:
 | `embedding_model` | 空 | 嵌入模型名；换模型后旧向量自动作废并后台重建 |
 | `embedding_api_url` / `embedding_api_key` | 空 | OpenAI 兼容 `/embeddings`；密钥只进 `.env` |
 | `rerank` | `off` | `local` = 召回后用本地多语言交叉编码器重排（需要 `[vector]`，首次下载约 470MB）。证据召回更准（LoCoMo +4.7 个点），但偏好类问题变差、每轮多 0.3–1.5 秒（CPU）。见主 README 的 Benchmark |
+| `vault` | `off` | 密钥保险箱（v7.15.0）：聊天里贴的 token / API key / 密码加密存起来，主人要时经确认交还。需要 `pip install 'nyx-memory[vault]'`。见下一节 |
+| `vault_reveal` | `direct` | `direct` = 原文不经过模型（要启用配套插件 `nyx-reveal`）；`cli` = 只在终端里取；`llm` = 原文交给模型转述 |
+| `vault_kinds` | `all` | `tokens` = 不收密码 |
+
+## 密钥保险箱（v7.15.0，默认关）
+
+默认情况下，聊天里贴的密钥在写进记忆之前就被换成占位符，原文直接丢掉。打开 `vault` 后原文不丢，而是加密存进保险箱（主密钥在 `~/.config/nyx/vault.key`，不在数据目录里），占位符带上编号，例如 `[已隐去: HF token …ab12 #v3]`。
+
+主人说「把我之前给你的 HF token 发我」时，agent 调用 `nyx_secret_reveal(v3)`，然后：
+
+1. Hermes 弹出人工审批。如果审批被 `/yolo` 或 `approvals.mode: off` 关掉了，就改为让主人回复一句确认短语。
+2. 模型拿到的只是一个句柄。在回复发给主人之前，配套插件把句柄换成原文，所以模型服务商看不到原文，Hermes 的会话记录里存的也是句柄。
+
+启用配套插件（装 nyx-memory 时已经一起装好，执行一次即可）：
+
+```bash
+pip install 'nyx-memory[vault]'
+hermes plugins enable nyx-reveal      # 然后重启 Hermes
+```
+
+最稳妥的方式永远是在终端里取：`python3 -m nexsandglass.vault show v3`。原文不经过任何模型或聊天平台。
+
+保险箱防不住两件事：
+- 密钥第一次贴进聊天的那一刻，原文已经发给了模型服务商，也留在了聊天平台上，所以贴过的密钥都应该换掉。
+- 机器人在群聊里时，群里任何人都会被当成主人。
+
+威胁模型和实测结果见 [docs/secret-vault.md](../docs/secret-vault.md)。
 
 ## 每轮做什么
 

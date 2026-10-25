@@ -83,14 +83,14 @@ def _scrub_json_text(text: str, mode: str):
 
 # ── 日志格式的文件：逐条记录改，行数不变 ─────────────────────────
 
-def _journal_pass(path: str, mode: str, apply: bool, cap: list = None) -> dict:
+def _journal_pass(path: str, mode: str, apply: bool, cap: list = None, vault=None) -> dict:
     out = {"found": 0, "kinds": Counter(), "seqs": []}
     recs = memid.parse_journal_records(path)
     changes = {}
     for r in recs:
         if memid.is_redacted(r):
             continue
-        res = secret_filter.scrub(r["text"], mode, keep_lines=True, capture=cap)
+        res = secret_filter.scrub(r["text"], mode, keep_lines=True, capture=cap, vault=vault)
         if res.changed:
             out["found"] += len(res.findings)
             out["kinds"].update(_count(res.findings))
@@ -163,7 +163,7 @@ def _lines_pass(path: str, mode: str, apply: bool) -> Optional[dict]:
 # ── SQLite：nyx 自己的几张表 ───────────────────────────────────
 
 def _db_rows_pass(db: sqlite3.Connection, table: str, key: str, cols: List[str], mode: str, apply: bool,
-                  keep_lines: bool = False, as_json: bool = False, cap: list = None) -> dict:
+                  keep_lines: bool = False, as_json: bool = False, cap: list = None, vault=None) -> dict:
     out = {"found": 0, "kinds": Counter(), "keys": []}
     try:
         have = {r[1] for r in db.execute(f"PRAGMA table_info({table})")}
@@ -181,7 +181,7 @@ def _db_rows_pass(db: sqlite3.Connection, table: str, key: str, cols: List[str],
             if js is not None:
                 text, findings = js
             else:
-                res = secret_filter.scrub(v, mode, keep_lines=keep_lines, capture=cap)
+                res = secret_filter.scrub(v, mode, keep_lines=keep_lines, capture=cap, vault=vault)
                 text, findings = res.text, res.findings
             if findings:
                 hit = True
@@ -322,13 +322,43 @@ def _walk(nb: str):
             yield root, name
 
 
-def run(apply: bool = False, mode: str = "on", journal_path: str = None) -> dict:
-    """见模块文档。mode：on（token + 密码 + 私密标记）/ tokens（只动 token）。"""
+def _to_vault(jp: str, mode: str, apply: bool) -> int:
+    """--to-vault（v7.15.0）：主人在日志里说过的密钥先收进保险箱（只收，不改写；改写由下面的各步按编号统一做）。
+
+    先单独收一遍、之后每一步都只查不收：日志和中枢必须拿到同一个编号，否则两边正文对不上（hub_vs_journal 会红）。
+    返回收进 / 将收进的条数。
+    """
+    from nexsandglass.core import secret_vault
+    n = 0
+    for r in memid.parse_journal_records(jp):
+        if memid.is_redacted(r) or r.get("sender") != "user":
+            continue
+        if not apply:
+            n += sum(1 for f in secret_filter.scrub(r["text"], mode).findings if secret_vault.wants(f.kind, f.label))
+            continue
+        col = secret_vault.Collector()
+        col.finish(secret_filter.scrub(r["text"], mode, vault=col).text)
+        n += len(col.ids)
+    return n
+
+
+def run(apply: bool = False, mode: str = "on", journal_path: str = None, to_vault: bool = False) -> dict:
+    """见模块文档。mode：on（token + 密码 + 私密标记）/ tokens（只动 token）。
+
+    to_vault：主人自己说过的那些先收进保险箱、占位符带编号（要先开 NYX_VAULT 且后端可用）。
+    """
     jp = journal_path or memid._journal_path()
     nb = os.path.dirname(os.path.abspath(jp))
     stores: Dict[str, dict] = {}
     report = {"applied": apply, "mode": mode, "data_dir": nb, "stores": stores, "report_only": [], "errors": [],
               "derived_copies_removed": []}
+    vault = None
+    if to_vault:
+        from nexsandglass.core import secret_vault
+        why = secret_vault.unavailable_reason()
+        if why:
+            raise RuntimeError(f"保险箱用不了：{why}")
+        vault = secret_vault.Collector(only_lookup=True)
 
     def add(name, r):
         if r and r.get("found"):
@@ -338,14 +368,16 @@ def run(apply: bool = False, mode: str = "on", journal_path: str = None) -> dict
 
     cap: list = []                                # 隐去的原文：只在内存里，拿去别处按字面找
     with memid.journal_lock(jp):
+        if to_vault:
+            report["to_vault"] = _to_vault(jp, mode, apply)
         # 1. 日志格式的文件
         for root, name in _walk(nb):
             p = os.path.join(root, name)
             if _is_journal(name) and not name.endswith((".lock", ".tmp")):
-                add(os.path.relpath(p, nb), _journal_pass(p, mode, apply, cap))
+                add(os.path.relpath(p, nb), _journal_pass(p, mode, apply, cap, vault=vault))
         # 2. 中枢 + 隔离区（nyx.db）
         conn = memid.get_conn()
-        hub = _db_rows_pass(conn, "memories", "seq", ["text"], mode, apply, keep_lines=True, cap=cap)
+        hub = _db_rows_pass(conn, "memories", "seq", ["text"], mode, apply, keep_lines=True, cap=cap, vault=vault)
         hub_db = os.path.basename(memid._db_path())
         add(f"{hub_db}:memories", hub)
         add(f"{hub_db}:quarantine", _db_rows_pass(conn, "quarantine", "mem_id", ["text"], mode, apply, keep_lines=True))
