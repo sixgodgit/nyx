@@ -1,12 +1,11 @@
 """Nyx 夜神 —— Hermes Agent 记忆提供器插件入口（v7.12）
 
-三种装法，同一份代码：
+装法（v7.15.0）：``pip install nyx-memory`` 之后 ``python3 -m nexsandglass_hermes install``（见 install.py）。
 
-1. pip（推荐）：``pip install nyx-memory`` → Hermes 经 entry point
-   ``hermes_agent.memory_providers`` 自动发现（名字 ``nyx``，旧名 ``nexsandglass`` 兼容）。
-   然后在 Hermes 配置里 ``memory.provider: nyx``。
-2. 目录插件：把本目录拷到 ``$HERMES_HOME/plugins/nyx/``（仍需 pip 装好 nyx-memory）。
-3. 旧部署：``nexsandglass.core.memory_provider.register`` 仍然可用。
+hermes-agent 0.19.0 只按目录找记忆插件（``$HERMES_HOME/plugins/<名字>/``），不看 pip 入口点 ——
+所以 install 在 ``$HERMES_HOME/plugins/nyx/`` 放一个入口文件，转到这里的 ``register``。
+pyproject 里的入口点 ``hermes_agent.memory_providers``（``nyx`` / 旧名 ``nexsandglass``）留着，给认入口点的 Hermes 版本用。
+旧部署：``nexsandglass.core.memory_provider.register`` 仍然可用。
 
 这个模块**顶层只用标准库**：nexsandglass 的数据目录在第一次 import 时就定下来了
 （``sandglass_paths._NB``），所以必须先把 ``data_dir`` 配置落到 ``NEXSANDBASE_HOME``，

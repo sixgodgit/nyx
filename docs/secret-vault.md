@@ -155,7 +155,7 @@ python3 -m nexsandglass.vault audit             # 最近的取回 / 删除记录
 
 **配套插件 `nyx-reveal`**：Hermes 把记忆提供器当作「独占插件」单独加载，交给它的 `register_hook` 是个空函数（`plugins/memory/__init__.py:343`），所以钩子没法从记忆提供器里注册，只能另带一个普通插件。
 - 它通过 pip 入口点 `hermes_agent.plugins → nyx-reveal` 随 nyx-memory 一起安装（`hermes_cli/plugins.py:1658` 会扫描这个入口点组）。
-- Hermes 的用户插件默认不启用，需要执行一次 `hermes plugins enable nyx-reveal`，再重启 Hermes。
+- Hermes 的用户插件默认不启用。`python3 -m nexsandglass_hermes install --vault` 会顺带执行 `hermes plugins enable nyx-reveal`；也可以自己执行一次，再重启 Hermes。
 - 插件源码里不能出现 `register_memory_provider` 或 `MemoryProvider`。否则 Hermes 会把它也当成记忆提供器，不加载它的钩子（`hermes_cli/plugins.py:1594`）。测试会检查这一点。
 
 没装或没启用配套插件时，`nyx_secret_reveal` 不会退到 6.3，而是返回 `{"status": "use_cli", "command": "python3 -m nexsandglass.vault show v3", ...}`，让模型把命令告诉主人。
@@ -296,7 +296,13 @@ python3 -m nexsandglass.vault audit             # 最近的取回 / 删除记录
 2. 密码也收（`all`）。不想收就设 `vault_kinds: tokens`。
 3. `scrub --to-vault` 已经做了。已经 `scrub --apply` 过的原文找不回来。
 
-## 14. 相关的现有问题（不在本次范围内）
+## 14. 相关问题
 
-- `owner_ids` 在 Hermes 0.19.0 下不起作用（见 §2）。
-- Hermes 0.19.0 只按目录查找记忆插件：先找内置的 `plugins/memory/<名字>/`，再找 `$HERMES_HOME/plugins/<名字>/`（`plugins/memory/__init__.py:124` 的 `find_provider_dir`）。它不扫描 `hermes_agent.memory_providers` 入口点。所以 README 推荐的「pip 装完自动发现」在 0.19.0 下不成立，要把 `nexsandglass_hermes/` 拷进 `$HERMES_HOME/plugins/nyx/`。普通插件的入口点（`hermes_agent.plugins`，也就是 nyx-reveal 用的那种）是会扫描的。
+- `owner_ids` 在 Hermes 0.19.0 下不起作用（见 §2），这次没改。
+- ~~README 推荐的「pip 装完自动发现」在 Hermes 0.19.0 下不成立~~（v7.15.0 已修）。Hermes 0.19.0 只按目录查找记忆插件：先找内置的 `plugins/memory/<名字>/`，再找 `$HERMES_HOME/plugins/<名字>/`（`plugins/memory/__init__.py:124` 的 `find_provider_dir`），不扫描 `hermes_agent.memory_providers` 入口点。现在改用 `python3 -m nexsandglass_hermes install`：
+  - 找到 Hermes 用的 Python，没装 nyx-memory 就装进去；
+  - 在 `$HERMES_HOME/plugins/nyx/` 放入口文件；
+  - 设 `memory.provider: nyx`；
+  - 最后用 Hermes 自己的加载器确认一次。
+
+  普通插件的入口点（`hermes_agent.plugins`，nyx-reveal 用的就是这种）Hermes 会扫描，不受影响。

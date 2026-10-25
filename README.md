@@ -30,18 +30,19 @@ Claude Desktop / Claude Code 等任意 MCP 客户端，或者你自己的 Python
 ### Hermes（推荐）
 
 ```bash
-pip install nyx-memory                 # 零依赖
-pip install "nyx-memory[vector]"       # 或者：加语义检索（同义改写、跨语言也找得到；首次运行下载约 470MB 模型）
+pip install nyx-memory                       # 零依赖
+python3 -m nexsandglass_hermes install       # 找到 Hermes、装进它用的 Python、放好插件、设 memory.provider: nyx
 ```
 
-`~/.hermes/config.yaml`：
+重启 Hermes（网关：`hermes gateway restart`）就好。可选：`install --vector` 加语义检索（同义改写、跨语言也找得到；
+首次运行下载约 470MB 模型），`install --vault` 打开[密钥保险箱](docs/secret-vault.md)，`install --check` 只检查不改。
 
-```yaml
-memory:
-  provider: nyx
-```
+> 为什么多一步：hermes-agent 0.19.0 只按目录找记忆插件（`$HERMES_HOME/plugins/<名字>/`），不看 pip 的入口点，
+> 光 `pip install` 的话 Hermes 找不到 nyx，而且什么都不报；官方安装脚本还把 Hermes 装在单独的虚拟环境里，
+> 装在系统 Python 里的包它看不见。`install` 把这两件事都处理掉，最后用 Hermes 自己的加载器加载一次确认。
+> 以前按旧说明把 `nexsandglass_hermes` 整个目录拷进 `plugins/nyx/` 的，运行一次 `install` 会换成入口文件（以后 pip 升级不用再拷）。
 
-重启 Hermes 就好。之后每轮对话自动记忆、自动召回；agent 还多了 `nyx_belief`（现在 / 当时信什么）、`nyx_forget` / `nyx_restore`
+之后每轮对话自动记忆、自动召回；agent 还多了 `nyx_belief`（现在 / 当时信什么）、`nyx_forget` / `nyx_restore`
 （遗忘与还原）、`nyx_health`（自检）等工具。群聊里请用 `hermes memory setup` 填 `owner_ids`（谁是主人），
 其他人说的话就不会被当成关于你的事实。完整说明见 [`nexsandglass_hermes/README.md`](https://github.com/sixgodgit/nyx/blob/main/nexsandglass_hermes/README.md)。
 
@@ -111,7 +112,7 @@ restore(r["preview"][0]["mem_id"])                     # 隔离期内原样还�
 | 🔐 **密钥保险箱**（可选） | `core/secret_vault.py`、`vault.py` | 隐去的原文加密存起来，主人要时经人工确认交还；直达取回时模型只拿到句柄、看不到原文（真实 Hermes 实测） |
 | 🩺 **自检** | `doctor.py` | 中枢与日志一致性、各索引、遗忘完整性、隔离区到期、规则投毒，逐项给出原因 |
 | 🧯 **体检与修复** | `repair.py`、`core/forensics.py` | 中枢对不上日志时按内容逐条核对：补缺失、挪错位、认回被覆盖的记忆、撤下合成记录及其派生「事实」；先备份，不改日志 |
-| 🔌 **Hermes 记忆提供器** | `nexsandglass_hermes/`、`core/memory_provider.py` | 官方 `MemoryProvider` 契约，entry point 自动注册；多人会话按 `owner_ids` 绑定来源 |
+| 🔌 **Hermes 记忆提供器** | `nexsandglass_hermes/`、`core/memory_provider.py` | 官方 `MemoryProvider` 契约；`python3 -m nexsandglass_hermes install` 一步装进 Hermes |
 | 🔌 **MCP 服务** | `interfaces/sandglass_mcp.py` | stdio，纯标准库，26 个工具 |
 | 👻 **Déjà Vu** | `dejavu/`（独立子包） | 分清「没聊过」和「聊过但找不到」，见下一节 |
 | 🕸️ **知识图谱** | `features/weavethread.py` | 实体关系三元组 + 类型化关系（belongs_to / evolved_from / contradicts …）+ PPR 图增强 |
@@ -425,7 +426,7 @@ python3 benchmarks/locomo_eval.py locomo10.json --workers 10 --json benchmarks/r
 
 ## 📝 最近更新
 
-- **v7.15.0**：可选的密钥保险箱 —— 聊天里贴过的 key 之后还能让 agent 交还给你（人工确认；直达取回时模型服务商看不到原文，真实 Hermes 实测）
+- **v7.15.0**：可选的密钥保险箱 —— 聊天里贴过的 key 之后还能让 agent 交还给你（人工确认；直达取回时模型服务商看不到原文，真实 Hermes 实测）；Hermes 安装改成 `python3 -m nexsandglass_hermes install` 一步装好（以前「pip 装完自动发现」在 Hermes 0.19.0 下不成立）
 - **v7.14.0**：密钥和密码不进记忆（写入前隐去；已存下的 `scrub` 原地隐去）；真删之后磁盘上也没了（以前全文库里还留着）；可选的交叉编码器重排（LoCoMo 证据召回 +4.7 个点，默认关）；端到端问答评测框架
 - **v7.13.9**：测试再也写不进真实数据目录（会话级隔离 + 运行时守卫）；新增 `python3 -m nexsandglass.repair` —— 中枢被污染时按内容体检与修复，真实记忆一条不少、被遗忘的不复活、合成「事实」连同派生数据撤下
 - **v7.13.8**：README 重写（快速开始、工作原理、隐私、常见问题、已知局限）；全新安装时 `doctor` 不再误报 ❌；安装脚本与 Docker 修好（旧脚本会装一个让每句话记两遍的网关插件）

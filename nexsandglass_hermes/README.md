@@ -6,17 +6,28 @@
 ## 安装
 
 ```bash
-pip install nyx-memory          # entry point 自动注册：hermes_agent.memory_providers → nyx
+pip install nyx-memory
+python3 -m nexsandglass_hermes install       # 然后重启 Hermes
 ```
 
-Hermes 配置：
+`install` 做四件事：
+1. 找到 Hermes 用的 Python（`hermes` 命令第一行的 `#!`）。官方安装脚本把 Hermes 装在单独的虚拟环境里，那里没有 nyx-memory 的话就装进去（同一个版本）。
+2. 在 `$HERMES_HOME/plugins/nyx/` 放一个入口文件，转到 pip 装的代码。以后 pip 升级不用再动它。
+3. `hermes config set memory.provider nyx`。
+4. 用 Hermes 自己的加载器加载一次，确认能加载出来。
 
-```yaml
-memory:
-  provider: nyx                 # 旧名 nexsandglass 同样可用
-```
+为什么要这一步：hermes-agent 0.19.0 只按目录找记忆插件（`plugins/memory/__init__.py` 的 `find_provider_dir`），不看 pip 入口点。光 `pip install` 的话 Hermes 找不到 nyx，而且只在 debug 日志里留一行。
 
-或者把本目录拷到 `$HERMES_HOME/plugins/nyx/`（仍需先 pip 装好 nyx-memory）。
+| 选项 | 作用 |
+|---|---|
+| `--vault` | 同时打开密钥保险箱：装 `[vault]`、`hermes plugins enable nyx-reveal`、`nyx.json` 里 `vault: on` |
+| `--vector` | 同时装语义检索 `[vector]` |
+| `--check` | 只检查，不改任何东西 |
+| `--hermes-home DIR` | 指定 Hermes 的 home（多个 profile 时每个装一次） |
+| `--hermes-python PATH` | 指定 Hermes 用的 Python（找不到 `hermes` 命令时） |
+| `--no-pip` / `--no-config` | 不往 Hermes 的 Python 里装 / 不改 Hermes 配置 |
+
+以前按旧说明把本目录整个拷进 `plugins/nyx/` 的，运行一次 `install` 会换成入口文件；否则升级之后那份旧拷贝还在跑旧代码。
 
 ## 配置（`hermes memory setup` 写入 `$HERMES_HOME/nyx.json`）
 
@@ -43,11 +54,10 @@ memory:
 1. Hermes 弹出人工审批。如果审批被 `/yolo` 或 `approvals.mode: off` 关掉了，就改为让主人回复一句确认短语。
 2. 模型拿到的只是一个句柄。在回复发给主人之前，配套插件把句柄换成原文，所以模型服务商看不到原文，Hermes 的会话记录里存的也是句柄。
 
-启用配套插件（装 nyx-memory 时已经一起装好，执行一次即可）：
+启用（装 `[vault]`、启用配套插件、打开开关，一条命令）：
 
 ```bash
-pip install 'nyx-memory[vault]'
-hermes plugins enable nyx-reveal      # 然后重启 Hermes
+python3 -m nexsandglass_hermes install --vault      # 然后重启 Hermes
 ```
 
 最稳妥的方式永远是在终端里取：`python3 -m nexsandglass.vault show v3`。原文不经过任何模型或聊天平台。

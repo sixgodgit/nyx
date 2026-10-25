@@ -22,18 +22,16 @@ EXTRAS=""
 [ "$1" = "--vector" ] && EXTRAS="[vector]"
 "$PY" -m pip install ".${EXTRAS}"
 
-# v3.x 的旧安装脚本会把文件复制成 Hermes 插件。现在插件由 pip 自动注册（entry point），
-# 旧文件留着会和新插件同时生效 —— 尤其旧的网关插件会在消息到达时再写一遍，用户的话被记两遍。
-HH="${HERMES_HOME:-$HOME/.hermes}"
-for old in "$HH/plugins/memory/nexsandglass" "$HH/plugins/sandglass"; do
-    if [ -e "$old" ]; then
-        echo "⚠️  发现旧版安装留下的 $old"
-        echo "    请删除它（rm -rf \"$old\"），否则同一句话可能被记两遍"
-    fi
-done
-
 echo ""
 echo "✅ 已安装 nyx-memory $("$PY" -c 'import nexsandglass; print(nexsandglass.__version__)')"
-echo "   Hermes：config.yaml 里设 memory.provider: nyx，然后重启 Hermes"
+
+# Hermes：0.19.0 只按目录找记忆插件、不看 pip 入口点，官方安装脚本还把它装在单独的虚拟环境里 ——
+# nexsandglass_hermes install 找到它用的 Python、装进去、放入口文件、设 memory.provider（旧版残留也会报出来）
+if command -v hermes >/dev/null 2>&1; then
+    echo ""
+    "$PY" -m nexsandglass_hermes install ${EXTRAS:+--vector} || echo "⚠️  Hermes 那一步没做完，见上面的提示"
+else
+    echo "   Hermes：装好 Hermes 之后运行 $PY -m nexsandglass_hermes install，然后重启 Hermes"
+fi
 echo "   MCP：   $PY -m nexsandglass.interfaces.sandglass_mcp"
 echo "   自检：  $PY -m nexsandglass.doctor"
