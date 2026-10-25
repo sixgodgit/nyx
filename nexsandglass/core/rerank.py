@@ -1,5 +1,5 @@
 """
-core/rerank.py — 交叉编码器重排（v7.15.0，默认关）
+core/rerank.py — 交叉编码器重排（v7.14.0，默认关）
 
 思路来自 hindsight（召回后用 cross-encoder 重排）和 MemPalace（用 LLM 从前 20 条里挑）。
 接在 SearchRouter 那一步：路由多取 NYX_RERANK_DEPTH 条，交叉编码器把（问句，记忆）逐对打分，
