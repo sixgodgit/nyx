@@ -23,15 +23,17 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: v3.x 的旧安装脚本复制过的 Hermes 插件文件：留着会和现在的插件同时生效，同一句话可能被记两遍
-if exist "%LOCALAPPDATA%\hermes\plugins\memory\nexsandglass" echo ⚠️  发现旧版安装留下的 %LOCALAPPDATA%\hermes\plugins\memory\nexsandglass ，请删除它
-if exist "%LOCALAPPDATA%\hermes\plugins\sandglass" echo ⚠️  发现旧版安装留下的 %LOCALAPPDATA%\hermes\plugins\sandglass ，请删除它
-if exist "%USERPROFILE%\.hermes\plugins\memory\nexsandglass" echo ⚠️  发现旧版安装留下的 %USERPROFILE%\.hermes\plugins\memory\nexsandglass ，请删除它
-if exist "%USERPROFILE%\.hermes\plugins\sandglass" echo ⚠️  发现旧版安装留下的 %USERPROFILE%\.hermes\plugins\sandglass ，请删除它
-
 echo.
 echo ✅ 已安装 nyx-memory
-echo    Hermes：config.yaml 里设 memory.provider: nyx，然后重启 Hermes
+
+:: Hermes：0.19.0 只按目录找记忆插件、不看 pip 入口点 —— nexsandglass_hermes install 找到 Hermes 用的 Python、
+:: 装进去、放入口文件、设 memory.provider（旧版安装留下的插件目录也会报出来）
+where hermes >nul 2>&1
+if errorlevel 1 (
+    echo    Hermes：装好 Hermes 之后运行 python -m nexsandglass_hermes install，然后重启 Hermes
+) else (
+    if "%~1"=="--vector" (python -m nexsandglass_hermes install --vector) else (python -m nexsandglass_hermes install)
+)
 echo    MCP：   python -m nexsandglass.interfaces.sandglass_mcp
 echo    自检：  python -m nexsandglass.doctor
 endlocal

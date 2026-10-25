@@ -17,7 +17,7 @@
       Hermes 的会话库存的是句柄（正向对照）、按原始字节找不到原文；nyx 数据目录按原始字节找不到原文。
 
 v7.15.0 实测（hermes-agent 0.19.0）：发给模型 7 个请求，含原文 0 个；会话库 9 行，带句柄 4 行，带原文 0 行。
-注意：Hermes 0.19.0 只按目录找记忆插件，所以这里先把 nexsandglass_hermes 拷进 $HERMES_HOME/plugins/nyx/。
+Hermes 0.19.0 只按目录找记忆插件：这里和 python3 -m nexsandglass_hermes install 一样，在 $HERMES_HOME/plugins/nyx/ 放入口文件。
 """
 import hashlib
 import http.server
@@ -26,6 +26,7 @@ import os
 import re
 import shutil
 import sqlite3
+import sys
 import tempfile
 import threading
 import time
@@ -45,8 +46,9 @@ os.environ.update(HERMES_HOME=HH, NEXSANDBASE_HOME=NB, XDG_CONFIG_HOME=os.path.j
 os.makedirs(HH)
 with open(os.path.join(HH, "config.yaml"), "w") as f:
     f.write("memory:\n  provider: nyx\nplugins:\n  enabled:\n    - nyx-reveal\n")
-shutil.copytree(os.path.join(REPO, "nexsandglass_hermes"), os.path.join(HH, "plugins", "nyx"),
-                ignore=shutil.ignore_patterns("__pycache__"))
+sys.path.insert(0, REPO)
+from nexsandglass_hermes.install import write_shim  # noqa: E402  Hermes 只按目录找记忆插件：放入口文件（同 install 命令）
+write_shim(HH)
 
 # 运行时拼出来的 token：源码里没有完整 token
 _A = "Ab3dE5gH7jK9mN1pQ3sT5vW7yZ9bC2dF4hJ6kL8xR0"

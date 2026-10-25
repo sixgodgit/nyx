@@ -2,7 +2,7 @@
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。数字的测法见 README 的 Benchmark 一节与 `benchmarks/`。
 
-### v7.15.0 (2026-10-25) — 可选的密钥保险箱：贴过的 key 之后还能让 agent 交还给你
+### v7.15.0 (2026-10-25) — 可选的密钥保险箱：贴过的 key 之后还能让 agent 交还给你；Hermes 安装方式修好
 
 **问题**：从 v7.14.0 起，聊天里贴的 token / 密码在写进记忆前就被换成占位符，原文直接丢掉。这对隐私是对的，但主人之后问「我上次给你的那个 HF token 是什么」时，agent 只能回答「你给过一个，末 4 位是 a1b2」。
 
@@ -43,9 +43,25 @@ nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的
 - 系统包里的 cryptography 缺 `_cffi_backend` 时，import 抛的是 pyo3 的 `PanicException`（继承 `BaseException`，`except Exception` 接不住）。现在装坏了按没装处理。
 - 6 处注释把 v7.14.0 的重排和问答评测写成了 v7.15.0，已改正。
 
-**查到的现有问题**（这次没改，记在 `docs/secret-vault.md` §14）：
-- Hermes 0.19.0 不向记忆提供器传发言人，所以 `owner_ids` 在 Hermes 下不起作用。
-- Hermes 0.19.0 只按目录查找记忆插件，不扫描 `hermes_agent.memory_providers` 入口点。要把 `nexsandglass_hermes/` 拷进 `$HERMES_HOME/plugins/nyx/`。
+**安装方式修好了：`python3 -m nexsandglass_hermes install`**
+
+v7.14.0 及以前的 README 写的是「`pip install nyx-memory` 之后 Hermes 经入口点自动发现」。拿真实的 hermes-agent 0.19.0 一试，这条路不通，原因有两个：
+- 它只按目录查找记忆插件，也就是内置的 `plugins/memory/<名字>/` 和 `$HERMES_HOME/plugins/<名字>/`（`plugins/memory/__init__.py` 的 `find_provider_dir`），不扫描 `hermes_agent.memory_providers` 入口点。而且加载失败只记在 debug 日志里，从外面看什么都不报。
+- 官方安装脚本把 Hermes 装在单独的虚拟环境里，装在系统 Python 里的 nyx-memory，它看不见。
+
+新命令一步做完：
+1. 从 `hermes` 命令第一行的 `#!` 找到 Hermes 用的 Python。那里没有 nyx-memory，或者版本不一致，就装进去：同一个版本；如果是从本地源码装的，就装同一份源码。没有 pip（uv 建的环境）时改用 uv，再不行先 ensurepip。
+2. 在 `$HERMES_HOME/plugins/nyx/` 放一个只有十几行的入口文件，转到 pip 装的 `nexsandglass_hermes`。以后 pip 升级不用再动它。以前整目录拷过去的副本会被换掉，否则升级之后那份旧拷贝还在跑旧代码。nyx-memory 不在时，入口文件会在日志里写清楚该运行的 pip 命令，而不是悄悄加载失败。
+3. 执行 `hermes config set memory.provider nyx`（会打印原来的值）。加 `--vault` 时，还会执行 `hermes plugins enable nyx-reveal`，并在 `nyx.json` 里写上 `vault: on`。
+4. 用 Hermes 自己的加载器（`plugins.memory.load_memory_provider`），在 Hermes 的 Python 里真的加载一次，加载不出来就报错。旧版安装留下的插件目录也会报出来。
+
+其它：
+- `--check` 只检查，不改任何东西；重复运行算「更新」。
+- `install.sh` / `install.bat` 发现有 `hermes` 命令时，会顺带运行它。
+
+实测（hermes-agent 0.19.0，另建一个没装 nyx 的 Hermes 虚拟环境，从系统 Python 运行）：自动找到 Hermes 的虚拟环境，把 nyx 装了进去，写好入口文件，设好 `memory.provider`，启用了 nyx-reveal，Hermes 的加载器也能加载出 nyx。`benchmarks/vault_hermes_e2e.py` 也改成用这个入口文件，真实对话照样通过。
+
+**查到的现有问题**（这次没改）：Hermes 0.19.0 不向记忆提供器传发言人，所以 `owner_ids` 在 Hermes 下不起作用（`docs/secret-vault.md` §2）。
 
 **依赖**：
 - 新增可选依赖 `vault`（cryptography）和 `vault-keyring`（keyring）。

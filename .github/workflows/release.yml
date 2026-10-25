@@ -106,6 +106,19 @@ jobs:
           p.sync_turn("我住在杭州", "好的")
           assert len(p.get_tool_schemas()) >= 10
 
+          # Hermes 0.19.0 只按目录找记忆插件：install 放的入口文件要能按 Hermes 的方式加载出 Provider
+          import importlib.util, tempfile
+          from nexsandglass_hermes.install import write_shim
+          shim, _ = write_shim(tempfile.mkdtemp())
+          assert "register_memory_provider" in open(os.path.join(shim, "__init__.py")).read()
+          spec = importlib.util.spec_from_file_location("_hermes_user_memory.nyx", os.path.join(shim, "__init__.py"),
+                                                        submodule_search_locations=[shim])
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          c2 = Ctx()
+          mod.register(c2)
+          assert c2.provider is not None
+
           whl = glob.glob(os.path.join(os.environ["GITHUB_WORKSPACE"], "dist", "*.whl"))[0]
           names = zipfile.ZipFile(whl).namelist()
           bad = [n for n in names if n.startswith("tests/") or n.endswith((".db", ".jsonl", ".idx"))]
