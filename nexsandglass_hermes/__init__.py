@@ -1,9 +1,8 @@
 """Nyx 夜神 —— Hermes Agent 记忆提供器插件入口（v7.12）
 
-装法（v7.15.0）：``pip install nyx-memory`` 之后 ``python3 -m nexsandglass_hermes install``（见 install.py）。
-
-hermes-agent 0.19.0 只按目录找记忆插件（``$HERMES_HOME/plugins/<名字>/``），不看 pip 入口点 ——
-所以 install 在 ``$HERMES_HOME/plugins/nyx/`` 放一个入口文件，转到这里的 ``register``。
+装法（v7.15.1）：``hermes plugins install sixgodgit/nyx/hermes-plugin --enable``。仓库里的 hermes-plugin/ 是入口文件 +
+plugin.yaml（python_dependencies: nyx-memory），Hermes 把依赖装进它自己的环境。老版本 Hermes（plugins install 不装依赖、
+也不认 pip 入口点，如 0.19.x）：``pip install nyx-memory`` 之后 ``python3 -m nexsandglass_hermes install``（见 install.py）。
 pyproject 里的入口点 ``hermes_agent.memory_providers``（``nyx`` / 旧名 ``nexsandglass``）留着，给认入口点的 Hermes 版本用。
 旧部署：``nexsandglass.core.memory_provider.register`` 仍然可用。
 

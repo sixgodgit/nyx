@@ -2,6 +2,26 @@
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。数字的测法见 README 的 Benchmark 一节与 `benchmarks/`。
 
+### v7.15.1 (2026-10-25) — Hermes 用自己的插件命令装：`hermes plugins install sixgodgit/nyx/hermes-plugin --enable`
+
+**问题**：v7.15.0 的 `python3 -m nexsandglass_hermes install` 在新版 Hermes 上装不上。我在三代 Hermes 上逐个复现过（PyPI 上的 0.19.0、稳定版 v2026.9.24、主线版），原因有三个：
+- 新版官方安装脚本生成的 `hermes` 启动文件、`/usr/local/bin/hermes`、profile 包装脚本，都是 `#!/bin/sh` 包装（里面再 `exec <python> -I …`）。安装命令按第一行的 `#!` 去找 Hermes 的 Python，结果把 `/bin/sh` 当成了 Python，后面每一步都在对 `/bin/sh` 操作。
+- 它往 Hermes 的环境里 pip 装 nyx-memory，这正是 Hermes 文档明确禁止的：「Do not inject a provider into Hermes's selected environment with pip」。新版用自己的包管理器按锁文件同步环境，pip 装进去的东西会被同步掉，而且官方安装出来的环境里本来就没有 pip。
+- 它要求先在系统 Python 里 `pip install nyx-memory`。可很多系统根本装不进去：Debian / Ubuntu / Homebrew 的 Python 会拒绝（PEP 668），macOS 自带的 Python 是 3.9（nyx 要求 3.10 以上）。
+
+**做法**：按 Hermes 官方的插件方式来。
+- 仓库里新增 `hermes-plugin/`：入口文件 + `plugin.yaml`，在 `python_dependencies` 里声明 `nyx-memory>=7.15.0`。另有 `hermes-plugin-vector/`，依赖是 `nyx-memory[vector]`。
+- 用户执行 `hermes plugins install sixgodgit/nyx/hermes-plugin --enable` 和 `hermes config set memory.provider nyx` 两条命令即可。Hermes 把插件放进 `plugins/nyx/`，把依赖装进它自己的环境，`hermes update` 之后还会重新装上。整个过程只用到 `hermes` 命令。
+- `nexsandglass_hermes install` 改成按 Hermes 的能力分流：
+  - 新版（`plugins install --help` 里有 `--no-deps`）：直接交给 `hermes plugins install`。在终端里运行时，Hermes 的依赖确认由你自己回答；不在终端里时，代为加上 `--yes-deps`（主线版非交互时不加就直接拒绝）。之前用 v7.15.0 的安装命令留下的入口文件，会用 `--force` 换成由 Hermes 记账的安装。
+  - 老版本：照旧装进 Hermes 的 Python，再放入口文件，但能认出 `#!/bin/sh` 包装脚本了，包括 `exec` 另一个 hermes、带 `$HOME` 之类变量的写法。
+
+**实测**（都在沙箱里装的真 Hermes）：
+- 稳定版 v2026.9.24：用 uv 建虚拟环境，里面没有 pip，和官方安装一致。`hermes plugins install` 从 PyPI 把 nyx-memory 装进了 Hermes 的环境，`hermes memory status` 显示 `Provider: nyx`、`available ✓`。
+- 主线版（Python 3.14，按锁文件同步）：包管理器准备好了隔离的运行环境并装上依赖，`memory status` 同样可用。
+- 0.19.0：走老路，照样装好，Hermes 的加载器能加载出 nyx。
+- `tests/test_hermes_install.py`：12 项，覆盖包装脚本的解析、交给 Hermes 的分流、两个插件目录（依赖写法、最低版本、能按 Hermes 的方式加载）。
+
 ### v7.15.0 (2026-10-25) — 可选的密钥保险箱：贴过的 key 之后还能让 agent 交还给你；Hermes 安装方式修好
 
 **问题**：从 v7.14.0 起，聊天里贴的 token / 密码在写进记忆前就被换成占位符，原文直接丢掉。这对隐私是对的，但主人之后问「我上次给你的那个 HF token 是什么」时，agent 只能回答「你给过一个，末 4 位是 a1b2」。
