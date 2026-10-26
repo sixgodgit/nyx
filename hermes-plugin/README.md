@@ -35,6 +35,10 @@ Options: `hermes memory setup`. Terminal commands: `hermes nyx doctor`, `hermes 
 - **Approvals.** Revealing a vault entry asks for human confirmation through Hermes's `request_tool_approval`. When approvals are bypassed (`--yolo`, `approvals.mode: off`), Nyx asks the owner to reply with a one-time confirmation phrase instead; it never treats a bypass as consent. Under cron and subagents a reveal is refused.
 - **Optional companion plugin `nyx-reveal`** (pip entry point, opt-in with `hermes plugins enable nyx-reveal`). It registers one hook, `transform_llm_output`, which swaps a reveal handle for the secret just before the reply is sent, so the model provider never sees the value.
 
+## Origins
+
+Nyx began as NexLSL's open-source project NexSandglass (MIT, June 2026, v1.0–v2.9.9). The sandglass log and full-text index, multi-path search, the knowledge graph, and the first MCP server and Hermes plugin come from there, and the Python package still carries its name, `nexsandglass`. sixgodgit has maintained it since v3.0 (July 2026). See [LICENSE](https://github.com/sixgodgit/nyx/blob/main/LICENSE) and the git history.
+
 ---
 
 ## 中文
