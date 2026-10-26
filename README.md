@@ -2,7 +2,7 @@
 
 > **给 agent 一份跟着你一辈子的记忆** —— 单用户、本地、写入不调用大模型。记得住，找得到，信得过，忘得掉。
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.15.3-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.15.4-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx 是 agent 的长期记忆层：接进 [Hermes](https://github.com/NousResearch/hermes-agent)（作为记忆插件）、
 Claude Desktop / Claude Code 等任意 MCP 客户端，或者你自己的 Python 程序。
@@ -437,6 +437,7 @@ python3 benchmarks/locomo_eval.py locomo10.json --workers 10 --json benchmarks/r
 
 ## 📝 最近更新
 
+- **v7.15.4**：召回快了约一半（1 万轮真实对话，prefetch p50 从约 88 ms 到约 47 ms），结果逐字不变
 - **v7.15.3**：新版 Hermes 认得出 Nyx 是记忆插件，`hermes plugins install … --enable` 会设好 `memory.provider`；安装后的说明改成英文在前
 - **v7.15.2**：L3 分析调用 DeepSeek / OpenRouter 改成要主动打开（`l3_llm: on`）—— 以前在 Hermes 里几乎总是默认发出画像和近期决策；新增 `hermes nyx …` 终端命令
 - **v7.15.1**：Hermes 用自己的插件命令装：`hermes plugins install sixgodgit/nyx/hermes-plugin --enable`（v7.15.0 的安装命令在新版 Hermes 上装不上）

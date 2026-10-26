@@ -63,6 +63,8 @@ def sand_density(text: str, query_tokens: set) -> float:
 _SIMHASH_BITS = 128
 _simhash_cache = {}  # V2.0.5: 预计算缓存，key=text[:500], val=fingerprint
 _SIMHASH_CACHE_MAX = 10000  # V2.1.11: LRU上限，超过清空重建
+_simhash_rows = {}  # v7.15.4: 词元 → md5 的 128 位二进制串（高位在前），跨文本复用
+_SIMHASH_ROWS_MAX = 50000
 
 
 def _tokenize_simhash(text: str) -> list:
@@ -89,6 +91,21 @@ def simhash(text: str, bits: int = _SIMHASH_BITS) -> int:
     if not tokens:
         _simhash_cache[cache_key] = -1
         return -1
+    if bits == 128:
+        # 与下面的逐位循环结果逐位相同（第 i 位 = 超过一半的词元在第 i 位是 1），但按列数 1 交给 C 做：
+        # 原来是 词元数 × 128 次 Python 循环，召回时给每条候选算一次，实测占了一次 prefetch 的六成（v7.15.4）
+        rows, get = [], _simhash_rows.get
+        for token in tokens:
+            row = get(token)
+            if row is None:
+                if len(_simhash_rows) >= _SIMHASH_ROWS_MAX:
+                    _simhash_rows.clear()
+                row = _simhash_rows[token] = format(int(hashlib.md5(token.encode()).hexdigest(), 16), "0128b")
+            rows.append(row)
+        n = len(tokens)
+        fp = int("".join("1" if 2 * col.count("1") > n else "0" for col in zip(*rows)), 2)
+        _simhash_cache[cache_key] = fp
+        return fp
     v = [0] * bits
     for token in tokens:
         h = int(hashlib.md5(token.encode()).hexdigest(), 16)

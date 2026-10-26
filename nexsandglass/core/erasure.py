@@ -360,7 +360,7 @@ def wipe_free_space() -> dict:
                     c.execute("INSERT INTO sandglass_fts(sandglass_fts) VALUES('optimize')")
                     c.commit()
                 finally:
-                    c.close()
+                    sq._reset_db()          # 复用的连接（v7.15.4）：VACUUM 之前关掉，下次查询重开
                 out[os.path.basename(sq._DB)] = sqlite_open.vacuum(sq._DB) or "ok"
     except Exception as e:
         out["fts"] = str(e)

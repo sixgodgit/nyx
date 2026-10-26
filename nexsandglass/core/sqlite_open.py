@@ -92,7 +92,8 @@ def vacuum(path: str, timeout: float = 30.0) -> Optional[str]:
 
 def connect(path: str, *, timeout: float = 30.0, check_same_thread: bool = True,
             synchronous: Optional[str] = None,
-            setup: Optional[Callable[[sqlite3.Connection], None]] = None) -> sqlite3.Connection:
+            setup: Optional[Callable[[sqlite3.Connection], None]] = None,
+            factory: type = sqlite3.Connection) -> sqlite3.Connection:
     """打开 path：WAL、可选的 synchronous、可选的 setup（建表/迁移，须自行 commit 且幂等）。
 
     本进程内同一个库的这几步串行；跨进程撞锁时退避重试到 timeout。失败则关掉连接再抛。
@@ -101,7 +102,7 @@ def connect(path: str, *, timeout: float = 30.0, check_same_thread: bool = True,
     prodguard.check(path)                 # 测试进程不许开临时目录以外的库（v7.13.9，2026-09-13 事故）
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     with path_lock(path):
-        c = sqlite3.connect(path, timeout=timeout, check_same_thread=check_same_thread)
+        c = sqlite3.connect(path, timeout=timeout, check_same_thread=check_same_thread, factory=factory)
         try:
             retry_locked(c, _ensure_wal, timeout)
             if synchronous:
