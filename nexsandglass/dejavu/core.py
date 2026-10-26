@@ -60,7 +60,7 @@ _CJK_RUN = re.compile(r"[\u4e00-\u9fff]+")
 # 因此形如 42 / 19289 / 20260913 的 token 对 Veil 完全不可见 ——
 # 若你的关键信息是订单号、金额、日期，需要自行扩展本模式
 # （例如 r"[a-zA-Z0-9][\w.-]{2,}"，代价是 Veil 饱和更快）。
-# 详见 docs/dejavu.md「它不是什么」第 4 条。
+# 详见 docs/dejavu.md「What it is not」第 4 条（中文版 docs/dejavu.zh-CN.md「它不是什么」）。
 
 MIN_TOKEN_LEN = 3
 MAX_TOKEN_LEN = 40

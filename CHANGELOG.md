@@ -1,6 +1,49 @@
-# 更新日志
+# Changelog
 
-nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。数字的测法见 README 的 Benchmark 一节与 `benchmarks/`。
+Changes, measurements and trade-offs for each nyx-memory (Nyx) release, newest first. How the numbers are measured: the
+Benchmark section of the README and `benchmarks/`. Entries from v7.16.0 on are in English; earlier ones are in Chinese.
+
+nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。v7.16.0 起的条目用英文，之前的是中文。
+
+### v7.16.0 (2026-10-26) — English first
+
+The interface and the docs now default to English; Chinese is one setting away. Stored memories are not touched.
+
+**Text the model reads is English, always.** Hermes and MCP tool descriptions and results, the recalled-memory frame
+(`## Nyx memory (relevant to this turn; [date] = when it was said)`, `[Core facts]`, `[Preferences]`, …), the
+system-prompt block, the health warning (`⚠️ Nyx health: …`), the label on content from other sources
+(`(unverified · source: …)`), redaction placeholders (`[hidden: HF token …a1b2]`), vault notes, and the relation names
+`nyx_belief` takes and returns (`lives_in`, `uses`, `employer`, `job_title`, `email`, `phone`, `likes`, `dislikes`).
+One fixed language for the model, whatever language the user speaks; some of this text also ends up in stored data, so it
+should not change with a setting.
+
+**Text for people is English, or Chinese when asked.** `doctor`, `vault`, `scrub`, `repair`, `hermes nyx …`, the installer
+and the `hermes memory setup` descriptions follow `NYX_LANG` (`en` / `zh` / `auto`; Hermes: `lang` in nyx.json, also in
+`hermes memory setup`). `auto`, the default, picks Chinese under a Chinese locale (`LC_ALL` / `LC_MESSAGES` / `LANG`
+starting with `zh`). The vault confirmation phrase is `confirm v3 123456` in English and `确认 v3 123456` in Chinese; both
+are accepted in either language.
+
+**Docs.** README, the Hermes README, the secret-vault design and the Déjà Vu write-up are English; the Chinese versions are
+`README.zh-CN.md`, `nexsandglass_hermes/README.zh-CN.md`, `docs/secret-vault.zh-CN.md` and `docs/dejavu.zh-CN.md`, linked
+from the top of each page. The README's English examples are ones that work as shown (real output), and the limits of
+English support are stated: rule-based fact extraction mostly covers Chinese, English paraphrases without shared words
+need `[vector]`, and Déjà Vu still counts common English words such as "about" as seen.
+
+**Compatibility**
+- Nothing stored is rewritten. Placeholders `[已隐去: …]` and labels `（未经证实·来源:…）` written by earlier versions are
+  still recognised everywhere they were before (scrub, the quarantine, the recall trust check, the benchmarks).
+- Relations stay stored in their original form; the English names exist only at the tool layer, and `nyx_belief` accepts
+  either.
+- New placeholders never start with `[REDACTED`, which marks erased journal lines.
+- Vault ids (`#vN`) are unchanged. Whether an entry is a password is now decided by its kind, not its label, so
+  `NYX_VAULT_KINDS=tokens` keeps working whatever language the label is in.
+- Entry files written by `python3 -m nexsandglass_hermes install` before this version are still recognised as nyx's.
+
+**Fixed along the way**
+- The `[Time]` slot of the memory bundle decided "includes recent memories" by looking for the hard-coded month
+  `2026-08` in the timestamp; it now uses a 30-day window from today.
+- The README listed `DEEPSEEK_API_KEY` / `OPENROUTER_API_KEY` as "used as soon as they are set", which stopped being true
+  in v7.15.2; it now says they are only used with `NYX_L3_LLM=1`.
 
 ### v7.15.4 (2026-10-26) — 召回快了约一半，结果一字不差
 

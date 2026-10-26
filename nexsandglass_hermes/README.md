@@ -1,130 +1,149 @@
-# Nyx 夜神 — Hermes Agent 记忆提供器
+# Nyx — Hermes Agent memory provider
 
-按 Hermes 官方 `agent.memory_provider.MemoryProvider` 契约实现，与 Honcho / Mem0 / Hindsight 同一套接口。
-已对真实 Hermes 源码（`MemoryManager` + 插件加载器）跑通：`tests/integration/hermes_real_check.py`。
+**English** | [简体中文](https://github.com/sixgodgit/nyx/blob/main/nexsandglass_hermes/README.zh-CN.md)
 
-## 安装
+Implements Hermes's official `agent.memory_provider.MemoryProvider` contract, the same interface as Honcho / Mem0 / Hindsight.
+Tested end to end against real Hermes source (`MemoryManager` + the plugin loader): `tests/integration/hermes_real_check.py`.
+
+## Install
 
 ```bash
 hermes plugins install sixgodgit/nyx/hermes-plugin --enable
-hermes config set memory.provider nyx        # 主线版 Hermes 装的时候已经设好了，再设一次也没关系
+hermes config set memory.provider nyx        # mainline Hermes already sets it on install; setting it again is harmless
 ```
 
-装完重启 Hermes（网关：`hermes gateway restart`）。这两条命令只用到 `hermes`，不需要先在系统 Python 里装任何东西。
+Then restart Hermes (gateway: `hermes gateway restart`). Both commands only need `hermes`; nothing has to be installed in
+the system Python first.
 
-Hermes 会把仓库里的 [`hermes-plugin/`](../hermes-plugin) 放进 `$HERMES_HOME/plugins/nyx/`，再把它在 `plugin.yaml` 里声明的依赖 `nyx-memory` 装进 Hermes **自己的**环境。`hermes update` 之后，依赖会重新装上。Hermes 的文档明确要求这样做，不要用 pip 往它的环境里注入 provider：新版用自己的包管理器按锁文件同步环境，pip 装进去的东西会被同步掉。
+Hermes puts [`hermes-plugin/`](https://github.com/sixgodgit/nyx/tree/main/hermes-plugin) from this repository into
+`$HERMES_HOME/plugins/nyx/` and installs the dependency it declares in `plugin.yaml`, `nyx-memory`, into **Hermes's own**
+environment. After `hermes update` the dependency is installed again. This is what Hermes's documentation asks for — do
+not inject a provider into its environment with pip: newer versions sync the environment from a lock file with their own
+package manager, and whatever pip put there gets synced away.
 
-要用语义检索的本地模型，就装 `sixgodgit/nyx/hermes-plugin-vector`：依赖是 `nyx-memory[vector]`，首次运行会下载约 470MB 的模型。
+For the local semantic-search model, install `sixgodgit/nyx/hermes-plugin-vector` instead: its dependency is
+`nyx-memory[vector]`, and the first run downloads a ~470 MB model.
 
-已在真实的 Hermes 上验证过：稳定版 v2026.9.24（uv 建的虚拟环境，里面没有 pip）和主线版（带包管理器）。两个版本上装完后，`hermes memory status` 都显示 `Provider: nyx`、可用。
+Verified on real Hermes: stable v2026.9.24 (a uv-built virtual environment without pip) and mainline (with the package
+manager). On both, `hermes memory status` shows `Provider: nyx`, available, after installing.
 
-### 老版本 Hermes
+### Older Hermes
 
-老版本指 `hermes plugins install --help` 里没有 `--no-deps` 的版本，比如 PyPI 上的 hermes-agent 0.19.x。它们不会装插件声明的依赖，也不认 pip 入口点：
+"Older" means a version without `--no-deps` in `hermes plugins install --help`, such as hermes-agent 0.19.x from PyPI.
+These do not install the dependencies a plugin declares and do not read pip entry points:
 
 ```bash
-pip install nyx-memory                       # 和 Hermes 同一个 Python
+pip install nyx-memory                       # the same Python as Hermes
 python3 -m nexsandglass_hermes install
 ```
 
-`install` 新老版本都认：
-- **新版**：它直接替你运行上面那两条 `hermes` 命令。在终端里运行时，Hermes 的依赖确认由你自己回答；不在终端里时，它会代为加上 `--yes-deps`。
-- **老版本**：它从 `hermes` 命令找到 Hermes 用的 Python（包括 `#!/bin/sh` 包装脚本），缺 nyx-memory 就装进去，然后在 `plugins/nyx/` 放入口文件、设 `memory.provider: nyx`，最后用 Hermes 自己的加载器加载一次，确认能加载出来。
+`install` works on both:
+- **Newer Hermes**: it simply runs the two `hermes` commands above for you. In a terminal you answer Hermes's dependency prompt yourself; outside a terminal it adds `--yes-deps` for you.
+- **Older Hermes**: it finds the Python Hermes uses from the `hermes` command (including `#!/bin/sh` wrapper scripts), installs nyx-memory there if missing, writes the entry file in `plugins/nyx/`, sets `memory.provider: nyx`, and finally loads it once with Hermes's own loader to confirm it works.
 
-| 选项 | 作用 |
+| Option | Effect |
 |---|---|
-| `--vault` | 同时打开密钥保险箱：`hermes plugins enable nyx-reveal`，并在 `nyx.json` 里写 `vault: on` |
-| `--vector` | 同时装语义检索（新版装 `hermes-plugin-vector`，老版本装 `[vector]`） |
-| `--check` | 只检查，不改任何东西 |
-| `--hermes-home DIR` | 指定 Hermes 的 home（有多个 profile 时，每个各装一次） |
-| `--hermes-python PATH` | 指定 Hermes 用的 Python（老版本、找不到时用） |
-| `--source` / `--legacy` | 新版从哪里装插件；强制走老版本的做法 |
-| `--no-pip` / `--no-config` | 不往 Hermes 的 Python 里装 / 不改 Hermes 配置 |
+| `--vault` | Also turn on the secret vault: `hermes plugins enable nyx-reveal`, and `vault: on` in `nyx.json` |
+| `--vector` | Also install semantic search (`hermes-plugin-vector` on newer Hermes, `[vector]` on older) |
+| `--check` | Only check, change nothing |
+| `--hermes-home DIR` | Hermes home to install into (with several profiles, install once per profile) |
+| `--hermes-python PATH` | The Python Hermes uses (older Hermes, when it cannot be found) |
+| `--source` / `--legacy` | Where newer Hermes installs the plugin from; force the older-Hermes way |
+| `--no-pip` / `--no-config` | Do not install into Hermes's Python / do not change Hermes's config |
 
-以前用 v7.15.0 的安装命令装过，或者按更早的说明把整个目录拷进了 `plugins/nyx/`：再运行一次 `install`，会换成 Hermes 自己管理的安装。
+Installed before with the v7.15.0 install command, or copied the whole directory into `plugins/nyx/` following older
+instructions? Run `install` once more and it switches to an installation Hermes manages itself.
 
-## 配置（`hermes memory setup` 写入 `$HERMES_HOME/nyx.json`）
+## Configuration (`hermes memory setup` writes `$HERMES_HOME/nyx.json`)
 
-| 键 | 默认 | 说明 |
+| Key | Default | Meaning |
 |---|---|---|
-| `data_dir` | `~/.neurobase` | 记忆目录。默认与 nyx 的 MCP / CLI 共用一份记忆（一个人一份记忆）。`NEXSANDBASE_HOME` 优先。改动后重启 |
-| `prefetch_tokens` | `600` | 每轮自动召回的预算；0 = 只注入偏移/情绪信号 |
-| `semantic` | `auto` | 语义检索：`auto`（配了 API 用 API；装了 `nyx-memory[vector]` 用本地模型；都没有则关）/ `local` / `api` / `off` |
-| `embedding_model` | 空 | 嵌入模型名；换模型后旧向量自动作废并后台重建 |
-| `embedding_api_url` / `embedding_api_key` | 空 | OpenAI 兼容 `/embeddings`；密钥只进 `.env` |
-| `rerank` | `off` | `local` = 召回后用本地多语言交叉编码器重排（需要 `[vector]`，首次下载约 470MB）。证据召回更准（LoCoMo +4.7 个点），但偏好类问题变差、每轮多 0.3–1.5 秒（CPU）。见主 README 的 Benchmark |
-| `vault` | `off` | 密钥保险箱（v7.15.0）：聊天里贴的 token / API key / 密码加密存起来，主人要时经确认交还。Hermes 自己已带 cryptography，不用另装。见下面「密钥保险箱」 |
-| `vault_reveal` | `direct` | `direct` = 原文不经过模型（要启用配套插件 `nyx-reveal`）；`cli` = 只在终端里取；`llm` = 原文交给模型转述 |
-| `vault_kinds` | `all` | `tokens` = 不收密码 |
-| `l3_llm` | `off` | `on` = 画像 / 偏移率 / 幽灵决策这些 L3 分析调用 DeepSeek 或 OpenRouter（`DEEPSEEK_API_KEY` / `OPENROUTER_API_KEY`，按当前 profile 取），会把相关的记忆片段、画像、近期决策发给它们。v7.15.2 以前不用打开、有 key 就用 |
+| `data_dir` | `~/.neurobase` | Memory directory. By default shared with nyx's MCP server / CLI (one memory per person). `NEXSANDBASE_HOME` wins. Restart after changing it |
+| `prefetch_tokens` | `600` | Budget for each turn's automatic recall; 0 = only the drift / mood signal |
+| `semantic` | `auto` | Semantic search: `auto` (an API if configured; the local model if `nyx-memory[vector]` is installed; otherwise off) / `local` / `api` / `off` |
+| `embedding_model` | empty | Embedding model name; after a change, old vectors are dropped and rebuilt in the background |
+| `embedding_api_url` / `embedding_api_key` | empty | OpenAI-compatible `/embeddings`; the key goes only to `.env` |
+| `rerank` | `off` | `local` = rerank recall with a local multilingual cross-encoder (needs `[vector]`, ~470 MB download the first time). More accurate evidence recall (LoCoMo +4.7 points), but worse on preference questions and 0.3–1.5 s more per turn (CPU). See Benchmark in the main README |
+| `vault` | `off` | Secret vault (v7.15.0): tokens / API keys / passwords pasted into chat are stored encrypted and handed back to the user after confirmation. Hermes already ships cryptography, nothing extra to install. See "Secret vault" below |
+| `vault_reveal` | `direct` | `direct` = the value never passes through the model (needs the companion plugin `nyx-reveal`); `cli` = only in the terminal; `llm` = the value is given to the model to relay |
+| `vault_kinds` | `all` | `tokens` = do not keep passwords |
+| `lang` | `auto` | Language of terminal commands and `hermes memory setup`: `en` / `zh`; `auto` = Chinese when the system locale is Chinese (v7.16.0). Text the model reads is always English |
+| `l3_llm` | `off` | `on` = the L3 analyses (persona / decision drift / phantom decisions) call DeepSeek or OpenRouter (`DEEPSEEK_API_KEY` / `OPENROUTER_API_KEY`, from the current profile) and send them relevant memory snippets, the persona and recent decisions. Before v7.15.2 this happened whenever a key was present |
 
-## 终端命令：`hermes nyx …`（v7.15.2）
+## Terminal commands: `hermes nyx …` (v7.15.2)
 
-新版 Hermes 把 nyx-memory 装在它自己的隔离环境里，系统 Python 里没有 nyx，`python3 -m nexsandglass.…` 用不了。
-nyx 是当前记忆插件时，Hermes 会多出 `hermes nyx` 这组命令（数据目录、保险箱开关按当前 profile 的 `nyx.json`）：
+Newer Hermes installs nyx-memory in its own isolated environment, so the system Python has no nyx and
+`python3 -m nexsandglass.…` does not work. When nyx is the active memory provider, Hermes gains the `hermes nyx` commands
+(data directory and vault switches follow the current profile's `nyx.json`):
 
-| 命令 | 作用 |
+| Command | Effect |
 |---|---|
-| `hermes nyx doctor` | 自检：每一项 ✅ / ❌ + 原因 |
-| `hermes nyx vault list` / `show v3 [--copy]` / `delete v3` / `gc` / `rekey` / `audit` / `status` | 密钥保险箱 |
-| `hermes nyx scrub [--apply] [--to-vault]` | 已经存下来的密钥 / 密码：找出来、原地隐去 |
-| `hermes nyx repair [--apply]` | 中枢对不上日志时：按内容体检与修复 |
-| `hermes nyx status` | 版本、Python、数据目录、保险箱 |
+| `hermes nyx doctor` | Self-check: ✅ / ❌ per item, with the reason |
+| `hermes nyx vault list` / `show v3 [--copy]` / `delete v3` / `gc` / `rekey` / `audit` / `status` | Secret vault |
+| `hermes nyx scrub [--apply] [--to-vault]` | Secrets / passwords already stored: find them and hide them in place |
+| `hermes nyx repair [--apply]` | When the hub does not match the journal: check and repair by content |
+| `hermes nyx status` | Version, Python, data directory, vault |
 
-agent 转告给你的命令（自检警告、「在终端里取」）也会写成 `hermes nyx …`。
+Commands the agent passes on to you (health warnings, "get it in the terminal") are written as `hermes nyx …` too.
 
-## 密钥保险箱（v7.15.0，默认关）
+## Secret vault (v7.15.0, off by default)
 
-默认情况下，聊天里贴的密钥在写进记忆之前就被换成占位符，原文直接丢掉。打开 `vault` 后原文不丢，而是加密存进保险箱（主密钥在 `~/.config/nyx/vault.key`，不在数据目录里），占位符带上编号，例如 `[已隐去: HF token …ab12 #v3]`。
+By default, a secret pasted into chat is replaced with a placeholder before it is written to memory, and the value is
+dropped. With `vault` on, the value is not dropped but stored encrypted in the vault (the master key is in
+`~/.config/nyx/vault.key`, outside the data directory), and the placeholder gets an id, e.g. `[hidden: HF token …ab12 #v3]`
+(before v7.16.0: `[已隐去: …]`, still recognised).
 
-主人说「把我之前给你的 HF token 发我」时，agent 调用 `nyx_secret_reveal(v3)`，然后：
+When the user says "send me the HF token I gave you", the agent calls `nyx_secret_reveal(v3)`, and then:
 
-1. Hermes 弹出人工审批。如果审批被 `/yolo` 或 `approvals.mode: off` 关掉了，就改为让主人回复一句确认短语。
-2. 模型拿到的只是一个句柄。在回复发给主人之前，配套插件把句柄换成原文，所以模型服务商看不到原文，Hermes 的会话记录里存的也是句柄。
+1. Hermes asks for human approval. If approvals are off (`/yolo` or `approvals.mode: off`), the user replies with a confirmation phrase instead (e.g. `confirm v3 123456`; the Chinese form `确认 v3 123456` works too).
+2. The model only gets a handle. Just before the reply goes to the user, the companion plugin swaps the handle for the value, so the model provider never sees it and Hermes's session log stores the handle.
 
-启用（Hermes 自己已经带了 cryptography，不用另装）：
+To enable it (Hermes already ships cryptography, nothing extra to install):
 
 ```bash
-hermes plugins enable nyx-reveal      # 再在 hermes memory setup 里把 vault 设成 on，然后重启 Hermes
+hermes plugins enable nyx-reveal      # then set vault to on in hermes memory setup, and restart Hermes
 ```
 
-最稳妥的方式永远是在终端里取：`hermes nyx vault show v3`（不在 Hermes 里：`python3 -m nexsandglass.vault show v3`）。原文不经过任何模型或聊天平台。
+The safest way is always the terminal: `hermes nyx vault show v3` (outside Hermes: `python3 -m nexsandglass.vault show v3`).
+The value passes through no model and no chat platform.
 
-保险箱防不住两件事：
-- 密钥第一次贴进聊天的那一刻，原文已经发给了模型服务商，也留在了聊天平台上，所以贴过的密钥都应该换掉。
-- 机器人在群聊里时，群里任何人都会被当成主人。
+Two things the vault cannot protect against:
+- The moment a secret is first pasted into chat, the value has already been sent to the model provider and stays on the chat platform, so any pasted secret should be rotated.
+- When the bot is in a group chat, anyone in the group counts as the user.
 
-威胁模型和实测结果见 [docs/secret-vault.md](../docs/secret-vault.md)。
+Threat model and tests: [docs/secret-vault.md](https://github.com/sixgodgit/nyx/blob/main/docs/secret-vault.md).
 
-## 每轮做什么
+## What happens each turn
 
-- **prefetch**：对本轮问题现做本地召回（每轮约 30–140ms），每条带「哪天说的」；问到住处 / 公司 / 职位等时，
-  附上双时态的当前信念（「user 住在 上海（自 2026-09-01）」）。默认注入 12 条；问「一共几次 / 隔了多久 / 哪个先 / 之前之后」时
-  20 条（`NYX_BREADTH_LINES`，0 = 关闭）。界面上显示 `🧠 Nyx — recalled N memories`
-- **sync_turn**：原文落沙（审计日志）+ 晋升门 + 事实抽取；按 `turn_author` 绑定来源
-- **subagent / cron / flush 上下文只读**：不写记忆，写类工具直接拒绝
+- **prefetch**: a fresh local recall for this turn's question (about 30–140 ms per turn), each entry with the date it was said;
+  for questions about where the user lives / works / their job, the current bi-temporal belief is added
+  ("user lives in Shanghai (since 2026-09-01)"). 12 entries by default; 20 for "how many times / how long / which came
+  first / before or after" questions (`NYX_BREADTH_LINES`, 0 = off). Hermes shows `🧠 Nyx` with the number of memories recalled
+- **sync_turn**: the message goes to the journal (audit log) + promotion gate + fact extraction; the source is bound from `turn_author`
+- **subagent / cron / flush contexts are read-only**: nothing is written, and write tools refuse
 
-## 工具
+## Tools
 
-| 工具 | 作用 |
+| Tool | Effect |
 |---|---|
-| `sandglass_search` / `sandglass_recent` | 召回 / 最近记忆（非主人来源带「未经证实」标注） |
-| `nyx_belief` | 双时态事实：现在信什么；`as_of` 那天什么为真；`known_at` 那时我以为是什么；`history` 演变链 |
-| `nyx_forget` | 遗忘 → **隔离区**（先预览、再 `confirm=true`；一次最多 20 条）。agent 无权永久擦除 |
-| `nyx_restore` / `nyx_quarantine` | 从隔离区原样还原 / 查看隔离区 |
-| `fact_store` / `fact_feedback` | 影子沙事实存储与信任反馈 |
-| `sandglass_offset` / `sandglass_echo` | 主人决策偏移 / 情绪风向 |
-| `nyx_health` | 自检（`quick=true` 只查语义索引）。系统提示里出现「⚠️ Nyx 自检」时调用 |
+| `sandglass_search` / `sandglass_recent` | Recall / recent memories (sources other than the user are labelled `(unverified · source: …)`) |
+| `nyx_belief` | Bi-temporal facts: what is believed now; what was true on `as_of`; what was believed at `known_at`; `history` = how it changed |
+| `nyx_forget` | Forget → **quarantine** (preview first, then `confirm=true`; at most 20 at a time). The agent cannot erase permanently |
+| `nyx_restore` / `nyx_quarantine` | Restore from the quarantine as-is / list the quarantine |
+| `fact_store` / `fact_feedback` | Shadow-sand fact store and trust feedback |
+| `sandglass_offset` / `sandglass_echo` | The user's decision drift / sentiment |
+| `nyx_health` | Self-check (`quick=true` checks only the semantic index). Called when the system prompt shows "⚠️ Nyx health" |
 
-## 自检
+## Self-check
 
-语义索引等子系统出故障时不会拖垮对话（词法召回照常），但**不会再静默**：系统提示里会出现一行
-「⚠️ Nyx 自检：…」，agent 会转告主人。主人在终端运行 `python3 -m nexsandglass.doctor` 看每一项。
+A failing subsystem such as the semantic index does not take the conversation down (lexical recall keeps working), but it
+is **never silent**: the system prompt gets a line "⚠️ Nyx health: …" and the agent tells the user. In the terminal,
+`hermes nyx doctor` (or `python3 -m nexsandglass.doctor`) shows every item.
 
-## 已知局限
+## Known limitations
 
-- 一个进程一份 nyx 记忆：网关里多个 Hermes profile 共进程时共用同一个 `data_dir`
-- 语义检索需要嵌入后端（本地模型或 API）；没有时同义改写召不回来（问 company、原话是 joined Contoso）
-- 从 v7.13.2 及更早版本升级后，首次启动会在后台回填全部历史记忆的向量（本地 CPU 模型几千条约几十分钟），期间语义召回逐步变全
-- 隔离区到期不会自动真删：定期执行 `python3 -c "from nexsandglass.core import erasure; print(erasure.purge(apply=True))"`；到期没清时自检会提醒
-- v3.x 的 `install.sh` 装过的机器：删掉 `~/.hermes/plugins/memory/nexsandglass` 与 `~/.hermes/plugins/sandglass`（旧的复制式插件，会让同一句话记两遍）
+- One nyx memory per process: several Hermes profiles sharing one gateway process share the same `data_dir`
+- Semantic search needs an embedding backend (local model or API); without one, paraphrases are not recalled (asking about "company" when the message said "joined Contoso")
+- After upgrading from v7.13.2 or earlier, the first start fills vectors for all past memories in the background (a few thousand take tens of minutes on a local CPU model); semantic recall becomes complete gradually
+- Quarantine purges are not automatic: run `python3 -c "from nexsandglass.core import erasure; print(erasure.purge(apply=True))"` regularly; the self-check reminds you when purges are overdue
+- Machines set up with the v3.x `install.sh`: delete `~/.hermes/plugins/memory/nexsandglass` and `~/.hermes/plugins/sandglass` (old copied plugins that record every message twice)
