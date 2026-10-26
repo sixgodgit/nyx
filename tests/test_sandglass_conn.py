@@ -33,11 +33,38 @@ def test_one_connection_is_reused(fts):
     assert sq._get_db() is a
 
 
-def test_closed_connection_is_replaced(fts):
+def test_stray_close_keeps_the_shared_connection_usable(fts):
     a = sq._get_db()
-    a.close()                                    # 老代码 / 测试会自己 close
+    a.close()                                    # 老代码 / 测试会自己 close：不真关
+    assert sq._get_db() is a and a.execute("SELECT COUNT(*) FROM sandglass").fetchall()[0][0] == 0
+    sq._reset_db()                               # 真要关
     b = sq._get_db()
     assert b is not a and b.execute("SELECT COUNT(*) FROM sandglass").fetchall()[0][0] == 0
+
+
+def test_concurrent_close_and_use_do_not_crash(fts):
+    """CI 上 Python 3.10 段错误过：一个线程 close() 复用的连接，另一个线程正在用它。"""
+    import threading
+    errors = []
+
+    def closer():
+        for _ in range(200):
+            sq._get_db().close()
+
+    def user():
+        try:
+            for _ in range(200):
+                assert sq.count() == 0
+                sq.search("anything")
+        except Exception as e:                   # noqa: BLE001
+            errors.append(e)
+
+    ts = [threading.Thread(target=closer) for _ in range(4)] + [threading.Thread(target=user) for _ in range(4)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    assert not errors, errors[0]
 
 
 def test_deleted_db_file_gets_a_fresh_connection(fts):

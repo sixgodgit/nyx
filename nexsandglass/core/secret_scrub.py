@@ -296,8 +296,18 @@ def _vacuum(path: str) -> Optional[str]:
     return sqlite_open.vacuum(path)
 
 
-def _bytes_scan(path: str, mode: str, needles: List[str] = ()) -> int:
-    """按原始字节找：库文件的空闲页、WAL、看不懂格式的文件。needles：清理时隐去的原文（不分大小写）。"""
+def _is_vault_file(name: str) -> bool:
+    """保险箱自己的库文件：本来就是放密钥的地方（加密的）。"""
+    from nexsandglass.core import secret_vault
+    return name in {secret_vault.DB_NAME + suf for suf in ("", "-wal", "-shm", "-journal")}
+
+
+def _bytes_scan(path: str, mode: str, needles: List[str] = (), rules: bool = True) -> int:
+    """按原始字节找：库文件的空闲页、WAL、看不懂格式的文件。needles：清理时隐去的原文（不分大小写）。
+
+    rules=False 只找原文：保险箱的库每条都明文存着类别、标签和末四位（「password 密码 4567」），
+    按规则扫一定会被认成「密码 4567」—— 新版 SQLite（3.53）的页面布局下实测十有八九误报（v7.15.4）。
+    """
     try:
         with open(path, "rb") as f:
             data = f.read()
@@ -308,6 +318,8 @@ def _bytes_scan(path: str, mode: str, needles: List[str] = ()) -> int:
     text = re.sub(r"\\u([0-9a-fA-F]{4})", lambda m: chr(int(m.group(1), 16)), text)
     low = text.lower()
     literal = sum(low.count(nd.lower()) for nd in needles)
+    if not rules:
+        return literal
     by_rule = sum(len(secret_filter.scrub(chunk, mode).findings) for chunk in text.split("\x00") if len(chunk) >= 8)
     return max(literal, by_rule)          # 同一处常常两种方法都认得出：不重复计数
 
@@ -458,7 +470,7 @@ def run(apply: bool = False, mode: str = "on", journal_path: str = None, to_vaul
     residual = {}
     for root, name in _walk(nb):
         p = os.path.join(root, name)
-        n = _bytes_scan(p, mode, needles)
+        n = _bytes_scan(p, mode, needles, rules=not _is_vault_file(name))
         if n:
             residual[os.path.relpath(p, nb)] = n
     report["on_disk"] = residual

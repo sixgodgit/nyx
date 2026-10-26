@@ -421,3 +421,22 @@ def test_scrub_to_vault(vault, env, monkeypatch):  # noqa: F811
     monkeypatch.setenv("NYX_VAULT", "off")
     with pytest.raises(RuntimeError, match="保险箱用不了"):
         secret_scrub.run(apply=False, to_vault=True)
+
+
+def test_residual_scan_ignores_vault_metadata(tmp_path):
+    """保险箱的库每条明文存着类别、标签、末四位：「password密码4567」按规则会被认成密码。
+    新版 SQLite（3.53）的页面布局下 scrub --apply 十有八九报「磁盘上还有」（v7.15.4 修）。
+    保险箱自己的文件只查原文：原文真在里面照样报。"""
+    from nexsandglass.core import secret_scrub, secret_vault
+    meta = b"\x00\x01password\xe5\xaf\x86\xe7\xa0\x814567\x00ct-bytes\x00"
+    vdb = tmp_path / secret_vault.DB_NAME
+    other = tmp_path / "other.db"
+    vdb.write_bytes(meta)
+    other.write_bytes(meta)
+    assert secret_scrub._is_vault_file(vdb.name) and secret_scrub._is_vault_file(vdb.name + "-wal")
+    assert not secret_scrub._is_vault_file(other.name)
+    assert secret_scrub._bytes_scan(str(other), "on") >= 1, "普通文件里这样的一段照样算"
+    assert secret_scrub._bytes_scan(str(vdb), "on", rules=False) == 0
+    leaked = "hunter2-Plaintext-77"
+    vdb.write_bytes(meta + leaked.encode())
+    assert secret_scrub._bytes_scan(str(vdb), "on", [leaked], rules=False) == 1, "原文在保险箱库里也要报"

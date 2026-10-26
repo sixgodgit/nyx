@@ -33,6 +33,17 @@ def _tokenize(text: str) -> str:
     return " ".join(sorted(t for t in tokens if t))
 
 
+class _SharedConnection(sqlite3.Connection):
+    """复用的那个连接。调用方习惯性的 close() 不真关：别的线程可能正拿着它，Python 3.10 的 sqlite3
+    在「一个线程关、一个线程用」时直接段错误（CI 实测）。真要关走 _reset_db()。"""
+
+    def close(self):
+        pass
+
+    def _close(self):
+        super().close()
+
+
 _conn_lock = threading.Lock()
 _conn = None          # (库文件身份, 连接)：一个进程复用一个连接（v7.15.4）
 _count_cache = None   # (连接, data_version, schema_version, total_changes, 行数)
@@ -47,7 +58,7 @@ def _db_ident():
 
 
 def _get_db():
-    """这个库的连接：一个进程复用一个（v7.15.4），调用方在 _lock 里用它，不要 close —— 要关用 _reset_db()。
+    """这个库的连接：一个进程复用一个（v7.15.4），调用方在 _lock 里用它；它的 close() 什么都不做，要关用 _reset_db()。
 
     以前每次查询都新开一个连接：每次重跑一遍 WAL 检查和建表，页缓存也是冷的，召回一次要开十来个。
     库文件被删掉重建（scrub）、换了路径（测试）、连接被关掉时，这里会换一个新的。
@@ -63,11 +74,12 @@ def _get_db():
             except sqlite3.ProgrammingError:
                 pass
         old = _conn[1] if _conn is not None else None
-        c = sqlite_open.connect(_DB, timeout=10, synchronous="NORMAL", setup=_setup, check_same_thread=False)
+        c = sqlite_open.connect(_DB, timeout=10, synchronous="NORMAL", setup=_setup,
+                                check_same_thread=False, factory=_SharedConnection)
         _conn = (_db_ident(), c)
         if old is not None:
             try:
-                old.close()
+                old._close()
             except sqlite3.Error:
                 pass
         return c
@@ -79,7 +91,7 @@ def _reset_db() -> None:
     with _conn_lock:
         if _conn is not None:
             try:
-                _conn[1].close()
+                _conn[1]._close()
             except sqlite3.Error:
                 pass
             _conn = None
