@@ -470,8 +470,22 @@ Owner `sixgodgit` / Repository `nyx` / Workflow `release.yml` / Environment `pyp
 
 ---
 
+## 🌱 起源
+
+Nyx 始于 NexLSL 的开源项目 **NexSandglass**（MIT 许可，2026 年 6 月，v1.0–v2.9.9）。沙漏日志与 FTS5 全文库、
+多路检索（`search_router`）、影子沙、织线知识图谱，画像 / 偏移率 / 场景 / 情绪这些 L3 分析，以及 MCP 服务和最早的
+Hermes 插件，设计与第一版代码都来自那里；Python 包名 `nexsandglass` 也沿用至今。
+
+v3.0（2026 年 7 月）起由 sixgodgit 维护：重构为模块化包，之后加入了 runtime 编排与候选晋升、ID 中枢、遗忘隔离区与
+可验证的真删除、双时态事实、来源信任、话语理解、Hermes 插件改为按官方 `MemoryProvider` 接口实现、语义检索、
+LongMemEval / LoCoMo 评测、密钥过滤与保险箱等（见 [CHANGELOG.md](CHANGELOG.md)）。完整的提交历史都保留在仓库里。
+
+感谢 NexLSL 和 NexSandglass 的贡献者。
+
+---
+
 ## 📄 License
 
-MIT
+MIT，见 [LICENSE](LICENSE)。版权人：NexSandglass（原始项目）与 sixgodgit（v3.0 起）。
 
 **Made with 🧠 by Nyx — 夜神记忆感知系统**
