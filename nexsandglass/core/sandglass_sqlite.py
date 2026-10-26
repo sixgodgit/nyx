@@ -33,9 +33,56 @@ def _tokenize(text: str) -> str:
     return " ".join(sorted(t for t in tokens if t))
 
 
+_conn_lock = threading.Lock()
+_conn = None          # (库文件身份, 连接)：一个进程复用一个连接（v7.15.4）
+_count_cache = None   # (连接, data_version, schema_version, total_changes, 行数)
+
+
+def _db_ident():
+    try:
+        st = os.stat(_DB)
+        return (_DB, st.st_ino, st.st_dev)
+    except OSError:
+        return None
+
+
 def _get_db():
-    # WAL（支持多进程并发）+ synchronous=NORMAL；开库与建表走 sqlite_open，撞锁会重试（v7.13.4）
-    return sqlite_open.connect(_DB, timeout=10, synchronous="NORMAL", setup=_setup)
+    """这个库的连接：一个进程复用一个（v7.15.4），调用方在 _lock 里用它，不要 close —— 要关用 _reset_db()。
+
+    以前每次查询都新开一个连接：每次重跑一遍 WAL 检查和建表，页缓存也是冷的，召回一次要开十来个。
+    库文件被删掉重建（scrub）、换了路径（测试）、连接被关掉时，这里会换一个新的。
+    WAL（支持多进程并发）+ synchronous=NORMAL；开库与建表走 sqlite_open，撞锁会重试（v7.13.4）
+    """
+    global _conn
+    with _conn_lock:
+        ident = _db_ident()
+        if _conn is not None and ident is not None and _conn[0] == ident:
+            try:
+                _conn[1].total_changes          # 已关闭的连接在这里抛 ProgrammingError
+                return _conn[1]
+            except sqlite3.ProgrammingError:
+                pass
+        old = _conn[1] if _conn is not None else None
+        c = sqlite_open.connect(_DB, timeout=10, synchronous="NORMAL", setup=_setup, check_same_thread=False)
+        _conn = (_db_ident(), c)
+        if old is not None:
+            try:
+                old.close()
+            except sqlite3.Error:
+                pass
+        return c
+
+
+def _reset_db() -> None:
+    """关掉复用的连接：删库重建、VACUUM 之前调用。下一次 _get_db() 重新打开。"""
+    global _conn
+    with _conn_lock:
+        if _conn is not None:
+            try:
+                _conn[1].close()
+            except sqlite3.Error:
+                pass
+            _conn = None
 
 
 def _setup(conn) -> None:
@@ -190,9 +237,23 @@ def search(query: str, limit: int = 10) -> list:
 
 
 def count() -> int:
+    """记忆条数。召回时每路检索都要用（算 IDF），整表 COUNT 一次几毫秒：库没变就用上次的（v7.15.4）。
+
+    「没变」= 同一个连接、别的连接没有提交过（data_version）、表结构没变（schema_version）、
+    本连接也没写过（total_changes）—— 四样都相同，行数就一定相同。
+    """
+    global _count_cache
     try:
         with _lock:
-            return _get_db().execute("SELECT COUNT(*) FROM sandglass").fetchone()[0]
+            c = _get_db()
+            dv = c.execute("PRAGMA data_version").fetchall()[0][0]
+            sv = c.execute("PRAGMA schema_version").fetchall()[0][0]
+            cached = _count_cache
+            if cached is not None and cached[0] is c and cached[1:4] == (dv, sv, c.total_changes):
+                return cached[4]
+            n = c.execute("SELECT COUNT(*) FROM sandglass").fetchall()[0][0]
+            _count_cache = (c, dv, sv, c.total_changes, n)
+            return n
     except Exception:
         return 0
 

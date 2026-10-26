@@ -433,6 +433,7 @@ def run(apply: bool = False, mode: str = "on", journal_path: str = None, to_vaul
         from nexsandglass.features import sandglass_vault
         fts = getattr(sandglass_sqlite, "_DB", os.path.join(nb, "sandglass.db"))
         with sandglass_sqlite._lock:
+            sandglass_sqlite._reset_db()        # 复用的连接（v7.15.4）先关掉，再删文件
             for suf in ("", "-wal", "-shm"):
                 try:
                     os.unlink(fts + suf)
