@@ -48,15 +48,24 @@ def _load_like_hermes(target):
 
 def test_shim_is_found_and_loaded_like_hermes(tmp_path):
     target, did = I.write_shim(str(tmp_path))
-    assert did == "新建" and target == os.path.join(str(tmp_path), "plugins", "nyx")
+    assert did == "created" and target == os.path.join(str(tmp_path), "plugins", "nyx")
     src = open(os.path.join(target, "__init__.py"), encoding="utf-8").read()
     assert "register_memory_provider" in src[:8192], "Hermes 的 _is_memory_provider_dir 只看这个词"
     yml = open(os.path.join(target, "plugin.yaml"), encoding="utf-8").read()
     assert "name: nyx" in yml and "kind: exclusive" in yml, "普通插件加载器跳过它，只由记忆插件加载器加载"
     p = _load_like_hermes(target)
     assert p is not None and p.name == "nexsandglass"
-    assert I.write_shim(str(tmp_path))[1] == "更新"
+    assert I.write_shim(str(tmp_path))[1] == "updated"
 
+
+
+def test_entry_file_from_before_v7_16_is_still_ours(tmp_path):
+    """v7.16.0 之前写的入口文件带的是中文标记：照样认成 nyx 的入口文件，重装是「更新」而不是当成别人的目录。"""
+    target, _ = I.write_shim(str(tmp_path))
+    path = os.path.join(target, "__init__.py")
+    old = open(path, encoding="utf-8").read().replace(I._SHIM_MARK, "nexsandglass_hermes 安装的入口文件")
+    open(path, "w", encoding="utf-8").write(old)
+    assert I._is_shim(old) and I.write_shim(str(tmp_path))[1] == "updated"
 
 def test_shim_without_the_package_logs_instead_of_crashing(tmp_path, monkeypatch, caplog):
     target, _ = I.write_shim(str(tmp_path))
@@ -72,14 +81,14 @@ def test_old_full_copy_is_replaced_foreign_dir_is_not(tmp_path):
     home = str(tmp_path)
     old = os.path.join(home, "plugins", "nyx")
     shutil.copytree(os.path.dirname(nexsandglass_hermes.__file__), old)   # v7.14.0 README 的第二种装法
-    assert I.write_shim(home)[1] == "替换旧的整目录拷贝"
+    assert I.write_shim(home)[1] == "replaced"
     assert sorted(os.listdir(old)) == ["__init__.py", "cli.py", "plugin.yaml"], "升级之后旧拷贝还在跑旧代码 —— 换成入口文件"
     other = os.path.join(home, "plugins", "nyx2")
     os.makedirs(other)
     open(os.path.join(other, "__init__.py"), "w").write("# 别人的插件\n")
-    with pytest.raises(SystemExit, match="不是 nyx 的插件"):
+    with pytest.raises(SystemExit, match="is not nyx's plugin"):
         I.write_shim(home, name="nyx2")
-    assert I.write_shim(home, name="nyx2", force=True)[1] == "替换旧的整目录拷贝"
+    assert I.write_shim(home, name="nyx2", force=True)[1] == "replaced"
 
 
 def _fake_hermes(tmp_path, shebang):
@@ -170,7 +179,7 @@ def test_full_run(tmp_path, monkeypatch, capsys):
     # 旧版安装留下的网关插件：要报出来
     os.makedirs(home / "plugins" / "sandglass")
     assert I.main(["--hermes-home", str(home), "--no-config"]) == 1
-    assert "旧版安装留下的" in capsys.readouterr().out
+    assert "left from an old install" in capsys.readouterr().out
 
 
 def test_module_entry_is_inert_on_import():
@@ -251,7 +260,7 @@ def test_new_hermes_gets_its_own_plugin_install(tmp_path, monkeypatch, capsys):
     argv = [json.loads(l) for l in open(calls)]
     assert ["plugins", "install", I.SOURCE, "--enable", "--force"] in argv
     assert ["config", "set", "memory.provider", "nyx"] in argv and ["plugins", "enable", "nyx-reveal"] in argv
-    assert "provider 是 nyx，可用" in out and json.load(open(home / "nyx.json"))["vault"] == "on"
+    assert "the provider is nyx, available" in out and json.load(open(home / "nyx.json"))["vault"] == "on"
     import re
     assert len(re.findall(r"^python_dependencies:", open(home / "plugins" / "nyx" / "plugin.yaml", encoding="utf-8").read(),
                           re.M)) == 1
@@ -261,7 +270,7 @@ def test_new_hermes_gets_its_own_plugin_install(tmp_path, monkeypatch, capsys):
     other = tmp_path / "h3" / "plugins" / "nyx"
     other.mkdir(parents=True)
     (other / "__init__.py").write_text("# 别人的\n")
-    with pytest.raises(SystemExit, match="不是 nyx 的插件"):
+    with pytest.raises(SystemExit, match="is not nyx's plugin"):
         I.main(["--hermes-home", str(tmp_path / "h3")])
 
 
@@ -351,7 +360,7 @@ def test_hermes_nyx_dispatch(env, tmp_path, monkeypatch, capsys):  # noqa: F811
         pytest.skip("要装 cryptography")
     root = _hermes_parser()
     args = root.parse_args(["nyx", "status"])
-    assert args.func(args) == 0 and "开" in capsys.readouterr().out, "nyx.json 的 vault: on 要生效"
+    assert args.func(args) == 0 and "Vault: on" in capsys.readouterr().out, "nyx.json 的 vault: on 要生效"
     from tests.test_hermes_provider import _provider
     _provider().sync_turn(f"帮我配一下 Hugging Face，key 是 {HF}", "好的，记下了，之后需要随时问我")
     vid = secret_vault.entries()[0].id
@@ -399,3 +408,22 @@ def test_tool_hint_inside_hermes(monkeypatch):
     monkeypatch.delenv("NYX_VIA_HERMES", raising=False)
     monkeypatch.setitem(sys.modules, "hermes_cli", type(sys)("hermes_cli"))
     assert hints.cmd("doctor") == "hermes nyx doctor"
+
+
+def test_language_follows_nyx_json(tmp_path, monkeypatch, capsys):
+    """hermes nyx …：没设 NYX_LANG 时按 nyx.json 的 lang；设了 NYX_LANG 以它为准（v7.16.0）。"""
+    from nexsandglass_hermes import cli
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.delenv("NYX_LANG", raising=False)
+    for k in ("LC_ALL", "LC_MESSAGES"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("LANG", "C.UTF-8")
+    assert cli._t("en", "zh") == "en"
+    (tmp_path / "nyx.json").write_text('{"lang": "zh"}', encoding="utf-8")
+    assert cli._t("en", "zh") == "zh"
+    monkeypatch.setenv("NYX_LANG", "en")
+    assert cli._t("en", "zh") == "en"
+    monkeypatch.setenv("NYX_LANG", "auto")
+    monkeypatch.setenv("LANG", "zh_CN.UTF-8")
+    (tmp_path / "nyx.json").write_text('{}', encoding="utf-8")
+    assert cli._t("en", "zh") == "zh", "auto 按系统语言"

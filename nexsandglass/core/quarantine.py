@@ -72,6 +72,7 @@ from datetime import datetime, timedelta
 from typing import Iterable, Optional
 
 from nexsandglass.core import memid
+from nexsandglass.core.lang import t as _t
 
 logger = logging.getLogger(__name__)
 
@@ -463,7 +464,8 @@ def _restore_impl(mem_id: str, *, journal_path: str = None, engram_path: str = N
               "shadow": {"trust": 0, "fact_tags": 0, "triples": 0, "entities": 0},
               "problems": [], "notes": []}
     if not rec:
-        report["problems"].append("隔离区里没有这条（可能已 purge，或从未隔离）")
+        report["problems"].append(_t("not in the quarantine (already purged, or never quarantined)",
+                                      "隔离区里没有这条（可能已 purge，或从未隔离）"))
         return report
 
     jpath = journal_path or rec.get("journal_path") or memid._journal_path()
@@ -480,14 +482,16 @@ def _restore_impl(mem_id: str, *, journal_path: str = None, engram_path: str = N
     hub = conn.execute(
         "SELECT seq, line_start, deleted_at FROM memories WHERE mem_id=?", (mem_id,)).fetchone()
     if hub is None:
-        report["problems"].append("中枢里没有这个 mem_id（库被换过？）")
+        report["problems"].append(_t("the ID hub has no such mem_id (was the database replaced?)", "中枢里没有这个 mem_id（库被换过？）"))
         return report
     if not hub[2]:
-        report["problems"].append("中枢里这条没有墓碑 —— 它没被删，不该还原")
+        report["problems"].append(_t("no tombstone in the ID hub: it was never deleted, so there is nothing to restore",
+                                      "中枢里这条没有墓碑 —— 它没被删，不该还原"))
         return report
     if int(hub[1] or 0) != ls:
-        report["problems"].append(
-            "行号不一致（中枢 %s / 隔离区 %s），拒绝按行号写回" % (hub[1], ls))
+        report["problems"].append(_t(
+            "line numbers disagree (hub %s / quarantine %s); refusing to write back by line" % (hub[1], ls),
+            "行号不一致（中枢 %s / 隔离区 %s），拒绝按行号写回" % (hub[1], ls)))
         return report
 
     # ── 派生索引 ──
@@ -502,7 +506,7 @@ def _restore_impl(mem_id: str, *, journal_path: str = None, engram_path: str = N
             db.commit()
             report["fts"] = n
     except Exception as e:
-        report["notes"].append("FTS 未还原（可重建）: %s" % e)
+        report["notes"].append(_t("full-text index not restored (can be rebuilt): %s", "FTS 未还原（可重建）: %s") % e)
 
     try:
         from nexsandglass.features import shadow_sand as sh
@@ -515,7 +519,7 @@ def _restore_impl(mem_id: str, *, journal_path: str = None, engram_path: str = N
                                                             ls, mem_id)
             db.commit()
     except Exception as e:
-        report["notes"].append("影子沙未还原（可重建）: %s" % e)
+        report["notes"].append(_t("shadow store not restored (can be rebuilt): %s", "影子沙未还原（可重建）: %s") % e)
 
     # engram jsonl：按 ts 去重后追加，避免重复还原写两份
     epath = engram_path or os.path.join(
@@ -525,7 +529,7 @@ def _restore_impl(mem_id: str, *, journal_path: str = None, engram_path: str = N
     # ── 正文（真相来源）──
     report["journal"] = _write_back(jpath, ls, pay.get("journal") or [])
     if report["journal"].get("status") != "restored":
-        report["problems"].append("日志正文未还原: %s" % report["journal"].get("status"))
+        report["problems"].append(_t("journal text not restored: %s", "日志正文未还原: %s") % report["journal"].get("status"))
     report["backup"] = _write_back(_backup_path(jpath), ls, pay.get("backup") or [])
 
     # ── 中枢：撤墓碑，正文写回 ──
@@ -542,7 +546,7 @@ def _restore_impl(mem_id: str, *, journal_path: str = None, engram_path: str = N
     if report["hub"]:
         report["idx"] = _restore_idx(rec["text"] or "", ls)
 
-    report["notes"].append("向量需重算（embedding 不入隔离区）")
+    report["notes"].append(_t("vectors will be recomputed (embeddings are not kept in the quarantine)", "向量需重算（embedding 不入隔离区）"))
 
     report["ok"] = bool(report["hub"]) and not report["problems"]
     if report["ok"]:
@@ -555,7 +559,8 @@ def _restore_impl(mem_id: str, *, journal_path: str = None, engram_path: str = N
         qc.commit()
         report["quarantine_cleared"] = cur.rowcount == 1
         if not report["quarantine_cleared"]:
-            report["problems"].append("隔离区副本未清除，同一条记忆存在两份")
+            report["problems"].append(_t("the quarantine copy was not removed; the memory now exists twice",
+                                          "隔离区副本未清除，同一条记忆存在两份"))
             report["ok"] = False
     return report
 

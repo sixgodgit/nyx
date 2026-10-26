@@ -97,7 +97,7 @@ def test_longmemeval_end_to_end(fake_llm, tmp_path):
     assert rep["meta"]["answer_model"] == rep["meta"]["judge_model"] == "fake-model"
     # 作答模型看到的就是 Hermes 默认 prefetch 注入的那段（带日期的「## Nyx 记忆」块）；none 组什么都没有
     answers = [s["body"]["messages"][-1]["content"] for s in fake_llm.seen if s["body"]["max_tokens"] == 512]
-    assert any("## Nyx 记忆" in a and "- [" in a for a in answers)
+    assert any("## Nyx memory" in a and "- [" in a for a in answers)
     assert any("(no memories recalled)" in a for a in answers)
     assert all(s["auth"] == "Bearer " + FAKE_KEY for s in fake_llm.seen)
     # key 不进任何文件

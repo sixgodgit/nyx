@@ -489,7 +489,7 @@ class RecallPlanner:
             if not text:
                 continue
             if isinstance(t, dict) and t.get("valid_until"):
-                text = f"（曾，至 {str(t['valid_until'])[:10]}）{text}"
+                text = f"(until {str(t['valid_until'])[:10]}) {text}"
             # memory_id 必须逐条唯一：以前全部叫 "wthread"，聚合去重时只会留下第一条
             tid = t.get("id") if isinstance(t, dict) else None
             objs.append(_make_obj(f"wthread:{tid or text}", text, "wthread", confidence=0.6,
@@ -511,10 +511,10 @@ class RecallPlanner:
         if isinstance(sense, dict) and familiar > 0:
             known = sense.get("known_tokens") or []
             objs.append(_make_obj(
-                "nyx", f"[熟悉度 {familiar}] {query}",
+                "nyx", f"[familiarity {familiar}] {query}",
                 "nyx", confidence=min(0.9, 0.4 + familiar * 0.5)))
             for tok in known[:3]:
-                objs.append(_make_obj(f"nyx:{tok}", f"[已知实体] {tok}", "nyx", confidence=0.6))
+                objs.append(_make_obj(f"nyx:{tok}", f"[known entity] {tok}", "nyx", confidence=0.6))
         hunt = nyx_hunt(query, limit=self.policy.limit("nyx")) or {}
         phantoms = hunt.get("phantoms") or []
         if isinstance(phantoms, list):
@@ -524,7 +524,7 @@ class RecallPlanner:
                 token = p.get("token", "")
                 whisper = p.get("whisper", "")
                 sightings = p.get("sightings", 0)
-                text = whisper or f"[鬼影] {token} (×{sightings})"
+                text = whisper or f"[phantom] {token} (×{sightings})"
                 objs.append(_make_obj(f"nyx:{token}", text[:300], "nyx",
                                       confidence=min(0.9, 0.3 + 0.1 * sightings)))
         return objs
@@ -698,7 +698,7 @@ def _apply_trust(objs: list) -> tuple:
     """按写入时绑定的来源给召回结果定性。返回 (放行的对象, 扣下的摘要)。
 
       tainted     扣下，不出库；摘要里只有 id 与命中规则，**不含正文**
-      unverified  正文前加来源标注（"（未经证实·来源:tool）"），类型降为 semantic ——
+      unverified  正文前加来源标注（"(unverified · source: tool) "），类型降为 semantic ——
                   它可以作为信息被读到，但永远不会被渲染成规则
       trusted     原样放行
 
@@ -820,10 +820,12 @@ def _triple_text(t) -> str:
         p = t.get("predicate") or t.get("relation", "")
         o = t.get("object", "")
         if s and p and o:
+            from nexsandglass.core.understand import relation_phrase
+            p = relation_phrase(p)           # 给模型看英文（住在 → lives in）；库里存的关系名不变（v7.16.0）
             vf = str(t.get("valid_from") or "")[:10]
             # 只有「说过从什么时候起」的才标时间；推定起点（记录时刻）标出来反而误导
             if vf and t.get("valid_basis") == "stated" and not t.get("valid_until"):
-                return f"{s} {p} {o}（自 {vf}）"
+                return f"{s} {p} {o} (since {vf})"
             return f"{s} {p} {o}"
         return t.get("text") or t.get("triple") or ""
     return str(t)
@@ -977,7 +979,7 @@ class NyxOrchestrator:
                 from nexsandglass.runtime import intent as im
                 hctx = im.history_context(intent)
                 if hctx:
-                    mc.strings = list(mc.strings) + ["[历史演变]"] + hctx.split("\n")
+                    mc.strings = list(mc.strings) + ["[history]"] + hctx.split("\n")
             except Exception as e:
                 logger.warning("cognitive_recall history_context 失败: %s", e)
         # 3. Bundle 构建 + 渲染

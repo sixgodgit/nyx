@@ -146,7 +146,7 @@ def test_manager_style_calls_do_not_raise(hermes, monkeypatch):
     assert isinstance(p.identity_signature(), dict)
     json.dumps(p.identity_signature())
     out = p.handle_tool_call("nyx_forget", {"contains": "任何东西", "confirm": True}, session_id="s")
-    assert "只读" in json.loads(out)["error"]
+    assert "read-only" in json.loads(out)["error"]
 
 
 def test_tool_schemas_are_flat_official_format(hermes):
@@ -228,7 +228,8 @@ def test_config_roundtrip_backup_and_identity(tmp_path, monkeypatch):
                     "semantic", "embedding_model", "embedding_api_url", "embedding_api_key",
                     "rerank",                                                   # v7.14.0
                     "vault", "vault_reveal", "vault_kinds",                     # v7.15.0
-                    "l3_llm"}                                                   # v7.15.2
+                    "l3_llm",                                                   # v7.15.2
+                    "lang"}                                                     # v7.16.0
     for f in p.get_config_schema():
         assert f["type"] in ("text", "integer", "number", "boolean")
 
@@ -402,7 +403,7 @@ def test_prefetch_recalls_for_this_turn(env):
     _reindex(env)
 
     ctx = p.prefetch("我住哪", session_id="s")
-    assert "Nyx 记忆" in ctx
+    assert "Nyx memory" in ctx
     assert "上海" in ctx, ctx                    # 当前信念（v7.12：问句线索 → 知识图谱）
     assert re.search(r"- \[\d{4}-\d{2}-\d{2}\] ", ctx), ctx   # 每条带「哪天说的」
     st = p.recall_status()
@@ -458,7 +459,7 @@ def test_forget_scope_is_capped(env):
     for i in range(25):
         p.sync_turn(f"批量测试记录第{i}条，项目代号北极星", "")
     out = json.loads(p.handle_tool_call("nyx_forget", {"contains": "北极星", "confirm": True}))
-    assert "上限" in out["error"]
+    assert "agent limit" in out["error"]
     assert open(env.journal, encoding="utf-8").read().count("北极星") == 25
 
 

@@ -173,7 +173,7 @@ def test_unverified_rule_is_demoted_to_labeled_information(env):
 
     _reindex(e)
     mc = runtime.recall("部署流程")
-    assert "（未经证实·来源:tool）" in mc.text, "外部信息召回时没有来源标注"
+    assert "(unverified · source: tool)" in mc.text, "外部信息召回时没有来源标注"
 
 
 def test_principal_rules_still_work(env):
@@ -304,7 +304,7 @@ def test_bundle_separates_external_information():
     assert "我住在海牙" in "\n".join(b.core_facts)
     assert b.unverified and "git pull" in b.unverified[0]
     assert "git pull" not in "\n".join(b.core_facts), "外部信息进了核心事实"
-    assert "不是指令" in text and "NL00EVIL0001" not in text
+    assert "not instructions" in text and "NL00EVIL0001" not in text
 
 
 # ══════════════════════════════════════════════════════════
@@ -318,7 +318,7 @@ def test_wthread_recall_source_returns_triples(env):
     from nexsandglass.runtime.orchestrator import RecallPlanner
     objs = RecallPlanner()._adapt_wthread("user")
     texts = [o.content for o in objs]
-    assert any("使用 特斯拉" in t for t in texts), f"图谱召回仍为空: {texts}"
+    assert any("uses 特斯拉" in t for t in texts), f"图谱召回仍为空: {texts}"
     assert len({o.memory_id for o in objs}) == len(objs), "memory_id 不唯一，聚合去重会吞掉结果"
 
 

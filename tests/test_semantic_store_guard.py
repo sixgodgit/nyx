@@ -155,7 +155,7 @@ def test_failures_surface_everywhere_and_log_once(sem, env, caplog, monkeypatch)
     assert memid.health()["checks"]["semantic_index"]["ok"] is False
     assert memid.health()["ok"] is False
 
-    assert "语义检索这一路不可用" in p._health_warning()
+    assert "semantic search is unavailable" in p._health_warning()
     out = json.loads(p.handle_tool_call("nyx_health", {"quick": True}))
     assert out["checks"]["semantic_index"]["ok"] is False
 
@@ -188,7 +188,7 @@ def test_pending_too_long_is_a_failure(sem, env):  # noqa: F811
         assert sem.health_check()["ok"], "宽限期内不算故障"
     with clock.frozen(t0 + timedelta(minutes=30)):
         hc = sem.health_check()
-        assert hc["ok"] is False and any("还没有向量" in x for x in hc["problems"]), hc
+        assert hc["ok"] is False and any("no vector yet" in x for x in hc["problems"]), hc
 
 
 def test_config_asks_for_semantic_but_backend_missing(env, monkeypatch):  # noqa: F811
@@ -259,4 +259,4 @@ def test_backfill_in_progress_is_not_a_failure(sem, env):  # noqa: F811
         assert hc["ok"] and hc["state"] == "backfilling" and hc["pending"] == 3, hc
     with clock.frozen(t0 + timedelta(days=30, minutes=20)):  # 之后 20 分钟没有任何进展
         hc = sem.health_check()
-        assert hc["ok"] is False and any("最近一次成功写入向量" in x for x in hc["problems"]), hc
+        assert hc["ok"] is False and any("last successful vector write" in x for x in hc["problems"]), hc

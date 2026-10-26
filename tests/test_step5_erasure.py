@@ -409,7 +409,7 @@ def test_forget_not_ok_when_journal_untouched(env, monkeypatch):
     r = erasure.forget({"contains": SECRET}, apply=True, journal_path=str(home / "sandglass.txt"))
     assert r["ok"] is False
     assert r["action"] == "partial"
-    assert any("日志抹除" in p for p in r["problems"])
+    assert any("journal erased" in p for p in r["problems"])
 
 
 def test_forget_ok_even_when_indexes_report_zero(env, monkeypatch):

@@ -1,12 +1,12 @@
-"""Nyx 夜神 —— Hermes 记忆插件（v7.15.3）
+"""Nyx — Hermes memory provider (v7.15.3)
 
-用 Hermes 自己的插件命令装（不需要先在系统 Python 里装任何东西）：
+Install it with Hermes's own plugin command (nothing needs to be installed in the system Python first):
 
-    hermes plugins install sixgodgit/nyx/hermes-plugin-vector --enable    # 带语义检索的本地模型
+    hermes plugins install sixgodgit/nyx/hermes-plugin-vector --enable    # with the local semantic-search model
 
-Hermes 把这个目录放到 $HERMES_HOME/plugins/nyx/，按 plugin.yaml 的 python_dependencies 把 nyx-memory
-装进它自己的环境（hermes update 之后会重新应用）。然后 hermes config set memory.provider nyx。
-这个文件只是入口：真正的代码在 nyx-memory 里。
+Hermes puts this directory at $HERMES_HOME/plugins/nyx/ and installs nyx-memory into its own environment from
+python_dependencies in plugin.yaml (re-applied after hermes update), then hermes config set memory.provider nyx.
+This file is only the entry point: the real code is in nyx-memory.
 """
 import logging
 import sys
@@ -21,8 +21,8 @@ except ImportError as e:
 def register(ctx):
     if _missing is not None:
         logging.getLogger("nyx").error(
-            "Nyx：Hermes 用的 Python（%s）里没有 nyx-memory（%s）。运行：hermes plugins install "
-            "sixgodgit/nyx/hermes-plugin --force（老版本 Hermes：%s -m pip install nyx-memory），然后重启 Hermes",
+            "Nyx: nyx-memory is not installed in the Python Hermes uses (%s; %s). Run: hermes plugins install "
+            "sixgodgit/nyx/hermes-plugin --force (older Hermes: %s -m pip install nyx-memory), then restart Hermes",
             sys.executable, _missing, sys.executable)
         return
     _apply_data_dir()                    # 先按当前 profile 的 nyx.json 定数据目录，import nexsandglass 之后就改不了了

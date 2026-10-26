@@ -24,7 +24,7 @@ def migrate(force: bool = False) -> int:
     """
     existing = chroma_count()
     if existing > 0 and not force:
-        print(f"ChromaDB 已有 {existing} 条索引，跳过。如需重新导入请用 force=True")
+        print(f"ChromaDB already has {existing} entries, skipping. Use force=True to import again")
         return existing
 
     if force:
@@ -35,7 +35,7 @@ def migrate(force: bool = False) -> int:
     rows = conn.execute("SELECT id, ts, text FROM sandglass ORDER BY id").fetchall()
     conn.close()
 
-    print(f"从 sandglass.db 读取到 {len(rows)} 条沙粒")
+    print(f"read {len(rows)} entries from sandglass.db")
 
     coll = _get_collection()
 
@@ -49,9 +49,9 @@ def migrate(force: bool = False) -> int:
         metadatas = [{"line": r[0], "ts": r[1] or ""} for r in batch]
         coll.add(ids=ids, documents=documents, metadatas=metadatas)
         imported += len(batch)
-        print(f"  已导入 {imported}/{len(rows)} 条...")
+        print(f"  imported {imported}/{len(rows)}...")
 
-    print(f"迁移完成：共 {imported} 条沙粒已导入 ChromaDB")
+    print(f"done: {imported} entries imported into ChromaDB")
     return imported
 
 

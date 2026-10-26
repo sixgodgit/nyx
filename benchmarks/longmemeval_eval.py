@@ -51,7 +51,8 @@ from datetime import datetime
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DATE = re.compile(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?:\D+(\d{1,2}):(\d{2}))?")
-_LABEL = re.compile(r"^（未经证实·来源:[^）]*）")
+# 召回结果前面的「未经证实」标注：v7.16.0 起英文 "(unverified · source: tool) "，以前是「（未经证实·来源:tool）」
+_LABEL = re.compile(r"^(?:\(unverified · source: [^)]*\) |（未经证实·来源:[^）]*）)")
 
 
 def parse_date(s: str) -> datetime:

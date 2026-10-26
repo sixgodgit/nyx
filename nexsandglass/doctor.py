@@ -16,6 +16,7 @@ import json
 import sys
 
 from nexsandglass.core import hints
+from nexsandglass.core.lang import t
 
 
 def run() -> dict:
@@ -33,35 +34,43 @@ def _line(name: str, c: dict) -> str:
         return f"{mark} {name}: {c['error']}"
     if name == "semantic_index":
         if c.get("state") == "disabled" and c.get("ok"):
-            return f"{mark} {name}: 关闭（没有配置嵌入后端；同义改写召不回来）"
-        head = (f"{mark} {name}: {c.get('backend')} · 已索引 {c.get('indexed')} · 待补 {c.get('pending')}"
-                f" · 孤儿向量 {c.get('orphans')}"
-                + ("（正在回填，有进展）" if c.get("state") == "backfilling" else ""))
+            return f"{mark} {name}: " + t("off (no embedding backend configured; paraphrases will not be found)",
+                                           "关闭（没有配置嵌入后端；同义改写召不回来）")
+        head = (f"{mark} {name}: {c.get('backend')} · "
+                + t(f"indexed {c.get('indexed')} · pending {c.get('pending')} · orphan vectors {c.get('orphans')}",
+                    f"已索引 {c.get('indexed')} · 待补 {c.get('pending')} · 孤儿向量 {c.get('orphans')}")
+                + (t(" (backfilling, making progress)", "（正在回填，有进展）") if c.get("state") == "backfilling" else ""))
         return head + "".join(f"\n      - {p}" for p in (c.get("problems") or []))
     keys = [k for k in c if k not in ("ok",)][:6]
     return f"{mark} {name}: " + ", ".join(f"{k}={c[k]}" for k in keys)
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog=hints.cmd("doctor"), description="nyx 自检")
+    ap = argparse.ArgumentParser(prog=hints.cmd("doctor"), description=t("Nyx self-check", "nyx 自检"))
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
     h = run()
     if args.json:
         print(json.dumps(h, ensure_ascii=False, indent=1, default=str))
     else:
-        print(f"nyx {h['version']} · 数据目录 {h['data_dir']}")
+        print(f"nyx {h['version']} · " + t(f"data directory {h['data_dir']}", f"数据目录 {h['data_dir']}"))
         for name, c in h["checks"].items():
             print("  " + _line(name, c))
-        print("结论：" + ("全部正常" if h["ok"] else "有项目失败（见 ❌）"))
+        print(t("Result: ", "结论：") + (t("all good", "全部正常") if h["ok"] else t("some checks failed (see ❌)", "有项目失败（见 ❌）")))
         if not h["checks"].get("secrets", {}).get("ok", True):
-            print(f"下一步：{hints.cmd('scrub')}    （只读：数据目录里有几处密钥 / 密码，在哪；不输出原文）\n"
-                  f"        确认后 {hints.cmd('scrub', '--apply')} 原地隐去")
+            print(t(f"Next: {hints.cmd('scrub')}    (read-only: how many secrets / passwords are stored, and where; "
+                    f"never prints them)\n      then {hints.cmd('scrub', '--apply')} hides them in place",
+                    f"下一步：{hints.cmd('scrub')}    （只读：数据目录里有几处密钥 / 密码，在哪；不输出原文）\n"
+                    f"        确认后 {hints.cmd('scrub', '--apply')} 原地隐去"))
         if any(not h["checks"].get(k, {}).get("ok", True)
                for k in ("hub_vs_journal", "fts_index", "erasure_integrity")):
             # 这三项一起红的时候，最顺手的做法（按 seq 去 forget「泄漏」的那几条）恰恰会抹掉真实记忆
-            print(f"下一步：{hints.cmd('repair')}    （只读体检：按内容分出缺失 / 错位 / 合成孤儿 / 真假泄漏）\n"
-                  "        不要按 erasure_integrity 报的 seq 去 forget —— 墓碑可能指错了位置，抹掉的会是真实记忆")
+            print(t(f"Next: {hints.cmd('repair')}    (read-only check: sorts records into missing / misplaced / "
+                    "synthetic orphans / real vs false leaks)\n"
+                    "      Do not forget the seqs that erasure_integrity reports: the tombstones may point at the wrong "
+                    "place, and you would erase real memories",
+                    f"下一步：{hints.cmd('repair')}    （只读体检：按内容分出缺失 / 错位 / 合成孤儿 / 真假泄漏）\n"
+                    "        不要按 erasure_integrity 报的 seq 去 forget —— 墓碑可能指错了位置，抹掉的会是真实记忆"))
     return 0 if h["ok"] else 1
 
 

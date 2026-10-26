@@ -209,17 +209,17 @@ class DejaVu:
         if not tokens:
             return FamiliarityResult(
                 familiar=False, score=0.0, phantoms=[], unknown=[],
-                total=0, reason="没有可嗅探的 token",
+                total=0, reason="no tokens to check",
             )
         known = [t for t in tokens if self._veil.probe(t)]
         unknown = [t for t in tokens if t not in known]
         ratio = len(known) / len(tokens)
         if not known:
-            reason = f"{len(tokens)} 个 token 全部未见"
+            reason = f"none of {len(tokens)} tokens seen"
         elif not unknown:
-            reason = f"{len(tokens)} 个 token 全部见过"
+            reason = f"all {len(tokens)} tokens seen"
         else:
-            reason = f"{len(known)}/{len(tokens)} 个 token 见过"
+            reason = f"{len(known)}/{len(tokens)} tokens seen"
         return FamiliarityResult(
             familiar=bool(known),
             score=round(ratio, 4),
@@ -294,17 +294,17 @@ class DejaVu:
         s = self.sense(query)
         if not s.familiar:
             return HuntResult(hunted=False, conviction=0.0, phantoms=[],
-                              reason="不熟悉，未发起寻回")
+                              reason="not familiar; no hunt")
         phantoms = self.hunt(query, limit=limit)
         if not phantoms:
             return HuntResult(hunted=True,
                               conviction=round(s.score * 0.3, 4),
                               phantoms=[],
-                              reason="熟悉但未寻回具体痕迹")
+                              reason="familiar, but no traces found")
         top = max(p.sightings for p in phantoms)
         conviction = round(s.score * 0.6 + min(1.0, top / 20) * 0.4, 4)
         return HuntResult(hunted=True, conviction=conviction, phantoms=phantoms,
-                          reason=f"寻回 {len(phantoms)} 道痕迹")
+                          reason=f"found {len(phantoms)} traces")
 
     # ── 统计 ────────────────────────────────────────────────
     def gaze(self) -> GazeReport:

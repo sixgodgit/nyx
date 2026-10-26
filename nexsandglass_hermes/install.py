@@ -33,13 +33,17 @@ import subprocess
 import sys
 from typing import List, Optional, Tuple
 
+from nexsandglass_hermes.cli import _t
+
 NAME = "nyx"
-_SHIM_MARK = "nexsandglass_hermes 安装的入口文件"
+_SHIM_MARK = "entry file written by nexsandglass_hermes"
+_SHIM_MARKS = (_SHIM_MARK, "nexsandglass_hermes 安装的入口文件")      # v7.16.0 之前写的入口文件
 
-SHIM = '''"""Nyx 夜神 —— Hermes 记忆插件入口（{mark}，v{version}）
+SHIM = '''"""Nyx — Hermes memory provider entry ({mark}, v{version})
 
-hermes-agent 只按目录找记忆插件（$HERMES_HOME/plugins/<名字>/），不看 pip 的入口点；这里只是转一下：
-真正的代码在 pip 装的 nyx-memory 里，pip 升级之后这个文件不用动。重新生成：python3 -m nexsandglass_hermes install
+This Hermes finds memory providers by directory ($HERMES_HOME/plugins/<name>/), not by pip entry points, so this
+file only forwards: the real code is the pip-installed nyx-memory, and this file does not change when it is upgraded.
+Regenerate it with: python3 -m nexsandglass_hermes install
 """
 import logging
 import sys
@@ -54,20 +58,21 @@ except ImportError as e:
 def register(ctx):
     if _missing is not None:
         logging.getLogger("nyx").error(
-            "Nyx：Hermes 用的 Python（%s）里没有 nyx-memory（%s）。运行：hermes plugins install "
-            "sixgodgit/nyx/hermes-plugin --force（老版本 Hermes：%s -m pip install nyx-memory），然后重启 Hermes",
+            "Nyx: nyx-memory is not installed in the Python Hermes uses (%s; %s). Run: hermes plugins install "
+            "sixgodgit/nyx/hermes-plugin --force (older Hermes: %s -m pip install nyx-memory), then restart Hermes",
             sys.executable, _missing, sys.executable)
         return
     _apply_data_dir()
     from nexsandglass.core.memory_provider import NexSandglassProvider
-    # 调用写在这个文件里：新版 Hermes 按语法树里的 register_memory_provider(...) 认记忆插件，注释里的字不算
+    # The call has to be in this file: newer Hermes recognises memory providers by a register_memory_provider(...)
+    # call in the syntax tree; words in comments do not count
     ctx.register_memory_provider(NexSandglassProvider())
 '''
 
-CLI_SHIM = '''"""hermes nyx … —— Nyx 的命令行（vault / doctor / scrub / repair / status）。
+CLI_SHIM = '''"""hermes nyx … — Nyx's command line (vault / doctor / scrub / repair / status).
 
-Hermes 在 nyx 是当前记忆插件时载入这个文件的 register_cli。这里只是转一下：真正的代码在 nyx-memory 里
-（nexsandglass_hermes/cli.py）。
+Hermes loads register_cli from this file when nyx is the active memory provider. It only forwards: the real code
+is in nyx-memory (nexsandglass_hermes/cli.py).
 """
 try:
     from nexsandglass_hermes.cli import nexsandglass_command, nyx_command, register_cli  # noqa: F401
@@ -75,8 +80,8 @@ except ImportError as _e:
     _missing = _e
 
     def nyx_command(args):
-        print(f"Nyx：Hermes 的环境里没有 nyx-memory（{_missing}）。"
-              "运行：hermes plugins install sixgodgit/nyx/hermes-plugin --force，然后重启 Hermes")
+        print(f"Nyx: nyx-memory is not installed in Hermes's environment ({_missing}). "
+              "Run: hermes plugins install sixgodgit/nyx/hermes-plugin --force, then restart Hermes")
         return 1
 
     def register_cli(subparser):
@@ -89,7 +94,7 @@ PLUGIN_YAML = """name: {name}
 version: {version}
 kind: exclusive
 description: >-
-  Nyx 夜神 — 单用户、本地的 agent 记忆。入口文件，真正的代码在 pip 装的 nyx-memory 里。
+  Nyx — local, single-user agent memory. Entry file; the real code is the pip-installed nyx-memory.
 """
 
 
@@ -306,17 +311,36 @@ def _ours(path: str) -> bool:
     src = _init_src(path)
     if src is None:
         return not os.listdir(path)
-    return _SHIM_MARK in src or "nexsandglass_hermes" in src or "NexSandglassProvider" in src
+    return any(m in src for m in _SHIM_MARKS) or "nexsandglass_hermes" in src or "NexSandglassProvider" in src
+
+
+def _is_shim(src: Optional[str]) -> bool:
+    return bool(src) and any(m in src for m in _SHIM_MARKS)
+
+
+def _not_ours(target: str) -> str:
+    return _t(f"❌ {target} already exists and is not nyx's plugin; not overwriting it. If it is unused, add --force",
+              f"❌ {target} 已经存在，而且不是 nyx 的插件；不覆盖。确认没用的话加 --force")
+
+
+def _leftover(old: str) -> str:
+    return _t(f"{old} is left from an old install: delete it (rm -rf \"{old}\"), or the same message may be "
+              "remembered twice",
+              f"旧版安装留下的 {old}：请删掉（rm -rf \"{old}\"），否则同一句话可能被记两遍")
+
+
+_DID = {"created": ("created", "新建"), "updated": ("updated", "更新"),
+        "replaced": ("replaced the old full copy with", "替换旧的整目录拷贝成")}
 
 
 def write_shim(home: str, name: str = NAME, force: bool = False) -> Tuple[str, str]:
-    """返回 (目录, 做了什么)。"""
+    """返回 (目录, 做了什么：created / updated / replaced)。"""
     target = os.path.join(home, "plugins", name)
-    did = "新建"
+    did = "created"
     if os.path.isdir(target):
         if not (force or _ours(target)):
-            raise SystemExit(f"❌ {target} 已经存在，而且不是 nyx 的插件；不覆盖。确认没用的话加 --force")
-        did = "更新" if _SHIM_MARK in (_init_src(target) or "") else "替换旧的整目录拷贝"
+            raise SystemExit(_not_ours(target))
+        did = "updated" if _is_shim(_init_src(target)) else "replaced"
         shutil.rmtree(target)
     os.makedirs(target)
     ver = _version()
@@ -402,23 +426,27 @@ def _memory_status_ok(exe: str, home: str) -> Tuple[bool, str]:
 def install_via_hermes(exe: str, home: str, args) -> int:
     problems: List[str] = []
     target = os.path.join(home, "plugins", NAME)
-    print("  这个 Hermes 自己会装插件声明的依赖：交给 hermes plugins install"
-          "（nyx-memory 装进 Hermes 自己的环境，hermes update 之后重新应用）")
+    print(_t("  This Hermes installs the dependencies plugins declare: handing over to hermes plugins install "
+             "(nyx-memory goes into Hermes's own environment and comes back after hermes update)",
+             "  这个 Hermes 自己会装插件声明的依赖：交给 hermes plugins install"
+             "（nyx-memory 装进 Hermes 自己的环境，hermes update 之后重新应用）"))
     if args.check:
         ok, out = _memory_status_ok(exe, home)
-        print(("✅ hermes memory status：provider 是 nyx，可用" if ok else
-               "❌ hermes memory status 里 provider 不是 nyx 或不可用：运行 python3 -m nexsandglass_hermes install"))
+        print(_OK_STATUS() if ok else _t(
+            "❌ hermes memory status: the provider is not nyx, or it is not available. Run: python3 -m nexsandglass_hermes install",
+            "❌ hermes memory status 里 provider 不是 nyx 或不可用：运行 python3 -m nexsandglass_hermes install"))
         return 0 if ok else 1
     cmd = ["plugins", "install", args.source, "--enable"]
     if os.path.isdir(target):
         if not (args.force or _ours(target)):
-            raise SystemExit(f"❌ {target} 已经存在，而且不是 nyx 的插件；不覆盖。确认没用的话加 --force")
+            raise SystemExit(_not_ours(target))
         cmd.append("--force")                   # 以前的入口文件 / 整目录拷贝：换成 Hermes 记账的安装
     interactive = sys.stdin.isatty() and sys.stdout.isatty()
     if not interactive and "--yes-deps" in plugin_install_help(exe, home):
         # 主线版 Hermes 装依赖要用户确认，非交互时不加这个就直接拒绝。依赖只有 nyx-memory（来自 PyPI）
         cmd.append("--yes-deps")
-        print("  （不在终端里：代为回答依赖确认 --yes-deps；依赖是 PyPI 上的 nyx-memory）")
+        print(_t("  (not in a terminal: answering the dependency prompt with --yes-deps; the dependency is nyx-memory "
+                 "from PyPI)", "  （不在终端里：代为回答依赖确认 --yes-deps；依赖是 PyPI 上的 nyx-memory）"))
     print("→ hermes " + " ".join(cmd))
     if interactive:
         # 在终端里：Hermes 的提问（依赖确认、安全扫描）由你自己回答
@@ -430,23 +458,37 @@ def install_via_hermes(exe: str, home: str, args) -> int:
                          if l.strip() and not l.lstrip().startswith(("│", "╭", "╰")))
         print("\n".join("    " + l for l in tail.splitlines()[-8:]))
     if rc != 0:
-        problems.append("hermes plugins install 失败（见上面的输出）")
+        problems.append(_t("hermes plugins install failed (see the output above)", "hermes plugins install 失败（见上面的输出）"))
     if not args.no_config:
         _configure(exe, home, args, problems)
     ok, out = _memory_status_ok(exe, home)
     if ok:
-        print("✅ hermes memory status：provider 是 nyx，可用")
+        print(_OK_STATUS())
     elif not problems:
-        problems.append("hermes memory status 里 nyx 不可用：\n" + "\n".join("      " + l for l in out.splitlines()[-12:]))
+        problems.append(_t("nyx is not available in hermes memory status:\n", "hermes memory status 里 nyx 不可用：\n")
+                        + "\n".join("      " + l for l in out.splitlines()[-12:]))
     for old in legacy_dirs(home):
-        problems.append(f"旧版安装留下的 {old}：请删掉（rm -rf \"{old}\"），否则同一句话可能被记两遍")
+        problems.append(_leftover(old))
     if problems:
-        print("\n还有这些要处理：")
-        for p in problems:
-            print("  ❌ " + p)
-        return 1
-    print("\n完成。重启 Hermes（网关：hermes gateway restart）。之后可以用 hermes memory setup 调 nyx 的选项。")
+        return _report(problems)
+    print(_DONE())
     return 0
+
+
+def _OK_STATUS() -> str:
+    return _t("✅ hermes memory status: the provider is nyx, available", "✅ hermes memory status：provider 是 nyx，可用")
+
+
+def _DONE() -> str:
+    return _t("\nDone. Restart Hermes (gateway: hermes gateway restart). Then hermes memory setup adjusts nyx's options.",
+              "\n完成。重启 Hermes（网关：hermes gateway restart）。之后可以用 hermes memory setup 调 nyx 的选项。")
+
+
+def _report(problems: List[str]) -> int:
+    print(_t("\nStill to do:", "\n还有这些要处理："))
+    for p in problems:
+        print("  ❌ " + p)
+    return 1
 
 
 def _configure(exe: str, home: str, args, problems: List[str]) -> None:
@@ -457,37 +499,51 @@ def _configure(exe: str, home: str, args, problems: List[str]) -> None:
         r = _hermes(exe, home, "config", "set", "memory.provider", NAME)
         if r.returncode == 0:
             print(f"→ hermes config set memory.provider {NAME}"
-                  + (f"（原来是 {prev}；改回：hermes config set memory.provider {prev}）"
+                  + (_t(f" (it was {prev}; to go back: hermes config set memory.provider {prev})",
+                        f"（原来是 {prev}；改回：hermes config set memory.provider {prev}）")
                      if prev and prev not in ("None", "null", "") else ""))
         else:
-            problems.append(f"hermes config set memory.provider {NAME} 失败：{(r.stderr or r.stdout)[-300:]}")
+            problems.append(_t(f"hermes config set memory.provider {NAME} failed: ",
+                               f"hermes config set memory.provider {NAME} 失败：") + (r.stderr or r.stdout)[-300:])
     if args.vault:
         r = _hermes(exe, home, "plugins", "enable", "nyx-reveal")
         if r.returncode == 0:
             print("→ hermes plugins enable nyx-reveal")
         else:
-            problems.append(f"hermes plugins enable nyx-reveal 失败：{(r.stderr or r.stdout)[-300:]}")
+            problems.append(_t("hermes plugins enable nyx-reveal failed: ", "hermes plugins enable nyx-reveal 失败：")
+                            + (r.stderr or r.stdout)[-300:])
         from nexsandglass_hermes import save_config
         save_config({"vault": "on"}, home)
-        print(f"→ {os.path.join(home, 'nyx.json')}：vault: on")
+        print(f"→ {os.path.join(home, 'nyx.json')}: vault: on")
 
 
 # ══════════════════════════════════════════════════════════
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="python3 -m nexsandglass_hermes install",
-                                 description="把 Nyx 装成 Hermes 的记忆插件")
-    ap.add_argument("--hermes-home", help="Hermes 的 home（默认 $HERMES_HOME 或 ~/.hermes）；多个 profile 时每个各装一次")
-    ap.add_argument("--hermes-python", help="Hermes 用的 Python（默认从 hermes 命令第一行的 #! 找）")
-    ap.add_argument("--vault", action="store_true", help="同时打开密钥保险箱：装 [vault]、启用 nyx-reveal、nyx.json 里 vault: on")
-    ap.add_argument("--vector", action="store_true", help="同时装语义检索 [vector]")
-    ap.add_argument("--no-pip", action="store_true", help="不往 Hermes 的 Python 里装 nyx-memory（只提示）")
-    ap.add_argument("--no-config", action="store_true", help="不改 Hermes 的配置（只放入口文件）")
-    ap.add_argument("--force", action="store_true", help="$HERMES_HOME/plugins/nyx 是别的东西时也覆盖")
-    ap.add_argument("--check", action="store_true", help="只检查，不改任何东西")
-    ap.add_argument("--source", default=SOURCE, help=f"新版 Hermes 从哪里装插件（默认 {SOURCE}）")
-    ap.add_argument("--legacy", action="store_true",
-                    help="不交给 hermes plugins install：往 Hermes 的 Python 里 pip 装 + 放入口文件（老版本 Hermes 的做法）")
+                                 description=_t("Install Nyx as Hermes's memory provider", "把 Nyx 装成 Hermes 的记忆插件"))
+    ap.add_argument("--hermes-home", help=_t("Hermes home (default $HERMES_HOME or ~/.hermes); with several profiles, "
+                                             "install once per profile",
+                                             "Hermes 的 home（默认 $HERMES_HOME 或 ~/.hermes）；多个 profile 时每个各装一次"))
+    ap.add_argument("--hermes-python", help=_t("the Python Hermes uses (default: from the #! line of the hermes command)",
+                                               "Hermes 用的 Python（默认从 hermes 命令第一行的 #! 找）"))
+    ap.add_argument("--vault", action="store_true", help=_t(
+        "also turn on the secret vault: install [vault], enable nyx-reveal, vault: on in nyx.json",
+        "同时打开密钥保险箱：装 [vault]、启用 nyx-reveal、nyx.json 里 vault: on"))
+    ap.add_argument("--vector", action="store_true", help=_t("also install semantic search [vector]", "同时装语义检索 [vector]"))
+    ap.add_argument("--no-pip", action="store_true", help=_t("do not install nyx-memory into Hermes's Python (only say how)",
+                                                             "不往 Hermes 的 Python 里装 nyx-memory（只提示）"))
+    ap.add_argument("--no-config", action="store_true", help=_t("do not change Hermes's config (only write the entry file)",
+                                                                "不改 Hermes 的配置（只放入口文件）"))
+    ap.add_argument("--force", action="store_true", help=_t("overwrite $HERMES_HOME/plugins/nyx even if it is something else",
+                                                            "$HERMES_HOME/plugins/nyx 是别的东西时也覆盖"))
+    ap.add_argument("--check", action="store_true", help=_t("only check, change nothing", "只检查，不改任何东西"))
+    ap.add_argument("--source", default=SOURCE, help=_t(f"where newer Hermes installs the plugin from (default {SOURCE})",
+                                                        f"新版 Hermes 从哪里装插件（默认 {SOURCE}）"))
+    ap.add_argument("--legacy", action="store_true", help=_t(
+        "do not hand over to hermes plugins install: pip install into Hermes's Python + write the entry file "
+        "(the way for older Hermes)",
+        "不交给 hermes plugins install：往 Hermes 的 Python 里 pip 装 + 放入口文件（老版本 Hermes 的做法）"))
     args = ap.parse_args(argv)
 
     home = os.path.abspath(os.path.expanduser(args.hermes_home)) if args.hermes_home else default_hermes_home()
@@ -495,55 +551,68 @@ def main(argv=None) -> int:
     extras = (["vault"] if args.vault else []) + (["vector"] if args.vector else [])
     ver = _version()
     print(f"nyx-memory {ver} → Hermes home {home}")
-    print(f"  hermes 命令：{exe or '没找到（不在 PATH 里）'}")
+    print(_t(f"  hermes command: {exe or 'not found (not on PATH)'}", f"  hermes 命令：{exe or '没找到（不在 PATH 里）'}"))
     if exe and not args.legacy and supports_plugin_deps(exe, home):
         if args.vector and args.source == SOURCE:
             args.source = SOURCE + "-vector"
         return install_via_hermes(exe, home, args)
-    print(f"  Hermes 的 Python：{py or '没找到'}" + ("（就是当前这个）" if py and _same_python(py) else ""))
+    same = bool(py and _same_python(py))
+    print(_t(f"  Hermes's Python: {py or 'not found'}" + (" (this one)" if same else ""),
+             f"  Hermes 的 Python：{py or '没找到'}" + ("（就是当前这个）" if same else "")))
     problems: List[str] = []
 
     # 1. Hermes 的 Python 里有没有 nyx-memory
     if py is None:
-        problems.append("没找到 Hermes 用的 Python：用 --hermes-python 指定（hermes 命令文件第一行 #! 后面那个路径）")
+        problems.append(_t("could not find the Python Hermes uses: pass --hermes-python (the path after #! on the first "
+                           "line of the hermes command file)",
+                           "没找到 Hermes 用的 Python：用 --hermes-python 指定（hermes 命令文件第一行 #! 后面那个路径）"))
     else:
         have = nyx_in(py)
         miss = missing_extras(py, extras) if have else extras
         if have:
-            print(f"  Hermes 的 Python 里已有 nyx-memory {have}" + (f"，缺 [{','.join(miss)}]" if miss else ""))
+            print(_t(f"  Hermes's Python already has nyx-memory {have}" + (f", missing [{','.join(miss)}]" if miss else ""),
+                     f"  Hermes 的 Python 里已有 nyx-memory {have}" + (f"，缺 [{','.join(miss)}]" if miss else "")))
         if have != ver or miss:
-            what = ("没装 nyx-memory" if have is None else f"是 nyx-memory {have}" if have != ver
-                    else f"缺可选依赖 [{','.join(miss)}]")
+            what = (_t("nyx-memory is not installed", "没装 nyx-memory") if have is None else
+                    _t(f"it has nyx-memory {have}", f"是 nyx-memory {have}") if have != ver else
+                    _t(f"optional dependencies [{','.join(miss)}] are missing", f"缺可选依赖 [{','.join(miss)}]"))
             if args.check or args.no_pip:
-                problems.append(f"Hermes 的 Python 里{what}：{py} -m pip install "
+                problems.append(_t(f"Hermes's Python: {what}: ", f"Hermes 的 Python 里{what}：") + f"{py} -m pip install "
                                 f"'nyx-memory{('[' + ','.join(extras) + ']') if extras else ''}=={ver}'")
             else:
-                print(f"→ 装进 Hermes 的 Python（{what}）")
+                print(_t(f"→ installing into Hermes's Python ({what})", f"→ 装进 Hermes 的 Python（{what}）"))
                 ok, err = pip_install(py, extras)
                 if not ok:
                     print(err)
-                    problems.append("往 Hermes 的 Python 里装 nyx-memory 失败（见上面的输出）")
+                    problems.append(_t("installing nyx-memory into Hermes's Python failed (see the output above)",
+                                       "往 Hermes 的 Python 里装 nyx-memory 失败（见上面的输出）"))
 
     # 2. 入口文件
     target = os.path.join(home, "plugins", NAME)
     if args.check:
         src = _init_src(target) if os.path.isdir(target) else None
-        state = ("没有" if not os.path.isdir(target) else "入口文件" if src and _SHIM_MARK in src else
-                 "旧的整目录拷贝（重新运行 install 会换成入口文件）" if src and _ours(target) else "不是 nyx 的东西")
-        print(f"  {target}：{state}")
-        if state != "入口文件":
-            problems.append(f"{target} 不是入口文件：运行 python3 -m nexsandglass_hermes install")
+        state = ("missing" if not os.path.isdir(target) else "shim" if _is_shim(src) else
+                 "copy" if src and _ours(target) else "foreign")
+        print(f"  {target}: " + {
+            "missing": _t("not there", "没有"), "shim": _t("entry file", "入口文件"),
+            "copy": _t("old full copy (running install again replaces it with the entry file)",
+                       "旧的整目录拷贝（重新运行 install 会换成入口文件）"),
+            "foreign": _t("not nyx's", "不是 nyx 的东西")}[state])
+        if state != "shim":
+            problems.append(_t(f"{target} is not the entry file: run python3 -m nexsandglass_hermes install",
+                               f"{target} 不是入口文件：运行 python3 -m nexsandglass_hermes install"))
     else:
         os.makedirs(home, exist_ok=True)
         target, did = write_shim(home, force=args.force)
-        print(f"→ {did}入口文件 {target}")
+        print(_t(f"→ {_DID[did][0]} the entry file {target}", f"→ {_DID[did][1]}入口文件 {target}"))
     for old in legacy_dirs(home):
-        problems.append(f"旧版安装留下的 {old}：请删掉（rm -rf \"{old}\"），否则同一句话可能被记两遍")
+        problems.append(_leftover(old))
 
     # 3. Hermes 配置
     if not args.no_config and not args.check:
         if exe is None:
-            problems.append("没找到 hermes 命令，没改配置：手动在 config.yaml 里写 memory.provider: nyx")
+            problems.append(_t("hermes command not found, config not changed: put memory.provider: nyx in config.yaml "
+                               "yourself", "没找到 hermes 命令，没改配置：手动在 config.yaml 里写 memory.provider: nyx"))
         else:
             _configure(exe, home, args, problems)
 
@@ -551,23 +620,27 @@ def main(argv=None) -> int:
     if py is not None:
         v = verify(py, home)
         if v.get("hermes") is False:
-            problems.append("在 Hermes 的 Python 里 import 不到 Hermes（--hermes-python 指错了？）：" + str(v.get("error"))[:300])
+            problems.append(_t("cannot import Hermes in Hermes's Python (wrong --hermes-python?): ",
+                               "在 Hermes 的 Python 里 import 不到 Hermes（--hermes-python 指错了？）：") + str(v.get("error"))[:300])
         elif v.get("provider") != "NexSandglassProvider":
-            problems.append(f"Hermes 的加载器没加载出 nyx（目录：{v.get('dir')}）。用 {py} -c 'import nexsandglass_hermes' 看报错")
+            problems.append(_t(f"Hermes's loader did not load nyx (directory: {v.get('dir')}). "
+                               f"See the error with {py} -c 'import nexsandglass_hermes'",
+                               f"Hermes 的加载器没加载出 nyx（目录：{v.get('dir')}）。用 {py} -c 'import nexsandglass_hermes' 看报错"))
         else:
-            print(f"✅ Hermes 的加载器能加载 nyx（{v['dir']}）" + ("" if v.get("available") else "，但 is_available() 为假：记忆目录不可写？"))
+            print(_t(f"✅ Hermes's loader loads nyx ({v['dir']})" + (
+                "" if v.get("available") else ", but is_available() is false: is the memory directory writable?"),
+                f"✅ Hermes 的加载器能加载 nyx（{v['dir']}）" + (
+                "" if v.get("available") else "，但 is_available() 为假：记忆目录不可写？")))
             if args.vault and not v.get("reveal_entry_point"):
-                problems.append("Hermes 的 Python 里找不到 nyx-reveal 入口点：重装 nyx-memory")
+                problems.append(_t("no nyx-reveal entry point in Hermes's Python: reinstall nyx-memory",
+                                   "Hermes 的 Python 里找不到 nyx-reveal 入口点：重装 nyx-memory"))
 
     if problems:
-        print("\n还有这些要处理：")
-        for p in problems:
-            print("  ❌ " + p)
-        return 1
+        return _report(problems)
     if args.check:
-        print("检查完毕，没有问题。")
+        print(_t("Check finished, no problems.", "检查完毕，没有问题。"))
     else:
-        print("\n完成。重启 Hermes（网关：hermes gateway restart）。之后可以用 hermes memory setup 调 nyx 的选项。")
+        print(_DONE())
     return 0
 
 

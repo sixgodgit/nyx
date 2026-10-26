@@ -88,6 +88,14 @@ _ORIGIN_CLASS = {
 BASE_TRUST = {PRINCIPAL: 1.0, DERIVED: 0.7, INFERRED: 0.6, RECOVERED: 0.4, EXTERNAL: 0.3}
 
 TRUSTED, UNVERIFIED, TAINTED = "trusted", "unverified", "tainted"
+# 召回结果里「未经证实」的标注开头（v7.16.0 起英文）。评测 / 演练按它判断一条召回有没有带标注；旧写法也认
+UNVERIFIED_MARK = "(unverified"
+UNVERIFIED_MARKS = (UNVERIFIED_MARK, "（未经证实")
+
+
+def is_labeled(line: str) -> bool:
+    """这条召回结果带没带「未经证实」标注（新旧写法都认）。"""
+    return any(m in (line or "") for m in UNVERIFIED_MARKS)
 
 
 def classify_origin(origin: Optional[str]) -> str:
@@ -165,11 +173,11 @@ class Provenance:
     sensitive: bool = False          # 主人说的高危内容：可信，但值得确认
 
     def label(self) -> str:
-        """渲染进 prompt 时的来源标注。trusted 不标（主人说的话不需要括号）。"""
+        """渲染进 prompt 时的来源标注。trusted 不标（主人说的话不需要括号）。英文（v7.16.0；以前是「（未经证实·来源:tool）」）"""
         if self.signal == TRUSTED:
             return ""
         src = self.origin or self.origin_class
-        return f"（未经证实·来源:{src}）"
+        return f"{UNVERIFIED_MARK} · source: {src}) "
 
     def to_dict(self) -> dict:
         return {"origin": self.origin, "origin_class": self.origin_class,

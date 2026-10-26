@@ -31,16 +31,16 @@ def _strip_ansi(text):
 def wrap_command():
     """包装启动任意 Agent 命令，自动落沙。"""
     if len(sys.argv) < 3:
-        print("用法: nexsandglass wrap [command] [args...]")
-        print("示例: nexsandglass wrap claude")
+        print("usage: nexsandglass wrap [command] [args...]")
+        print("example: nexsandglass wrap claude")
         sys.exit(1)
 
     if platform.system() == "Windows":
-        print("⚠️  NexSandglass TTY Wrapper 不支持 Windows。")
-        print("   Windows 用户请使用：")
-        print("   - Hermes 插件（自动落沙）")
-        print("   - sandglass_log.py（手动落沙）")
-        print("   - MCP 工具调用自动落沙")
+        print("⚠️  The NexSandglass TTY wrapper does not support Windows.")
+        print("   On Windows, use:")
+        print("   - the Hermes plugin (records automatically)")
+        print("   - sandglass_log.py (record by hand)")
+        print("   - the MCP tools (record automatically)")
         sys.exit(1)
 
     import pty
@@ -48,8 +48,8 @@ def wrap_command():
     import tty
     import termios
     cmd = sys.argv[2:]
-    print(f"🧵 NexSandglass: 已启动 {cmd[0]}，自动落沙中...")
-    print(f"   (Ctrl+D 或 exit 退出)")
+    print(f"🧵 NexSandglass: started {cmd[0]}, recording...")
+    print("   (Ctrl+D or exit to quit)")
     print()
 
     pid, fd = pty.fork()
@@ -68,7 +68,7 @@ def wrap_command():
             except (ChildProcessError, OSError):
                 pass
             print()
-            print("🧵 NexSandglass: 已停止")
+            print("🧵 NexSandglass: stopped")
 
 
 def _relay_io(fd, old_settings, pid):
@@ -119,5 +119,5 @@ if __name__ == "__main__":
         wrap_command()
     else:
         print("NexSandglass V2.3.17 — TTY Wrapper")
-        print("用法: python nexsandglass.py wrap [command] [args...]")
+        print("usage: python nexsandglass.py wrap [command] [args...]")
         sys.exit(1)

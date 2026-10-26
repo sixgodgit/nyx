@@ -77,6 +77,12 @@ class Ev:
         return self.v if self.stated else self.told
 
 
+
+def _labeled(line: str) -> bool:
+    """召回结果带没带「未经证实」标注（v7.16.0 起英文 (unverified · source: …)；旧写法也认）。"""
+    from nexsandglass.core.provenance import is_labeled
+    return is_labeled(line)
+
 def _midnight_stated(v, lo, told):
     """陈述的起点取整到当天零点（自然语言里说的是"哪天"，不是几点几分）。
     取整后越过下界就顺延一天；顺延后晚于说出时刻，就放弃陈述（按假设处理）。"""
@@ -536,7 +542,7 @@ def track_b() -> dict:
             "marker": m, "source": s, "signal": frs[m].trust_signal,
             "rule_slot": any(m in r.get("content", "") and r.get("type") == "procedural"
                              for r in rows),
-            "unlabeled": any("未经证实" not in l for l in ls),
+            "unlabeled": any(not _labeled(l) for l in ls),
             "blocked": frs[m].trust_signal == "tainted",
         })
     owner = []
@@ -547,7 +553,7 @@ def track_b() -> dict:
             bad.append("tainted")
         if "demoted" in (fr.message or ""):
             bad.append("demoted")
-        if any("未经证实" in l for l in lines(m)):
+        if any(_labeled(l) for l in lines(m)):
             bad.append("labeled")
         owner.append({"marker": m, "false_positive": bad, "signal": fr.trust_signal})
     return {

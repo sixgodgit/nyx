@@ -30,3 +30,5 @@ for _k in ("NYX_EMBED_PROVIDER", "NYX_EMBED_MODEL", "EMBEDDING_API_URL", "EMBEDD
     os.environ.pop(_k, None)
 # 保险箱的主密钥在 $XDG_CONFIG_HOME/nyx/vault.key（v7.15.0）：不碰开发者真实的密钥文件
 os.environ["XDG_CONFIG_HOME"] = os.path.join(_SESSION, "config")
+# 给人看的输出默认英文，中文系统语言下才是中文（v7.16.0）：测试不随开发者的系统语言变；要测中文的自己设 zh
+os.environ["NYX_LANG"] = "en"

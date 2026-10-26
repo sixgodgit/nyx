@@ -31,6 +31,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
+from nexsandglass.core.lang import t
+
 logger = logging.getLogger(__name__)
 
 DB_NAME = "vault.db"
@@ -157,12 +159,15 @@ def backend() -> Optional[str]:
 
 def unavailable_reason() -> str:
     if level() != "on":
-        return "没开（NYX_VAULT=on 或 hermes memory setup 里的 vault 才开）"
+        return t("off (turn it on with NYX_VAULT=on, or vault: on in hermes memory setup)",
+                 "没开（NYX_VAULT=on 或 hermes memory setup 里的 vault 才开）")
     if backend() is None:
         want = (os.environ.get("NYX_VAULT_BACKEND") or "auto").strip().lower()
         if want == "keyring":
-            return "没有可用的系统钥匙串（pip install 'nyx-memory[vault-keyring]'，且需要桌面环境的钥匙串服务）"
-        return "没有加密后端：pip install 'nyx-memory[vault]'（装 cryptography）"
+            return t("no usable system keychain (pip install 'nyx-memory[vault-keyring]'; needs a desktop keychain service)",
+                     "没有可用的系统钥匙串（pip install 'nyx-memory[vault-keyring]'，且需要桌面环境的钥匙串服务）")
+        return t("no encryption backend: pip install 'nyx-memory[vault]' (installs cryptography)",
+                 "没有加密后端：pip install 'nyx-memory[vault]'（装 cryptography）")
     if backend() == "file":
         try:
             _master_key(create=False, missing_ok=True)
@@ -185,7 +190,7 @@ def _decode_key(text: str) -> bytes:
     except Exception:
         k = b""
     if len(k) != 32:
-        raise VaultError("保险箱密钥格式不对（应为 32 字节的 base64）")
+        raise VaultError(t("malformed vault key (expected 32 bytes, base64)", "保险箱密钥格式不对（应为 32 字节的 base64）"))
     return k
 
 
@@ -201,13 +206,15 @@ def _master_key(create: bool, missing_ok: bool = False) -> Optional[bytes]:
     p = key_path()
     if os.path.exists(p):
         if os.name != "nt" and os.stat(p).st_mode & 0o077:
-            raise VaultError(f"保险箱密钥文件 {p} 的权限太宽（组或其他人可读）；chmod 600 之后再用")
+            raise VaultError(t(f"vault key file {p} is readable by group or others; chmod 600 it first",
+                                  f"保险箱密钥文件 {p} 的权限太宽（组或其他人可读）；chmod 600 之后再用"))
         with open(p, "r", encoding="ascii") as f:
             return _decode_key(f.read())
     if not create:
         if missing_ok:
             return None
-        raise VaultError(f"这台机器上没有保险箱密钥（{p}），解不开；换机器时要把密钥一起带过来")
+        raise VaultError(t(f"no vault key on this machine ({p}); bring the key along when you move machines",
+                              f"这台机器上没有保险箱密钥（{p}），解不开；换机器时要把密钥一起带过来"))
     os.makedirs(os.path.dirname(p), mode=0o700, exist_ok=True)
     key = secrets.token_bytes(32)
     fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -242,7 +249,7 @@ def _keys(create: bool) -> Tuple[Optional[bytes], bytes, str]:
     m = kr.get_password(_service(), "_mac")
     if not m:
         if not create:
-            raise VaultError("系统钥匙串里没有这个保险箱的条目")
+            raise VaultError(t("the system keychain has no entry for this vault", "系统钥匙串里没有这个保险箱的条目"))
         m = secrets.token_hex(32)
         kr.set_password(_service(), "_mac", m)
     return None, bytes.fromhex(m), be
@@ -290,11 +297,15 @@ def _check_key(c: sqlite3.Connection, mac_key: bytes, write: bool) -> None:
             c.execute("INSERT INTO meta(k, v) VALUES('key_check', ?)", (kc,))
         return
     if not hmac.compare_digest(row[0], kc):
-        raise VaultError("密钥不对：这个保险箱是用另一把密钥加密的")
+        raise VaultError(t("wrong key: this vault was encrypted with a different key", "密钥不对：这个保险箱是用另一把密钥加密的"))
+
+
+# 按类别认密码，不看标签：标签 v7.16.0 起是英文（password），以前是「密码」（v7.16.0 修：只比标签的话换语言就失效）
+_PASSWORD_KINDS = frozenset({"password", "url_password"})
 
 
 def _last4(kind: str, label: str, value: str) -> str:
-    if label == "密码":
+    if kind in _PASSWORD_KINDS:
         return ""
     v = re.sub(r"[^A-Za-z0-9]", "", value)
     return v[-4:] if len(v) >= 12 else ""
@@ -304,7 +315,7 @@ def wants(kind: str, label: str) -> bool:
     """这一类收不收（不看开没开）。"""
     if kind in _NO_VAULT_KINDS:
         return False
-    return not (kinds() == "tokens" and label == "密码")
+    return not (kinds() == "tokens" and kind in _PASSWORD_KINDS)
 
 
 def put(kind: str, label: str, value: str, context: str = "") -> Optional[int]:
@@ -416,7 +427,10 @@ def _refs(vid: int) -> str:
     return "none"
 
 
-_STATE_LABEL = {"live": "可取回", "held": "来源记忆在隔离区（还原后才能取回）", "none": "来源记忆已不存在"}
+def _state_label(state: str) -> str:
+    return {"live": t("available", "可取回"),
+            "held": t("source memory is in quarantine (restore it first)", "来源记忆在隔离区（还原后才能取回）"),
+            "none": t("source memory no longer exists", "来源记忆已不存在")}[state]
 
 
 @dataclass
@@ -433,7 +447,7 @@ class Entry:
 
     def public(self) -> dict:
         return {"id": f"v{self.id}", "label": self.label, "tail": (f"…{self.last4}" if self.last4 else ""),
-                "saved": self.created_at[:10], "context": self.context, "state": _STATE_LABEL[self.state],
+                "saved": self.created_at[:10], "context": self.context, "state": _state_label(self.state),
                 "revealed": self.revealed}
 
 
@@ -485,7 +499,8 @@ def get(vid: int) -> str:
             kind, be, nonce, ct = row
             if be == "file":
                 if not _have_crypto():
-                    raise VaultError("没有 cryptography，解不开：pip install 'nyx-memory[vault]'")
+                    raise VaultError(t("cryptography is not installed: pip install 'nyx-memory[vault]'",
+                                       "没有 cryptography，解不开：pip install 'nyx-memory[vault]'"))
                 enc, mac_key = _subkeys(_master_key(create=False))
                 _check_key(c, mac_key, write=False)
                 from cryptography.exceptions import InvalidTag
@@ -493,13 +508,15 @@ def get(vid: int) -> str:
                 try:
                     return AESGCM(enc).decrypt(nonce, ct, _AAD.format(id=vid, kind=kind).encode()).decode("utf-8")
                 except InvalidTag:
-                    raise VaultError(f"v{vid} 解不开：密文被改过，或者不是这把密钥加密的")
+                    raise VaultError(t(f"v{vid} cannot be decrypted: the ciphertext was changed, or a different key encrypted it",
+                                       f"v{vid} 解不开：密文被改过，或者不是这把密钥加密的"))
             kr = _keyring()
             if kr is None:
-                raise VaultError("这一条存在系统钥匙串里，但现在没有可用的钥匙串")
+                raise VaultError(t("this entry lives in the system keychain, which is not available now",
+                                   "这一条存在系统钥匙串里，但现在没有可用的钥匙串"))
             v = kr.get_password(_service(), f"v{vid}")
             if v is None:
-                raise VaultError(f"系统钥匙串里找不到 v{vid}")
+                raise VaultError(t(f"v{vid} is not in the system keychain", f"系统钥匙串里找不到 v{vid}"))
             return v
         finally:
             c.close()
@@ -587,7 +604,8 @@ def wipe() -> Optional[str]:
 def rekey() -> int:
     """换主密钥（file 后端）：全部解开、用新密钥重新加密，再换掉密钥文件。返回条数。"""
     if backend() != "file" or _env_key():
-        raise VaultError("只有加密文件后端、且密钥在密钥文件里时才能 rekey")
+        raise VaultError(t("rekey works only with the encrypted-file backend and a key file",
+                             "只有加密文件后端、且密钥在密钥文件里时才能 rekey"))
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     with _lock:
         old_enc, old_mac = _subkeys(_master_key(create=False))
@@ -649,10 +667,12 @@ def health() -> dict:
     out.update(entries=len(es), held=sum(1 for e in es if e.state == "held"), orphans=len(stale))
     if stale:
         from nexsandglass.core import hints
-        out.update(ok=False, problems=[f"{len(stale)} 条的来源记忆已被真删，保险箱里还留着：{hints.cmd('vault', 'gc')}"])
+        out.update(ok=False, problems=[t(f"{len(stale)} entries outlived their erased source memories: {hints.cmd('vault', 'gc')}",
+                                              f"{len(stale)} 条的来源记忆已被真删，保险箱里还留着：{hints.cmd('vault', 'gc')}")])
     if out["reveal"] == "direct":
-        out["hermes_plugin"] = {True: "已启用", False: "没启用（hermes plugins enable nyx-reveal）",
-                                None: "不知道（没找到 Hermes 配置）"}[_hermes_plugin_enabled()]
+        out["hermes_plugin"] = {True: t("enabled", "已启用"),
+                                False: t("not enabled (hermes plugins enable nyx-reveal)", "没启用（hermes plugins enable nyx-reveal）"),
+                                None: t("unknown (no Hermes config found)", "不知道（没找到 Hermes 配置）")}[_hermes_plugin_enabled()]
     return out
 
 
@@ -719,9 +739,11 @@ def rate_ok() -> Tuple[bool, str]:
                 return c.execute("SELECT COUNT(*) FROM audit WHERE action='reveal' AND outcome='ok' AND path!='cli' "
                                  "AND ts>=?", (since,)).fetchone()[0]
             if n(3600) >= RATE_HOUR:
-                return False, f"一小时内已经取回 {RATE_HOUR} 次；稍后再试，或在终端用命令行取"
+                return False, t(f"already revealed {RATE_HOUR} times in the last hour; try later, or use the terminal command",
+                                 f"一小时内已经取回 {RATE_HOUR} 次；稍后再试，或在终端用命令行取")
             if n(86400) >= RATE_DAY:
-                return False, f"今天已经取回 {RATE_DAY} 次；明天再试，或在终端用命令行取"
+                return False, t(f"already revealed {RATE_DAY} times today; try tomorrow, or use the terminal command",
+                                 f"今天已经取回 {RATE_DAY} 次；明天再试，或在终端用命令行取")
             return True, ""
         finally:
             c.close()
@@ -788,13 +810,14 @@ def redact_revealed(text: Optional[str]) -> str:
     """
     if not text or not _revealed:
         return text or ""
+    from nexsandglass.core import secret_filter as _secret_filter
     now = time.time()
     with _lock:
         for v, (vid, label, exp) in list(_revealed.items()):
             if exp < now:
                 _revealed.pop(v, None)
             elif v in text:
-                text = text.replace(v, f"[已隐去: {label} #v{vid}]")
+                text = text.replace(v, f"{_secret_filter.MARK}{label} #v{vid}]")
     return text
 
 
@@ -844,15 +867,17 @@ def render(session_id: str, text: str) -> Optional[str]:
         if h in out:
             out = out.replace(h, _fmt(p.value))
         else:
-            tail.append(f"🔑 v{p.vid}（{p.label}，{p.saved} 存）：{_fmt(p.value)}")
-    out = re.sub(r"⟦nyx:v\d+⟧", "（句柄已过期）", out)
+            tail.append(t(f"🔑 v{p.vid} ({p.label}, saved {p.saved}): {_fmt(p.value)}",
+                          f"🔑 v{p.vid}（{p.label}，{p.saved} 存）：{_fmt(p.value)}"))
+    out = re.sub(r"⟦nyx:v\d+⟧", t("(handle expired)", "（句柄已过期）"), out)
     tail.extend(notes)
     if tail:
         out = out.rstrip() + "\n\n" + "\n".join(tail)
     return out
 
 
-_CONFIRM_RX = re.compile(r"^\s*确认\s*#?[vV](\d{1,9})\s+(\d{6})\s*[。.!！]?\s*$")
+# 英文 confirm v3 123456（v7.16.0）；中文「确认 v3 123456」照样认
+_CONFIRM_RX = re.compile(r"^\s*(?:confirm|确认)\s*#?[vV](\d{1,9})\s+(\d{6})\s*[。.!！]?\s*$", re.I)
 
 
 def new_code(session_id: str, vid: int) -> str:
@@ -863,7 +888,7 @@ def new_code(session_id: str, vid: int) -> str:
 
 
 def confirm_phrase(vid: int, code: str) -> str:
-    return f"确认 v{vid} {code}"
+    return t(f"confirm v{vid} {code}", f"确认 v{vid} {code}")
 
 
 def check_confirm(session_id: str, message: str, turn: int) -> Optional[str]:
