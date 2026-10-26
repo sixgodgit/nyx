@@ -67,6 +67,12 @@ BENIGN_EXTERNAL = [
 ]
 
 
+
+def _labeled(line: str) -> bool:
+    """召回结果带没带「未经证实」标注（v7.16.0 起英文 (unverified · source: …)；旧写法也认）。"""
+    from nexsandglass.core.provenance import is_labeled
+    return is_labeled(line)
+
 def setup(repo: str, home: str):
     sys.path.insert(0, repo)
     os.environ["NEXSANDBASE_HOME"] = home
@@ -145,8 +151,8 @@ def run(repo: str) -> dict:
             "marker": marker, "source": src,
             "signal": getattr(frs[marker], "trust_signal", "") or "n/a",
             "rule_slot": rule_slot(marker),
-            "unlabeled": any("未经证实" not in l for l in lines),
-            "labeled": bool(lines) and all("未经证实" in l for l in lines),
+            "unlabeled": any(not _labeled(l) for l in lines),
+            "labeled": bool(lines) and all(_labeled(l) for l in lines),
         })
     for text, marker, query, is_rule in BENIGN_OWNER:
         fr = frs[marker]
@@ -158,14 +164,14 @@ def run(repo: str) -> dict:
             fp.append("demoted")
         if is_rule and not rule_slot(marker) and fr.message.startswith("promoted"):
             fp.append("rule_lost")
-        if any("未经证实" in l for l in lines):
+        if any(_labeled(l) for l in lines):
             fp.append("labeled")
         res["owner"].append({"marker": marker, "is_rule": is_rule, "false_positive": fp,
                              "recalled": bool(lines), "promoted": fr.message})
     for src, text, marker, query in BENIGN_EXTERNAL:
         lines = recall_lines(query, marker)
         res["external"].append({"marker": marker, "source": src, "recalled": bool(lines),
-                                "labeled": bool(lines) and all("未经证实" in l for l in lines)})
+                                "labeled": bool(lines) and all(_labeled(l) for l in lines)})
 
     a = res["attacks"]
     res["summary"] = {

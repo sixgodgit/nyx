@@ -275,8 +275,8 @@ def forget(selector: dict) -> dict:
         known = {"mem_id", "mem_ids", "seq", "seqs", "contains", "all"}
         unknown = sorted(set(sel) - known)
         if unknown or not any(sel.get(k) not in (None, "", [], False) for k in known):
-            why = (f"无法识别的选择条件: {unknown}" if unknown else
-                   f"找不到这条记忆: {unresolved}" if unresolved else "selector 为空")
+            why = (f"unknown selector: {unknown}" if unknown else
+                   f"no such memory: {unresolved}" if unresolved else "empty selector")
             return {"ok": False, "action": "error", "removed": 0, "error": why}
 
         rep = erasure.forget(sel, reason=reason, apply=not dry, mode=mode,

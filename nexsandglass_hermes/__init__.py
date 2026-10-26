@@ -49,7 +49,7 @@ def load_config(home: Optional[str] = None) -> Dict[str, Any]:
             data = json.load(f)
         return data if isinstance(data, dict) else {}
     except Exception as e:
-        logger.warning("nyx: 读取 %s 失败（按空配置处理）: %s", path, e)
+        logger.warning("nyx: could not read %s (using an empty config): %s", path, e)
         return {}
 
 
@@ -89,7 +89,7 @@ def apply_data_dir(home: Optional[str] = None) -> str:
     if paths is None:
         os.environ["NEXSANDBASE_HOME"] = target
     elif os.path.abspath(getattr(paths, "_NB", target)) != target:
-        logger.warning("nyx: nexsandglass 已用 %s 初始化，配置的 data_dir=%s 需要重启才生效",
+        logger.warning("nyx: nexsandglass was already initialised with %s; the configured data_dir=%s takes effect after a restart",
                        getattr(paths, "_NB", "?"), target)
     return target
 

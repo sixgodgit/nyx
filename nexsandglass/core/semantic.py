@@ -46,6 +46,7 @@ from typing import Iterable, List, Optional, Tuple
 
 from nexsandglass.core import sqlite_open
 from nexsandglass.core.hints import cmd as _hints_cmd
+from nexsandglass.core.lang import t as _t
 
 logger = logging.getLogger(__name__)
 
@@ -179,18 +180,22 @@ def _resolve():
     url = os.environ.get("EMBEDDING_API_URL", "").strip()
     if mode == "api" or (mode == "auto" and url):
         if not url:
-            return _problem("NYX_EMBED=api 但没有设置 EMBEDDING_API_URL，语义检索不可用")
+            return _problem(_t("NYX_EMBED=api but EMBEDDING_API_URL is not set; semantic search is off",
+                               "NYX_EMBED=api 但没有设置 EMBEDDING_API_URL，语义检索不可用"))
         from nexsandglass.core import credentials
         return _Api(url, credentials.get("EMBEDDING_API_KEY"), model or "text-embedding-3-small")
     if mode in ("local", "auto"):
         import importlib.util
         if importlib.util.find_spec("sentence_transformers") is None:
             if mode == "local":
-                return _problem("NYX_EMBED=local 但没有安装 sentence-transformers"
-                                "（pip install 'nyx-memory[vector]'），语义检索不可用")
+                return _problem(_t("NYX_EMBED=local but sentence-transformers is not installed "
+                                   "(pip install 'nyx-memory[vector]'); semantic search is off",
+                                   "NYX_EMBED=local 但没有安装 sentence-transformers"
+                                   "（pip install 'nyx-memory[vector]'），语义检索不可用"))
             return None
         return _Local(model or DEFAULT_LOCAL_MODEL)
-    return _problem(f"未知的 NYX_EMBED={mode!r}（可选 auto / local / api / off），语义检索不可用")
+    return _problem(_t(f"unknown NYX_EMBED={mode!r} (choose auto / local / api / off); semantic search is off",
+                       f"未知的 NYX_EMBED={mode!r}（可选 auto / local / api / off），语义检索不可用"))
 
 
 def provider():
@@ -201,7 +206,8 @@ def provider():
         try:
             _provider = _resolve() or False
         except Exception as e:
-            _problem(f"语义后端解析失败（{type(e).__name__}: {e}），语义检索不可用")
+            _problem(_t(f"could not set up the semantic backend ({type(e).__name__}: {e}); semantic search is off",
+                        f"语义后端解析失败（{type(e).__name__}: {e}），语义检索不可用"))
             _provider = False
         _provider_key = key
     return _provider or None
@@ -272,15 +278,16 @@ def _problems(c: sqlite3.Connection) -> list:
         return []
     out = []
     if TABLE in tables and _columns(c, TABLE) != _COLUMNS:
-        out.append(f"表 {TABLE} 的列是 {_columns(c, TABLE)}，期望 {_COLUMNS}")
+        out.append(_t(f"table {TABLE} has columns {_columns(c, TABLE)}, expected {_COLUMNS}",
+                       f"表 {TABLE} 的列是 {_columns(c, TABLE)}，期望 {_COLUMNS}"))
     if "semantic_meta" not in tables:
-        out.append("缺少 semantic_meta（不是本模块建的库）")
+        out.append(_t("semantic_meta is missing (not a database this module created)", "缺少 semantic_meta（不是本模块建的库）"))
     else:
         meta = dict(c.execute("SELECT key, value FROM semantic_meta"))
         if meta.get("owner") != OWNER:
-            out.append(f"owner={meta.get('owner')!r}，不是 {OWNER}")
+            out.append(f"owner={meta.get('owner')!r}, not {OWNER}")
         if meta.get("schema_version") != SCHEMA_VERSION:
-            out.append(f"schema_version={meta.get('schema_version')!r}，期望 {SCHEMA_VERSION}")
+            out.append(f"schema_version={meta.get('schema_version')!r}, expected {SCHEMA_VERSION}")
     return out
 
 
@@ -421,7 +428,7 @@ def index_pending(limit: Optional[int] = 256, batch: int = 32) -> int:
                 part = todo[i:i + batch]
                 vecs = p.encode([t for _, _, t in part])
                 if not vecs or len(vecs) != len(part):
-                    raise RuntimeError(f"嵌入后端返回 {len(vecs or [])} 条向量，期望 {len(part)} 条")
+                    raise RuntimeError(f"embedding backend returned {len(vecs or [])} vectors, expected {len(part)}")
                 rows = []
                 for (mid, line, _), v in zip(part, vecs):
                     blob, dim = _pack(v)
@@ -443,7 +450,7 @@ def index_pending(limit: Optional[int] = 256, batch: int = 32) -> int:
             vc.close()
             _ok()
         except Exception as e:
-            _fail("补索引", e)
+            _fail("index", e)
     if done:
         _matrix_cache.pop(_db_path(), None)
     return done
@@ -481,7 +488,7 @@ def schedule_index() -> None:
                         _sched_running = False
                         return
         except Exception as e:
-            _fail("后台补索引", e)
+            _fail("background index", e)
             with _sched_lock:
                 _sched_running = False
 
@@ -529,7 +536,7 @@ def warm_async() -> None:
             if n:
                 logger.info("[semantic] 回填 %d 条记忆的向量", n)
         except Exception as e:
-            _fail("回填", e)
+            _fail("backfill", e)
         finally:
             _warming.clear()
 
@@ -652,7 +659,7 @@ def search(query: str, k: int = 20, min_score: float = None) -> List[Tuple[int, 
             f"({','.join('?' * len(cand))})", [m for m, _, _ in cand])}
         return [(live[m], s) for m, _, s in cand if m in live][:k]
     except Exception as e:
-        _fail("检索", e, path)
+        _fail("search", e, path)
         return []
 
 
@@ -721,7 +728,7 @@ def stats() -> dict:
     try:
         live = _live_ids()
     except Exception as e:
-        out["error"] = f"读不了 ID 中枢: {e}"
+        out["error"] = f"cannot read the ID hub: {e}"
         return out
     rows = []
     if os.path.exists(path):
@@ -796,13 +803,15 @@ def health_check() -> dict:
         return s
     p = provider()
     if getattr(p, "_failed", False):
-        s["problems"].append(f"本地嵌入模型加载失败：{getattr(p, 'load_error', '')}")
+        s["problems"].append(_t(f"local embedding model failed to load: {getattr(p, 'load_error', '')}",
+                                 f"本地嵌入模型加载失败：{getattr(p, 'load_error', '')}"))
     if s.get("error"):
-        s["problems"].append(f"语义库读不了：{s['error']}")
+        s["problems"].append(_t(f"cannot read the semantic index: {s['error']}", f"语义库读不了：{s['error']}"))
     if s.get("last_error"):
-        s["problems"].append(f"最近一次失败（{s.get('last_error_at')}）：{s['last_error']}")
+        s["problems"].append(_t(f"last failure ({s.get('last_error_at')}): {s['last_error']}",
+                                 f"最近一次失败（{s.get('last_error_at')}）：{s['last_error']}"))
     if s["orphans"]:
-        s["problems"].append(f"{s['orphans']} 条向量指向已遗忘的记忆")
+        s["problems"].append(_t(f"{s['orphans']} vectors point at forgotten memories", f"{s['orphans']} 条向量指向已遗忘的记忆"))
     if s["pending"]:
         try:
             pend = _live_ids() - _indexed_ids(_model_id(p))
@@ -818,8 +827,10 @@ def health_check() -> dict:
                 s["backfilling"] = True       # 正在回填且有进展：不是故障
                 s["last_index_at"] = f"{last:%Y-%m-%d %H:%M:%S}"
             else:
-                s["problems"].append(f"{s['pending']} 条记忆还没有向量，最早的已等了 {age:.0f} 分钟"
-                                     + ("" if last is None else f"，最近一次成功写入向量在 {last:%Y-%m-%d %H:%M}"))
+                s["problems"].append(_t(f"{s['pending']} memories have no vector yet; the oldest has waited {age:.0f} min"
+                                        + ("" if last is None else f"; last successful vector write {last:%Y-%m-%d %H:%M}"),
+                                        f"{s['pending']} 条记忆还没有向量，最早的已等了 {age:.0f} 分钟"
+                                        + ("" if last is None else f"，最近一次成功写入向量在 {last:%Y-%m-%d %H:%M}")))
     s["ok"] = not s["problems"]
     s["state"] = ("backfilling" if s.get("backfilling") else "ok") if s["ok"] else "failing"
     return s

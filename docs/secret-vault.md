@@ -1,310 +1,331 @@
-# 密钥保险箱（方案 3）
+# Secret vault (option 3)
 
-> 状态：**已实现，v7.15.0**。依据 nyx 源码和 hermes-agent 0.19.0 源码；文中引用的 Hermes 行号都指 0.19.0。
-> 默认关闭。不打开时，行为和 v7.14.0 完全一样，一个字节都不差。
-> 按个人使用设计：只有一个用户（主人），不区分发言人（见 §2）。
+**English** | [简体中文](secret-vault.zh-CN.md)
 
-## 0. 一句话
+> Status: **implemented, v7.15.0**. Based on the nyx source and the hermes-agent 0.19.0 source; Hermes line numbers below refer to 0.19.0.
+> Off by default. When it is not turned on, behaviour is byte-for-byte the same as v7.14.0.
+> Designed for personal use: one user (the owner), no distinction between speakers (see §2).
 
-从 v7.14.0 起，聊天里贴的 token、API key、密码在写进记忆之前就会被换成占位符，原文直接丢掉。
+## 0. In one sentence
 
-保险箱是一个由主人自己打开的选项：原文不丢，而是加密存进保险箱。主人明确要看时，经过人工确认再交还给主人，**并且尽量不让模型服务商看到原文**。
+Since v7.14.0, tokens, API keys and passwords pasted into chat are replaced with a placeholder before they are written to memory, and the value is dropped.
 
-## 1. 做什么，不做什么
+The vault is an option the owner turns on: the value is not dropped but stored encrypted. When the owner explicitly asks
+for it, it is handed back after a human confirmation, **while keeping the value away from the model provider as far as possible**.
 
-**做**
-- 加密保存主人贴的密钥。只收用户一侧的消息，助手回复、工具输出里的不收。占位符带编号，例如 `[已隐去: HF token …ab12 #v3]`。
-- 主人问「我上次那个 HF token 是什么」时，agent 不需要原文就能找到是哪一条：编号、类别、末 4 位、保存时间、当时的上下文。
-- 主人要原文时，有三种取回方式（§6）。每次都要人工确认，有频率限制，有审计记录。
-- 遗忘联动：来源记忆进了隔离区，这一条就取不回来；来源记忆真删了，这一条也跟着真删（§8）。
+## 1. What it does and does not do
 
-**不做**
-- 它不是密码管理器。重要凭据请用 1Password、Bitwarden 或系统钥匙串。保险箱只是「聊天里顺手贴过、事后想找回」时的兜底。
-- 不给 agent「拿密钥去调别的服务」的能力。agent 自己要用的 key，请放进 Hermes 的环境变量或密钥配置。
-- 管不了已经泄露出去的部分。密钥贴进聊天的那一刻，原文已经发给了模型服务商，也留在了 Hermes 自己的会话记录和聊天平台里（§9）。
-- 找不回 v7.14.0 `scrub --apply` 已经抹掉的原文。抹掉就是没了。
+**Does**
+- Stores the secrets the owner pastes, encrypted. Only user-side messages are collected; nothing from assistant replies or tool output. The placeholder gets an id, e.g. `[hidden: HF token …ab12 #v3]` (stored before v7.16.0: `[已隐去: …]`, still recognised).
+- When the owner asks "what was that HF token from last time", the agent can find the right entry without the value: id, kind, last 4 characters, when it was saved, the surrounding context.
+- When the owner wants the value, there are three ways to get it back (§6). Each needs a human confirmation, is rate-limited, and is audited.
+- Follows forgetting: when the source memory goes to the quarantine the entry cannot be revealed; when the source memory is purged, the entry is purged too (§8).
 
-## 2. 前提：个人使用，不验证发言人
+**Does not**
+- It is not a password manager. Keep important credentials in 1Password, Bitwarden or the system keychain. The vault is a safety net for "I pasted it in chat once and want it back".
+- It does not let the agent use secrets to call other services. Keys the agent itself needs belong in Hermes's environment variables or secret configuration.
+- It cannot do anything about what has already leaked. The moment a secret is pasted into chat, the value has been sent to the model provider and stays in Hermes's own session log and on the chat platform (§9).
+- It cannot recover values already erased by v7.14.0 `scrub --apply`. Erased is gone.
 
-nyx 是个人记忆，用户一侧的每条消息都算主人说的，保险箱不判断「这句话是谁说的」。所以 §7 的闸门管的是「**是不是主人自己要取**」（靠明确的请求加人工确认），而不是「是不是主人」。
+## 2. Premise: personal use, speakers are not verified
 
-由此有一条使用约束，已写进文档：开了保险箱，就别把机器人拉进群聊，否则群里任何人都会被当成主人（§9）。
+nyx is personal memory: every user-side message counts as the owner's, and the vault does not decide "who said this".
+So the gates in §7 check "**is the owner asking for it themselves**" (an explicit request plus a human confirmation), not "is this the owner".
 
-顺带记一笔，这件事与保险箱无关，另行处理：README 里说 `owner_ids` 能在群聊里区分主人和别人，但 Hermes 0.19.0 从来不把发言人信息传给记忆提供器。
-- `on_turn_start` 只传轮次和消息（`agent/turn_context.py:791`）。
-- `sync_all` 只传 `session_id` 和 `messages`（`agent/memory_manager.py:666`）。
-- 所以 nyx 读的 `author_id` / `turn_author` 永远是空的，这个选项在 Hermes 下不起作用。
+That gives one usage rule, stated in the docs: with the vault on, do not put the bot in a group chat, or anyone in the group counts as the owner (§9).
 
-## 3. 总体结构
+A side note, unrelated to the vault and handled separately: the README said `owner_ids` can tell the owner from others in
+group chats, but Hermes 0.19.0 never passes speaker information to the memory provider.
+- `on_turn_start` only passes the turn and the message (`agent/turn_context.py:791`).
+- `sync_all` only passes `session_id` and `messages` (`agent/memory_manager.py:666`).
+- So the `author_id` / `turn_author` nyx reads is always empty, and the option has no effect under Hermes.
+
+## 3. Overall structure
 
 ```
-写入（sync_turn，Hermes 的串行后台线程）
-  用户一侧的消息 ──► secret_filter.scrub(vault=Collector())
-                      │  每处匹配：原文 ──► secret_vault.put() ──► 返回 3
+Write (sync_turn, Hermes's serial background thread)
+  user-side message ──► secret_filter.scrub(vault=Collector())
+                      │  each match: value ──► secret_vault.put() ──► returns 3
                       ▼
-                    「…key 是 [已隐去: HF token …ab12 #v3]」 ──► 日志 / 中枢 / 索引 / 向量（同 v7.14.0）
-                      原文只以密文的形式存在 vault.db（或系统钥匙串）里
+                    "…the key is [hidden: HF token …ab12 #v3]" ──► journal / hub / indexes / vectors (as in v7.14.0)
+                      the value only exists as ciphertext in vault.db (or the system keychain)
 
-取回
-  ① 命令行   python3 -m nexsandglass.vault show v3          原文只出现在主人的终端里
-  ② 直达     nyx_secret_reveal(v3) ─► 模型只拿到句柄 ⟦nyx:v3⟧
-             nyx-reveal 插件的 transform_llm_output 钩子 ─► 回复发给主人之前，把句柄换成原文
-  ③ 经模型   nyx_secret_reveal(v3) ─► 工具结果里直接是原文（默认关）
+Reveal
+  ① CLI       python3 -m nexsandglass.vault show v3          the value only appears in the owner's terminal
+  ② direct    nyx_secret_reveal(v3) ─► the model only gets a handle ⟦nyx:v3⟧
+              the nyx-reveal plugin's transform_llm_output hook ─► swaps the handle for the value before the reply reaches the owner
+  ③ via model nyx_secret_reveal(v3) ─► the tool result contains the value (off by default)
 ```
 
-代码位置：
-- `core/secret_vault.py`：存储、加密、引用状态、审计、频率限制、直达句柄、确认码。
-- `core/secret_filter.py` 的 `scrub(vault=...)`：给占位符加上编号。
-- `core/memory_provider.py`：两个工具和闸门。
-- `nexsandglass_hermes_reveal/`：Hermes 配套插件。
-- `nexsandglass/vault.py`：命令行。
+Where the code is:
+- `core/secret_vault.py`: storage, encryption, reference state, audit, rate limits, direct handles, confirmation codes.
+- `scrub(vault=...)` in `core/secret_filter.py`: adds the id to the placeholder.
+- `core/memory_provider.py`: the two tools and the gates.
+- `nexsandglass_hermes_reveal/`: the Hermes companion plugin.
+- `nexsandglass/vault.py`: the command line.
 
-模块名不叫 `vault`，因为 `features/sandglass_vault.py` 是倒排索引，避免撞名。
+The module is not called `vault` because `features/sandglass_vault.py` is the inverted index; this avoids a name clash.
 
-## 4. 什么进保险箱
+## 4. What goes into the vault
 
-以下条件同时满足才收：
+All of these must hold:
 
-1. `NYX_VAULT=on`，并且后端可用（§5）。否则和 v7.14.0 一样，只隐去不保存。
-2. 是主 agent（`agent_context == primary`）在写入，不是子 agent。子 agent 本来就不写记忆。
-3. 是用户一侧的消息（`sync_turn` 的 `user_content`）。
-4. 是完整匹配。被截断的 token（`[已隐去: 密钥（被截断）]`）不收，`<private>…</private>` 也不收（它的意思是「别记」）。
-5. 档位允许：`NYX_SECRET_FILTER=tokens` 时密码本来就不隐去，自然也不收；`NYX_VAULT_KINDS=tokens` 时只收 token、API key、私钥，不收密码。
+1. `NYX_VAULT=on`, and a backend is available (§5). Otherwise, as in v7.14.0, values are only hidden, not kept.
+2. The primary agent is writing (`agent_context == primary`), not a subagent. Subagents do not write memory anyway.
+3. It is a user-side message (`user_content` in `sync_turn`).
+4. It is a complete match. Truncated tokens (`[hidden: secret (truncated)]`) are not kept, and neither is `<private>…</private>` (which means "do not remember").
+5. The level allows it: with `NYX_SECRET_FILTER=tokens` passwords are not hidden in the first place, so they are not kept; with `NYX_VAULT_KINDS=tokens` only tokens, API keys and private keys are kept, not passwords.
 
-助手回复、工具输出、委派结果、Hermes 内置记忆写入（`on_memory_write`）里的密钥，照旧只隐去，不收。
+Secrets in assistant replies, tool output, delegation results and Hermes's built-in memory writes (`on_memory_write`) are still only hidden, not kept.
 
-**去重**：同一个值再贴一次，还是同一个编号（按 HMAC 查，见 §5）。助手回复里如果出现保险箱里已有的值，占位符也带上那个编号，但不新增条目。
+**Deduplication**: pasting the same value again gives the same id (looked up by HMAC, see §5). If an assistant reply contains
+a value already in the vault, its placeholder gets that id too, but no new entry is added.
 
-**取回过的原文会按字面再隐去一次**。直达取回时，钩子把原文追加在回复里，Hermes 再把改写后的回复交给 `sync_turn`（`turn_finalizer.py:584`，在钩子之后执行）。像「（密码）：`hunter2`」这种写法，过滤规则不一定认得出来。所以取回过的值会在内存里记一小时：之后它再出现在要写入的文本里（模型复述、主人贴回来），都会换成带编号的占位符（`secret_vault.redact_revealed`）。
+**Revealed values are hidden literally once more.** With direct reveal, the hook appends the value to the reply, and Hermes
+then hands the rewritten reply to `sync_turn` (`turn_finalizer.py:584`, which runs after the hook). A form like
+"(password): `hunter2`" is not necessarily recognised by the filter rules. So revealed values are remembered in memory for
+an hour: when they appear again in text about to be written (the model repeating it, the owner pasting it back), they are
+replaced with the numbered placeholder (`secret_vault.redact_revealed`).
 
-**每条存什么**（`vault.db` 的 `secrets` 表）
+**What each entry stores** (table `secrets` in `vault.db`)
 
-| 字段 | 说明 |
+| Column | Meaning |
 |---|---|
-| `id` | 自增编号，显示为 `v3`。**删掉的编号不复用**，所以旧记忆里的 `#v3` 永远不会指向另一把密钥 |
-| `kind` / `label` / `last4` | 与占位符一致，例如 `huggingface` / `HF token` / `ab12`。密码不留末 4 位 |
-| `context` | 那条消息隐去之后、占位符前后的一段文字，例如「帮我配一下 Hugging Face，key 是 [已隐去: …]」。日志里本来就有这段，不比日志更敏感 |
-| `created_at` | 保存时间 |
-| `mac` | HMAC-SHA256(去重子密钥, 原文)，建唯一索引。用带密钥的 HMAC 而不是普通哈希，是为了防止有人拿着 vault.db 离线猜短密码 |
-| `backend`、`nonce`、`ct` | 存在哪个后端。用加密文件时这里是 AES-256-GCM 密文；用钥匙串时 `ct` 为空 |
-| `revealed`、`last_revealed_at` | 取回次数、最后一次取回时间 |
+| `id` | Auto-increment id, shown as `v3`. **Deleted ids are never reused**, so `#v3` in an old memory can never point at a different secret |
+| `kind` / `label` / `last4` | The same as the placeholder, e.g. `huggingface` / `HF token` / `ab12`. Passwords keep no last 4 |
+| `context` | The text around the placeholder after the message was hidden, e.g. "set up Hugging Face for me, the key is [hidden: …]". The journal already has it, so it is no more sensitive than the journal |
+| `created_at` | When it was saved |
+| `mac` | HMAC-SHA256(dedup subkey, value), with a unique index. A keyed HMAC rather than a plain hash, so that someone holding vault.db cannot guess short passwords offline |
+| `backend`, `nonce`, `ct` | Which backend holds it. With the encrypted file this is AES-256-GCM ciphertext; with the keychain `ct` is empty |
+| `revealed`, `last_revealed_at` | Number of reveals, time of the last reveal |
 
-**状态不存在表里，按引用实时计算**：
-- 有尚未被遗忘的记忆提到 `#v3` → 可取回。
-- 只有隔离区里的记忆提到它 → 不能取回。
-- 哪里都没有提到 → 由 `gc()` 删掉（§8）。
+**State is not stored in the table; it is computed from references:**
+- A memory that has not been forgotten mentions `#v3` → revealable.
+- Only memories in the quarantine mention it → not revealable.
+- Nothing mentions it → removed by `gc()` (§8).
 
-这样，同一个值出现在两条记忆里时，忘掉其中一条不会影响另一条。
+That way, when the same value appears in two memories, forgetting one does not affect the other.
 
-## 5. 存储
+## 5. Storage
 
-**后端**（`NYX_VAULT_BACKEND`，默认 `auto`）
+**Backends** (`NYX_VAULT_BACKEND`, default `auto`)
 
-| 后端 | 原文放在哪 | 依赖 | auto 下何时用 |
+| Backend | Where the value is | Dependency | When auto picks it |
 |---|---|---|---|
-| `file` | `vault.db` 里的密文 | `pip install 'nyx-memory[vault]'`（cryptography） | 装了能用的 cryptography 时 |
-| `keyring` | 系统钥匙串：macOS Keychain、Windows 凭据管理器、Linux Secret Service / KWallet。服务名 `nyx-vault:<库路径哈希>`，账户名 `v3` | `pip install 'nyx-memory[vault-keyring]'` | 没有 cryptography、但有可信钥匙串时 |
+| `file` | Ciphertext in `vault.db` | `pip install 'nyx-memory[vault]'` (cryptography) | When a working cryptography is installed |
+| `keyring` | System keychain: macOS Keychain, Windows Credential Manager, Linux Secret Service / KWallet. Service name `nyx-vault:<hash of the db path>`, account `v3` | `pip install 'nyx-memory[vault-keyring]'` | When there is no cryptography but a trusted keychain exists |
 
-auto 先选加密文件，不先选钥匙串，有两个原因：
-- 网关多半跑在没有桌面的机器上，那里通常没有钥匙串。
-- 在桌面上，后台线程访问钥匙串可能弹出授权框，把写入卡住。
+auto prefers the encrypted file over the keychain for two reasons:
+- The gateway usually runs on a machine without a desktop, which usually has no keychain.
+- On a desktop, a background thread touching the keychain may pop up an authorisation dialog and block writes.
 
-钥匙串只认真正的系统钥匙串。`keyrings.alt` 的 PlaintextKeyring 之类会把「密钥」明文写进家目录，这种不认。
+Only real system keychains are accepted. Things like `keyrings.alt`'s PlaintextKeyring write the "secret" in plain text into the home directory; those are rejected.
 
-**没有明文后备**：两种后端都不可用时，按 `off` 处理（只隐去），`doctor` 里会写明原因。cryptography 装坏了也算没装。实测：系统包里的 cryptography 缺 `_cffi_backend` 时，import 抛的是 pyo3 的 `PanicException`，它继承自 `BaseException`，`except Exception` 接不住。
+**No plaintext fallback**: when neither backend is available, it behaves as `off` (hide only) and `doctor` says why. A
+broken cryptography counts as not installed. Observed: when the system package's cryptography lacks `_cffi_backend`, the
+import raises pyo3's `PanicException`, which derives from `BaseException`, so `except Exception` does not catch it.
 
-**加密文件的细节**
-- 主密钥是 32 字节随机数，存在 `~/.config/nyx/vault.key`（遵守 `XDG_CONFIG_HOME`）。文件权限 0600，目录 0700。它**不放在数据目录里**，这样数据目录被备份、同步或拷走时，密钥不会跟着走。也可以用环境变量 `NYX_VAULT_KEY`（base64）提供。
-- 密钥文件权限比 0600 宽（组或其他人可读）时拒绝使用，和 ssh 对待私钥的方式一样。
-- 用 HKDF 从主密钥派生出两把子密钥，一把加密用，一把去重 HMAC 用。`meta` 表里存一个密钥校验值，换错密钥时会报「密钥不对」，而不是解出乱码。
-- 加密用 AES-256-GCM，96 位随机 nonce。附加数据是 `nyx-vault-v1|<id>|<kind>`，把密文绑死在这一行上：把别的行的密文挪过来也解不开。
-- `vault.db` 是 SQLite，文件权限 0600。删除条目后会 VACUUM，`erasure.wipe_free_space()` 也覆盖它。
-- v7.14.0 的原始字节复查（`secret_scrub._bytes_scan`）照常扫描 `vault.db`。里面只有密文，扫出来是 0 处，这就是「原文不落盘」的验收。
+**Encrypted-file details**
+- The master key is 32 random bytes in `~/.config/nyx/vault.key` (respects `XDG_CONFIG_HOME`), file mode 0600, directory 0700. It is **not in the data directory**, so backing up, syncing or copying the data directory does not take the key along. It can also come from the environment variable `NYX_VAULT_KEY` (base64).
+- A key file with permissions wider than 0600 (readable by group or others) is refused, the way ssh treats private keys.
+- HKDF derives two subkeys from the master key, one for encryption and one for the dedup HMAC. The `meta` table stores a key check value, so a wrong key reports "wrong key" instead of decrypting to garbage.
+- Encryption is AES-256-GCM with a random 96-bit nonce. The associated data is `nyx-vault-v1|<id>|<kind>`, binding the ciphertext to its row: ciphertext moved from another row does not decrypt.
+- `vault.db` is SQLite with file mode 0600. After an entry is deleted it is VACUUMed, and `erasure.wipe_free_space()` covers it too.
+- The v7.14.0 raw-byte re-check (`secret_scrub._bytes_scan`) scans `vault.db` as usual. It only holds ciphertext, so it finds 0 — that is the acceptance check for "the value never lands on disk".
 
-**备份**：`backup_paths()` 会带上 `vault.db`（里面只有密文），但不带密钥。换机器恢复时如果没有密钥，列表照常显示，取回时提示「这台机器上没有保险箱密钥」。`vault status` 会提醒主人把密钥另存一份，比如存进密码管理器。
+**Backups**: `backup_paths()` includes `vault.db` (ciphertext only) but not the key. When restoring on a new machine without
+the key, listing works and revealing says "no vault key on this machine". `vault status` reminds the owner to keep a copy of
+the key, for example in a password manager.
 
-## 6. 三种取回方式
+## 6. Three ways to reveal
 
-### 6.1 命令行（最安全，始终可用）
+### 6.1 Command line (safest, always available)
 
 ```
-python3 -m nexsandglass.vault status            # 开没开、后端、密钥文件（含权限）、条目数、配套插件
-python3 -m nexsandglass.vault list [关键词]      # 编号、类别、末 4 位、时间、上下文、状态；不出原文
-python3 -m nexsandglass.vault show v3           # 把原文打到终端
-python3 -m nexsandglass.vault show v3 --copy    # 放进剪贴板（pbcopy / wl-copy / xclip / xsel / clip.exe，有哪个用哪个），30 秒后清空
-python3 -m nexsandglass.vault delete v3         # 真删
-python3 -m nexsandglass.vault gc                # 删掉来源记忆已不存在的条目
-python3 -m nexsandglass.vault rekey             # 换主密钥，全部重新加密
-python3 -m nexsandglass.vault audit             # 最近的取回 / 删除记录（不含原文）
+python3 -m nexsandglass.vault status            # on or off, backend, key file (with permissions), entry count, companion plugin
+python3 -m nexsandglass.vault list [keyword]    # id, kind, last 4, time, context, state; never the value
+python3 -m nexsandglass.vault show v3           # print the value to the terminal
+python3 -m nexsandglass.vault show v3 --copy    # to the clipboard (pbcopy / wl-copy / xclip / xsel / clip.exe, whichever exists), cleared after 30 s
+python3 -m nexsandglass.vault delete v3         # purge
+python3 -m nexsandglass.vault gc                # remove entries whose source memories no longer exist
+python3 -m nexsandglass.vault rekey             # new master key, re-encrypt everything
+python3 -m nexsandglass.vault audit             # recent reveals / deletions (without values)
 ```
 
-原文不经过任何模型、任何聊天平台、任何 Hermes 会话记录。前提是主人能登上这台机器。
+The value passes through no model, no chat platform and no Hermes session log. The precondition is that the owner can log in to this machine.
 
-在新版 Hermes 里，nyx-memory 装在 Hermes 自己的隔离环境里，系统 Python 里没有 nyx，所以要用 `hermes nyx vault …`（v7.15.2 起）。子命令和上面一样，比如 `hermes nyx vault show v3`。agent 转告给你的命令也会写成这个形式（`core/hints.py`）。
+On newer Hermes, nyx-memory lives in Hermes's own isolated environment and the system Python has no nyx, so use
+`hermes nyx vault …` (since v7.15.2). The subcommands are the same, e.g. `hermes nyx vault show v3`. Commands the agent
+passes on to you are written this way too (`core/hints.py`).
 
-### 6.2 直达（Hermes 下的默认方式）
+### 6.2 Direct (the default under Hermes)
 
-思路：模型只拿到一个句柄，换成原文这一步发生在 Hermes 把回复发给主人之前。
+Idea: the model only gets a handle; swapping it for the value happens before Hermes sends the reply to the owner.
 
-1. 模型调用 `nyx_secret_reveal(id="v3")`，先过 §7 的闸门。
-2. 工具结果里**没有原文**，只有：`{"status": "queued", "handle": "⟦nyx:v3⟧", "note": "原文不经过你……"}`。
-3. nyx 在进程内存里记下一条待发：会话 id、编号、原文。10 分钟内有效，只能用一次。
-4. 回合结束时，Hermes 调用插件钩子 `transform_llm_output(response_text, session_id, …)`（`agent/turn_finalizer.py:455`）。
-   - nyx 的钩子把回复里的句柄换成原文，放进代码块方便复制。
-   - 如果模型没写句柄，就在末尾追加一行「🔑 v3（HF token，2026-10-20 存）：…」。
-   - 别的会话的句柄不换。
-5. 回复被改写过时，网关会重发最终版本（`gateway/run.py:22061` 的注释）。所以在流式输出的平台上，主人也能收到替换后的那条。
+1. The model calls `nyx_secret_reveal(id="v3")`, which first goes through the gates in §7.
+2. The tool result **has no value**, only: `{"status": "queued", "handle": "⟦nyx:v3⟧", "note": "The secret does not pass through you…"}`.
+3. nyx keeps a pending entry in process memory: session id, entry id, value. Valid for 10 minutes, usable once.
+4. At the end of the turn Hermes calls the plugin hook `transform_llm_output(response_text, session_id, …)` (`agent/turn_finalizer.py:455`).
+   - nyx's hook replaces the handle in the reply with the value, in a code block for easy copying.
+   - If the model did not write the handle, it appends a line "🔑 v3 (HF token, saved 2026-10-20): …".
+   - Handles from other sessions are not replaced.
+5. When the reply was rewritten, the gateway re-sends the final version (comment at `gateway/run.py:22061`), so on streaming platforms the owner still gets the replaced message.
 
-**配套插件 `nyx-reveal`**：Hermes 把记忆提供器当作「独占插件」单独加载，交给它的 `register_hook` 是个空函数（`plugins/memory/__init__.py:343`），所以钩子没法从记忆提供器里注册，只能另带一个普通插件。
-- 它通过 pip 入口点 `hermes_agent.plugins → nyx-reveal` 随 nyx-memory 一起安装（`hermes_cli/plugins.py:1658` 会扫描这个入口点组）。
-- Hermes 的用户插件默认不启用。`python3 -m nexsandglass_hermes install --vault` 会顺带执行 `hermes plugins enable nyx-reveal`；也可以自己执行一次，再重启 Hermes。
-- 插件源码里不能出现 `register_memory_provider` 或 `MemoryProvider`。否则 Hermes 会把它也当成记忆提供器，不加载它的钩子（`hermes_cli/plugins.py:1594`）。测试会检查这一点。
+**Companion plugin `nyx-reveal`**: Hermes loads memory providers separately as "exclusive plugins", and the `register_hook`
+it gives them is a no-op (`plugins/memory/__init__.py:343`), so the hook cannot be registered from the memory provider and
+needs a separate regular plugin.
+- It is installed with nyx-memory through the pip entry point `hermes_agent.plugins → nyx-reveal` (`hermes_cli/plugins.py:1658` scans that entry-point group).
+- Hermes user plugins are disabled by default. `python3 -m nexsandglass_hermes install --vault` also runs `hermes plugins enable nyx-reveal`; or run it once yourself and restart Hermes.
+- The plugin source must not contain `register_memory_provider` or `MemoryProvider`, or Hermes takes it for a memory provider too and does not load its hooks (`hermes_cli/plugins.py:1594`). A test checks this.
 
-没装或没启用配套插件时，`nyx_secret_reveal` 不会退到 6.3，而是返回 `{"status": "use_cli", "command": "python3 -m nexsandglass.vault show v3", ...}`，让模型把命令告诉主人。
+Without the companion plugin installed or enabled, `nyx_secret_reveal` does not fall back to 6.3; it returns
+`{"status": "use_cli", "command": "python3 -m nexsandglass.vault show v3", ...}` so the model tells the owner the command.
 
-**在真实 Hermes 里验证过**（`benchmarks/vault_hermes_e2e.py`，hermes-agent 0.19.0）。用真的 AIAgent、真的插件加载、真的终端审批、真的会话库，只把模型换成本地假服务，并记下它收到的每一个请求体：
-- 发给模型 7 个请求，含原文的 0 个。
-- 确认码在主人打出来之前，没发给过模型。
-- Hermes 会话库（state.db）9 行，带句柄的 4 行（正向对照：确实存了），带原文的 0 行。
-- 按原始字节扫 Hermes 目录和 nyx 数据目录，都找不到原文。
+**Verified in real Hermes** (`benchmarks/vault_hermes_e2e.py`, hermes-agent 0.19.0). With a real AIAgent, real plugin loading,
+real terminal approval and a real session store, only the model replaced by a local fake server that records every request body:
+- 7 requests sent to the model, 0 containing the value.
+- The confirmation code was never sent to the model before the owner typed it.
+- Hermes session store (state.db): 9 rows, 4 with the handle (positive control: it was stored), 0 with the value.
+- A raw-byte scan of the Hermes directory and the nyx data directory finds the value nowhere.
 
-### 6.3 经模型（默认关，设 `NYX_VAULT_REVEAL=llm` 才开）
+### 6.3 Via the model (off by default; only with `NYX_VAULT_REVEAL=llm`)
 
-工具结果里直接是原文，由模型转述。代价是原文会：
-- 发给模型服务商；
-- 进入 Hermes 的会话记录（`~/.hermes` 下）；
-- 留在之后几轮的上下文里，直到被压缩（Hermes 压缩时会自己打码）。
+The tool result contains the value and the model relays it. The cost is that the value:
+- is sent to the model provider;
+- enters Hermes's session log (under `~/.hermes`);
+- stays in the context of the following turns until compaction (Hermes masks it when compacting).
 
-只适合明确接受这些代价、又不想装配套插件的人。nyx 自己的记忆里，原文仍然会按字面隐去（§4）。
+Only for people who explicitly accept that and do not want the companion plugin. In nyx's own memory the value is still hidden literally (§4).
 
-## 7. 工具与闸门
+## 7. Tools and gates
 
-这两个工具只在 `NYX_VAULT=on` 时才出现在工具列表里，不给所有人都加工具。
+The two tools only appear in the tool list when `NYX_VAULT=on`, so not everyone gets extra tools.
 
-| 工具 | 返回 | 说明 |
+| Tool | Returns | Notes |
 |---|---|---|
-| `nyx_secret_list(query?)` | 编号、类别、末 4 位、保存日期、上下文、状态（可取回 / 来源在隔离区 / 来源已不存在）、取回次数 | 永远不含原文 |
-| `nyx_secret_reveal(id)` | `queued` / `value`（仅 6.3）/ `need_confirm` / `use_cli` / `denied`（附原因）/ `unavailable` | 原文只按 §6 交出 |
+| `nyx_secret_list(query?)` | id, kind, last 4, date saved, context, state (revealable / source in quarantine / source gone), reveal count | Never the value |
+| `nyx_secret_reveal(id)` | `queued` / `value` (6.3 only) / `need_confirm` / `use_cli` / `denied` (with the reason) / `unavailable` | The value only leaves as described in §6 |
 
-开启时，系统提示里加一行：「记忆里的 `#vN` 是密钥保险箱的编号。主人明确要看原文时调用 nyx_secret_reveal；不要猜测、拼凑或复述原文。」
+When on, the system prompt gets one line: "`#vN` in a memory is a secret-vault entry id. Call nyx_secret_reveal only when
+the user explicitly asks to see the secret; never guess, reconstruct or repeat it."
 
-**`nyx_secret_reveal` 的闸门**：按顺序检查，任何一道没过就返回 `denied`。
+**Gates of `nyx_secret_reveal`**: checked in order; failing any returns `denied`.
 
-| # | 闸门 | 防什么 |
+| # | Gate | Against |
 |---|---|---|
-| 1 | 必须是主 agent，不能是子 agent 或定时任务。看 `agent_context`；定时任务看 `HERMES_CRON_SESSION`，与 Hermes 审批的判断方式相同（`tools/approval.py:241`） | 无人值守的流程替主人取 |
-| 2 | 主人**这一轮的原话**里有明确的取回意图：既有「给我 / 告诉我 / 发我 / 显示 / 是什么……」这类动词，又有「token / key / 密钥 / 密码 / v3……」这类名词。主人刚回复了确认短语也算 | 被召回的记忆、网页、文件里埋的提示注入，让 agent 自己去取 |
-| — | 条目存在，且来源记忆没被遗忘 | |
-| 3 | 人工确认（见下面两种） | 以上都被绕过时的最后一道；模型伪造不了 |
-| 4 | 频率：经工具取回每小时最多 3 次、每天最多 10 次（命令行不算）；确认短语连错 3 次锁 15 分钟 | 反复试探 |
-| 5 | 审计：记在 `vault.db` 的 `audit` 表（`vault audit` 可查），包括时间、编号、动作、取回方式、平台、结果、原因；**不记原文** | 事后能查 |
+| 1 | Must be the primary agent, not a subagent or a scheduled job. Checked via `agent_context`; scheduled jobs via `HERMES_CRON_SESSION`, the same way Hermes's approvals decide (`tools/approval.py:241`) | Unattended flows revealing on the owner's behalf |
+| 2 | The owner's **own words this turn** contain an explicit request: both a verb such as "give me / tell me / send me / show / what is…" and a noun such as "token / key / secret / password / v3…". The owner having just replied with the confirmation phrase also counts | Prompt injection hidden in recalled memories, web pages or files making the agent reveal on its own |
+| — | The entry exists and its source memory has not been forgotten | |
+| 3 | Human confirmation (two forms, below) | The last line when everything above was bypassed; the model cannot forge it |
+| 4 | Rate: at most 3 reveals per hour and 10 per day through the tool (the CLI does not count); 3 wrong confirmation phrases in a row lock for 15 minutes | Repeated probing |
+| 5 | Audit: recorded in the `audit` table of `vault.db` (see `vault audit`) — time, id, action, reveal path, platform, result, reason; **never the value** | Being able to check afterwards |
 
-**第 3 道：人工确认**
-- **首选 Hermes 自带的审批**：调用 `tools.approval.request_tool_approval("nyx_secret_reveal", reason="显示保险箱 v3（HF token …ab12，2026-10-20 存）的原文", rule_key="nyx_vault:<一次性随机数>")`（`tools/approval.py:2940`）。
-  - CLI 下是终端里的确认提示，网关下是聊天平台里的审批消息。默认 60 秒超时；超时、拒绝、出错，一律当作拒绝。
-  - 这是 Hermes 专门留给插件、把某个工具调用升级为人工审批的入口，模型跳不过去。审批提示里只有编号、类别、末 4 位和日期，实测不含原文。
-  - `rule_key` 每次都用新的随机数。审批界面上有「本会话都允许」和「永远允许」，如果用固定的 key，主人点一次「永远」，以后的取回就再也不问了。代价是点「永远」会在 Hermes 的允许名单里留下一条用不上的记录。
-  - **审批被整体关掉时不走这条**。`--yolo`、会话里的 `/yolo`、`approvals.mode: off` 都会让这个审批直接放行（`tools/approval.py:2472` 的 `is_approval_bypass_active()`）。主人关掉命令审批，不等于同意 agent 随便交出密钥，所以这时改用确认码。
-- **确认码**：在 Hermes 审批用不了或被关掉时使用。
-  - nyx 生成 6 位数字，要求主人在下一条消息里原样回复，例如「确认 v3 482913」。
-  - 走 6.2 时，这句提示由钩子直接追加到回复末尾，模型看不到码；走 6.3 时由模型转述。
-  - 下一轮 `on_turn_start`（agent 线程）核对：同一会话、5 分钟内、完全一致，就在这一轮里放行一次 `nyx_secret_reveal(v3)`。
-  - 模型在工具参数里自称「主人已经确认」没用，确认只认主人这一轮的原话（有测试覆盖）。
+**Gate 3: human confirmation**
+- **Preferred: Hermes's own approval**: call `tools.approval.request_tool_approval("nyx_secret_reveal", reason="Show vault entry v3 (HF token …ab12, saved 2026-10-20)", rule_key="nyx_vault:<one-time random>")` (`tools/approval.py:2940`).
+  - In the CLI it is a confirmation prompt in the terminal; in the gateway an approval message on the chat platform. 60-second default timeout; timeout, denial and errors all count as denial.
+  - This is the entry point Hermes provides for plugins to escalate a tool call to human approval, and the model cannot skip it. The approval prompt only shows id, kind, last 4 and date; tested not to contain the value.
+  - `rule_key` is a fresh random value every time. The approval UI offers "allow for this session" and "always allow"; with a fixed key, one click on "always" would mean no more questions for any future reveal. The cost is that clicking "always" leaves an unused entry in Hermes's allow list.
+  - **Not used when approvals are off altogether.** `--yolo`, `/yolo` in a session and `approvals.mode: off` all make this approval pass immediately (`is_approval_bypass_active()` at `tools/approval.py:2472`). The owner turning off command approvals is not consent to the agent handing out secrets, so the confirmation code is used instead.
+- **Confirmation code**: used when Hermes's approval is unavailable or turned off.
+  - nyx generates 6 digits and asks the owner to reply with them verbatim in the next message, e.g. "confirm v3 482913" (the Chinese form "确认 v3 482913" is accepted too).
+  - With 6.2 the hook appends this prompt to the end of the reply directly, so the model never sees the code; with 6.3 the model relays it.
+  - The next turn's `on_turn_start` (agent thread) checks it: same session, within 5 minutes, exact match → `nyx_secret_reveal(v3)` is allowed once in that turn.
+  - The model claiming "the owner already confirmed" in the tool arguments does nothing; only the owner's own words this turn count (covered by tests).
 
-## 8. 生命周期
+## 8. Lifecycle
 
-| 事件 | 保险箱 |
+| Event | Vault |
 |---|---|
-| `nyx_forget` / `forget` 把来源记忆放进隔离区 | 只剩隔离区里提到它，状态变为「来源记忆在隔离区」，不能取回 |
-| `nyx_restore` | 又有在世的记忆提到它，可以取回 |
-| 隔离区 `purge`（到期或指定） | 被清掉的那些记忆提到的编号里，哪里都不再被提到的，跟着真删，不需要等待（`drop_unreferenced`） |
-| `forget(mode="purge")` 当场真删 | 同上 |
-| `wipe_free_space()`（每次真删之后） | `gc()` 删掉来源已不存在、且已保存 2 分钟以上的条目（刚收进来、日志还没写到的那几毫秒不算孤儿），然后 VACUUM `vault.db` |
-| `vault delete v3` | 直接真删。来源记忆里的占位符保留，编号显示为「已删除」 |
-| `scrub --apply --to-vault` | 处理 v7.14.0 之前存下、还没清理过的明文：日志里 `sender == user` 的先收进保险箱，占位符带上编号，其余照旧只隐去。先单独收一遍，之后每一步都只查不收，保证日志和中枢拿到同一个编号（否则两边正文对不上）。不加 `--to-vault` 时行为不变 |
-| `doctor` / `nyx_health` | 新增 `vault` 一项。没开算正常；开了但用不了算失败；来源已真删、却还留在保险箱里的条目也算失败，并提示 `vault gc`。直达方式下还会报告配套插件有没有启用（读 `$HERMES_HOME/config.yaml`） |
+| `nyx_forget` / `forget` puts the source memory in the quarantine | Only quarantined memories mention it; state becomes "source memory in quarantine", not revealable |
+| `nyx_restore` | A live memory mentions it again; revealable |
+| Quarantine `purge` (due, or explicit) | Of the ids mentioned by the purged memories, those no longer mentioned anywhere are purged too, without waiting (`drop_unreferenced`) |
+| `forget(mode="purge")`, immediate purge | Same as above |
+| `wipe_free_space()` (after every purge) | `gc()` removes entries whose source no longer exists and which were saved more than 2 minutes ago (the few milliseconds before the journal write do not count as orphaned), then VACUUMs `vault.db` |
+| `vault delete v3` | Purged directly. Placeholders in the source memories stay; the id shows as "deleted" |
+| `scrub --apply --to-vault` | Handles plaintext stored before v7.14.0 that was never cleaned: journal entries with `sender == user` go into the vault first and their placeholders get ids; everything else is only hidden as before. Collection happens in one separate pass, and every later step only looks up, so the journal and the hub get the same id (otherwise their texts would not match). Without `--to-vault` nothing changes |
+| `doctor` / `nyx_health` | New `vault` item. Off is fine; on but unusable is a failure; entries whose source was purged but which are still in the vault are a failure too, with a hint to run `vault gc`. With direct reveal it also reports whether the companion plugin is enabled (reads `$HERMES_HOME/config.yaml`) |
 
-## 9. 威胁模型
+## 9. Threat model
 
-**防得住**
-- 数据目录被拷走、同步、进了备份：里面只有密文，密钥不在数据目录里。
-- 记忆被召回、被塞进提示词、被发给嵌入服务：那里只有占位符（同 v7.14.0）。
-- 被召回内容里的提示注入、子 agent、定时任务想让 agent 交出密钥：§7 的闸门 1–3 挡住。
-- 走 6.2 时，模型服务商在取回这一轮看到原文：工具结果里只有句柄。已在真实 Hermes 里验证（§6.2）。
-- 主人点了一次「永远允许」，之后取回再也不问：每次都用新的 `rule_key`。
-- 主人关掉了命令审批：nyx 能识别出来，改走确认码。
+**Protects against**
+- The data directory being copied, synced or backed up: it only holds ciphertext, and the key is not in the data directory.
+- Memories being recalled, put into prompts or sent to an embedding service: they only hold the placeholder (as in v7.14.0).
+- Prompt injection in recalled content, subagents or scheduled jobs trying to make the agent hand out a secret: gates 1–3 in §7.
+- With 6.2, the model provider seeing the value in the reveal turn: the tool result only has a handle. Verified in real Hermes (§6.2).
+- The owner clicking "always allow" once and never being asked again: a fresh `rule_key` every time.
+- The owner having turned off command approvals: nyx detects it and uses the confirmation code.
 
-**防不住**
-- **原文第一次贴进聊天的那一刻**。那时原文已经发给了模型服务商，也留在了 Hermes 的会话记录（`~/.hermes/state.db` 等）和聊天平台里，nyx 管不到这些。凡是在聊天里贴过的密钥，都应该换掉。
-- 取回之后聊天平台上的那条消息（Telegram 等会一直保留）。要么取回后手动删掉那条消息，要么用命令行取。
-- 走 6.3（经模型）时：原文会进模型服务商和 Hermes 的会话记录。
-- 走 6.2 时其它启用了的 Hermes 插件：它们的 `post_llm_call` 钩子拿到的是替换后的回复（`turn_finalizer.py:485`）。
-- 群聊。保险箱不区分发言人（§2），机器人在群里时，群里任何人都会被当成主人，取回的原文也会发在群里。开了保险箱就别把机器人放进群。
-- 主人的聊天账号被盗。
-- 这台机器已经被攻破，或者同一个系统用户下有恶意程序：能读到密钥文件，就能解密。
-- 旁边有人看屏幕。
+**Does not protect against**
+- **The moment the value is first pasted into chat.** By then it has been sent to the model provider and stays in Hermes's session log (`~/.hermes/state.db` and others) and on the chat platform, none of which nyx controls. Any secret pasted into chat should be rotated.
+- The message on the chat platform after a reveal (Telegram and others keep it). Either delete that message by hand after revealing, or use the command line.
+- With 6.3 (via the model): the value goes into the model provider's and Hermes's session logs.
+- Other enabled Hermes plugins under 6.2: their `post_llm_call` hooks get the replaced reply (`turn_finalizer.py:485`).
+- Group chats. The vault does not tell speakers apart (§2): with the bot in a group, anyone in the group counts as the owner, and revealed values are posted to the group. With the vault on, keep the bot out of groups.
+- The owner's chat account being stolen.
+- The machine already being compromised, or malware under the same system user: whatever can read the key file can decrypt.
+- Someone looking over your shoulder.
 
-## 10. 配置
+## 10. Configuration
 
-| 键（`nyx.json` / 环境变量） | 默认 | 取值 |
+| Key (`nyx.json` / environment variable) | Default | Values |
 |---|---|---|
 | `vault` / `NYX_VAULT` | `off` | `off` / `on` |
-| `vault_reveal` / `NYX_VAULT_REVEAL` | `direct` | `direct`（6.2；没装插件时提示走命令行）/ `cli`（工具只能列出、不能取）/ `llm`（6.3） |
-| `vault_kinds` / `NYX_VAULT_KINDS` | `all` | `all` / `tokens`（不收密码） |
+| `vault_reveal` / `NYX_VAULT_REVEAL` | `direct` | `direct` (6.2; points to the command line without the plugin) / `cli` (the tool can list but not reveal) / `llm` (6.3) |
+| `vault_kinds` / `NYX_VAULT_KINDS` | `all` | `all` / `tokens` (do not keep passwords) |
 | `NYX_VAULT_BACKEND` | `auto` | `auto` / `file` / `keyring` |
-| `NYX_VAULT_KEY` | 无 | base64 编码的主密钥，优先于密钥文件 |
+| `NYX_VAULT_KEY` | none | base64-encoded master key; wins over the key file |
 
-`vault`、`vault_reveal`、`vault_kinds` 三项出现在 `hermes memory setup` 的配置项里。同一项如果同时设了环境变量，环境变量优先。
+`vault`, `vault_reveal` and `vault_kinds` appear in `hermes memory setup`. When an environment variable is also set for the same item, the environment variable wins.
 
-## 11. 改动的文件
+## 11. Files changed
 
-| 文件 | 改动 |
+| File | Change |
 |---|---|
-| `core/secret_vault.py`（新） | 两种后端、加密、去重、引用状态、`put / lookup / entries / get / delete / gc / wipe / rekey / status / health`、审计与频率、直达句柄、确认码、按字面隐去取回过的值 |
-| `core/secret_filter.py` | `scrub(..., vault=None)`：每处完整匹配调用回调拿编号，占位符带 ` #vN`。现有的 `_PLACEHOLDER` 正则已经能匹配带编号的形式 |
-| `core/memory_provider.py` | `sync_turn` 给用户一侧的消息传 `vault=` 回调；两个工具与闸门；`on_turn_start` 核对确认短语；系统提示加一行；配置项；其它写入钩子也按字面隐去取回过的值 |
-| `nexsandglass_hermes_reveal/`（新） | 配套插件：注册 `transform_llm_output` |
-| `nexsandglass/vault.py`（新） | §6.1 的命令行 |
-| `core/erasure.py`、`core/quarantine.py` | 真删联动；`wipe_free_space` 覆盖 `vault.db` |
-| `core/secret_scrub.py`、`scrub.py` | `--to-vault` |
-| `core/memid.py` | `vault` 自检项 |
-| `pyproject.toml` | 可选依赖 `vault`、`vault-keyring`；入口点 `hermes_agent.plugins` |
-| `.github/workflows/*.yml` | CI 安装 `.[vault]`；发布前的冒烟测试检查 `nyx-reveal` 入口点 |
-| `tests/test_secret_vault.py`（新）、`tests/conftest.py` | 22 项测试；清掉 `NYX_VAULT*`，`XDG_CONFIG_HOME` 指向临时目录（不碰开发者真实的密钥文件） |
-| `benchmarks/vault_hermes_e2e.py`（新） | 真实 Hermes 下的端到端验收（发布前手动跑；CI 不装 hermes-agent） |
+| `core/secret_vault.py` (new) | Two backends, encryption, dedup, reference state, `put / lookup / entries / get / delete / gc / wipe / rekey / status / health`, audit and rate limits, direct handles, confirmation codes, literal hiding of revealed values |
+| `core/secret_filter.py` | `scrub(..., vault=None)`: every complete match calls the callback for an id, and the placeholder gets ` #vN`. The existing `_PLACEHOLDER` regex already matches the numbered form |
+| `core/memory_provider.py` | `sync_turn` passes a `vault=` callback for user-side messages; the two tools and the gates; `on_turn_start` checks the confirmation phrase; one system-prompt line; config items; the other write hooks also hide revealed values literally |
+| `nexsandglass_hermes_reveal/` (new) | Companion plugin: registers `transform_llm_output` |
+| `nexsandglass/vault.py` (new) | The command line of §6.1 |
+| `core/erasure.py`, `core/quarantine.py` | Purge follow-through; `wipe_free_space` covers `vault.db` |
+| `core/secret_scrub.py`, `scrub.py` | `--to-vault` |
+| `core/memid.py` | The `vault` health item |
+| `pyproject.toml` | Optional dependencies `vault`, `vault-keyring`; entry point `hermes_agent.plugins` |
+| `.github/workflows/*.yml` | CI installs `.[vault]`; the pre-release smoke test checks the `nyx-reveal` entry point |
+| `tests/test_secret_vault.py` (new), `tests/conftest.py` | 22 tests; clears `NYX_VAULT*` and points `XDG_CONFIG_HOME` at a temp directory (never touches a developer's real key file) |
+| `benchmarks/vault_hermes_e2e.py` (new) | End-to-end acceptance in real Hermes (run by hand before a release; CI does not install hermes-agent) |
 
-## 12. 测试与验收
+## 12. Tests and acceptance
 
-测试里的 token 一律在运行时拼出来，源码里不出现完整 token，以免触发 GitHub 推送保护（同 v7.14.0）。
+Tokens in the tests are always assembled at runtime, so no complete token appears in the source and GitHub push protection is not triggered (as in v7.14.0).
 
-`tests/test_secret_vault.py` 覆盖：
-- 加密：往返；去重；编号不复用；密钥文件 0600、目录 0700，且不在数据目录里；把密文挪到别的行解不开；换错密钥报「密钥不对」；权限太宽时拒绝；没有后端、或 cryptography 装坏了（抛 `BaseException`）时只隐去；钥匙串后端只信任真正的系统钥匙串。
-- 收录：用户一侧的收，助手回复只认已有编号；`<private>` 和被截断的不收；`tokens` 档不收密码；带编号的占位符再过一遍不变；整个数据目录按原始字节找不到原文。
-- 闸门：没有明确请求、子 agent、定时任务、不存在的编号、来源在隔离区、频率限制、确认短语连错 3 次锁定、模型在参数里自称已确认无效、Hermes 审批批准 / 拒绝 / 被关掉（改走确认码）、`rule_key` 每次不同。
-- 直达：工具结果里没有原文；确认码不经过模型；钩子把句柄换成原文；别的会话换不了；用一次就失效；之后的 `sync_turn` 里原文按字面隐去。
-- 取回方式：`cli` 档和没装插件时都返回 `use_cli`；`llm` 档返回原文，但原文不进 nyx 记忆。
-- 插件：注册的是 `transform_llm_output`，源码里没有会让 Hermes 误判的词。
-- 生命周期：遗忘后不能取、还原后能取、`purge` 和当场真删都会跟着删；同一个值在两条记忆里时，忘掉一条不影响另一条。
-- 命令行：`list` 不出原文、`show`、`status`、`rekey` 之后还能解开且去重照常、`delete`；doctor 里有 `vault` 这一项。
-- `scrub --to-vault`：预演不收；`--apply` 之后数据目录里找不到原文，日志与中枢一致，隔离区那条不收；保险箱没开时报错。
+`tests/test_secret_vault.py` covers:
+- Encryption: round trip; dedup; ids never reused; key file 0600 and directory 0700, outside the data directory; ciphertext moved to another row does not decrypt; a wrong key reports "wrong key"; permissions too wide are refused; without a backend, or with a broken cryptography (raising `BaseException`), values are only hidden; the keychain backend only trusts real system keychains.
+- Collection: user-side values are kept, assistant replies only reuse existing ids; `<private>` and truncated values are not kept; the `tokens` level keeps no passwords; a numbered placeholder passes through again unchanged; a raw-byte scan of the whole data directory finds no value.
+- Gates: no explicit request, subagent, scheduled job, unknown id, source in quarantine, rate limits, lock after 3 wrong confirmation phrases, the model claiming confirmation in its arguments has no effect, Hermes approval approved / denied / turned off (falls back to the confirmation code), a different `rule_key` each time.
+- Direct: no value in the tool result; the confirmation code never passes through the model; the hook swaps the handle for the value; other sessions cannot swap it; single use; the value is hidden literally in later `sync_turn` calls.
+- Reveal paths: the `cli` level and a missing plugin both return `use_cli`; the `llm` level returns the value, but it does not enter nyx's memory.
+- Plugin: it registers `transform_llm_output`, and its source contains no words that would mislead Hermes.
+- Lifecycle: not revealable after forgetting, revealable after restoring; `purge` and an immediate purge both remove it; with the same value in two memories, forgetting one does not affect the other.
+- Command line: `list` never shows values, `show`, `status`, after `rekey` entries still decrypt and dedup still works, `delete`; doctor has the `vault` item.
+- `scrub --to-vault`: a dry run keeps nothing; after `--apply` no value is found in the data directory, the journal and the hub agree, the quarantined entry is not kept; it errors when the vault is off.
 
-验收结果：
-1. `NYX_VAULT=off` 时，原有测试只改了两处期望值（多了配置项和自检项），其余全部照过。
-2. 真实 Hermes 下的端到端验收：见 §6.2。
+Acceptance results:
+1. With `NYX_VAULT=off`, only two expected values in existing tests changed (one more config item and one more health item); everything else passed as before.
+2. End-to-end acceptance in real Hermes: see §6.2.
 
-## 13. 已定的选择（v7.15.0）
+## 13. Decisions made (v7.15.0)
 
-1. 默认取回方式是 `direct`。装了配套插件就直达；没装就让 agent 把命令行告诉主人，不退到经模型。
-2. 密码也收（`all`）。不想收就设 `vault_kinds: tokens`。
-3. `scrub --to-vault` 已经做了。已经 `scrub --apply` 过的原文找不回来。
+1. The default reveal path is `direct`: with the companion plugin installed it goes direct; without it the agent tells the owner the command line, never falling back to the model.
+2. Passwords are kept too (`all`). Set `vault_kinds: tokens` to keep only tokens.
+3. `scrub --to-vault` is done. Values already erased by `scrub --apply` cannot be recovered.
 
-## 14. 相关问题
+## 14. Related issues
 
-- `owner_ids` 在 Hermes 0.19.0 下不起作用（见 §2），这次没改。
-- ~~README 推荐的「pip 装完自动发现」在 Hermes 0.19.0 下不成立~~（v7.15.0 已修）。Hermes 0.19.0 只按目录查找记忆插件：先找内置的 `plugins/memory/<名字>/`，再找 `$HERMES_HOME/plugins/<名字>/`（`plugins/memory/__init__.py:124` 的 `find_provider_dir`），不扫描 `hermes_agent.memory_providers` 入口点。现在改用 `python3 -m nexsandglass_hermes install`：
-  - 找到 Hermes 用的 Python，没装 nyx-memory 就装进去；
-  - 在 `$HERMES_HOME/plugins/nyx/` 放入口文件；
-  - 设 `memory.provider: nyx`；
-  - 最后用 Hermes 自己的加载器确认一次。
+- `owner_ids` has no effect under Hermes 0.19.0 (see §2); not changed this time.
+- ~~"Discovered automatically after pip install", as the README recommended, does not hold under Hermes 0.19.0~~ (fixed in v7.15.0). Hermes 0.19.0 only finds memory providers by directory: first the bundled `plugins/memory/<name>/`, then `$HERMES_HOME/plugins/<name>/` (`find_provider_dir` at `plugins/memory/__init__.py:124`), and it does not scan the `hermes_agent.memory_providers` entry point. Now `python3 -m nexsandglass_hermes install` is used instead:
+  - find the Python Hermes uses, and install nyx-memory there if missing;
+  - write the entry file in `$HERMES_HOME/plugins/nyx/`;
+  - set `memory.provider: nyx`;
+  - finally confirm once with Hermes's own loader.
 
-  普通插件的入口点（`hermes_agent.plugins`，nyx-reveal 用的就是这种）Hermes 会扫描，不受影响。
+  Regular plugin entry points (`hermes_agent.plugins`, which nyx-reveal uses) are scanned by Hermes and unaffected.

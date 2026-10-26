@@ -275,13 +275,17 @@ def test_select_by_sender_narrows_never_widens(env, monkeypatch):  # noqa: F811
     assert erasure._select({"sender": "golden", "all": False}) == [a]
 
 
-def test_cli_dry_run_and_doctor_hint(env, scene, capsys):  # noqa: F811
+def test_cli_dry_run_and_doctor_hint(env, scene, capsys, monkeypatch):  # noqa: F811
     from nexsandglass import doctor, repair
     from nexsandglass.core import memid
     before = _hub(memid)
     assert repair.main([]) == 1
     out = capsys.readouterr().out
-    assert "只读" in out and "--apply" in out
+    assert "read-only" in out and "--apply" in out
+    monkeypatch.setenv("NYX_LANG", "zh")          # 要中文的人：同一份体检，中文输出
+    assert repair.main([]) == 1
+    assert "只读" in capsys.readouterr().out
+    monkeypatch.setenv("NYX_LANG", "en")
     assert not any(w in out for w in FAKE_WORDS) and "鹿特丹" not in out, "体检不输出正文"
     assert _hub(memid) == before
     doctor.main([])

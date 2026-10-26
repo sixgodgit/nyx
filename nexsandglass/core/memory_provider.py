@@ -83,10 +83,17 @@ try:
 except ImportError:
     def tool_error(msg): return json.dumps({"error": msg}, ensure_ascii=False)
 
+from nexsandglass.core.lang import t as _t
+
 logger = logging.getLogger(__name__)
 
-# 偏移方向中文标签（system_prompt_block / prefetch 共用）
-_OFFSET_LABELS = {"frugal": "省钱", "spend": "愿投", "drift": "放弃"}
+# 给模型看的文字一律英文（v7.16.0）；给人看的（hermes memory setup 的说明）走 core/lang.t
+# 偏移方向标签（system_prompt_block / prefetch 共用）
+_OFFSET_LABELS = {"frugal": "saving", "spend": "spending", "drift": "drifting"}
+
+
+def _mood(entropy: float) -> str:
+    return "steady" if entropy < 0.5 else ("variable" if entropy < 1.0 else "turbulent")
 
 # agent 一次最多送进隔离区的条数；更大的范围交给主人用 CLI 做
 _FORGET_MAX = 20
@@ -106,50 +113,53 @@ def _fn(name: str, description: str, properties: dict, required: list = None) ->
 # ══════════════════════════════════════════════════════════
 
 _TOOL_SCHEMAS = [
-    _fn("sandglass_search", "搜索 Nyx 记忆——投石问路（倒排索引）优先，五维权重排序；"
-        "非主人来源的记忆会带「未经证实」标注。",
-        {"query": {"type": "string", "description": "搜索关键词"},
+    _fn("sandglass_search", "Search the user's long-term memory (full-text, inverted index and entity search, fused). "
+        "Results from sources other than the user carry an \"(unverified · source: …)\" tag.",
+        {"query": {"type": "string", "description": "What to search for"},
          "limit": {"type": "integer", "default": 10}}, ["query"]),
-    _fn("sandglass_recent", "获取最近 N 条记忆。",
+    _fn("sandglass_recent", "The most recent N memories.",
         {"n": {"type": "integer", "default": 10}}),
-    _fn("sandglass_offset", "计算当前偏移率——主人决策方向的趋势。返回偏移百分比和方向。", {}),
-    _fn("fact_store", "影子沙事实存储。action=add/search/probe/reason。存储结构化事实，信任评分排序。",
+    _fn("sandglass_offset", "The user's current decision drift (offset): which way recent decisions lean, as a percentage and direction.", {}),
+    _fn("fact_store", "Structured fact store with trust scores. action=add stores a fact; search finds facts; "
+        "probe lists trust scores for an entity; reason returns the best-supported memory for an entity.",
         {"action": {"type": "string", "enum": ["add", "search", "probe", "reason"]},
-         "content": {"type": "string", "description": "事实内容"},
+         "content": {"type": "string", "description": "The fact to store"},
          "category": {"type": "string", "default": "general"},
          "query": {"type": "string"},
          "entity": {"type": "string"}}, ["action"]),
-    _fn("fact_feedback", "信任评分反馈。标记记忆是否有帮助。",
+    _fn("fact_feedback", "Mark a recalled memory as helpful or not (adjusts its trust score).",
         {"line_num": {"type": "integer"}, "helpful": {"type": "boolean"}},
         ["line_num", "helpful"]),
-    _fn("sandglass_echo", "读取回音折——最近的情感风向。", {}),
+    _fn("sandglass_echo", "Recent sentiment trend in the user's messages (positive / negative / neutral).", {}),
     _fn("nyx_belief",
-        "查双时态事实（住在/使用/公司/职位/邮箱/电话/偏好/反感）。默认返回现在相信的；"
-        "as_of=某日期 → 那天什么为真；known_at=某日期 → 那时我以为现在是什么；"
-        "history=true → 演变链与看法变化时间线。回答「现在住哪 / 以前在哪工作 / 什么时候换的」时用它。",
+        "Bi-temporal facts about the user (where they live, what they use, employer, job title, email, phone, "
+        "likes, dislikes). By default returns what is believed now; as_of=DATE → what was true on that day; "
+        "known_at=DATE → what was believed at that time; history=true → how the fact and the belief changed. "
+        "Use it for \"where do I live now / where did I work before / when did that change\".",
         {"subject": {"type": "string", "default": "user"},
          "relation": {"type": "string",
-                      "enum": ["住在", "使用", "公司", "职位", "邮箱", "电话", "偏好", "反感"]},
+                      "enum": ["lives_in", "uses", "employer", "job_title", "email", "phone", "likes", "dislikes"]},
          "as_of": {"type": "string", "description": "YYYY-MM-DD"},
          "known_at": {"type": "string", "description": "YYYY-MM-DD"},
          "history": {"type": "boolean", "default": False}}),
     _fn("nyx_forget",
-        "遗忘记忆（进隔离区，保留期内可 nyx_restore 还原；agent 无权永久擦除）。"
-        "先不带 confirm 调一次看会删哪些，确认无误再带 confirm=true。"
-        "只在主人明确要求忘掉某件事时使用。",
-        {"contains": {"type": "string", "description": "正文精确子串（至少 2 个字）"},
+        "Forget memories: they move to a quarantine and can be restored with nyx_restore until the retention period "
+        "ends (agents cannot erase permanently). Call once without confirm to preview, then again with confirm=true. "
+        "Use only when the user explicitly asks to forget something.",
+        {"contains": {"type": "string", "description": "Exact substring of the memory text (at least 2 characters)"},
          "mem_id": {"type": "string"},
          "reason": {"type": "string"},
          "confirm": {"type": "boolean", "default": False}}),
-    _fn("nyx_restore", "把隔离区里的一条记忆原样还原（隔离期内有效）。",
+    _fn("nyx_restore", "Restore a forgotten memory from the quarantine, unchanged (while it is still there).",
         {"mem_id": {"type": "string"}}, ["mem_id"]),
-    _fn("nyx_quarantine", "列出隔离区：被遗忘但还能还原的记忆（只含 40 字预览）与到期时间。",
+    _fn("nyx_quarantine", "List the quarantine: forgotten memories that can still be restored (40-character preview) and when each expires.",
         {"limit": {"type": "integer", "default": 20}}),
     _fn("nyx_health",
-        "Nyx 自检：中枢与日志一致性、全文 / 倒排 / 语义索引、遗忘完整性、隔离区到期、规则投毒。"
-        "每项单独给出 ok 与原因。主人问「记忆系统正常吗」或系统提示里出现自检警告时调用。",
+        "Nyx self-check: hub vs journal consistency, full-text / inverted / semantic indexes, erasure integrity, "
+        "quarantine expiry, rule poisoning. Each check reports ok and a reason. Call it when the user asks whether "
+        "memory is working, or when the system prompt shows a Nyx health warning.",
         {"quick": {"type": "boolean", "default": False,
-                   "description": "true = 只查语义索引（快）；false = 全量（要扫整份日志）"}}),
+                   "description": "true = semantic index only (fast); false = everything (scans the whole journal)"}}),
 ]
 
 _WRITE_TOOLS = {"fact_feedback", "nyx_forget", "nyx_restore"}
@@ -157,13 +167,15 @@ _WRITE_TOOLS = {"fact_feedback", "nyx_forget", "nyx_restore"}
 # 密钥保险箱（v7.15.0，NYX_VAULT=on 才出现）。原文永远不进这两个工具的描述 / 列表；取回规则见 docs/secret-vault.md
 _VAULT_TOOL_SCHEMAS = [
     _fn("nyx_secret_list",
-        "列出保险箱里存着的密钥 / 密码：编号（v3）、类别、末 4 位、保存日期、当时的上下文。**不含原文**。"
-        "主人问「我之前给过你的那个 token / key / 密码」时先用它找是哪一条。",
-        {"query": {"type": "string", "description": "可选：按类别 / 上下文过滤，如 HF、GitHub、wifi"}}),
+        "List the secrets kept in the vault: id (v3), kind, last 4 characters, date saved, and the surrounding context. "
+        "**Never includes the secret itself.** When the user asks for \"that token / key / password I gave you\", "
+        "use this first to find which entry it is.",
+        {"query": {"type": "string", "description": "Optional filter by kind or context, e.g. HF, GitHub, wifi"}}),
     _fn("nyx_secret_reveal",
-        "把保险箱里的一条原文交还给主人。只在主人这一轮明确要求看原文时调用；需要主人确认。"
-        "返回 queued 时原文不经过你：在回复里原样写上返回的句柄，nyx 发出前替换。不要猜测、拼凑或复述原文。",
-        {"id": {"type": "string", "description": "编号，如 v3"}}, ["id"]),
+        "Hand a stored secret back to the user. Call only when the user explicitly asked for it in this turn; "
+        "the user has to confirm. When it returns queued, the secret does not pass through you: put the returned "
+        "handle in your reply verbatim and nyx swaps it in before sending. Never guess, reconstruct or repeat a secret.",
+        {"id": {"type": "string", "description": "Entry id, e.g. v3"}}, ["id"]),
 ]
 
 # 主人这一轮的原话要像在要密钥（闸门 2）：防召回内容、网页、文件里埋的提示注入让 agent 自己去取
@@ -279,7 +291,8 @@ class NexSandglassProvider(MemoryProvider):
                 break
             probe = parent
         if probe and os.path.exists(probe) and not os.access(probe, os.W_OK):
-            return f"Nyx 记忆目录不可写：{d}（设置 NEXSANDBASE_HOME 或 nyx.json 的 data_dir）"
+            return _t(f"Nyx data directory is not writable: {d} (set NEXSANDBASE_HOME, or data_dir in nyx.json)",
+                      f"Nyx 记忆目录不可写：{d}（设置 NEXSANDBASE_HOME 或 nyx.json 的 data_dir）")
         return ""
 
     def _load_settings(self) -> None:
@@ -297,7 +310,7 @@ class NexSandglassProvider(MemoryProvider):
         for key, env in (("semantic", "NYX_EMBED"), ("embedding_model", "NYX_EMBED_MODEL"),
                          ("embedding_api_url", "EMBEDDING_API_URL"), ("rerank", "NYX_RERANK"),
                          ("vault", "NYX_VAULT"), ("vault_reveal", "NYX_VAULT_REVEAL"),
-                         ("vault_kinds", "NYX_VAULT_KINDS"), ("l3_llm", "NYX_L3_LLM")):
+                         ("vault_kinds", "NYX_VAULT_KINDS"), ("l3_llm", "NYX_L3_LLM"), ("lang", "NYX_LANG")):
             if cfg.get(key) and not os.environ.get(env):
                 os.environ[env] = str(cfg[key])
 
@@ -388,10 +401,10 @@ class NexSandglassProvider(MemoryProvider):
             off = comprehensive_offset()
             stage = _current_stage()
             ent = _emotional_entropy()
-            mood = "平稳" if ent < 0.5 else ("波动" if ent < 1.0 else "高熵")
+            mood = _mood(ent)
 
             # 偏移方向
-            off_label = _OFFSET_LABELS.get(off.get('direction', ''), '平稳')
+            off_label = _OFFSET_LABELS.get(off.get('direction', ''), 'steady')
             off_pct = off.get('offset', 0)
 
             blocks = []
@@ -426,7 +439,7 @@ class NexSandglassProvider(MemoryProvider):
                     from nexsandglass.l3.scene_l3 import scene_current
                     scenes = scene_current()
                     if scenes:
-                        scene_text = f"当前场景：{'、'.join(scenes[:3])}"
+                        scene_text = f"Current scene: {', '.join(scenes[:3])}"
                 except Exception:
                     pass
 
@@ -438,11 +451,11 @@ class NexSandglassProvider(MemoryProvider):
             persona_layer = "\n".join(persona_parts)
 
             # ═══════ 第二层：你在往哪走 ═══════
-            layer2 = ["【你在往哪走】"]
-            if off_label != "平稳":
-                layer2.append(f"💰 {off_label}倾向({off_pct:+d}%)")
+            layer2 = ["[Where you are heading]"]
+            if off_label != "steady":
+                layer2.append(f"💰 leaning {off_label} ({off_pct:+d}%)")
             else:
-                layer2.append(f"💰 决策平稳")
+                layer2.append("💰 decisions steady")
 
             # 最近决策
             decisions = []
@@ -471,7 +484,7 @@ class NexSandglassProvider(MemoryProvider):
             except Exception:
                 pass
             if decisions:
-                layer2.append(f"📋 最近：{'；'.join(decisions)}")
+                layer2.append(f"📋 Recent: {'; '.join(decisions)}")
 
             # 矛盾检测
             try:
@@ -484,8 +497,8 @@ class NexSandglassProvider(MemoryProvider):
             except Exception:
                 logger.debug("矛盾检测失败", exc_info=True)
 
-            if mood != "平稳":
-                layer2.append(f"🎭 情绪：{mood}")
+            if mood != "steady":
+                layer2.append(f"🎭 Mood: {mood}")
 
             offset_layer = "\n".join(layer2[1:]) if len(layer2) > 1 else ""
 
@@ -527,15 +540,15 @@ class NexSandglassProvider(MemoryProvider):
                 pass
 
             if tasks or rules:
-                header = "【还没做完】"
+                header = "[Unfinished]"
                 if tasks:
                     layer4.append(header)
-                    layer4.append("待办：")
+                    layer4.append("To do:")
                     layer4.extend(f"  {i+1}. {t}" for i, t in enumerate(tasks))
                 if rules:
                     if not tasks:
                         layer4.append(header)
-                    layer4.append("纪律：")
+                    layer4.append("Rules:")
                     layer4.extend(f"  {i+1}. {r}" for i, r in enumerate(rules))
                 open_loops_layer = "\n".join(layer4[1:]) if len(layer4) > 1 else ""
             else:
@@ -560,21 +573,21 @@ class NexSandglassProvider(MemoryProvider):
                 # 降级仅在 orch 真正不可用时触发，并打 warning
                 logger.warning("system_prompt_block Bundle 路径失败，fallback: %s", e)
                 fb = []
-                if persona_layer: fb.append("【你是谁】\n" + persona_layer)
-                if offset_layer: fb.append("【你在往哪走】\n" + offset_layer)
-                if thread_layer: fb.append("【你怎么变成这样】\n" + thread_layer)
-                if open_loops_layer: fb.append("【还没做完】\n" + open_loops_layer)
+                if persona_layer: fb.append("[Who you are]\n" + persona_layer)
+                if offset_layer: fb.append("[Where you are heading]\n" + offset_layer)
+                if thread_layer: fb.append("[How you got here]\n" + thread_layer)
+                if open_loops_layer: fb.append("[Unfinished]\n" + open_loops_layer)
                 body = "\n\n".join(fb).strip()
 
-            tail = f"沙漏: {total}条 | 阶段: {stage}"
+            tail = f"Nyx memory: {total} entries | stage: {stage}"
             warn = self._health_warning()
             if _vault.level() == "on":
-                tail += ("\n记忆里的 `#vN` 是密钥保险箱的编号。主人明确要看原文时调用 nyx_secret_reveal；"
-                         "不要猜测、拼凑或复述原文。")
+                tail += ("\n`#vN` in a memory is a secret-vault entry id. Call nyx_secret_reveal only when the user "
+                         "explicitly asks to see the secret; never guess, reconstruct or repeat it.")
             return (body + "\n\n" + tail + (("\n" + warn) if warn else "")).strip()
         except Exception:
             logger.warning("system_prompt_block 整体失败", exc_info=True)
-            return "NexSandglass记忆系统已就绪。使用sandglass_search搜索记忆。"
+            return "Nyx memory is ready. Use sandglass_search to search it."
 
     @staticmethod
     def _health_warning() -> str:
@@ -587,12 +600,12 @@ class NexSandglassProvider(MemoryProvider):
             from nexsandglass.core import semantic
             hc = semantic.health_check()
         except Exception as e:
-            return f"⚠️ Nyx 自检：语义索引状态读取失败（{e}）。请提醒主人运行 `{_hints.cmd('doctor')}`。"
+            return f"⚠️ Nyx health: could not read the semantic index status ({e}). Ask the user to run `{_hints.cmd('doctor')}`."
         if hc.get("ok"):
             return ""
-        why = "；".join(hc.get("problems") or [])[:200]
-        return (f"⚠️ Nyx 自检：语义检索这一路不可用（{why}）。词法召回正常。"
-                f"请提醒主人运行 `{_hints.cmd('doctor')}`，或调用 nyx_health 查看详情。")
+        why = "; ".join(hc.get("problems") or [])[:200]
+        return (f"⚠️ Nyx health: semantic search is unavailable ({why}). Lexical recall still works. "
+                f"Ask the user to run `{_hints.cmd('doctor')}`, or call nyx_health for details.")
 
     def _signal_line(self) -> str:
         """偏移 + 情绪：主注入已有全貌，这里只给最动态的信号。"""
@@ -600,9 +613,9 @@ class NexSandglassProvider(MemoryProvider):
             from nexsandglass.features.sandglass_think import comprehensive_offset, _emotional_entropy
             off = comprehensive_offset()
             ent = _emotional_entropy()
-            mood = "平稳" if ent < 0.5 else ("波动" if ent < 1.0 else "高熵")
-            off_d = _OFFSET_LABELS.get(off.get('direction', ''), '平稳')
-            return f"## 当前\n偏移: {off_d}({off.get('offset', 0):+d}%) | 情绪: {mood}\n"
+            mood = _mood(ent)
+            off_d = _OFFSET_LABELS.get(off.get('direction', ''), 'steady')
+            return f"## Now\nDecision drift: {off_d} ({off.get('offset', 0):+d}%) | Mood: {mood}\n"
         except Exception:
             return ""
 
@@ -631,13 +644,13 @@ class NexSandglassProvider(MemoryProvider):
                 cap = max(cap, _intent.breadth_lines(query))   # 汇总 / 时长 / 先后：答案分散在几次对话里（v7.13.7）
                 if self._prefetch_budget and lines:
                     dates = _said_on(objs[:cap])
-                    parts.append("## Nyx 记忆（与本轮相关，[日期]=说这句话的时间）")
+                    parts.append("## Nyx memory (relevant to this turn; [date] = when it was said)")
                     for i, s in enumerate(lines[:cap]):
                         d = dates.get(i)
                         parts.append(f"- [{d}] {s[:300]}" if d else f"- {s[:300]}")
                     withheld = len(getattr(mc, "withheld", None) or [])
                     if withheld:
-                        parts.append(f"（另有 {withheld} 条因来源可疑未注入）")
+                        parts.append(f"({withheld} more withheld: their source looked unsafe)")
                     self._last_recall = min(len(lines), cap)
             except Exception as e:
                 logger.debug("prefetch 召回失败: %s", e)
@@ -828,10 +841,12 @@ class NexSandglassProvider(MemoryProvider):
         from nexsandglass.engram.loops import temporal_fact as tf
         db = weavethread._DB
         subject = args.get("subject") or "user"
-        rel = args.get("relation") or None
+        from nexsandglass.core.understand import relation_key, RELATION_EN
+        rel = relation_key(args.get("relation"))            # lives_in / 住在 都认（v7.16.0）
         keep = ("subject", "relation", "object", "valid_from", "valid_until", "valid_basis",
                 "recorded_at", "closed_at", "source_mem_id")
-        slim = lambda rows: [{k: r.get(k) for k in keep} for r in rows]
+        slim = lambda rows: [{**{k: r.get(k) for k in keep},
+                              "relation": RELATION_EN.get(r.get("relation"), r.get("relation"))} for r in rows]
         if _as_bool(args.get("history"), False):
             return json.dumps({"mode": "history", "facts": slim(tf.history_of(db, subject, rel)),
                                "timeline": tf.belief_timeline(db, subject, rel)},
@@ -856,19 +871,19 @@ class NexSandglassProvider(MemoryProvider):
         elif len(str(args.get("contains") or "").strip()) >= 2:
             sel["contains"] = str(args["contains"]).strip()
         else:
-            return tool_error("nyx_forget 需要 mem_id，或至少 2 个字的 contains")
+            return tool_error("nyx_forget needs mem_id, or contains with at least 2 characters")
         preview = facade.forget({**sel, "dry_run": True})
         if not preview.get("ok"):
-            return tool_error(f"nyx_forget 预览失败: {preview.get('error')}")
+            return tool_error(f"nyx_forget preview failed: {preview.get('error')}")
         n = int(preview.get("selected") or 0)
         if not _as_bool(args.get("confirm"), False) or n == 0:
             return json.dumps({"status": "preview", "would_forget": n,
                                "items": (preview.get("preview") or [])[:10],
-                               "next": "确认后带 confirm=true 再调用；进入隔离区，保留期内可 nyx_restore"},
+                               "next": "call again with confirm=true; the memories move to the quarantine and nyx_restore can bring them back"},
                               ensure_ascii=False, default=str)
         if n > _FORGET_MAX:
-            return tool_error(f"一次选中 {n} 条，超过 agent 上限 {_FORGET_MAX}；"
-                              "请缩小范围，或由主人用 CLI 处理")
+            return tool_error(f"{n} memories selected, more than the agent limit of {_FORGET_MAX}; "
+                              "narrow it down, or ask the user to do it from the CLI")
         rep = facade.forget({**sel, "reason": str(args.get("reason") or "agent_forget")})
         return json.dumps({"status": "quarantined" if rep.get("ok") else "failed",
                            "forgotten": rep.get("removed", 0),
@@ -881,7 +896,7 @@ class NexSandglassProvider(MemoryProvider):
         from nexsandglass.runtime import facade
         mid = str(args.get("mem_id") or "").strip()
         if not mid:
-            return tool_error("nyx_restore 需要 mem_id")
+            return tool_error("nyx_restore needs mem_id")
         return json.dumps(facade.restore(mid), ensure_ascii=False, default=str)
 
     def _handle_quarantine(self, args: dict) -> str:
@@ -893,9 +908,9 @@ class NexSandglassProvider(MemoryProvider):
 
     def _vault_context_error(self) -> str:
         if not self._can_write():
-            return f"只有主 agent 能用保险箱（当前是 {self._agent_context}）"
+            return f"only the primary agent can use the vault (this is {self._agent_context})"
         if _as_bool(os.environ.get("HERMES_CRON_SESSION"), False):
-            return "定时任务里不能用保险箱（没有主人在场）"
+            return "the vault is not available in scheduled tasks (the user is not there)"
         return ""
 
     def _handle_secret_list(self, args: dict) -> str:
@@ -903,7 +918,7 @@ class NexSandglassProvider(MemoryProvider):
         if why:
             return json.dumps({"status": "unavailable", "reason": why}, ensure_ascii=False)
         items = [e.public() for e in _vault.entries(str(args.get("query") or ""))][-50:]
-        return json.dumps({"items": items, "note": "这里没有原文。主人要看哪一条，用 nyx_secret_reveal(id)。"},
+        return json.dumps({"items": items, "note": "No secrets here. To show one to the user, call nyx_secret_reveal(id)."},
                           ensure_ascii=False)
 
     @staticmethod
@@ -925,7 +940,8 @@ class NexSandglassProvider(MemoryProvider):
                 return None
             tail = f" {e.public()['tail']}" if e.last4 else ""
             r = ap.request_tool_approval(
-                "nyx_secret_reveal", f"显示保险箱 v{e.id}（{e.label}{tail}，{e.created_at[:10]} 存）的原文",
+                "nyx_secret_reveal", _t(f"Show vault entry v{e.id} ({e.label}{tail}, saved {e.created_at[:10]})",
+                                        f"显示保险箱 v{e.id}（{e.label}{tail}，{e.created_at[:10]} 存）的原文"),
                 rule_key=f"nyx_vault:{secrets.token_hex(8)}")
             return bool((r or {}).get("approved"))
         except Exception as ex:
@@ -948,42 +964,46 @@ class NexSandglassProvider(MemoryProvider):
         if why:
             return out("unavailable", reason=why)
         if vid is None:
-            return tool_error("nyx_secret_reveal 需要编号，如 v3（先用 nyx_secret_list 找）")
+            return tool_error("nyx_secret_reveal needs an id such as v3 (find it with nyx_secret_list)")
         why = self._vault_context_error()
         if why:
             return deny(why)
         ok_code = _vault.confirmed(sid, vid, self._turn_no)
         if not ok_code and not _asked_for_secret(self._turn_message):
-            return deny("主人这一轮没有明确要求看原文。只在主人明确要看时调用")
+            return deny("the user did not ask to see the secret in this turn; call this only when they explicitly ask")
         e = _vault.entry(vid)
         if e is None:
-            return deny(f"保险箱里没有 v{vid}")
+            return deny(f"there is no v{vid} in the vault")
         if e.state != "live":
             return deny(e.public()["state"])
         if _vault.locked(sid):
-            return deny("确认短语连错太多次，15 分钟后再试")
+            return deny("too many wrong confirmation phrases; try again in 15 minutes")
         ok, why = _vault.rate_ok()
         if not ok:
             return deny(why)
         cli = _hints.cmd("vault", f"show v{vid}")
         if mode == "cli" or (mode == "direct" and not _vault.hook_registered()):
-            note = ("按设置原文只在终端里取。" if mode == "cli" else
-                    "直达取回要先启用配套插件：hermes plugins enable nyx-reveal，然后重启 Hermes。在那之前只能在终端里取。")
+            note = ("By configuration, secrets are shown only in the terminal. " if mode == "cli" else
+                    "Direct reveal needs the companion plugin: hermes plugins enable nyx-reveal, then restart Hermes. "
+                    "Until then, secrets are shown only in the terminal. ")
             _vault.audit("reveal", vid, "use_cli", note, mode, plat)
-            return out("use_cli", command=cli, note=note + "把命令告诉主人。")
+            return out("use_cli", command=cli, note=note + "Tell the user this command.")
         if not ok_code:
             approved = self._hermes_approval(e)
             if approved is False:
-                return deny("主人没有批准（拒绝或超时）")
+                return deny("the user did not approve (declined or timed out)")
             if approved is None:
                 phrase = _vault.confirm_phrase(vid, _vault.new_code(sid, vid))
                 _vault.audit("reveal", vid, "need_confirm", "", mode, plat)
                 if mode == "direct":
-                    _vault.queue_notice(sid, f"🔐 要显示 v{vid}（{e.label}），请在 5 分钟内回复：{phrase}")
-                    return out("need_confirm", note="需要主人确认。nyx 会在你这条回复的末尾附上确认短语（你看不到确认码）；"
-                                                    "请告诉主人照着回复那句话。不要编造确认码。")
+                    _vault.queue_notice(sid, _t(f"🔐 To show v{vid} ({e.label}), reply within 5 minutes with: {phrase}",
+                                                f"🔐 要显示 v{vid}（{e.label}），请在 5 分钟内回复：{phrase}"))
+                    return out("need_confirm", note="The user has to confirm. nyx appends the confirmation phrase to the end "
+                                                    "of your reply (you cannot see the code); ask the user to reply with "
+                                                    "that phrase. Never make up a code.")
                 return out("need_confirm", phrase=phrase,
-                           note="需要主人确认：把这句话原样告诉主人，请主人在 5 分钟内回复它。不要替主人回复。")
+                           note="The user has to confirm: show them this phrase exactly and ask them to reply with it "
+                                "within 5 minutes. Never reply on their behalf.")
         _vault.consume_confirmation(sid, vid)
         try:
             value = _vault.get(vid)
@@ -995,9 +1015,11 @@ class NexSandglassProvider(MemoryProvider):
         if mode == "direct":
             h = _vault.queue_reveal(sid, e, value)
             return out("queued", handle=h,
-                       note="原文不经过你。在回复里原样写上这个句柄，nyx 在发给主人之前替换成原文。不要复述或猜测原文。")
+                       note="The secret does not pass through you. Put this handle in your reply verbatim; nyx replaces "
+                            "it with the secret before the reply reaches the user. Never repeat or guess the secret.")
         return out("value", id=f"v{vid}", label=e.label, value=value,
-                   note="转告主人。提醒主人：这条原文也发给了模型服务商、留在了会话记录里。")
+                   note="Pass it to the user, and remind them that this value also went to the model provider and "
+                        "stays in the session log.")
 
     def on_session_end(self, messages: List[Dict[str, Any]]) -> None:
         """会话结束——偏移检查；宿主没调过 sync_turn 时才补落最后几轮（B1 兜底）。
@@ -1038,7 +1060,7 @@ class NexSandglassProvider(MemoryProvider):
         try:
             from nexsandglass.runtime.orchestrator import get_orchestrator
             task, result = _clean(str(task or "")), _clean(str(result or ""))
-            get_orchestrator().observe(f"委派：{task[:200]} → 结果：{result[:500]}", source="agent")
+            get_orchestrator().observe(f"Delegated: {task[:200]} → result: {result[:500]}", source="agent")
         except Exception as e:
             logger.debug("on_delegation 失败: %s", e)
 
@@ -1054,7 +1076,7 @@ class NexSandglassProvider(MemoryProvider):
         try:
             if name in _WRITE_TOOLS or (name == "fact_store" and args.get("action") == "add"):
                 if not self._can_write():
-                    return tool_error(f"{name}: 当前是 {self._agent_context} 上下文，Nyx 只读")
+                    return tool_error(f"{name}: Nyx is read-only in the {self._agent_context} context")
 
             if name == "sandglass_search":
                 from nexsandglass.runtime.orchestrator import get_orchestrator
@@ -1083,7 +1105,7 @@ class NexSandglassProvider(MemoryProvider):
             if name == "sandglass_echo":
                 from nexsandglass.features.sandglass_think import _sentiment_wind
                 wind = _sentiment_wind()
-                return json.dumps({"wind": wind, "direction": "正面" if wind > 0 else ("负面" if wind < 0 else "中性")}, ensure_ascii=False)
+                return json.dumps({"wind": wind, "direction": "positive" if wind > 0 else ("negative" if wind < 0 else "neutral")}, ensure_ascii=False)
 
             if name == "fact_store":
                 return self._handle_fact_store(args)
@@ -1148,41 +1170,69 @@ class NexSandglassProvider(MemoryProvider):
         default_dir = nh.DEFAULT_DATA_DIR if nh is not None else os.path.expanduser("~/.neurobase")
         return [
             {"key": "data_dir", "type": "text", "default": default_dir,
-             "description": "Nyx 记忆目录。默认与 nyx 的 MCP / CLI 共用同一份记忆；"
-                            "环境变量 NEXSANDBASE_HOME 优先。改动后重启生效。"},
+             "description": _t("Where Nyx keeps its memory. By default the same data the Nyx MCP server and CLI use; "
+                               "the NEXSANDBASE_HOME environment variable wins. Restart after changing it.",
+                               "Nyx 记忆目录。默认与 nyx 的 MCP / CLI 共用同一份记忆；"
+                               "环境变量 NEXSANDBASE_HOME 优先。改动后重启生效。")},
             {"key": "prefetch_tokens", "type": "integer", "default": _PREFETCH_TOKENS_DEFAULT,
              "minimum": 0, "maximum": 4000, "step": 100,
-             "description": "每轮自动召回注入的预算（token）；0 = 只注入偏移/情绪信号。"},
+             "description": _t("Token budget for the memories recalled into each turn; 0 = only the drift / mood signal.",
+                               "每轮自动召回注入的预算（token）；0 = 只注入偏移/情绪信号。")},
             {"key": "semantic", "type": "text", "default": "auto", "choices": ["auto", "local", "api", "off"],
-             "description": "语义检索（同义改写也能召回）。auto：配了 API 用 API，装了 "
-                            "sentence-transformers（pip install 'nyx-memory[vector]'）用本地模型，都没有则关闭。"},
+             "description": _t("Semantic search (finds paraphrases too). auto: an embedding API if configured, else a "
+                               "local model if sentence-transformers is installed (pip install 'nyx-memory[vector]'), "
+                               "else off.",
+                               "语义检索（同义改写也能召回）。auto：配了 API 用 API，装了 "
+                               "sentence-transformers（pip install 'nyx-memory[vector]'）用本地模型，都没有则关闭。")},
             {"key": "embedding_model", "type": "text", "default": "",
-             "description": "嵌入模型名。本地默认 paraphrase-multilingual-MiniLM-L12-v2（中英混合）；"
-                            "API 默认 text-embedding-3-small。换模型后旧向量自动作废并在后台重建。"},
+             "description": _t("Embedding model. Local default paraphrase-multilingual-MiniLM-L12-v2 (multilingual); "
+                               "API default text-embedding-3-small. Changing it rebuilds the vectors in the background.",
+                               "嵌入模型名。本地默认 paraphrase-multilingual-MiniLM-L12-v2（中英混合）；"
+                               "API 默认 text-embedding-3-small。换模型后旧向量自动作废并在后台重建。")},
             {"key": "embedding_api_url", "type": "text", "default": "",
-             "description": "OpenAI 兼容 /embeddings 地址（选填；semantic=api 或 auto 时使用）。"},
+             "description": _t("OpenAI-compatible /embeddings URL (optional; used when semantic is api or auto).",
+                               "OpenAI 兼容 /embeddings 地址（选填；semantic=api 或 auto 时使用）。")},
             {"key": "embedding_api_key", "type": "text", "secret": True, "env_var": "EMBEDDING_API_KEY",
-             "description": "嵌入 API 的密钥（存进 .env，不写 nyx.json）。"},
+             "description": _t("Key for the embedding API (kept by Hermes, not written to nyx.json).",
+                               "嵌入 API 的密钥（存进 .env，不写 nyx.json）。")},
             {"key": "rerank", "type": "text", "default": "off", "choices": ["off", "local"],
-             "description": "召回后用本地多语言交叉编码器重排（需要 [vector]，首次下载约 470MB）。LoCoMo 证据召回 +4.7 个点，"
-                            "但偏好类问题变差、每轮召回多 0.3–1.5 秒（CPU）。默认关。"},
+             "description": _t("Rerank recalled memories with a local multilingual cross-encoder (needs [vector]; about "
+                               "470 MB on first run). +4.7 points LoCoMo evidence recall, but worse on preference "
+                               "questions and 0.3–1.5 s slower per turn on CPU. Off by default.",
+                               "召回后用本地多语言交叉编码器重排（需要 [vector]，首次下载约 470MB）。LoCoMo 证据召回 +4.7 个点，"
+                               "但偏好类问题变差、每轮召回多 0.3–1.5 秒（CPU）。默认关。")},
             {"key": "vault", "type": "text", "default": "off", "choices": ["off", "on"],
-             "description": "密钥保险箱：聊天里贴的 token / API key / 密码加密存起来，主人要时经确认交还"
-                            "（需要 pip install 'nyx-memory[vault]'）。默认关 = 只隐去、原文丢掉。见 docs/secret-vault.md。"},
+             "description": _t("Secret vault: tokens, API keys and passwords pasted in chat are stored encrypted and "
+                               "handed back after the user confirms (needs pip install 'nyx-memory[vault]'). "
+                               "Off = only hidden, the value is dropped. See docs/secret-vault.md.",
+                               "密钥保险箱：聊天里贴的 token / API key / 密码加密存起来，主人要时经确认交还"
+                               "（需要 pip install 'nyx-memory[vault]'）。默认关 = 只隐去、原文丢掉。见 docs/secret-vault.md。")},
             {"key": "vault_reveal", "type": "text", "default": "direct", "choices": ["direct", "cli", "llm"],
-             "description": "怎么取回：direct = 原文不经过模型（要启用配套插件：hermes plugins enable nyx-reveal）；"
-                            "cli = 只在终端里取；llm = 原文交给模型转述（模型服务商和会话记录都会看到）。"},
+             "description": _t("How secrets come back: direct = the value never passes through the model (needs the "
+                               "companion plugin: hermes plugins enable nyx-reveal); cli = terminal only; llm = the "
+                               "model relays it (the provider and the session log see it).",
+                               "怎么取回：direct = 原文不经过模型（要启用配套插件：hermes plugins enable nyx-reveal）；"
+                               "cli = 只在终端里取；llm = 原文交给模型转述（模型服务商和会话记录都会看到）。")},
             {"key": "vault_kinds", "type": "text", "default": "all", "choices": ["all", "tokens"],
-             "description": "收哪些：all = token / API key / 私钥 / 密码；tokens = 不收密码。"},
+             "description": _t("What to keep: all = tokens / API keys / private keys / passwords; tokens = no passwords.",
+                               "收哪些：all = token / API key / 私钥 / 密码；tokens = 不收密码。")},
             {"key": "l3_llm", "type": "text", "default": "off", "choices": ["off", "on"],
-             "description": "画像 / 偏移率 / 幽灵决策这些 L3 分析调用 DeepSeek 或 OpenRouter（用 DEEPSEEK_API_KEY / "
-                            "OPENROUTER_API_KEY）。会把相关的记忆片段、画像、近期决策发给它们。默认关；v7.15.2 以前有 key 就用。"},
+             "description": _t("Let the L3 analyses (profile, decision drift, ghost decisions) call DeepSeek or "
+                               "OpenRouter (DEEPSEEK_API_KEY / OPENROUTER_API_KEY). Sends related memory snippets, the "
+                               "profile and recent decisions to them. Off by default; before v7.15.2 a key alone was enough.",
+                               "画像 / 偏移率 / 幽灵决策这些 L3 分析调用 DeepSeek 或 OpenRouter（用 DEEPSEEK_API_KEY / "
+                               "OPENROUTER_API_KEY）。会把相关的记忆片段、画像、近期决策发给它们。默认关；v7.15.2 以前有 key 就用。")},
+            {"key": "lang", "type": "text", "default": "auto", "choices": ["auto", "en", "zh"],
+             "description": _t("Language of Nyx's terminal output and these settings: auto = follow the system locale, "
+                               "en = English, zh = Chinese. What the model sees is always English.",
+                               "Nyx 终端输出与这些设置说明的语言：auto = 跟随系统语言，en = 英文，zh = 中文。"
+                               "给模型看的始终是英文。")},
         ]
 
     def save_config(self, values: Dict[str, Any], hermes_home: str) -> None:
         nh = _hermes_cfg()
         if nh is None:
-            raise RuntimeError("nexsandglass_hermes 不可用，无法保存配置")
+            raise RuntimeError("nexsandglass_hermes is not available; cannot save the config")
         known = {f["key"] for f in self.get_config_schema() if not f.get("secret")}   # 密钥只进 .env
         nh.save_config({k: v for k, v in (values or {}).items() if k in known}, hermes_home)
         if hermes_home and hermes_home == self._hermes_home:

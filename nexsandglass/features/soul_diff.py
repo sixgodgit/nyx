@@ -99,7 +99,7 @@ def merge_soul(filepath: str) -> bool:
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("用法: python soul_diff.py export [output_path]")
+        print("usage: python soul_diff.py export [output_path]")
         print("      python soul_diff.py merge <filepath>")
         sys.exit(1)
 
@@ -109,4 +109,4 @@ if __name__ == "__main__":
     elif action == "merge":
         merge_soul(sys.argv[2])
     else:
-        print(f"未知操作: {action}")
+        print(f"unknown action: {action}")

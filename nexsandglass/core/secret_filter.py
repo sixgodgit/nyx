@@ -5,10 +5,11 @@ core/secret_filter.py — 密钥、密码不进记忆（v7.14.0）
 它就以明文躺在 sandglass.txt、中枢、全文 / 倒排索引、影子副本、备份里，之后还会被召回、塞回提示词 ——
 多人会话里塞给别人看；语义检索走 API 时，还会被发给嵌入服务。用户几乎从不希望记忆替他保管这些。
 
-规则：**进入任何存储之前**隐去，换成占位符 `[已隐去: HF token …a1b2]`。
+规则：**进入任何存储之前**隐去，换成占位符 `[hidden: HF token …a1b2]`（v7.16.0 起英文；v7.14–v7.15 写的是
+`[已隐去: HF token …a1b2]`，两种都认得，旧的不改写）。
   - token / API key 保留末 4 位，能分清「是哪一把」，拿不回原文（4 个字符对 30+ 位随机串没有意义）
   - 密码、私钥、<private>…</private> 包住的内容一个字符都不留
-  - 占位符不以 [REDACTED 开头 —— 那是遗忘留下的标记，整条记录会被所有索引跳过
+  - 占位符不以 [REDACTED 开头（大小写都不行）—— 那是遗忘留下的标记，整条记录会被所有索引跳过
   - 只认格式明确的东西：已知前缀的 token、PEM 私钥块、JWT、带凭据的连接串、`XXX_API_KEY=…` 这类赋值、
     「密码是 …」。宁可漏掉一个不认识格式的，也不把普通句子抹掉（tests/test_secret_filter.py 有正反例）
 
@@ -27,8 +28,14 @@ from typing import Callable, List, Optional
 
 logger = logging.getLogger(__name__)
 
-MARK = "[已隐去: "
-_PLACEHOLDER = re.compile(r"\[已隐去: [^\]\n]*\]")
+MARK = "[hidden: "
+MARKS = (MARK, "[已隐去: ")              # v7.14–v7.15 写的中文占位符：照样认，不改写
+_PLACEHOLDER = re.compile(r"\[(?:hidden|已隐去): [^\]\n]*\]")
+
+
+def has_mark(text: Optional[str]) -> bool:
+    """text 里有没有占位符（新旧两种）。"""
+    return bool(text) and any(m in text for m in MARKS)
 
 
 def level() -> str:
@@ -57,8 +64,8 @@ def _r(kind, label, pattern, tail=False, ok=None, passwords=False, flags=0) -> R
 # 有 (?P<v>…) 的规则只替换 v 那一段（前缀留着：「HF_TOKEN=」「postgres://user:」），否则替换整个匹配。
 # 顺序有讲究：更具体的排在前面（sk-ant- 先于 sk-），已经换成占位符的不会再被认出来
 RULES: List[Rule] = [
-    _r("private", "私密内容", r"<private>.*?</private>", flags=re.I | re.S),
-    _r("private_key", "私钥",
+    _r("private", "private content", r"<private>.*?</private>", flags=re.I | re.S),
+    _r("private_key", "private key",
        r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----[\s\S]*?-----END (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----"),
     _r("anthropic", "Anthropic API key", r"\bsk-ant-[A-Za-z0-9_\-]{20,}", True),
     _r("openrouter", "OpenRouter API key", r"\bsk-or-v1-[A-Za-z0-9]{32,}", True),
@@ -80,24 +87,24 @@ RULES: List[Rule] = [
     _r("discord", "Discord token", r"\b[MN][A-Za-z\d]{23,27}\.[\w\-]{6}\.[\w\-]{27,40}\b", True),
     _r("jwt", "JWT", r"\beyJ[A-Za-z0-9_\-]{8,}\.eyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}", True),
     # 带凭据的连接串：postgres://user:pass@host —— 只隐去密码那一段
-    _r("url_password", "密码", r"\b[a-zA-Z][a-zA-Z0-9+.\-]*://[^\s/:@\"']+:(?P<v>[^\s/@\"']+)@"),
+    _r("url_password", "password", r"\b[a-zA-Z][a-zA-Z0-9+.\-]*://[^\s/:@\"']+:(?P<v>[^\s/@\"']+)@"),
     # 环境变量式赋值：OPENAI_API_KEY=…、HF_TOKEN: …、DB_PASSWORD="…"（全大写、以 KEY / TOKEN / SECRET / PASSWORD 结尾）
-    _r("assignment", "密钥",
+    _r("assignment", "secret",
        r"\b[A-Z][A-Z0-9_]*(?:_KEY|TOKEN|SECRET|PASSWORD|PASSWD)\b\s*[:=]\s*[\"']?(?P<v>[^\s\"'`,;]{8,})", True,
        ok=lambda m: not m.group("v").startswith(("$", "<", "{", "%"))),        # ${VAR} / <your-key> 是占位，不是值
     # 小写键值：api_key = …、access_token: …、Authorization: Bearer …（值要像凭据：16 位以上、字母数字都有）
-    _r("assignment", "密钥",
+    _r("assignment", "secret",
        r"\b(?:api[_\-]?key|secret[_\-]?key|access[_\-]?token|auth[_\-]?token|refresh[_\-]?token|client[_\-]?secret"
        r"|bearer)\s*[:=]?\s*[\"']?(?P<v>[A-Za-z0-9_\-./+=]{16,})", True,
        ok=lambda m: _has(m.group("v"), r"[A-Za-z]", r"\d"), flags=re.I),
     # 「密码是 …」：值必须是 ASCII（「密码是什么来着」不算）。有分隔符（是 / 为 / : / =）时 4 位以上都算；
     # 没有分隔符（「wifi密码12345678」）要带数字
-    _r("password", "密码",
+    _r("password", "password",
        r"(?:密码|口令|PIN码|pin码)\s*(?P<sep>是|为|:|：|=)?\s*[\"'“]?"
        r"(?P<v>[!-~]{3,63}?[A-Za-z0-9@#$%^&*_\-+=~])(?=[,.;!?)\]}\"'”]*(?:[^!-~]|$))",
        ok=lambda m: bool(m.group("sep")) or bool(re.search(r"\d", m.group("v"))), passwords=True),
     # 英文：password: … / password is …，要带数字或符号（「the password is required」不算）
-    _r("password", "密码",
+    _r("password", "password",
        r"\b(?:password|passwd)\s*(?::|=|\s+is\s+)\s*[\"']?"
        r"(?P<v>[!-~]{3,63}?[A-Za-z0-9@#$%^&*_\-+=~])(?=[,.;!?)\]}\"']*(?:[^!-~]|$))",
        ok=lambda m: bool(re.search(r"[\d@#$%^&*_\-+=~!]", m.group("v"))), passwords=True, flags=re.I),
@@ -163,7 +170,7 @@ def scrub(text: Optional[str], mode: str = None, keep_lines: bool = False, captu
     for rule in RULES:
         if rule.passwords and mode != "on":
             continue
-        # 已经换成的占位符里也有「密码」两个字：从那里开始的匹配不算（否则会把占位符后面的正文一起抹掉）
+        # 已经换成的占位符里也有「password」「密码」：从那里开始的匹配不算（否则会把占位符后面的正文一起抹掉）
         done = [(p.start(), p.end()) for p in _PLACEHOLDER.finditer(s)]
 
         def rep(m, rule=rule, done=done):
@@ -185,10 +192,10 @@ def scrub(text: Optional[str], mode: str = None, keep_lines: bool = False, captu
     tm = _TRUNCATED.search(s)
     if tm and _has(tm.group("rest"), r"[A-Za-z]", r"\d") and not any(tm.start() < e and tm.end() > b for b, e in
                       ((p.start(), p.end()) for p in _PLACEHOLDER.finditer(s))):
-        found.append(Finding("truncated", "密钥（被截断）"))
+        found.append(Finding("truncated", "secret (truncated)"))
         if capture is not None:
             capture.append(s[tm.start():])
-        s = s[:tm.start()] + f"{MARK}密钥（被截断）]"
+        s = s[:tm.start()] + f"{MARK}secret (truncated)]"
     if found:
         logger.info("[secret_filter] 隐去 %d 处：%s", len(found), "、".join(sorted({f.label for f in found})))
     return Result(s, found)

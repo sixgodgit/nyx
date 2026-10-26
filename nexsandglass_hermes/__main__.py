@@ -7,7 +7,9 @@ import sys
 
 if __name__ == "__main__":
     if sys.argv[1:2] != ["install"]:
-        print("用法：python3 -m nexsandglass_hermes install [--vault] [--vector] [--check] …（-h 看全部选项）")
+        from nexsandglass_hermes.cli import _t
+        print(_t("usage: python3 -m nexsandglass_hermes install [--vault] [--vector] [--check] … (-h for all options)",
+                 "用法：python3 -m nexsandglass_hermes install [--vault] [--vector] [--check] …（-h 看全部选项）"))
         sys.exit(2)
     from nexsandglass_hermes.install import main
     sys.exit(main(sys.argv[2:]))

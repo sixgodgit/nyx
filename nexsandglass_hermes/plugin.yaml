@@ -1,6 +1,6 @@
 name: nyx
-version: 7.15.4
+version: 7.16.0
 description: >-
-  Nyx 夜神 — 单用户、本地、零 API Key 的 agent 记忆。双时态事实（现在信什么 / 当时以为什么）、
-  写入时绑定来源与信任（防记忆投毒）、两段式遗忘（隔离区可还原）、Déjà Vu 模糊感知。
-  需要先 pip install nyx-memory。
+  Nyx — local, single-user agent memory with no API key: bi-temporal facts (what is believed now / what was
+  believed then), source and trust bound at write time (against memory poisoning), two-stage forgetting
+  (restorable quarantine), Déjà Vu familiarity. Needs pip install nyx-memory first.

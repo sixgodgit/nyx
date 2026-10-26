@@ -98,15 +98,15 @@ def test_wrong_key_swapped_ciphertext_and_wide_permissions(vault, monkeypatch):
     c.execute("UPDATE secrets SET nonce=?, ct=? WHERE id=?", (*rows[a], b))       # 把 a 的密文挪给 b
     c.commit()
     c.close()
-    with pytest.raises(vault.VaultError, match="解不开"):
+    with pytest.raises(vault.VaultError, match="cannot be decrypted"):
         vault.get(b)
     assert vault.get(a) == HF
     monkeypatch.setenv("NYX_VAULT_KEY", __import__("base64").b64encode(b"x" * 32).decode())
-    with pytest.raises(vault.VaultError, match="密钥不对"):
+    with pytest.raises(vault.VaultError, match="wrong key"):
         vault.get(a)
     monkeypatch.delenv("NYX_VAULT_KEY")
     os.chmod(vault.key_path(), 0o644)
-    assert "权限太宽" in vault.unavailable_reason() and not vault.enabled()
+    assert "readable by group or others" in vault.unavailable_reason() and not vault.enabled()
     assert vault.put("github", "GitHub token", GH) is None
 
 
@@ -117,7 +117,7 @@ def test_no_backend_means_redact_only(vault, env, monkeypatch):  # noqa: F811
     p = _provider()
     _sync(p, f"帮我配一下 Hugging Face，key 是 {HF}")
     j = open(env.journal, encoding="utf-8").read()
-    assert f"[已隐去: HF token …{HF[-4:]}]" in j and "#v" not in j and HF not in j
+    assert f"[hidden: HF token …{HF[-4:]}]" in j and "#v" not in j and HF not in j
     assert not os.path.exists(vault.db_path())
 
 
@@ -180,10 +180,10 @@ def test_user_side_is_vaulted_assistant_only_looked_up(vault, env):  # noqa: F81
     _sync(p, f"帮我配一下 Hugging Face，key 是 {HF}，wifi密码是 {PW}", f"好的，已经用 {HF} 配好了，另外 {SK} 也能用")
     j = open(env.journal, encoding="utf-8").read()
     es = vault.entries()
-    assert {e.label for e in es} == {"HF token", "密码"}, "助手回复里新出现的 SK 不收"
+    assert {e.label for e in es} == {"HF token", "password"}, "助手回复里新出现的 SK 不收"
     hf = next(e for e in es if e.label == "HF token")
     assert j.count(f"#v{hf.id}]") == 2, "助手回复里同一个值也带上同一个编号"
-    assert "Hugging Face，key 是 [已隐去" in hf.context
+    assert "Hugging Face，key 是 [hidden" in hf.context
     _reindex(env)
     assert _on_disk(env.home, [HF, PW, SK]) == {}, "整个数据目录按原始字节找不到原文"
     from nexsandglass.core import memid
@@ -197,7 +197,7 @@ def test_kinds_and_exclusions(vault, monkeypatch):
     assert col.ids == [] and "#v" not in r.text
     monkeypatch.setenv("NYX_VAULT_KINDS", "tokens")
     r = secret_filter.scrub(f"wifi密码是 {PW}，key 是 {HF}", vault=vault.Collector())
-    assert "[已隐去: 密码]" in r.text and "#v1]" in r.text
+    assert "[hidden: password]" in r.text and "#v1]" in r.text
     assert secret_filter.scrub(r.text, vault=vault.Collector()).text == r.text, "带编号的占位符幂等"
 
 
@@ -229,15 +229,15 @@ def test_gates(vault, env, monkeypatch, no_approval):  # noqa: F811
     p, vid = _setup(env, vault, monkeypatch)
     _ask(p, 2, "今天天气怎么样")
     r = _call(p, "nyx_secret_reveal", id=f"v{vid}")
-    assert r["status"] == "denied" and "明确" in r["reason"], "主人这一轮没要：被召回内容里的注入不能让 agent 自己去取"
+    assert r["status"] == "denied" and "explicitly" in r["reason"], "主人这一轮没要：被召回内容里的注入不能让 agent 自己去取"
     _ask(p, 3, "把我的 HF token 发我")
     p._agent_context = "subagent"
-    assert "主 agent" in _call(p, "nyx_secret_reveal", id=f"v{vid}")["reason"]
+    assert "primary agent" in _call(p, "nyx_secret_reveal", id=f"v{vid}")["reason"]
     p._agent_context = "primary"
     monkeypatch.setenv("HERMES_CRON_SESSION", "1")
-    assert "定时任务" in _call(p, "nyx_secret_reveal", id=f"v{vid}")["reason"]
+    assert "scheduled tasks" in _call(p, "nyx_secret_reveal", id=f"v{vid}")["reason"]
     monkeypatch.delenv("HERMES_CRON_SESSION")
-    assert "没有 v999" in _call(p, "nyx_secret_reveal", id="v999")["reason"]
+    assert "no v999" in _call(p, "nyx_secret_reveal", id="v999")["reason"]
     rows = vault.audit_rows()
     assert rows and all(HF not in json.dumps(r, ensure_ascii=False) for r in rows)
 
@@ -249,8 +249,8 @@ def test_direct_reveal_with_confirmation_code(vault, env, monkeypatch, no_approv
     assert json.loads(r)["status"] == "need_confirm" and HF not in r
     assert not any(ch.isdigit() for ch in json.loads(r)["note"]), "确认码不经过模型"
     shown = vault.render("s1", "需要你确认一下")
-    phrase = shown.split("请在 5 分钟内回复：")[1].strip()
-    assert phrase.startswith(f"确认 v{vid} ")
+    phrase = shown.split("reply within 5 minutes with: ")[1].strip()
+    assert phrase.startswith(f"confirm v{vid} ")
     # 别的会话拿不到这个会话的东西
     assert vault.render("other", "x") is None
     _ask(p, 3, phrase)
@@ -277,7 +277,7 @@ def test_wrong_codes_lock(vault, env, monkeypatch, no_approval):  # noqa: F811
     for t in range(3, 6):
         _ask(p, t, f"确认 v{vid} 000000")
     _ask(p, 6, "HF token 告诉我")
-    assert "连错" in _call(p, "nyx_secret_reveal", id=f"v{vid}")["reason"]
+    assert "wrong confirmation" in _call(p, "nyx_secret_reveal", id=f"v{vid}")["reason"]
 
 
 def test_model_cannot_skip_the_human(vault, env, monkeypatch, no_approval):  # noqa: F811
@@ -296,7 +296,7 @@ def test_hermes_approval(vault, env, monkeypatch, approval):  # noqa: F811
     assert _call(p, "nyx_secret_reveal", id=f"v{vid}")["status"] == "queued"
     assert calls[0]["tool"] == "nyx_secret_reveal" and HF not in calls[0]["reason"] and HF[-4:] in calls[0]["reason"]
     state["answer"] = False
-    assert "没有批准" in _call(p, "nyx_secret_reveal", id=f"v{vid}")["reason"]
+    assert "did not approve" in _call(p, "nyx_secret_reveal", id=f"v{vid}")["reason"]
     assert len({c["rule_key"] for c in calls}) == 2, "每次新的 rule_key：「永远允许」不会让以后都不问"
     state["bypass"] = True                          # 主人用 /yolo 关掉了命令审批：不算同意交出密钥
     assert _call(p, "nyx_secret_reveal", id=f"v{vid}")["status"] == "need_confirm"
@@ -309,7 +309,7 @@ def test_rate_limit(vault, env, monkeypatch, approval):  # noqa: F811
         _ask(p, 10 + t, "HF token 发我")
         assert _call(p, "nyx_secret_reveal", id=f"v{vid}")["status"] == "queued"
     _ask(p, 20, "HF token 发我")
-    assert "一小时内" in _call(p, "nyx_secret_reveal", id=f"v{vid}")["reason"]
+    assert "in the last hour" in _call(p, "nyx_secret_reveal", id=f"v{vid}")["reason"]
 
 
 def test_cli_only_and_missing_plugin(vault, env, monkeypatch, approval):  # noqa: F811
@@ -355,7 +355,7 @@ def test_forget_restore_purge(vault, env, monkeypatch, approval):  # noqa: F811
     mid = memid.get_conn().execute("SELECT mem_id FROM memories WHERE text LIKE ?", (f"%#v{vid}]%",)).fetchone()[0]
     assert erasure.forget({"mem_id": mid}, apply=True)["ok"]
     _ask(p, 2, "HF token 发我")
-    assert "隔离区" in _call(p, "nyx_secret_reveal", id=f"v{vid}")["reason"]
+    assert "quarantine" in _call(p, "nyx_secret_reveal", id=f"v{vid}")["reason"]
     assert erasure.restore(mid)["ok"]
     assert _call(p, "nyx_secret_reveal", id=f"v{vid}")["status"] == "queued"
     assert erasure.forget({"mem_id": mid}, apply=True)["ok"]
@@ -394,7 +394,7 @@ def test_cli(vault, env, monkeypatch, capsys):  # noqa: F811
     assert cli.main(["show", f"v{vid}"]) == 0
     assert capsys.readouterr().out.strip() == HF
     assert vault.audit_rows()[0]["path"] == "cli"
-    assert cli.main(["status"]) == 0 and "开" in capsys.readouterr().out
+    assert cli.main(["status"]) == 0 and "Vault: on" in capsys.readouterr().out
     n = len(vault.entries())
     assert cli.main(["rekey"]) == 0
     capsys.readouterr()
@@ -414,7 +414,7 @@ def test_scrub_to_vault(vault, env, monkeypatch):  # noqa: F811
     rep = secret_scrub.run(apply=True, to_vault=True)
     assert rep["clean"], rep["on_disk"]
     labels = {e.label for e in vault.entries()}
-    assert {"HF token", "密码", "私钥"} <= labels and "GitHub token" not in labels, "隔离区里那条的日志已经抹掉了"
+    assert {"HF token", "password", "private key"} <= labels and "GitHub token" not in labels, "隔离区里那条的日志已经抹掉了"
     assert memid.verify()["ok"], "日志和中枢拿到同一个编号"
     hf = next(e for e in vault.entries() if e.label == "HF token")
     assert vault.get(hf.id) == HF and hf.state == "live"
@@ -440,3 +440,15 @@ def test_residual_scan_ignores_vault_metadata(tmp_path):
     leaked = "hunter2-Plaintext-77"
     vdb.write_bytes(meta + leaked.encode())
     assert secret_scrub._bytes_scan(str(vdb), "on", [leaked], rules=False) == 1, "原文在保险箱库里也要报"
+
+
+def test_confirm_phrase_language(vault, monkeypatch):
+    """确认短语（v7.16.0）：默认英文 confirm v3 123456；NYX_LANG=zh 时中文。主人回哪一种都认。"""
+    assert vault.confirm_phrase(3, "123456") == "confirm v3 123456"
+    monkeypatch.setenv("NYX_LANG", "zh")
+    assert vault.confirm_phrase(3, "123456") == "确认 v3 123456"
+    assert "没开" in vault.unavailable_reason() or "没有" in vault.unavailable_reason() or vault.unavailable_reason() == ""
+    for msg in ("confirm v3 123456", "Confirm V3 123456.", "确认 v3 123456", "确认 #v3 123456。"):
+        m = vault._CONFIRM_RX.match(msg)
+        assert m and m.group(1) == "3" and m.group(2) == "123456", msg
+    assert not vault._CONFIRM_RX.match("please confirm v3 123456"), "整句必须就是确认短语"

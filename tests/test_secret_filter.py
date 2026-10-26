@@ -108,8 +108,8 @@ def test_ordinary_text_is_untouched(text):
 
 def test_placeholder_keeps_last_four_for_tokens_only():
     from nexsandglass.core import secret_filter
-    assert secret_filter.clean(f"key {HF}", "on") == f"key [已隐去: HF token …{HF[-4:]}]"
-    assert secret_filter.clean(f"密码：{PW}", "on") == "密码：[已隐去: 密码]"
+    assert secret_filter.clean(f"key {HF}", "on") == f"key [hidden: HF token …{HF[-4:]}]"
+    assert secret_filter.clean(f"密码：{PW}", "on") == "密码：[hidden: password]"
     assert "b3Bl" not in secret_filter.clean(PEM, "on")
 
 
@@ -190,7 +190,7 @@ def test_every_write_hook_keeps_secrets_out(env, spy):  # noqa: F811
     assert erasure.verify_erasure([HF, GH, SK, PW])["clean"]
     # 占位符留着末 4 位：agent 还能说出「你给过一个 HF token（…xxxx）」
     journal = open(env.journal, encoding="utf-8").read()
-    assert f"[已隐去: HF token …{HF[-4:]}]" in journal and "[已隐去: 私钥]" in journal
+    assert f"[hidden: HF token …{HF[-4:]}]" in journal and "[hidden: private key]" in journal
     assert memid.verify()["ok"]
 
 
@@ -269,7 +269,7 @@ def test_existing_secrets_are_found_and_scrubbed(env, monkeypatch):  # noqa: F81
     r = erasure.restore(mid)
     assert r.get("ok"), r
     restored = memid.get(mid)["text"]
-    assert "GitHub token 是 [已隐去: GitHub token" in restored and GH not in restored
+    assert "GitHub token 是 [hidden: GitHub token" in restored and GH not in restored
 
     # 删掉旧备份之后，整个数据目录一处都没有
     import shutil
@@ -286,9 +286,22 @@ def test_scrub_cli(env, monkeypatch, capsys):  # noqa: F811
     shutil.rmtree(os.path.join(str(env.home), "backups"))
     assert scrub.main([]) == 1
     out = capsys.readouterr().out
-    assert "只读" in out and "--apply" in out and HF not in out and PW not in out
+    assert "Read-only" in out and "--apply" in out and HF not in out and PW not in out
     doctor.main([])
     assert "nexsandglass.scrub" in capsys.readouterr().out
     assert scrub.main(["--apply"]) == 0
-    assert "一处都没有了" in capsys.readouterr().out
+    assert "nothing left" in capsys.readouterr().out
     assert scrub.main([]) == 0
+
+
+def test_old_chinese_placeholders_are_still_recognised():
+    """v7.14–v7.15 写进日志的是 [已隐去: …]。v7.16.0 起新写入是英文 [hidden: …]：旧的照样认得，不会被当成新密钥再隐去一遍，
+    也不改写（日志是唯一真相来源，行内容一变中枢就对不上）。占位符绝不能以 [REDACTED 开头，大小写都不行。"""
+    from nexsandglass.core import secret_filter
+    old = f"key [已隐去: HF token …{HF[-4:]}] 密码：[已隐去: 密码 #v3]"
+    assert secret_filter.clean(old, "on") == old
+    assert secret_filter.has_mark(old) and secret_filter.has_mark("[hidden: password]")
+    assert not secret_filter.has_mark("nothing here")
+    new = secret_filter.clean(f"密码：{PW}", "on")
+    assert secret_filter.clean(new, "on") == new, "幂等"
+    assert not secret_filter.MARK.upper().startswith("[REDACTED")

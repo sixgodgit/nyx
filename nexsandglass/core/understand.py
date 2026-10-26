@@ -56,6 +56,26 @@ SINGLE_VALUED = ("住在", "使用", "公司", "职位", "邮箱", "电话")
 MULTI_VALUED = ("偏好", "反感")
 ONTOLOGY = SINGLE_VALUED + MULTI_VALUED
 
+# 给模型看的英文名（v7.16.0）。库里存的关系名不变，只在展示、工具参数这一层换
+RELATION_EN = {"住在": "lives_in", "使用": "uses", "公司": "employer", "职位": "job_title",
+               "邮箱": "email", "电话": "phone", "偏好": "likes", "反感": "dislikes"}
+RELATION_FROM_EN = {v: k for k, v in RELATION_EN.items()}
+_RELATION_PHRASE = {"住在": "lives in", "使用": "uses", "公司": "works at", "职位": "works as",
+                    "邮箱": "email is", "电话": "phone is", "偏好": "likes", "反感": "dislikes"}
+
+
+def relation_phrase(relation: str) -> str:
+    """「user 住在 上海」→「user lives in 上海」。不在本体里的关系（图谱抽出来的动词）原样返回。"""
+    return _RELATION_PHRASE.get(relation, relation)
+
+
+def relation_key(relation: Optional[str]) -> Optional[str]:
+    """工具参数：英文名（lives_in）或原来的中文名都认，返回库里存的那个。"""
+    if not relation:
+        return None
+    r = str(relation).strip()
+    return RELATION_FROM_EN.get(r.lower(), r)
+
 
 @dataclass
 class Fact:

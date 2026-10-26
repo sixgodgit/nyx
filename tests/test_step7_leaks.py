@@ -118,7 +118,7 @@ def test_out_of_sync_backup_is_reported_not_silently_skipped(env):
 
     r = erasure.forget({"contains": SECRET}, apply=True, journal_path=str(home / "sandglass.txt"))
     assert r["backup"]["status"] == "out_of_sync"
-    assert r["ok"] is False and any("影子副本" in p for p in r["problems"])
+    assert r["ok"] is False and any("shadow copy" in p for p in r["problems"])
 
 
 def test_no_backup_file_is_fine(env):

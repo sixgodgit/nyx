@@ -23,7 +23,7 @@ def _transform(response_text: str = "", session_id: str = "", **kwargs):
         from nexsandglass.core import secret_vault
         return secret_vault.render(session_id or "", response_text or "")
     except Exception as e:
-        logger.warning("nyx-reveal: 替换失败（回复按原样发出，原文没有发出）: %s", e)
+        logger.warning("nyx-reveal: replacement failed (the reply went out as is; the secret was not sent): %s", e)
         return None
 
 

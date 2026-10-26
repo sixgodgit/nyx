@@ -180,10 +180,10 @@ def _demo() -> None:
         ),
     ]
     cands = distill_procedural_skills(demo_mems, candidate_dir=DEFAULT_CANDIDATE_DIR)
-    print(f"蒸馏出 {len(cands)} 条候选(access>=3 的 procedural, episodic 被跳过):")
+    print(f"distilled {len(cands)} candidates (procedural with access>=3; episodic skipped):")
     for c in cands:
-        print(f"  • [{c.access_count}x] {c.body[:30]}… (置信 {c.confidence})")
-    print(f"\n候选已存: {os.path.abspath(DEFAULT_CANDIDATE_DIR)}/")
+        print(f"  • [{c.access_count}x] {c.body[:30]}… (confidence {c.confidence})")
+    print(f"\ncandidates saved: {os.path.abspath(DEFAULT_CANDIDATE_DIR)}/")
 
 
 if __name__ == "__main__":

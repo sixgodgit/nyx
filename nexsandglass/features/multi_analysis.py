@@ -226,10 +226,10 @@ def analyze_cli():
     """CLI 入口：python3 multi_analysis.py '你的问题'"""
     import sys
     if len(sys.argv) < 2:
-        print("用法: python3 multi_analysis.py '你的问题'")
+        print("usage: python3 multi_analysis.py 'your question'")
         return
     prompt = sys.argv[1]
-    print(f"🔍 多模型会诊: {prompt[:60]}...")
+    print(f"🔍 multi-model analysis: {prompt[:60]}...")
     print()
     result = analyze(prompt, [], max_tokens=2048)
     for name, content in result.get("perspectives", {}).items():
@@ -237,7 +237,7 @@ def analyze_cli():
         print(content[:500])
         print()
     if result.get("errors"):
-        print(f"⚠️  失败: {result['errors']}")
+        print(f"⚠️  failed: {result['errors']}")
 
 
 if __name__ == "__main__":

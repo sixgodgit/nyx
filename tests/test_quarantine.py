@@ -269,7 +269,7 @@ def test_restore_refuses_to_clobber_live_content(env):
     rep = e.erasure.restore(mid)
     assert rep["ok"] is False
     assert rep["journal"]["status"] == "not_redacted"
-    assert any("日志正文未还原" in p for p in rep["problems"])
+    assert any("journal text not restored" in p for p in rep["problems"])
     assert open(e.journal, "rb").read() == guard, "把活记忆覆盖掉了"
     assert e.memid.is_tombstoned(mid) is True, "还原失败却撤了墓碑"
 
@@ -285,7 +285,7 @@ def test_restore_refuses_when_not_deleted(env):
 
     rep = e.erasure.restore(mid)
     assert rep["ok"] is False
-    assert any("墓碑" in p for p in rep["problems"])
+    assert any("tombstone" in p for p in rep["problems"])
 
 
 def test_restore_refuses_on_line_number_mismatch(env):
@@ -299,7 +299,7 @@ def test_restore_refuses_on_line_number_mismatch(env):
 
     rep = e.erasure.restore(mid)
     assert rep["ok"] is False
-    assert any("行号不一致" in p for p in rep["problems"])
+    assert any("line numbers disagree" in p for p in rep["problems"])
 
 
 # ══════════════════════════════════════════════════════════

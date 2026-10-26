@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""把 benchmarks 的实测结果填入 docs/dejavu.md 与 docs/dejavu.en.md。
+"""把 benchmarks 的实测结果填入 docs/dejavu.md（英文）与 docs/dejavu.zh-CN.md。
 
 文档里的数字**不手抄** —— 手抄会出错，且基准重跑后无法同步。
 本脚本读取 benchmarks/results/dejavu_bench.json，渲染 markdown 表格，
@@ -21,8 +21,8 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 JSON_PATH = os.path.join(HERE, "results", "dejavu_bench.json")
-DOC_ZH = os.path.join(ROOT, "docs", "dejavu.md")
-DOC_EN = os.path.join(ROOT, "docs", "dejavu.en.md")
+DOC_ZH = os.path.join(ROOT, "docs", "dejavu.zh-CN.md")
+DOC_EN = os.path.join(ROOT, "docs", "dejavu.md")
 
 P_FP = "<!-- BENCH_FP_TABLE -->"
 P_LAT = "<!-- BENCH_LATENCY -->"

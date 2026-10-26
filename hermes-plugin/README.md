@@ -20,7 +20,7 @@ hermes gateway restart        # or restart Hermes
 
 Hermes installs the declared dependency `nyx-memory` (PyPI) into its own environment. With the local embedding model, use `sixgodgit/nyx/hermes-plugin-vector` instead; its dependency is `nyx-memory[vector]` (sentence-transformers, about a 470 MB model download on first run).
 
-Options: `hermes memory setup`. Terminal commands: `hermes nyx doctor`, `hermes nyx vault list`, `hermes nyx vault show v3`, `hermes nyx scrub`, `hermes nyx repair`, `hermes nyx status`.
+Options: `hermes memory setup` (set `lang` to `zh` for Chinese output). Terminal commands: `hermes nyx doctor`, `hermes nyx vault list`, `hermes nyx vault show v3`, `hermes nyx scrub`, `hermes nyx repair`, `hermes nyx status`.
 
 ## What it touches (disclosure)
 
@@ -48,4 +48,4 @@ hermes plugins install sixgodgit/nyx/hermes-plugin --enable
 hermes config set memory.provider nyx
 ```
 
-装完重启 Hermes。选项在 `hermes memory setup` 里，终端命令是 `hermes nyx …`。完整说明见 [nexsandglass_hermes/README.md](https://github.com/sixgodgit/nyx/blob/main/nexsandglass_hermes/README.md)。
+装完重启 Hermes。选项在 `hermes memory setup` 里，终端命令是 `hermes nyx …`。想要中文界面：在 `hermes memory setup` 里把 `lang` 设成 `zh`（系统语言是中文时自动中文）。完整说明见 [nexsandglass_hermes/README.zh-CN.md](https://github.com/sixgodgit/nyx/blob/main/nexsandglass_hermes/README.zh-CN.md)。

@@ -1,236 +1,239 @@
-# Déjà Vu：把「检索失败」当作一类信号
+# Déjà Vu: Treating Retrieval Failure as a Signal
 
-> Nyx 的感知层 —— 当 agent 想不起来时，让它知道自己**曾经知道过**。
+**English** | [简体中文](dejavu.zh-CN.md)
+
+> A perception layer for agent memory — so your agent knows it **used to know**
+> something, even when it can't find it.
 
 ---
 
-## 一、问题：检索器的输出空间里，少了一格
+## The problem: recall systems are missing a state
 
-用户在聊天框里输入：
+A user types:
 
-> 我们上次聊过的那家川菜馆，叫什么来着？
+> What was the name of that Sichuan place we talked about?
 
-agent 检索，返回空。它只能回：
+The agent searches, gets nothing, and replies:
 
-> 我没有关于川菜馆的记忆。
+> I don't have anything about a Sichuan restaurant.
 
-但用户**确实聊过**。只是当时说的是「张老板提了个做川菜的铺面」，
-现在问的是「那家川菜馆」。表述不同，字面不重合。
+But the user *did* mention it — they said "Zhang mentioned a shop doing Sichuan food."
+Different words, same place.
 
-对检索器来说，这种情况和「从来没聊过」**输出完全一样**：空。
+To any retriever, this is indistinguishable from never having discussed it at all:
 
-| 真实世界 | 向量检索 | BM25 / FTS5 |
+| Reality | Vector search | BM25 / FTS5 |
 |---|---|---|
-| 没发生过 | top-k 非空，但全是无关噪音 | 0 命中 |
-| 发生过但没找到 | top-k 非空，但全是无关噪音 | 0 命中 |
+| Never happened | top-k returned, all irrelevant | 0 results |
+| Happened, but not found | top-k returned, all irrelevant | 0 results |
 
-向量检索看起来「总能返回东西」，但那更糟 —— 它用一个看似合理的答案
-掩盖了「我其实没找到」。BM25 干脆返回空。
+Vector search always returns *something* — which is arguably worse, because a
+plausible-looking answer hides "I didn't actually find it."
 
-**没有任何一个主流方案能把这两者区分开。** 这是 recall 系统的一类系统性失败。
-
----
-
-## 二、现有方案为什么接不住
-
-不是它们做得不好，是它们**在解另一个问题**。
-
-- **向量检索**优化的是「在能找到的时候排得更准」。它的输出空间里没有「我没找到」这个状态 —— top-k 永远是 k 个。
-- **BM25 / FTS** 优化的是词项匹配的精确度，无匹配就是 0，不提供「可能是表述不同」的信号。
-- **图记忆（cognee / Zep 等）** 优化的是关系推理，前提仍是**先命中一个实体**才能沿图走。没命中就无从开始。
-
-它们都在回答「找到了什么」。**没人回答「我是不是见过」。**
+**No mainstream approach distinguishes these two cases.** That's a systematic
+failure class in recall.
 
 ---
 
-## 三、设计：两层，各司其职
+## Why existing systems can't cover this
 
-Déjà Vu 的核心判断是：**「是否接触过」这个问题，可以独立于「能否检索到」来建模，而且可以做得极便宜。**
+Not because they're bad — because they're solving a different problem.
 
-### 第一层：Veil（Bloom Filter）
+- **Vector search** optimizes *ranking when you can find it*. Its output space has no "I didn't find it" state; top-k is always k.
+- **BM25 / FTS** optimizes term matching. No match means zero results, with no signal that a paraphrase might exist.
+- **Graph memory (cognee, Zep, …)** optimizes relational reasoning — but you must *hit an entity first* to walk the graph. No hit, no walk.
 
-一个 1,048,576 bit（128 KiB）的位图，7 个哈希函数。
+They all answer *"what did I find?"* Nobody answers *"have I seen this before?"*
 
-- 写入时：把分词得到的每个 token 置 7 位
-- 查询时：检查 7 位是否都为 1
+---
 
-回答的问题是「这个 token 我见过没有」。
+## Design: two layers, two jobs
 
-**为什么用 Bloom 而不是精确集合？**
-精确集合要保存全部 token 原文。百万级记忆的 token 集合远超 128 KiB，还要处理序列化与去重。Bloom 用**固定 128 KiB 覆盖任意规模**——代价是假阳性。
+The core bet: **"have I encountered this?" can be modeled independently of
+"can I retrieve it?" — and it can be made extremely cheap.**
 
-**为什么允许假阳性？**
-这一层的用途是**分流**，不是判案：
+### Layer 1 — Veil (Bloom filter)
 
-- 假阳性 → 多查一次 Mist，查到空 → 退化为「没有」。代价是**一次多余的 SQLite 查询**。
-- 假阴性 → **不可能**（Bloom 的特性）。
+A fixed 1,048,576-bit bitmap (128 KiB) with 7 hash functions.
 
-所以假阳性的代价是**性能**，不是**正确性**。这个取舍成立。
+- Write: set 7 bits per token
+- Read: check whether all 7 are set
 
-### 第二层：Mist（SQLite）
+It answers exactly one question: *have I seen this token?*
 
-对 Veil 判为「见过」的 token，Mist 记录它出现过的痕迹：首次/最近时间、次数、调用方给的引用、原文片段。这是「想起来了」的部分。
+**Why Bloom instead of an exact set?**
+An exact set must store every token verbatim. For millions of memories that's far
+beyond 128 KiB, plus serialization and dedup work. Bloom covers **any scale in a
+fixed 128 KiB** — the cost is false positives.
 
-两层合起来：
+**Why are false positives acceptable?**
+This layer *routes*, it doesn't adjudicate:
+
+- False positive → one extra Mist lookup → empty → degrades to "no." Cost: **one extra SQLite query.**
+- False negative → **impossible** (Bloom guarantees this).
+
+So the price of a false positive is **performance, not correctness.** The trade holds.
+
+### Layer 2 — Mist (SQLite)
+
+For tokens Veil reports as seen, Mist records the traces: first/last sighting,
+count, caller-supplied reference, and a text snippet. This is the "oh right, now I remember" part.
 
 ```
-查询 ──► 分词 ──► Veil 探测 ──┬─► 全部未见 ──► 「没聊过」（确定）
-                              │
-                              └─► 有见过的 ──► Mist 寻回 ──┬─► 找到痕迹
-                                                            └─► 熟悉但想不起细节
+query ──► tokenize ──► Veil probe ──┬─► all unseen ──► "never discussed" (definite)
+                                    │
+                                    └─► some seen ──► Mist hunt ──┬─► traces found
+                                                                  └─► familiar, but no details
 ```
 
-最后那个分支——**熟悉但想不起细节**——正是人类「话到嘴边想不起来」的状态。系统第一次能表达这个状态。
+That last branch — **familiar, but can't recall details** — is the human
+tip-of-the-tongue state. This is the first time a system can express it.
 
 ---
 
-## 四、实测
+## Measurements
 
-> 全部数字由 [`benchmarks/dejavu_bench.py`](../benchmarks/dejavu_bench.py) 实测得出，
-> 可用 `python3 benchmarks/dejavu_bench.py` 复现。原始数据见
-> [`benchmarks/results/dejavu_bench.json`](../benchmarks/results/dejavu_bench.json)。
+> Every number below is measured by [`benchmarks/dejavu_bench.py`](../benchmarks/dejavu_bench.py).
+> Reproduce with `python3 benchmarks/dejavu_bench.py`. Raw data:
+> [`benchmarks/results/dejavu_bench.json`](../benchmarks/results/dejavu_bench.json).
 
-### 4.1 假阳性率：实测 vs 理论
+### False-positive rate: measured vs theory
 
-Veil 填 7 hash 后，随唯一 token 数变化的假阳性率：
-
-| 唯一 token 数 | 实测假阳性 | 理论假阳性 | 填充率 | 位图占用 |
+| Unique tokens | Measured FP | Theoretical FP | Fill ratio | Bitmap |
 |---|---|---|---|---|
 | 1,000 | 0.00000 | 0.00000 | 0.0066 | 131,072 B |
 | 10,000 | 0.00000 | 0.00000 | 0.0646 | 131,072 B |
 | 100,000 | 0.00659 | 0.00650 | 0.4865 | 131,072 B |
 | 1,000,000 | 0.99086 | 0.99121 | 0.9987 | 131,072 B |
 
-端到端（完整 `imprint`，含 Mist 写入）：
+End-to-end (full `imprint`, including Mist writes):
 
-| 记忆条数 | 唯一 tokens | 实测假阳性 | ms/条 |
+| Memories | Unique tokens | Measured FP | ms/memory |
 |---|---|---|---|
 | 1,000 | 37,781 | 0.00000 | 42.10 |
 | 10,000 | 377,821 | 0.18500 | 9.78 |
 
-### 4.2 拐点：什么时候必须扩容
+### The knee: when you must grow the bitmap
 
-由此表可算出 1M bits 位图的有效容量：
+From that table, the effective capacity of a 1M-bit bitmap:
 
-| 目标假阳性率 | 唯一 token 上限 |
+| Target FP rate | Max unique tokens |
 |---|---|
 | 1% | ~109,000 |
 | 5% | ~158,000 |
 | 10% | ~190,000 |
 
-**关键在于「唯一 token 数」而不是「记忆条数」。** 一条记忆平均产生多少 token，
-取决于语言和分词：
+**What matters is unique token count, not memory count.** How many tokens a
+memory yields depends on language and tokenizer:
 
-| 语料 | 唯一 token / 条 | 到 1% 假阳性约几条记忆 |
+| Corpus | Unique tokens / memory | Memories until 1% FP |
 |---|---|---|
-| 真实中文对话（实测本机 2,660 条） | ~6.1 | **~18,000 条** |
-| 合成高基数语料（本基准） | ~37.8 | ~2,900 条 |
+| Real Chinese conversations (2,660 measured) | ~6.1 | **~18,000** |
+| Synthetic high-cardinality (this benchmark) | ~37.8 | ~2,900 |
 
-**结论：128 KiB 的位图在真实中文场景下约 1.8 万条记忆就需要扩容** ——
-而不是名字里那个「1M」给人的印象。这是一个应当写进文档、并在部署时
-监控 `gaze().veil_fill_ratio` 的实际约束。
+**Takeaway: in real Chinese usage, a 128 KiB bitmap needs growing at roughly
+18,000 memories** — not the million the name suggests. Monitor
+`gaze().veil_fill_ratio` in production.
 
-### 4.3 延迟与占用
+### Latency and footprint
 
-| 操作 | p50 | p95 | 均值 |
+| Operation | p50 | p95 | mean |
 |---|---|---|---|
 | `imprint()` | 3.201 ms | 5.294 ms | 3.365 ms |
 | `sense()` | 0.085 ms | 0.106 ms | 0.110 ms |
 | `hunt()` | 0.134 ms | 0.229 ms | 0.179 ms |
 
-_在 10,000 条记忆、每项 2000 次采样._
+_Measured at 10,000 memories, 2000 reps each._
 
-| 项目 | 数值 |
+| Item | Value |
 |---|---|
-| 记忆条数 | 10,000 |
+| Memories | 10,000 |
 | `veil.bin` | 131,093 B |
 | `mist.db` | 65,753,088 B |
-| 合计磁盘 | 70,284,181 B （7028.4 B/条）|
-| 构造后 RSS 增量 | 0 KB |
-| 填充后 RSS 增量 | 0 KB |
+| Total disk | 70,284,181 B (7028.4 B/memory) |
+| RSS after construct | 0 KB |
+| RSS after fill | 0 KB |
 
-**关于磁盘占用**：`mist.db` 的体积主要由**唯一 token 数**决定，与记忆条数无直接关系。
-每产生一个唯一 token 就要存一行（80 字符原文片段 + 引用列表）。
-基准用的是高基数语料（37.8 唯一 token/条），1 万条记忆产生 37.8 万 token，故达 65 MB。
-真实中文对话基数低得多（实测约 6.1 唯一 token/条），同等记忆量下 `mist.db` 约 10 MB。
-若磁盘是硬约束，可降低 `MAX_REFS`（默认 **20**；调到 10 约再省 25% 磁盘）或缩短片段长度。
+**On disk usage**: `mist.db` size is driven by **unique token count**, not memory count.
+Each unique token needs a row (80-char snippet + reference list). The benchmark uses
+high-cardinality synthetic text (37.8 unique tokens/memory), so 10k memories yield
+378k tokens → 65 MB. Real Chinese conversation has far lower cardinality (measured
+~6.1 unique tokens/memory), giving roughly 10 MB for the same memory count.
+If disk is a hard constraint, lower `MAX_REFS` (default **20**; setting it to 10 saves roughly another 25%) or shorten snippets.
 
-### 4.4 【关键】它到底捞回了什么？
+### The crucial question: does it actually recover anything?
 
-设计三类「熟悉但检索不到」的场景，对比 `sense()` 与纯 FTS5：
+Three classes of "familiar but unsearchable" scenarios, compared against raw FTS5:
 
-| 目标 | 场景 | FTS5 | sense() | hunt() | 是否挽回 |
+| Target | Scenario | FTS5 | sense() | hunt() | Rescued? |
 |---|---|---|---|---|---|
-| t1 | 实体改写+同义 | 未中 | 陌生 | 未回 | 否 |
-| t2 | 实体改写+同义 | 未中 | 熟悉 | 未回 | 是 |
-| t3 | 同义表述 | 未中 | 熟悉 | 未回 | 是 |
-| t4 | 同义表述 | 未中 | 熟悉 | 未回 | 是 |
+| t1 | 实体改写+同义 | miss | unfamiliar | none | no |
+| t2 | 实体改写+同义 | miss | familiar | none | yes |
+| t3 | 同义表述 | miss | familiar | none | yes |
+| t4 | 同义表述 | miss | familiar | none | yes |
 
-| 指标 | 结果 |
+| Metric | Result |
 |---|---|
-| FTS5 命中目标 | 0/4 |
-| `sense()` 判定熟悉 | 3/4 |
-| `hunt()` 找回目标 | 0/4 |
-| **Déjà Vu 挽回的检索失败** | **3/4** |
-| 噪音查询误报熟悉 | 0/3 |
+| FTS5 found the target | 0/4 |
+| `sense()` flagged familiar | 3/4 |
+| `hunt()` found the target | 0/4 |
+| **Misses rescued by Déjà Vu** | **3/4** |
+| Noise queries falsely familiar | 0/3 |
 
 ---
 
-## 五、它不是什么
+## What it is *not*
 
-**必须说清楚，以免误用：**
+Stated plainly, to prevent misuse:
 
-1. **不替代检索器。** Déjà Vu 不返回记忆内容，只返回「熟悉度」信号。真正的检索仍由 FTS / 向量库负责。
-2. **不降低 miss 率。** 它没有让检索找到更多东西，只是把「找不到」这个结果**分成了两类**。
-3. **`hunt()` 的寻回能力有限。** 实测中，纯同义改写（「川菜馆」→「麻辣的店」）和跨语言查询寻回率很低 —— 因为寻回依赖 token 字面重合，而这类场景字面不重合。要做到语义寻回需要嵌入模型，那与「零依赖」的设计契约冲突。
-4. **不索引纯数字。** 当前分词器只抓英文词和中文 n-gram，形如 `42`、`19289` 的纯数字 token 不被索引。如果你的关键信息是订单号/金额，需要自行扩展分词器。
-5. **假阳性随规模上升。** 见 4.2 —— 它不是「装了就不用管」的组件，需要监控填充率并及时扩容。
+1. **Not a retriever replacement.** Déjà Vu returns a *familiarity signal*, not memory content. Actual retrieval is still FTS / vector search's job.
+2. **Does not reduce miss rate.** It doesn't find more — it splits "not found" into two classes.
+3. **`hunt()` recovery is limited.** In our tests, pure paraphrase ("川菜馆" → "麻辣的店") and cross-language queries recover poorly, because recovery relies on literal token overlap and those cases have none. Semantic recovery needs an embedding model, which conflicts with the zero-dependency contract.
+4. **Pure digits are not indexed.** The tokenizer captures English words and CJK n-grams only — `42` or `19289` won't be indexed. Extend the tokenizer if order numbers or amounts matter to you.
+5. **False positives grow with scale.** See the knee table — this needs monitoring and growth, not install-and-forget.
 
-一句话：**它把 miss 分成两类，仅此而已。但这一格，此前没人填。**
+One sentence: **it splits miss into two classes. That's all. But that cell was empty.**
 
 ---
 
-## 六、30 行上手
+## 30-line quickstart
 
 ```python
-from nexsandglass.dejavu import DejaVu      # 零依赖：stdlib + sqlite3
+from nexsandglass.dejavu import DejaVu      # zero deps: stdlib + sqlite3
 
-dv = DejaVu("./my_memory")                  # 显式传目录，无配置
+dv = DejaVu("./my_memory")                  # explicit dir, no config
 
-# 写入：key 是你自己的引用（消息 ID / 行号 / URL 都行）
+# imprint: key is any reference you own (message id / line / URL)
 dv.imprint("msg-1", "上周三和张老板聊了川菜馆的事，他说要换厨师")
 dv.imprint("msg-2", "今天下午三点开季度复盘会")
 
-# 检索失败时，先问一句「我是不是接触过？」
+# when retrieval comes back empty, first ask: have I seen this?
 r = dv.sense("我们聊过的那家川菜馆")
-print(f"熟悉度 {r.score:.2f} | {r.reason}")
-# -> 熟悉度 0.22 | 2/9 个 token 见过
+print(f"familiarity {r.score:.2f} | {r.reason}")
+# -> familiarity 0.22 | 2/9 个 token 见过
 
-# 熟悉的话，把痕迹钓出来
+# if familiar, pull the traces
 if r.familiar:
     for p in dv.hunt("川菜馆 张老板"):
-        print(f"  · {p.token} 出现 {p.sightings} 次 — 「{p.snippet}」")
-
-# 对比：一个从没提过的话题
-print(dv.sense("量子计算对密码学的影响").reason)
-# -> 10 个 token 全部未见
+        print(f"  · {p.token} seen {p.sightings}x — 「{p.snippet}」")
 
 dv.close()
 ```
 
-完整可运行版本：[`examples/dejavu_minimal.py`](../examples/dejavu_minimal.py)
+Runnable version: [`examples/dejavu_minimal.py`](../examples/dejavu_minimal.py)
 
 ---
 
-## 七、设计取舍一览
+## Trade-off summary
 
-| 决策 | 选择 | 代价 |
+| Decision | Choice | Cost |
 |---|---|---|
-| 是否索引「见过没有」 | 独立成层 | 多一次查询（仅当 Veil 命中） |
-| Bloom vs 精确集合 | Bloom | 假阳性（代价是多一次查询，见 §3） |
-| 位图大小 | 固定 128 KiB | 约 1.8 万条中文记忆后需扩容 |
-| 分词 | 中文固定 n-gram + 英文词 | 不索引纯数字；无同义词归并 |
-| 依赖 | 零（stdlib + sqlite3） | 无法用嵌入模型做语义匹配 |
-| 寻回 | 字面重合匹配 | 同义改写/跨语言寻回率低 |
+| Model "seen or not" separately | Dedicated layer | One extra query (only on Veil hit) |
+| Bloom vs exact set | Bloom | False positives (cost = one extra query, see §Design) |
+| Bitmap size | Fixed 128 KiB | Needs growth after ~18k Chinese memories |
+| Tokenization | CJK n-grams + English words | No pure digits; no synonym merging |
+| Dependencies | Zero (stdlib + sqlite3) | No embedding model for semantic matching |
+| Recovery | Literal overlap | Poor on paraphrase / cross-language |
 
-这些不是缺陷清单，是**有意识的边界**。每一条都对应一个明确的、可测量的代价。
+These aren't a defect list — they're **deliberate boundaries**, each with a
+measurable cost.

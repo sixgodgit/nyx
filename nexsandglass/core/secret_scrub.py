@@ -203,7 +203,7 @@ def _db_rows_pass(db: sqlite3.Connection, table: str, key: str, cols: List[str],
 # 到了那里只剩一个裸字符串，规则认不出来。所以从日志 / 中枢里隐去的原文，记在内存里（不写盘、不输出），
 # 拿去别的存储里按字面找。太短的、纯数字的不拿来找（「123456」会误伤订单号）
 
-_NEEDLE_MARK = secret_filter.MARK + "密钥]"
+_NEEDLE_MARK = secret_filter.MARK + "secret]"
 
 
 def _needles(cap: list) -> List[str]:
@@ -212,7 +212,7 @@ def _needles(cap: list) -> List[str]:
         for part in str(secret).split("\n"):
             part = part.strip()
             if len(part) >= 8 and not any(c in part for c in "\"\\") and \
-                    re.search(r"[A-Za-z]", part) and re.search(r"\d", part) and secret_filter.MARK not in part:
+                    re.search(r"[A-Za-z]", part) and re.search(r"\d", part) and not secret_filter.has_mark(part):
                 out.add(part)
     return sorted(out, key=len, reverse=True)       # 长的先换：短的可能是长的一部分
 

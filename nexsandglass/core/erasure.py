@@ -51,6 +51,7 @@ from datetime import datetime
 from typing import Iterable, Optional
 
 from nexsandglass.core import memid, quarantine
+from nexsandglass.core.lang import t as _t
 from nexsandglass.core.sandglass_paths import _NB
 
 logger = logging.getLogger(__name__)
@@ -419,14 +420,15 @@ def forget(selector: dict, reason: str = "user_forget", apply: bool = False,
                 from nexsandglass.core import secret_vault
                 report["vault_deleted"] = [f"v{i}" for i in secret_vault.drop_unreferenced(refs)]
             except Exception as e:
-                report["problems"].append(f"保险箱里对应的条目没删掉：{e}")
+                report["problems"].append(_t(f"the matching vault entries were not deleted: {e}", f"保险箱里对应的条目没删掉：{e}"))
         # 当场不可逆 = 磁盘上也没了：库文件空闲页、FTS5 段里的旧词元（v7.14.0）。
         # **在日志锁外面做**：VACUUM 要几秒（库大时更久），持锁做的话，别的进程（MCP、网关）追加日志
         # 等锁超时就写不进去 —— 连删几条就会丢消息（并发测试在机器忙的时候实测到）
         report["disk"] = wipe_free_space()
         bad = {k: v for k, v in report["disk"].items() if v != "ok"}
         if bad:
-            report["problems"].append("库文件空闲页没抹干净：" + "；".join(f"{k} {v}" for k, v in bad.items()))
+            report["problems"].append(_t("free pages in the database files were not wiped: ", "库文件空闲页没抹干净：")
+                                          + "; ".join(f"{k} {v}" for k, v in bad.items()))
             report["ok"], report["action"] = False, "partial"
     return report
 
@@ -455,7 +457,7 @@ def _forget_impl(selector: dict, reason: str = "user_forget", apply: bool = Fals
     journal_path = journal_path or memid._journal_path()
     mode = (mode or "quarantine").strip().lower()
     if mode not in ("quarantine", "purge"):
-        raise ValueError("mode 只能是 quarantine / purge，收到 %r" % mode)
+        raise ValueError("mode must be quarantine or purge, got %r" % mode)
     mem_ids = _select(selector)
     conn = memid.get_conn()
 
@@ -509,7 +511,8 @@ def _forget_impl(selector: dict, reason: str = "user_forget", apply: bool = Fals
         if held["skipped"]:
             # 抓不下来的那几条会变成不可逆删除，不能静默
             report.setdefault("warnings", []).append(
-                "%d 条未能进隔离区，删除后不可恢复" % held["skipped"])
+                _t("%d memories could not be quarantined; deleting them cannot be undone",
+                   "%d 条未能进隔离区，删除后不可恢复") % held["skipped"])
 
     # 顺序有讲究：先抹日志正文（真相来源），再清各索引。
     # 反过来的话，中途失败会留下"索引没了但正文还在"——那还是能被搜到。
@@ -540,12 +543,13 @@ def _forget_impl(selector: dict, reason: str = "user_forget", apply: bool = Fals
     # 那条记录本来就可能没进过这些索引，拿它们判成败会造成假红。
     problems = []
     if report["hub"] != report["found"]:
-        problems.append("中枢墓碑 %d/%d" % (report["hub"], report["found"]))
+        problems.append(_t("hub tombstones %d/%d", "中枢墓碑 %d/%d") % (report["hub"], report["found"]))
     if report["journal_lines"] < report["found"]:
-        problems.append("日志抹除 %d 行 < %d 条记录" % (report["journal_lines"], report["found"]))
+        problems.append(_t("journal erased %d lines < %d records", "日志抹除 %d 行 < %d 条记录") % (report["journal_lines"], report["found"]))
     # 影子副本里还留着正文 = 没删干净。它能被 nightwatch 还原回主沙漏。
     if report["backup"].get("status") == "out_of_sync":
-        problems.append("影子副本行数对不上（backup=%s journal=%s），正文可能仍在"
+        problems.append(_t("shadow copy line count does not match (backup=%s journal=%s); the text may still be there",
+                           "影子副本行数对不上（backup=%s journal=%s），正文可能仍在")
                         % (report["backup"].get("backup_lines"),
                            report["backup"].get("journal_lines")))
     report["ok"] = not problems
