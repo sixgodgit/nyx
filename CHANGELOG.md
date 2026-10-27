@@ -5,6 +5,43 @@ Benchmark section of the README and `benchmarks/`. Entries from v7.16.0 on are i
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。v7.16.0 起的条目用英文，之前的是中文。
 
+### v7.16.2 (2026-10-27) — Déjà Vu: Chinese function words and fragments are not evidence
+
+**Problem.** Chinese is cut into fixed-boundary two-character pieces, and half of the pieces in a sentence are function
+words or fragments across a word boundary. "我们聊过的那家川菜馆" gave 我们 / 们聊 / 聊过 / 过的 / 的那 / 那家 / 家川 /
+川菜 / 菜馆; only the last three are about the restaurant. On real Chinese chit-chat, after only 20 remembered messages, 6
+of 10 unrelated questions were "familiar", through 一下, 什么, 我说, 的那, 过的…
+
+**Change.** A Chinese piece does not count if it contains a particle (的 了 吗 呢 吧 啊 呀 嘛 哦 么), 我 / 你 / 您 / 们,
+这 / 那, 是 or 在 — these almost never belong to words worth remembering, but are in most fragments — or if it is in a
+list of common words, time deixis (上次, 之前, 最近, 上周…) and recall phrasing (记得, 聊过, 提过, 来着…). A short
+sentence whose characters are all such characters (我们的) gives nothing. 他 / 她 are deliberately not on the character
+list, so 吉他 (*guitar*) and 其他 survive; 他们 / 他说 are on the word list. Content words with these neighbours still
+come through: 成都, 过敏, 那不勒斯 (via 勒斯), 吉他.
+
+**Measured**
+- `benchmarks/dejavu_chinese_real.py` (new; LCCC, MIT, Weibo chit-chat, 10 unrelated questions):
+
+  | Utterances remembered | v7.16.1 | v7.16.2 |
+  |---|---|---|
+  | 20 | 6/10 familiar | **0/10** |
+  | 200 | 10/10 | **1/10** (工作) |
+  | 2,000 | 10/10 | **3/10** (企鹅, 工作, 玻璃, 老师) |
+
+- `benchmarks/dejavu_bench.py` section E (Chinese "familiar but unsearchable"): unchanged, 3/4 misses rescued, 0/3 noise.
+- Tokens per memory go down, so Veil fills more slowly: LCCC 5.5 → 4.1 unique tokens per utterance (≈26,600 instead
+  of ≈20,000 utterances before the 128 KiB bitmap reaches 1% false positives); the synthetic benchmark corpus
+  37.7 → 35.2.
+- The whole Déjà Vu benchmark was re-run and the docs' tables updated. It ran on a different machine from the earlier
+  published numbers, so latency is much lower (imprint p50 3.2 → 0.38 ms) **because of the machine**; on the same
+  machine the v7.16.1 and v7.16.2 tokenizers measure imprint p50 0.37 vs 0.34 ms and sense 0.07 vs 0.06 ms.
+
+**No migration**, as in v7.16.1: pieces imprinted before are never produced again, so never probed.
+
+**Not fixed**: fragments made of two content characters (家川 in 那家川菜馆, 前跟 in 之前跟你) cannot be told apart
+without word segmentation and still count. And, as in English, ordinary content words (老师, 工作) accumulate with a long
+history.
+
 ### v7.16.1 (2026-10-27) — Déjà Vu: common English words are not evidence
 
 **Problem.** Déjà Vu's tokenizer took every English word of 3+ letters, so *the, what, about, you, talked* were tokens.

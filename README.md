@@ -5,7 +5,7 @@
 > **Memory that stays with your agent for life** — single-user, local, no LLM on the write path.
 > It remembers, finds, can be trusted, and can forget.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.16.1-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.16.2-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx is a long-term memory layer for agents. It plugs into [Hermes](https://github.com/NousResearch/hermes-agent)
 (as a memory provider), into Claude Desktop / Claude Code or any other MCP client, or into your own Python program.
@@ -186,9 +186,10 @@ dv.hunt("Sichuan")                     # -> [Phantom(token='sichuan', refs=['msg
 
 Two layers: **Veil** (a 128 KiB Bloom filter) answers "has this word been seen", **Mist** (SQLite) records when,
 where and how often it appeared. To be clear: it does not raise recall; it only splits misses into two kinds —
-**good at classifying, limited at retrieving**. Common English words (*the, about, talked*…) are not tokens, so they
-never make a question familiar (v7.16.1); with a long history, ordinary content words have all been seen, so check *which*
-word was seen — a rare name is strong evidence, a generic noun is weak. Measurements:
+**good at classifying, limited at retrieving**. Common words are not tokens, so they never make a question familiar:
+English *the, about, talked*… (v7.16.1), Chinese 我们, 聊过 and fragments such as 的那 (v7.16.2). With a long history,
+ordinary content words have all been seen, so check *which* word was seen — a rare name is strong evidence, a generic
+noun is weak. Measurements:
 [`benchmarks/dejavu_bench.py`](https://github.com/sixgodgit/nyx/blob/main/benchmarks/dejavu_bench.py); design:
 [`docs/dejavu.md`](https://github.com/sixgodgit/nyx/blob/main/docs/dejavu.md).
 
@@ -390,7 +391,7 @@ sure (they go to the quarantine and can be restored for 30 days).
 - **End-to-end QA accuracy not measured yet**: the [Benchmark](#benchmark) numbers are retrieval metrics; Mem0 / Zep and others report QA accuracy (an LLM answers and an LLM judges)
 - **Weak spots**: on LoCoMo multi-hop questions the agent sees only 41% of the evidence (48% with reranking); LongMemEval preference questions 0.71 (lower with reranking)
 - **Little English fact extraction**: rule-based extraction mostly covers Chinese; in English Nyx relies on retrieving the original text with its date. Without `[vector]`, English paraphrases that share no words with the memory are not found ("which editor do I use" does not find "I switched from VS Code to Zed"). Install `[vector]`, or enable `NYX_UNDERSTAND_LLM` for LLM extraction
-- **Déjà Vu on a long English history**: common words no longer count (v7.16.1), but after thousands of English turns ordinary content words have all been seen, so 10 of 10 unrelated test questions are still "familiar" through words like *teacher* or *workshop* (0 of 10 after 20 turns, 3 of 10 after 200; `benchmarks/dejavu_english_real.py`)
+- **Déjà Vu on a long history**: common words no longer count (English v7.16.1, Chinese v7.16.2), but ordinary content words accumulate. Of 10 unrelated test questions, after 2,000 English turns all 10 are still "familiar" through words like *teacher* or *workshop* (0 after 20 turns, 3 after 200; `benchmarks/dejavu_english_real.py`); after 2,000 Chinese chat messages 3 are (企鹅, 玻璃, 老师; `benchmarks/dejavu_chinese_real.py`)
 - **Small default embedding model**: the local multilingual MiniLM is small and fast; with a stronger API model the fusion weights may need retuning (`NYX_EMBED_Z` / `NYX_EMBED_WEIGHT`)
 
 ---
@@ -483,6 +484,7 @@ When the semantic backend is on but the index was not built, both harnesses fail
 | `tests/integration/hermes_real_check.py` | The full provider chain against real Hermes source (needs `HERMES_AGENT_SRC`) | v7.12 |
 | `benchmarks/dejavu_bench.py` | Déjà Vu familiar / unfamiliar classification (E2: English) | v7.5, v7.16.1 |
 | `benchmarks/dejavu_english_real.py` | Déjà Vu false familiarity on real English conversation (LongMemEval-S) | v7.16.1 |
+| `benchmarks/dejavu_chinese_real.py` | Déjà Vu false familiarity on real Chinese chit-chat (LCCC) | v7.16.2 |
 | `benchmarks/recall_latency.py` | Hermes provider start-up, first turn and per-turn recall time with 30K / 150K memories; conversation mode follows a real rhythm (write one, query one) | v7.13.2–v7.13.3 |
 
 > Older versions listed a "lexical recall 75%" from `tests/eval/run_eval.py` here. That script scored an in-memory list with
@@ -492,6 +494,7 @@ When the semantic backend is on but the index was not built, both harnesses fail
 
 ## 📝 Recent updates
 
+- **v7.16.2**: Déjà Vu no longer counts Chinese function words and cross-word fragments (我们, 聊过, 的那, 过的…): 20 remembered chat messages used to make 6 of 10 unrelated Chinese questions "familiar", now 0
 - **v7.16.1**: Déjà Vu no longer counts common English words (*the, about, talked*…): one remembered English sentence used to make every unrelated English question "familiar"
 - **v7.16.0**: English first — docs, terminal commands and `hermes memory setup` are English by default (`NYX_LANG=zh`, or `lang: zh` in Hermes, for Chinese; a Chinese system locale picks Chinese automatically); text the model reads (tool descriptions, recall labels, placeholders) is English throughout; stored data is not rewritten, and old Chinese placeholders and labels are still recognised
 - **v7.15.4**: recall about twice as fast (10K real turns, prefetch p50 from ~88 ms to ~47 ms), results identical

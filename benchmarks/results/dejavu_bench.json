@@ -1,19 +1,19 @@
 {
   "meta": {
-    "timestamp": "2026-10-27 01:20:24",
+    "timestamp": "2026-10-27 22:35:53",
     "python": "3.11.17",
     "veil_bits": 1048576,
     "veil_hashes": 7,
     "quick_mode": false,
     "tokenizer": "cjk 2-gram (fixed boundary) + ascii words minus English common words",
-    "total_seconds": 4.3
+    "total_seconds": 71.1
   },
   "tokenizer_baseline": {
     "sample": "高师傅评估了菜单定价俜啺含丬唡卙专唵吴僓哂偁偢咙丒優事偛匓亯厨咱侷僝，下周再碰一次",
-    "tokens": 38,
-    "avg_tokens_per_memory": 37.74,
-    "unique_tokens_at_1k": 24158,
-    "unique_tokens_at_10k": 230844
+    "tokens": 35,
+    "avg_tokens_per_memory": 35.19,
+    "unique_tokens_at_1k": 23872,
+    "unique_tokens_at_10k": 228442
   },
   "recall_gap": {
     "rows": [
@@ -48,7 +48,7 @@
         "query": "厨师长 提过 值班安排 的问题",
         "fts5_found": false,
         "sense_familiar": true,
-        "sense_score": 0.0909,
+        "sense_score": 0.1111,
         "hunt_phantoms": 1,
         "hunt_found_target": false,
         "dejavu_lifted_miss": true
@@ -60,7 +60,7 @@
         "query": "餐饮顾问 提的 价格策略 意见",
         "fts5_found": false,
         "sense_familiar": true,
-        "sense_score": 0.1,
+        "sense_score": 0.1111,
         "hunt_phantoms": 1,
         "hunt_found_target": false,
         "dejavu_lifted_miss": true
@@ -109,7 +109,7 @@
       "estimated_fp": 0.0,
       "fill_ratio": 0.00665,
       "veil_bytes": 131072,
-      "fill_seconds": 0.03,
+      "fill_seconds": 0.007,
       "probes": 100000
     },
     {
@@ -119,7 +119,7 @@
       "estimated_fp": 0.0,
       "fill_ratio": 0.064569,
       "veil_bytes": 131072,
-      "fill_seconds": 0.662,
+      "fill_seconds": 0.072,
       "probes": 100000
     },
     {
@@ -129,7 +129,7 @@
       "estimated_fp": 0.006451,
       "fill_ratio": 0.48651,
       "veil_bytes": 131072,
-      "fill_seconds": 3.365,
+      "fill_seconds": 0.686,
       "probes": 100000
     },
     {
@@ -139,26 +139,26 @@
       "estimated_fp": 0.990824,
       "fill_ratio": 0.998684,
       "veil_bytes": 131072,
-      "fill_seconds": 30.146,
+      "fill_seconds": 6.967,
       "probes": 100000
     }
   ],
   "false_positive_e2e": [
     {
       "memories": 1000,
-      "unique_tokens": 37781,
+      "unique_tokens": 35213,
       "measured_fp": 0.0,
-      "theoretical_fp": 2.7e-05,
-      "seconds": 42.1,
-      "ms_per_memory": 42.104
+      "theoretical_fp": 1.8e-05,
+      "seconds": 1.35,
+      "ms_per_memory": 1.353
     },
     {
       "memories": 10000,
-      "unique_tokens": 377821,
-      "measured_fp": 0.185,
-      "theoretical_fp": 0.556657,
-      "seconds": 97.78,
-      "ms_per_memory": 9.778
+      "unique_tokens": 351999,
+      "measured_fp": 0.1781,
+      "theoretical_fp": 0.495736,
+      "seconds": 17.73,
+      "ms_per_memory": 1.773
     }
   ],
   "knee_curve": [
@@ -241,33 +241,33 @@
   "latency": {
     "memory_count": 10000,
     "imprint": {
-      "p50_ms": 3.2007,
-      "p95_ms": 5.2938,
-      "mean_ms": 3.3649,
+      "p50_ms": 0.3849,
+      "p95_ms": 0.6243,
+      "mean_ms": 0.4241,
       "reps": 2000
     },
     "sense": {
-      "p50_ms": 0.0849,
-      "p95_ms": 0.106,
-      "mean_ms": 0.1099,
+      "p50_ms": 0.0606,
+      "p95_ms": 0.0906,
+      "mean_ms": 0.066,
       "reps": 2000
     },
     "hunt": {
-      "p50_ms": 0.134,
-      "p95_ms": 0.2291,
-      "mean_ms": 0.1793,
+      "p50_ms": 0.0968,
+      "p95_ms": 0.129,
+      "mean_ms": 0.1007,
       "reps": 2000
     }
   },
   "footprint": {
     "memories": 10000,
     "veil_bytes": 131093,
-    "mist_bytes": 65753088,
-    "total_disk_bytes": 70284181,
+    "mist_bytes": 64860160,
+    "total_disk_bytes": 69411853,
     "rss_after_construct_kb": 0,
-    "rss_after_fill_kb": 0,
-    "veil_items": 377821,
-    "mist_total": 230844
+    "rss_after_fill_kb": 32,
+    "veil_items": 351999,
+    "mist_total": 228442
   },
   "recall_gap_en": {
     "rows": [

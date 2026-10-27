@@ -131,28 +131,33 @@ def _cjk_ngrams(run: str) -> set:
 #      值得记住的词里，却出现在大多数跨词碎片里（得我、跟你、我说、的那、在学……）。
 #      他 / 她不在里面：「吉他」「其他」会跟着丢；常见的他们 / 他说放进第 2 条。
 #   2. 常用词表：不含上面那些字的虚词、时间指代（上次、之前、最近）和回忆句式（记得、聊过、提过）。
-# 整串（2–4 字的短句）在词表里、或者每个字都在第 1 条里时也不算。
+# 整串（3–4 字的短句）在词表里、或者每一对相邻的字都按上面两条不算时，也不算。
 # 和英文一样：语料一大，普通实词（老师、工作）也都见过 —— 看 phantoms 里是哪个词。
 _ZH_FUNCTION_CHARS = frozenset("的了吗呢吧啊呀嘛哦么我你您们这那是在")
 _ZH_STOPWORDS = frozenset("""
 一个 一下 一些 一点 一直 一起 一样 没有 不是 不要 不会 不能 不用 可以 可能 应该 因为 所以 但是 如果 虽然
 而且 然后 还是 还有 就是 已经 现在 时候 知道 觉得 其实 当然 而已 一般 比较 非常 特别 很多 太多 多少
-怎么 怎样 什么 为什么 怎么样 东西 事情 自己 大家 有点 真的 好的 好吧 还好 哈哈 嘿嘿 呵呵 嗯嗯
+怎么 怎样 什么 为什 为什么 怎么样 东西 事情 自己 大家 有点 真的 好的 好吧 还好 哈哈 嘿嘿 呵呵 嗯嗯
 他们 她们 它们 他说 她说 跟他 跟她 和他 和她 给他 给她 对他 对她
 上次 这次 那天 今天 昨天 明天 刚才 最近 之前 以前 之后 以后 后来 当时 上周 下周
 记得 还记 忘了 聊过 说过 提过 问过 讲过 谈过 聊聊 告诉 提到 提醒 来着 那个 这个
 """.split())
 
 
+def _zh_common(pair: str) -> bool:
+    return pair in _ZH_STOPWORDS or pair[0] in _ZH_FUNCTION_CHARS or pair[1] in _ZH_FUNCTION_CHARS
+
+
 def _cjk_tokens(run: str) -> set:
-    """``_cjk_ngrams`` 去掉中文常用词与跨词碎片。"""
+    """``_cjk_ngrams`` 去掉中文常用词与跨词碎片。
+
+    二字组按 ``_zh_common`` 判；整串（3–4 字）在词表里、或者每一对相邻的字都是常用的（我们的、哈哈哈哈）时不算。
+    """
     out = set()
     for g in _cjk_ngrams(run):
         if g in _ZH_STOPWORDS:
             continue
-        if len(g) == 2 and (g[0] in _ZH_FUNCTION_CHARS or g[1] in _ZH_FUNCTION_CHARS):
-            continue
-        if all(c in _ZH_FUNCTION_CHARS for c in g):
+        if all(_zh_common(g[i:i + 2]) for i in range(len(g) - 1)):
             continue
         out.add(g)
     return out
