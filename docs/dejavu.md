@@ -180,6 +180,38 @@ Three classes of "familiar but unsearchable" scenarios, compared against raw FTS
 | **Misses rescued by Déjà Vu** | **3/4** |
 | Noise queries falsely familiar | 0/3 |
 
+### English: common words are not evidence (v7.16.1)
+
+English chat is full of *the / what / about / you / talked*. Up to v7.16.0 they counted as tokens, so after a single
+English memory, any unrelated English question was "familiar" (v7.16.0 called all 6 unrelated questions below
+familiar). They no longer count; what is left is content words. Same benchmark, section E2:
+
+| Query | Should be | `sense()` | Score | Seen |
+|---|---|---|---|---|
+| the Sichuan restaurant we talked about | familiar | familiar | 0.50 | sichuan |
+| when do I have my lessons with Alvarez | familiar | familiar | 1.00 | alvarez, lessons |
+| did the skylight ever get fixed | familiar | familiar | 0.50 | skylight |
+| what did we say about Byzantine gold coin minting | unfamiliar | unfamiliar | 0.00 | — |
+| do you remember the penguin migration routes in Antarctica | unfamiliar | unfamiliar | 0.00 | — |
+| that quantum computing paper we talked about | unfamiliar | unfamiliar | 0.00 | — |
+| the ramen bar in Osaka I told you about | unfamiliar | unfamiliar | 0.00 | — |
+| what was the name of my accordion teacher | unfamiliar | unfamiliar | 0.00 | — |
+| how is the lighthouse renovation going | unfamiliar | unfamiliar | 0.00 | — |
+
+Related questions flagged familiar: **3/3** (target found by `hunt()`: 3/3); unrelated questions falsely familiar: **0/6**. Background: 1,500 English memories.
+
+The background above is synthetic and shares no content words with the unrelated questions, so it isolates the
+common-word problem. On **real** English conversation (`benchmarks/dejavu_english_real.py`, LongMemEval-S user turns,
+10 unrelated questions):
+
+| Turns remembered | v7.16.0 | v7.16.1 |
+|---|---|---|
+| 20 | 10/10 familiar | **0/10** |
+| 200 | 10/10 | **3/10** (bar, grandmother, teacher) |
+| 2,000 | 10/10 | 10/10 (antarctica, podcast, workshop, …) |
+
+With enough history, ordinary content words have all been seen — see "What it is not", point 6.
+
 ---
 
 ## What it is *not*
@@ -191,6 +223,7 @@ Stated plainly, to prevent misuse:
 3. **`hunt()` recovery is limited.** In our tests, pure paraphrase ("川菜馆" → "麻辣的店") and cross-language queries recover poorly, because recovery relies on literal token overlap and those cases have none. Semantic recovery needs an embedding model, which conflicts with the zero-dependency contract.
 4. **Pure digits are not indexed.** The tokenizer captures English words and CJK n-grams only — `42` or `19289` won't be indexed. Extend the tokenizer if order numbers or amounts matter to you.
 5. **False positives grow with scale.** See the knee table — this needs monitoring and growth, not install-and-forget.
+6. **"Familiar" can rest on one ordinary word.** `familiar` is true as soon as any content token has been seen. With a large history (thousands of English turns), words like *teacher* or *workshop* have all been seen, so an unrelated question about "my accordion teacher" is familiar because of *teacher*. Look at `phantoms`: a rare name (*Alvarez*, *Sichuan*) is strong evidence, a generic noun is weak. Common function words (*the, about, talked*) are not tokens at all since v7.16.1.
 
 One sentence: **it splits miss into two classes. That's all. But that cell was empty.**
 
@@ -210,7 +243,7 @@ dv.imprint("msg-2", "今天下午三点开季度复盘会")
 # when retrieval comes back empty, first ask: have I seen this?
 r = dv.sense("我们聊过的那家川菜馆")
 print(f"familiarity {r.score:.2f} | {r.reason}")
-# -> familiarity 0.22 | 2/9 个 token 见过
+# -> familiarity 0.22 | 2/9 tokens seen
 
 # if familiar, pull the traces
 if r.familiar:
@@ -231,7 +264,7 @@ Runnable version: [`examples/dejavu_minimal.py`](../examples/dejavu_minimal.py)
 | Model "seen or not" separately | Dedicated layer | One extra query (only on Veil hit) |
 | Bloom vs exact set | Bloom | False positives (cost = one extra query, see §Design) |
 | Bitmap size | Fixed 128 KiB | Needs growth after ~18k Chinese memories |
-| Tokenization | CJK n-grams + English words | No pure digits; no synonym merging |
+| Tokenization | CJK n-grams + English words (minus common words) | No pure digits; no synonym merging |
 | Dependencies | Zero (stdlib + sqlite3) | No embedding model for semantic matching |
 | Recovery | Literal overlap | Poor on paraphrase / cross-language |
 

@@ -4,7 +4,7 @@
 
 > **给 agent 一份跟着你一辈子的记忆** —— 单用户、本地、写入不调用大模型。记得住，找得到，信得过，忘得掉。
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.16.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.16.1-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx 是 agent 的长期记忆层：接进 [Hermes](https://github.com/NousResearch/hermes-agent)（作为记忆插件）、
 Claude Desktop / Claude Code 等任意 MCP 客户端，或者你自己的 Python 程序。
@@ -170,7 +170,7 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜馆', refs=['msg
 ```
 
 两层结构：**Veil**（Bloom Filter，128 KiB）回答「这个词见过没有」，**Mist**（SQLite）记录它何时、何地、几次出现过。
-如实说明：它不提高召回率，只把 miss 分成两类 —— **分类有效，寻回有限**。
+如实说明：它不提高召回率，只把 miss 分成两类 —— **分类有效，寻回有限**。英文的常用词（the、about、talked……）不算 token，不会让一个问题变得「熟悉」（v7.16.1）；记得久了普通实词也都见过，所以要看见过的是哪个词 —— 少见的名字是强证据，普通名词是弱证据。
 实测见 [`benchmarks/dejavu_bench.py`](https://github.com/sixgodgit/nyx/blob/main/benchmarks/dejavu_bench.py)，设计取舍见 [`docs/dejavu.zh-CN.md`](https://github.com/sixgodgit/nyx/blob/main/docs/dejavu.zh-CN.md)。
 
 ---
@@ -345,7 +345,7 @@ LoCoMo 证据召回 +4.7 个点，代价是每轮召回多 0.3–1.5 秒、偏�
 - **端到端问答准确率还没测**：[Benchmark](#benchmark) 里都是检索指标；Mem0 / Zep 们报的是问答准确率（需要大模型作答与裁判）
 - **还弱的题型**：LoCoMo 多跳题 agent 看到的证据只有 41%（开重排 48%）；LongMemEval 偏好题 0.71（开重排反而更低）
 - **英文事实抽取较少**：规则抽取以中文为主，英文主要靠检索原文 + 日期；可开 `NYX_UNDERSTAND_LLM` 用 LLM 抽取。不装 `[vector]` 时，和记忆没有共同词的英文改写问法找不到（「which editor do I use」找不到「I switched from VS Code to Zed」）
-- **Déjà Vu 的英文分词还粗**：about、that 这类常用词也算「见过」，英文的短问句容易被判成熟悉
+- **Déjà Vu 在很长的英文历史上**：常用词已经不算了（v7.16.1），但记了几千轮英文之后，普通实词也都见过，10 个不相干的测试问题仍有 10 个靠 teacher、workshop 这类词判成熟悉（记 20 轮时 0 个、200 轮时 3 个；`benchmarks/dejavu_english_real.py`）
 - **默认嵌入模型偏小**：本地多语言 MiniLM 胜在小而快；换更强的 API 模型时，融合权重可能需要重新调（`NYX_EMBED_Z` / `NYX_EMBED_WEIGHT`）
 
 ---
@@ -431,7 +431,8 @@ python3 benchmarks/locomo_eval.py locomo10.json --workers 10 --json benchmarks/r
 | `benchmarks/poisoning_drill.py` | 记忆投毒：16 条攻击 0 条无标注进 prompt，主人 8 条 0 误伤 | v7.8 |
 | `benchmarks/forget_restore_drill.py` | 误删 150 条 → 逐字节还原；真删仍不可逆 | v7.6 |
 | `tests/integration/hermes_real_check.py` | 对真实 Hermes 源码跑插件全链路（需 `HERMES_AGENT_SRC`） | v7.12 |
-| `benchmarks/dejavu_bench.py` | Déjà Vu「熟悉 / 陌生」分类 | v7.5 |
+| `benchmarks/dejavu_bench.py` | Déjà Vu「熟悉 / 陌生」分类（E2 节：英文） | v7.5、v7.16.1 |
+| `benchmarks/dejavu_english_real.py` | Déjà Vu 在真实英文对话（LongMemEval-S）上的误报 | v7.16.1 |
 | `benchmarks/recall_latency.py` | 3 万 / 15 万条记忆下 Hermes 插件的启动、首轮、每轮召回耗时；conversation 模式按真实对话节奏（写一句、查一句） | v7.13.2–v7.13.3 |
 
 > 旧版这里放过 `tests/eval/run_eval.py` 的「词法检索召回率 75%」。那个脚本用自带的简易分词给一个内存列表打分，
@@ -441,6 +442,7 @@ python3 benchmarks/locomo_eval.py locomo10.json --workers 10 --json benchmarks/r
 
 ## 📝 最近更新
 
+- **v7.16.1**：Déjà Vu 不再把英文常用词（the、about、talked……）算作见过 —— 以前只要记过一句英文，任何不相干的英文问题都是「熟悉」
 - **v7.16.0**：英文优先 —— 文档、终端命令、`hermes memory setup` 默认英文（`NYX_LANG=zh` 或 Hermes 里 `lang: zh` 用中文，系统语言是中文时自动中文）；给模型看的文字（工具说明、召回标签、占位符）统一英文；已存的数据不改写，旧的中文占位符和标注照样认
 - **v7.15.4**：召回快了约一半（1 万轮真实对话，prefetch p50 从约 88 ms 到约 47 ms），结果逐字不变
 - **v7.15.3**：新版 Hermes 认得出 Nyx 是记忆插件，`hermes plugins install … --enable` 会设好 `memory.provider`；安装后的说明改成英文在前

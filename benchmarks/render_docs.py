@@ -28,6 +28,7 @@ P_FP = "<!-- BENCH_FP_TABLE -->"
 P_LAT = "<!-- BENCH_LATENCY -->"
 P_FOOT = "<!-- BENCH_FOOTPRINT -->"
 P_GAP = "<!-- BENCH_GAP -->"
+P_GAP_EN = "<!-- BENCH_GAP_EN -->"
 
 
 def load():
@@ -171,6 +172,38 @@ def render_gap(d, en=False):
     return "\n".join(out)
 
 
+
+def render_gap_en(d, en=False):
+    g = d.get("recall_gap_en")
+    if not g:
+        return "_(缺 E2 数据)_"
+    s = g["summary"]
+    if en:
+        out = ["| Query | Should be | `sense()` | Score | Seen |", "|---|---|---|---|---|"]
+        for r in g["rows"]:
+            out.append(f"| {r['query']} | familiar | {'familiar' if r['familiar'] else 'unfamiliar'} | "
+                       f"{r['score']:.2f} | {', '.join(r['seen']) or '—'} |")
+        for x in g["noise"]:
+            out.append(f"| {x['query']} | unfamiliar | {'familiar' if x['familiar'] else 'unfamiliar'} | "
+                       f"{x['score']:.2f} | {', '.join(x['seen']) or '—'} |")
+        out += ["", f"Related questions flagged familiar: **{s['targets_familiar']}/{s['targets']}** "
+                    f"(target found by `hunt()`: {s['targets_hunted']}/{s['targets']}); "
+                    f"unrelated questions falsely familiar: **{s['noise_false_familiar']}/{s['noise_queries']}**. "
+                    f"Background: {s['background']:,} English memories."]
+        return "\n".join(out)
+    out = ["| 问题 | 应当 | `sense()` | 分数 | 见过的词 |", "|---|---|---|---|---|"]
+    for r in g["rows"]:
+        out.append(f"| {r['query']} | 熟悉 | {'熟悉' if r['familiar'] else '陌生'} | "
+                   f"{r['score']:.2f} | {', '.join(r['seen']) or '—'} |")
+    for x in g["noise"]:
+        out.append(f"| {x['query']} | 陌生 | {'熟悉' if x['familiar'] else '陌生'} | "
+                   f"{x['score']:.2f} | {', '.join(x['seen']) or '—'} |")
+    out += ["", f"相关问题判定熟悉 **{s['targets_familiar']}/{s['targets']}**（`hunt()` 找回目标 "
+                f"{s['targets_hunted']}/{s['targets']}）；不相干的问题误报熟悉 "
+                f"**{s['noise_false_familiar']}/{s['noise_queries']}**。背景：{s['background']:,} 条英文记忆。"]
+    return "\n".join(out)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true",
@@ -183,6 +216,7 @@ def main():
         P_LAT: (render_lat(d), render_lat(d, en=True)),
         P_FOOT: (render_foot(d), render_foot(d, en=True)),
         P_GAP: (render_gap(d), render_gap(d, en=True)),
+        P_GAP_EN: (render_gap_en(d), render_gap_en(d, en=True)),
     }
 
     stale = []

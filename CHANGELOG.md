@@ -5,6 +5,39 @@ Benchmark section of the README and `benchmarks/`. Entries from v7.16.0 on are i
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。v7.16.0 起的条目用英文，之前的是中文。
 
+### v7.16.1 (2026-10-27) — Déjà Vu: common English words are not evidence
+
+**Problem.** Déjà Vu's tokenizer took every English word of 3+ letters, so *the, what, about, you, talked* were tokens.
+English chat has them in nearly every sentence: once a single English memory was imprinted, any unrelated English
+question was "familiar" — `sense("that quantum computing paper we talked about")` said familiar because of *about* and
+*that*. The orchestrator then turned those words into `[known entity] about` recall candidates.
+
+**Change.** `scent()` skips a short list of English common words: function words, contraction stems (*don't* → *don*),
+the most common everyday verbs, and the words that make up recall questions themselves (*remember, remind, talked, told,
+said, mentioned, name, called*…). A capitalised phrase made only of such words ("What About") is skipped too. *may* stays
+a token (it is also the month). Chinese tokenization is unchanged — the Chinese benchmark results and the tokenizer
+baseline are identical to v7.16.0.
+
+**No migration.** Words imprinted by older versions stay in Veil / Mist, but neither `imprint` nor `sense` produces
+them any more, so they are never probed.
+
+**Measured**
+- `benchmarks/dejavu_bench.py`, new section E2 (1,500 synthetic English memories written as natural sentences; the 6
+  unrelated questions share no content words with them): unrelated questions falsely familiar 6/6 → **0/6**; the 3
+  related questions are still familiar (3/3) and `hunt()` still finds the target (3/3).
+- `benchmarks/dejavu_english_real.py` (new; LongMemEval-S user turns, 10 unrelated questions):
+
+  | Turns remembered | v7.16.0 | v7.16.1 |
+  |---|---|---|
+  | 20 | 10/10 familiar | **0/10** |
+  | 200 | 10/10 | **3/10** |
+  | 2,000 | 10/10 | 10/10 |
+
+**What is not fixed.** With a long history, ordinary content words (*teacher, workshop, podcast*) have all been seen,
+and `familiar` is true as soon as one content word has been seen. That is how the design works, not a tokenizer bug;
+it is now documented ("What it is not", point 6): look at which word was seen — a rare name is strong evidence, a
+generic noun is weak. The same holds for Chinese two-character words.
+
 ### v7.16.0 (2026-10-26) — English first
 
 The interface and the docs now default to English; Chinese is one setting away. Stored memories are not touched.

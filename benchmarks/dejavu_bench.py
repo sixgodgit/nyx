@@ -512,6 +512,82 @@ def section_recall_gap(rng):
         return summary
 
 
+
+# 英文对照（v7.16.1）：英文聊天里满是 the / what / about / you 这类词，它们算不算「见过」，
+# 决定了一个毫不相干的英文问题会不会被判成熟悉。背景语料故意写成自然的英文句子（带大量功能词），
+# 话题词与噪音查询的实词不重叠 —— 测的是功能词造成的误报，不是实词碰巧撞上。
+_EN_NAMES = ["Sam", "Priya", "Marco", "Lena", "Tomas", "Aiko", "Dev", "Nora", "Felix", "Ruth"]
+_EN_VERBS = ["went over", "signed off on", "pushed back", "followed up on", "checked",
+             "reviewed", "argued about", "postponed", "asked about", "sorted out"]
+_EN_TAILS = ["and we should hear back next week", "but they want to wait until the end of the month",
+             "so we will keep the old plan for now", "and I told them we would think about it",
+             "which is what we agreed on last time", "and you said that was fine",
+             "but nobody has confirmed it yet", "so I will remind them on Friday"]
+
+
+def make_memory_en(i: int) -> str:
+    r = random.Random(i * 40503 + 7)
+    return (f"{r.choice(_EN_NAMES)} and I {r.choice(_EN_VERBS)} the {r.choice(_EN_WORDS)} "
+            f"for the {r.choice(_EN_WORDS)}, {r.choice(_EN_TAILS)}")
+
+
+def section_recall_gap_en(rng):
+    """英文：毫不相干的问题会不会被判成熟悉；共享一个实词的问题还认不认得出。"""
+    print("\n" + "=" * 70)
+    print("E2. 英文：噪音查询误报 / 相关查询仍认得出")
+    print("=" * 70)
+    targets = [
+        ("e1", "Last Wednesday Sam told me about that Sichuan place on Clement Street",
+         "the Sichuan restaurant we talked about"),
+        ("e2", "Booked cello lessons with Ms. Alvarez for Thursday evenings",
+         "when do I have my lessons with Alvarez"),
+        ("e3", "My landlord finally agreed to fix the leaking skylight",
+         "did the skylight ever get fixed"),
+    ]
+    noise_queries = [
+        "what did we say about Byzantine gold coin minting",
+        "do you remember the penguin migration routes in Antarctica",
+        "that quantum computing paper we talked about",
+        "the ramen bar in Osaka I told you about",
+        "what was the name of my accordion teacher",
+        "how is the lighthouse renovation going",
+    ]
+    with tempfile.TemporaryDirectory(prefix="dv-gap-en-") as d:
+        dv = DejaVu(os.path.join(d, "dv"), autosave=0)
+        for i in range(1500):
+            dv.imprint(f"bg{i}", make_memory_en(i))
+        for key, text, _q in targets:
+            dv.imprint(key, text)
+        rows = []
+        for key, text, q in targets:
+            s = dv.sense(q)
+            rows.append({"target_key": key, "target_text": text, "query": q, "familiar": s.familiar,
+                         "score": s.score, "seen": s.phantoms,
+                         "hunt_found_target": any(key in p.refs for p in dv.hunt(q))})
+        noise = []
+        for q in noise_queries:
+            s = dv.sense(q)
+            noise.append({"query": q, "familiar": s.familiar, "score": s.score, "seen": s.phantoms})
+        summary = {
+            "background": 1500,
+            "targets": len(rows),
+            "targets_familiar": sum(r["familiar"] for r in rows),
+            "targets_hunted": sum(r["hunt_found_target"] for r in rows),
+            "noise_queries": len(noise),
+            "noise_false_familiar": sum(x["familiar"] for x in noise),
+        }
+        dv.close()
+    RESULTS["recall_gap_en"] = {"rows": rows, "noise": noise, "summary": summary}
+    for r in rows:
+        print(f"  {r['target_key']} {'熟悉' if r['familiar'] else '陌生'} {r['score']:.2f} "
+              f"{'找回' if r['hunt_found_target'] else '未回'}  {r['query']!r}  seen={r['seen']}")
+    for x in noise:
+        print(f"  噪音 {'熟悉' if x['familiar'] else '陌生'} {x['score']:.2f}  {x['query']!r}  seen={x['seen']}")
+    print(f"  相关查询判定熟悉 {summary['targets_familiar']}/{summary['targets']}，"
+          f"找回 {summary['targets_hunted']}/{summary['targets']}；"
+          f"噪音误报 {summary['noise_false_familiar']}/{summary['noise_queries']}")
+    return summary
+
 # ═══════════════════════════════════════════════════════════
 # 主流程
 # ═══════════════════════════════════════════════════════════
@@ -533,7 +609,7 @@ def main():
         "veil_bits": (1 << 20),
         "veil_hashes": 7,
         "quick_mode": args.quick,
-        "tokenizer": "cjk 2-gram (fixed boundary) + ascii words",
+        "tokenizer": "cjk 2-gram (fixed boundary) + ascii words minus English common words",
     }
     RESULTS["meta"] = meta
 
@@ -569,6 +645,7 @@ def main():
         section_footprint(rng, n_mem=5_000 if args.quick else 10_000)
     if sec in ("all", "gap"):
         section_recall_gap(rng)
+        section_recall_gap_en(rng)
 
     RESULTS["meta"]["total_seconds"] = round(time.time() - t_start, 1)
 

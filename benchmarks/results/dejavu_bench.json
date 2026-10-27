@@ -1,12 +1,12 @@
 {
   "meta": {
-    "timestamp": "2026-09-13 08:40:20",
-    "python": "3.11.15",
+    "timestamp": "2026-10-27 01:20:24",
+    "python": "3.11.17",
     "veil_bits": 1048576,
     "veil_hashes": 7,
     "quick_mode": false,
-    "tokenizer": "cjk 2-gram (fixed boundary) + ascii words",
-    "total_seconds": 314.3
+    "tokenizer": "cjk 2-gram (fixed boundary) + ascii words minus English common words",
+    "total_seconds": 4.3
   },
   "tokenizer_baseline": {
     "sample": "高师傅评估了菜单定价俜啺含丬唡卙专唵吴僓哂偁偢咙丒優事偛匓亯厨咱侷僝，下周再碰一次",
@@ -268,5 +268,89 @@
     "rss_after_fill_kb": 0,
     "veil_items": 377821,
     "mist_total": 230844
+  },
+  "recall_gap_en": {
+    "rows": [
+      {
+        "target_key": "e1",
+        "target_text": "Last Wednesday Sam told me about that Sichuan place on Clement Street",
+        "query": "the Sichuan restaurant we talked about",
+        "familiar": true,
+        "score": 0.5,
+        "seen": [
+          "sichuan"
+        ],
+        "hunt_found_target": true
+      },
+      {
+        "target_key": "e2",
+        "target_text": "Booked cello lessons with Ms. Alvarez for Thursday evenings",
+        "query": "when do I have my lessons with Alvarez",
+        "familiar": true,
+        "score": 1.0,
+        "seen": [
+          "alvarez",
+          "lessons"
+        ],
+        "hunt_found_target": true
+      },
+      {
+        "target_key": "e3",
+        "target_text": "My landlord finally agreed to fix the leaking skylight",
+        "query": "did the skylight ever get fixed",
+        "familiar": true,
+        "score": 0.5,
+        "seen": [
+          "skylight"
+        ],
+        "hunt_found_target": true
+      }
+    ],
+    "noise": [
+      {
+        "query": "what did we say about Byzantine gold coin minting",
+        "familiar": false,
+        "score": 0.0,
+        "seen": []
+      },
+      {
+        "query": "do you remember the penguin migration routes in Antarctica",
+        "familiar": false,
+        "score": 0.0,
+        "seen": []
+      },
+      {
+        "query": "that quantum computing paper we talked about",
+        "familiar": false,
+        "score": 0.0,
+        "seen": []
+      },
+      {
+        "query": "the ramen bar in Osaka I told you about",
+        "familiar": false,
+        "score": 0.0,
+        "seen": []
+      },
+      {
+        "query": "what was the name of my accordion teacher",
+        "familiar": false,
+        "score": 0.0,
+        "seen": []
+      },
+      {
+        "query": "how is the lighthouse renovation going",
+        "familiar": false,
+        "score": 0.0,
+        "seen": []
+      }
+    ],
+    "summary": {
+      "background": 1500,
+      "targets": 3,
+      "targets_familiar": 3,
+      "targets_hunted": 3,
+      "noise_queries": 6,
+      "noise_false_familiar": 0
+    }
   }
 }

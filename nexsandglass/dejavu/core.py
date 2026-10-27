@@ -65,6 +65,35 @@ _CJK_RUN = re.compile(r"[\u4e00-\u9fff]+")
 MIN_TOKEN_LEN = 3
 MAX_TOKEN_LEN = 40
 
+# 英文常用词不算 token（v7.16.1）。英文聊天里 the / what / about / you 几乎每句都有，
+# 算进去的话，只要记过一句英文，任何一个毫不相干的英文问题都会被判成「熟悉」
+# （基准 E2 节：背景 1500 条英文，6 个不相干的问题 6 个熟悉，见过的全是这类词）。
+# 去掉之后剩下的是实词。注意：语料一大，teacher / workshop 这种普通实词也都见过，
+# 「熟悉」仍然可能只靠一个普通实词成立 —— 看 phantoms 里是哪个词（docs/dejavu.md「What it is not」第 6 条）。
+# 只收功能词、缩写残片（don't → don）、最常见的日常动词，和 remember / talked / told 这类回忆句式的词 ——
+# 后者恰好是 Déjà Vu 要回答的那种问句的骨架，在聊天记录里同样到处都是。
+# 3 个字母以下的本来就不收（MIN_TOKEN_LEN），这里不必列。
+# may 不在里面：它也是五月（"my trip in May"）。
+# 以前记下的这些词还留在 Veil / Mist 里，但 imprint 和 sense 都不再产出它们，所以永远不会被问到。
+_EN_STOPWORDS = frozenset("""
+the and for are was but not nor yet you all any can had has her him his its our out own
+she too who why how yes did get got let off per via one
+than then them they their there here these those this that what when where which while
+whom whose with without from into onto upon about above after again against before below
+between during over under until through because since though although unless whether
+also just only very really quite rather still even ever never always often sometimes
+much many more most some such each every both either neither other another same few
+less least lot lots have having does doing done been being were will would shall should
+could might must your yours yourself mine myself ours ourselves himself herself itself
+themselves
+don didn doesn isn aren wasn weren haven hasn hadn won wouldn couldn shouldn mustn ain
+okay yeah yep nope please thanks thank sure maybe well
+going gonna want wanted need needed make made take took come came give gave see saw use used
+thing things something anything nothing everything someone anyone everyone
+remember remind reminded recall talked talk talking told tell telling said say saying says mentioned
+mention discussed discuss asked ask think thought know knew name called
+""".split())
+
 # 中文 n-gram 长度。用固定边界切分，保证同一个词在不同上下文里
 # 产生**一致的** token —— 否则 "川菜馆" 会随上下文切成 "了川菜馆"
 # 或 "菜馆"，imprint 与 sense 永远对不上（这正是旧实现的缺陷）。
@@ -103,15 +132,16 @@ def scent(text: str) -> List[str]:
     if not text:
         return []
     tokens = set()
-    # 英文专名 / 引号内容（原样保留）
+    # 英文专名 / 引号内容（原样保留；全由常用词组成的不算，比如句首的 "What About"）
     for m in _ENTITY_PATTERN.finditer(text):
-        t = (m.group(0) or "").strip()
-        if len(t) >= 2:
-            tokens.add(t.lower())
+        t = (m.group(0) or "").strip().lower()
+        words = t.strip("\"'").replace("-", " ").split()
+        if len(t) >= 2 and not (words and all(w in _EN_STOPWORDS for w in words)):
+            tokens.add(t)
     # 英文 token
     for m in _TOKEN_PATTERN.finditer(text):
         t = m.group(0).lower()
-        if MIN_TOKEN_LEN <= len(t) <= MAX_TOKEN_LEN:
+        if MIN_TOKEN_LEN <= len(t) <= MAX_TOKEN_LEN and t not in _EN_STOPWORDS:
             tokens.add(t)
     # 中文：按固定 n-gram 切，保证跨上下文一致
     for m in _CJK_RUN.finditer(text):
