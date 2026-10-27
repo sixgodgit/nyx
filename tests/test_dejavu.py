@@ -296,11 +296,27 @@ def test_scent_empty():
     assert scent(None or "") == []
 
 
-def test_scent_chinese_unchanged():
-    """英文停用词（v7.16.1）不影响中文分词：锁住改动前的切法。"""
+def test_scent_chinese_skips_common_words_and_fragments():
+    """中文（v7.16.2）：虚词、时间指代、回忆句式和带助词 / 代词的跨词碎片不算 token；实词照收。"""
     assert sorted(scent("上周三和张老板聊了川菜馆的事")) == [
-        "三和", "上周", "了川", "周三", "和张", "川菜", "张老", "板聊", "的事", "老板", "聊了", "菜馆", "馆的"]
+        "三和", "周三", "和张", "川菜", "张老", "板聊", "老板", "菜馆"], "了川 / 的事 / 馆的 / 聊了 / 上周 不算"
+    assert set(scent("我们聊过的那家川菜馆")) == {"家川", "川菜", "菜馆"}
+    assert scent("你还记得我之前跟你说过的吗") == ["前跟"], "整句回忆句式只剩一个跨词碎片（两个实字拼成的，分不出来）"
+    assert scent("我们的") == [] and scent("哈哈哈哈") == []
+    for text, word in (("我在学吉他", "吉他"), ("去成都出差", "成都"), ("我对花生过敏", "过敏"),
+                       ("下周去那不勒斯", "勒斯"), ("其他人都到了", "其他")):
+        assert word in scent(text), (text, word)
     assert {'"川菜馆"', "川菜馆"} <= set(scent('"川菜馆" 和 "the"')), "引号里的中文照收"
+
+
+def test_unrelated_chinese_question_is_unfamiliar(dv):
+    """记过一句中文之后：毫不相干的问题是陌生，问到同一件事是熟悉。v7.16.1 两个都是熟悉（我们 / 聊过 / 的那 ……）。"""
+    dv.imprint("msg-1", "我们上周三和张老板聊了川菜馆的事，他说要换厨师")
+    for q in ("我们之前聊过的那篇量子计算论文", "你还记得我说过的南极企鹅迁徙路线吗", "上次说的那个事情怎么样了"):
+        r = dv.sense(q)
+        assert not r.familiar and r.phantoms == [], (q, r)
+    r = dv.sense("我们聊过的那家川菜馆")
+    assert r.familiar and set(r.phantoms) == {"川菜", "菜馆"}
 
 
 def test_scent_skips_english_common_words():

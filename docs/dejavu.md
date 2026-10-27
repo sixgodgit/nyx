@@ -96,6 +96,11 @@ tip-of-the-tongue state. This is the first time a system can express it.
 > Every number below is measured by [`benchmarks/dejavu_bench.py`](../benchmarks/dejavu_bench.py).
 > Reproduce with `python3 benchmarks/dejavu_bench.py`. Raw data:
 > [`benchmarks/results/dejavu_bench.json`](../benchmarks/results/dejavu_bench.json).
+>
+> Re-measured on 2026-10-27 with the v7.16.2 tokenizer, on a different machine from the earlier runs. Latency and
+> ms/memory are far lower than the previously published numbers (imprint p50 3.2 → 0.38 ms) **because of the machine,
+> not the code**: on this machine the v7.16.1 and v7.16.2 tokenizers measure imprint p50 0.37 vs 0.34 ms, sense 0.07
+> vs 0.06 ms.
 
 ### False-positive rate: measured vs theory
 
@@ -110,8 +115,8 @@ End-to-end (full `imprint`, including Mist writes):
 
 | Memories | Unique tokens | Measured FP | ms/memory |
 |---|---|---|---|
-| 1,000 | 37,781 | 0.00000 | 42.10 |
-| 10,000 | 377,821 | 0.18500 | 9.78 |
+| 1,000 | 35,213 | 0.00000 | 1.35 |
+| 10,000 | 351,999 | 0.17810 | 1.77 |
 
 ### The knee: when you must grow the bitmap
 
@@ -128,20 +133,21 @@ memory yields depends on language and tokenizer:
 
 | Corpus | Unique tokens / memory | Memories until 1% FP |
 |---|---|---|
-| Real Chinese conversations (2,660 measured) | ~6.1 | **~18,000** |
-| Synthetic high-cardinality (this benchmark) | ~37.8 | ~2,900 |
+| Real Chinese chit-chat (LCCC, 2,660 utterances, `benchmarks/dejavu_chinese_real.py`) | ~4.1 (5.5 with the v7.16.1 tokenizer) | **~26,600** |
+| Real Chinese conversations (2,660 local messages, v7.16.1 tokenizer) | ~6.1 | ~18,000 |
+| Synthetic high-cardinality (this benchmark) | ~35.2 | ~3,100 |
 
-**Takeaway: in real Chinese usage, a 128 KiB bitmap needs growing at roughly
-18,000 memories** — not the million the name suggests. Monitor
-`gaze().veil_fill_ratio` in production.
+**Takeaway: in real Chinese usage, a 128 KiB bitmap needs growing somewhere around
+20,000–27,000 memories** (longer messages yield more tokens) — not the million the name
+suggests. Monitor `gaze().veil_fill_ratio` in production.
 
 ### Latency and footprint
 
 | Operation | p50 | p95 | mean |
 |---|---|---|---|
-| `imprint()` | 3.201 ms | 5.294 ms | 3.365 ms |
-| `sense()` | 0.085 ms | 0.106 ms | 0.110 ms |
-| `hunt()` | 0.134 ms | 0.229 ms | 0.179 ms |
+| `imprint()` | 0.385 ms | 0.624 ms | 0.424 ms |
+| `sense()` | 0.061 ms | 0.091 ms | 0.066 ms |
+| `hunt()` | 0.097 ms | 0.129 ms | 0.101 ms |
 
 _Measured at 10,000 memories, 2000 reps each._
 
@@ -149,16 +155,16 @@ _Measured at 10,000 memories, 2000 reps each._
 |---|---|
 | Memories | 10,000 |
 | `veil.bin` | 131,093 B |
-| `mist.db` | 65,753,088 B |
-| Total disk | 70,284,181 B (7028.4 B/memory) |
+| `mist.db` | 64,860,160 B |
+| Total disk | 69,411,853 B (6941.2 B/memory) |
 | RSS after construct | 0 KB |
-| RSS after fill | 0 KB |
+| RSS after fill | 32 KB |
 
 **On disk usage**: `mist.db` size is driven by **unique token count**, not memory count.
 Each unique token needs a row (80-char snippet + reference list). The benchmark uses
-high-cardinality synthetic text (37.8 unique tokens/memory), so 10k memories yield
-378k tokens → 65 MB. Real Chinese conversation has far lower cardinality (measured
-~6.1 unique tokens/memory), giving roughly 10 MB for the same memory count.
+high-cardinality synthetic text (35.2 unique tokens/memory), so 10k memories yield
+352k tokens → 65 MB. Real Chinese chit-chat has far lower cardinality (LCCC: ~4.1
+unique tokens/utterance), giving roughly 8 MB for the same memory count.
 If disk is a hard constraint, lower `MAX_REFS` (default **20**; setting it to 10 saves roughly another 25%) or shorten snippets.
 
 ### The crucial question: does it actually recover anything?
@@ -212,6 +218,27 @@ common-word problem. On **real** English conversation (`benchmarks/dejavu_englis
 
 With enough history, ordinary content words have all been seen — see "What it is not", point 6.
 
+### Chinese: function words and cross-word fragments (v7.16.2)
+
+Chinese is cut into fixed-boundary two-character pieces, and half of the pieces in a sentence are function words or
+fragments across a word boundary: "我们聊过的那家川菜馆" (*the Sichuan restaurant we talked about*) gave
+我们 / 们聊 / 聊过 / 过的 / 的那 / 那家 / 家川 / 川菜 / 菜馆, and only the last three are about the restaurant.
+Since v7.16.2 a piece does not count if it contains a particle, 我 / 你 / 们, 这 / 那, 是 or 在 (these almost
+never belong to words worth remembering, but are in most fragments), or if it is in a list of common words, time
+deixis (上次, 之前, 最近) and recall phrasing (记得, 聊过, 提过). 他 / 她 are not on the character list, so 吉他
+(*guitar*) and 其他 survive; common forms such as 他们 / 他说 are on the word list. The same sentence now gives
+家川 / 川菜 / 菜馆.
+
+On real Chinese chit-chat (`benchmarks/dejavu_chinese_real.py`, LCCC, 10 unrelated questions):
+
+| Utterances remembered | v7.16.1 | v7.16.2 |
+|---|---|---|
+| 20 | 6/10 familiar (一下, 什么, 我说, 的那…) | **0/10** |
+| 200 | 10/10 | **1/10** (工作) |
+| 2,000 | 10/10 | **3/10** (企鹅, 工作, 玻璃, 老师) |
+
+The Chinese results of section E above are unchanged (3/4 misses rescued, 0/3 noise).
+
 ---
 
 ## What it is *not*
@@ -223,7 +250,7 @@ Stated plainly, to prevent misuse:
 3. **`hunt()` recovery is limited.** In our tests, pure paraphrase ("川菜馆" → "麻辣的店") and cross-language queries recover poorly, because recovery relies on literal token overlap and those cases have none. Semantic recovery needs an embedding model, which conflicts with the zero-dependency contract.
 4. **Pure digits are not indexed.** The tokenizer captures English words and CJK n-grams only — `42` or `19289` won't be indexed. Extend the tokenizer if order numbers or amounts matter to you.
 5. **False positives grow with scale.** See the knee table — this needs monitoring and growth, not install-and-forget.
-6. **"Familiar" can rest on one ordinary word.** `familiar` is true as soon as any content token has been seen. With a large history (thousands of English turns), words like *teacher* or *workshop* have all been seen, so an unrelated question about "my accordion teacher" is familiar because of *teacher*. Look at `phantoms`: a rare name (*Alvarez*, *Sichuan*) is strong evidence, a generic noun is weak. Common function words (*the, about, talked*) are not tokens at all since v7.16.1.
+6. **"Familiar" can rest on one ordinary word.** `familiar` is true as soon as any content token has been seen. With a large history (thousands of English turns), words like *teacher* or *workshop* have all been seen, so an unrelated question about "my accordion teacher" is familiar because of *teacher*. Look at `phantoms`: a rare name (*Alvarez*, *Sichuan*) is strong evidence, a generic noun is weak. Common words are not tokens at all: English (*the, about, talked*) since v7.16.1, Chinese (我们, 的那, 聊过) since v7.16.2.
 
 One sentence: **it splits miss into two classes. That's all. But that cell was empty.**
 
@@ -243,7 +270,7 @@ dv.imprint("msg-2", "今天下午三点开季度复盘会")
 # when retrieval comes back empty, first ask: have I seen this?
 r = dv.sense("我们聊过的那家川菜馆")
 print(f"familiarity {r.score:.2f} | {r.reason}")
-# -> familiarity 0.22 | 2/9 tokens seen
+# -> familiarity 0.67 | 2/3 tokens seen
 
 # if familiar, pull the traces
 if r.familiar:

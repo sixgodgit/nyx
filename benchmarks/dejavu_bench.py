@@ -562,12 +562,12 @@ def section_recall_gap_en(rng):
         for key, text, q in targets:
             s = dv.sense(q)
             rows.append({"target_key": key, "target_text": text, "query": q, "familiar": s.familiar,
-                         "score": s.score, "seen": s.phantoms,
+                         "score": s.score, "seen": sorted(s.phantoms),
                          "hunt_found_target": any(key in p.refs for p in dv.hunt(q))})
         noise = []
         for q in noise_queries:
             s = dv.sense(q)
-            noise.append({"query": q, "familiar": s.familiar, "score": s.score, "seen": s.phantoms})
+            noise.append({"query": q, "familiar": s.familiar, "score": s.score, "seen": sorted(s.phantoms)})
         summary = {
             "background": 1500,
             "targets": len(rows),

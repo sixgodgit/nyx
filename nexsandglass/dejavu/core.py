@@ -123,6 +123,46 @@ def _cjk_ngrams(run: str) -> set:
     return out
 
 
+# 中文常用词（v7.16.2）。固定边界切二字，一句话里一半是虚词和跨词碎片：「我们聊过的那家川菜馆」切出
+# 我们 / 们聊 / 聊过 / 过的 / 的那 / 那家 / 家川 / 川菜 / 菜馆 —— 只有后三个和「川菜馆」有关。
+# 实测（LCCC 真实闲聊，benchmarks/dejavu_chinese_real.py）：只记 20 句，10 个不相干的问题就有 6 个熟悉，
+# 见过的是「一下」「什么」「我说」「的那」「过的」这类东西。两条规则：
+#   1. 含下面这些字的二字组不算：助词、语气词、我 / 你 / 们、这 / 那、是、在 —— 它们几乎不出现在
+#      值得记住的词里，却出现在大多数跨词碎片里（得我、跟你、我说、的那、在学……）。
+#      他 / 她不在里面：「吉他」「其他」会跟着丢；常见的他们 / 他说放进第 2 条。
+#   2. 常用词表：不含上面那些字的虚词、时间指代（上次、之前、最近）和回忆句式（记得、聊过、提过）。
+# 整串（3–4 字的短句）在词表里、或者每一对相邻的字都按上面两条不算时，也不算。
+# 和英文一样：语料一大，普通实词（老师、工作）也都见过 —— 看 phantoms 里是哪个词。
+_ZH_FUNCTION_CHARS = frozenset("的了吗呢吧啊呀嘛哦么我你您们这那是在")
+_ZH_STOPWORDS = frozenset("""
+一个 一下 一些 一点 一直 一起 一样 没有 不是 不要 不会 不能 不用 可以 可能 应该 因为 所以 但是 如果 虽然
+而且 然后 还是 还有 就是 已经 现在 时候 知道 觉得 其实 当然 而已 一般 比较 非常 特别 很多 太多 多少
+怎么 怎样 什么 为什 为什么 怎么样 东西 事情 自己 大家 有点 真的 好的 好吧 还好 哈哈 嘿嘿 呵呵 嗯嗯
+他们 她们 它们 他说 她说 跟他 跟她 和他 和她 给他 给她 对他 对她
+上次 这次 那天 今天 昨天 明天 刚才 最近 之前 以前 之后 以后 后来 当时 上周 下周
+记得 还记 忘了 聊过 说过 提过 问过 讲过 谈过 聊聊 告诉 提到 提醒 来着 那个 这个
+""".split())
+
+
+def _zh_common(pair: str) -> bool:
+    return pair in _ZH_STOPWORDS or pair[0] in _ZH_FUNCTION_CHARS or pair[1] in _ZH_FUNCTION_CHARS
+
+
+def _cjk_tokens(run: str) -> set:
+    """``_cjk_ngrams`` 去掉中文常用词与跨词碎片。
+
+    二字组按 ``_zh_common`` 判；整串（3–4 字）在词表里、或者每一对相邻的字都是常用的（我们的、哈哈哈哈）时不算。
+    """
+    out = set()
+    for g in _cjk_ngrams(run):
+        if g in _ZH_STOPWORDS:
+            continue
+        if all(_zh_common(g[i:i + 2]) for i in range(len(g) - 1)):
+            continue
+        out.add(g)
+    return out
+
+
 def scent(text: str) -> List[str]:
     """从文本中嗅出实体与 token（小写归一化、去重）。
 
@@ -143,9 +183,9 @@ def scent(text: str) -> List[str]:
         t = m.group(0).lower()
         if MIN_TOKEN_LEN <= len(t) <= MAX_TOKEN_LEN and t not in _EN_STOPWORDS:
             tokens.add(t)
-    # 中文：按固定 n-gram 切，保证跨上下文一致
+    # 中文：按固定 n-gram 切，保证跨上下文一致；常用词与跨词碎片不算
     for m in _CJK_RUN.finditer(text):
-        tokens.update(_cjk_ngrams(m.group(0)))
+        tokens.update(_cjk_tokens(m.group(0)))
     return [t for t in tokens if t]
 
 

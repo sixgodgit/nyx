@@ -1,5 +1,5 @@
 name: nyx
-version: 7.16.1
+version: 7.16.2
 description: >-
   Nyx — local, single-user agent memory with no API key: bi-temporal facts (what is believed now / what was
   believed then), source and trust bound at write time (against memory poisoning), two-stage forgetting
