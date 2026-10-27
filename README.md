@@ -5,7 +5,7 @@
 > **Memory that stays with your agent for life** — single-user, local, no LLM on the write path.
 > It remembers, finds, can be trusted, and can forget.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.16.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.16.1-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx is a long-term memory layer for agents. It plugs into [Hermes](https://github.com/NousResearch/hermes-agent)
 (as a memory provider), into Claude Desktop / Claude Code or any other MCP client, or into your own Python program.
@@ -179,15 +179,16 @@ from nexsandglass.dejavu import DejaVu      # no dependencies: stdlib + sqlite3
 
 dv = DejaVu("./my_memory")
 dv.imprint("msg-1", "Last Wednesday I told Sam about that Sichuan place on Clement Street")
-dv.sense("a ramen bar in Osaka")       # -> familiar=False, score 0.0 ("none of 3 tokens seen")
-dv.sense("the Sichuan place")          # -> familiar=True, score 0.67 ("2/3 tokens seen")
+dv.sense("that ramen bar in Osaka we talked about")    # -> familiar=False, score 0.0 ("none of 3 tokens seen")
+dv.sense("that Sichuan restaurant we talked about")    # -> familiar=True, score 0.5 (seen: sichuan)
 dv.hunt("Sichuan")                     # -> [Phantom(token='sichuan', refs=['msg-1'], ...)]
 ```
 
 Two layers: **Veil** (a 128 KiB Bloom filter) answers "has this word been seen", **Mist** (SQLite) records when,
 where and how often it appeared. To be clear: it does not raise recall; it only splits misses into two kinds —
-**good at classifying, limited at retrieving**. English tokenisation is still coarse: common words such as "about" and
-"that" count as seen too, so short English questions can look familiar. Measurements:
+**good at classifying, limited at retrieving**. Common English words (*the, about, talked*…) are not tokens, so they
+never make a question familiar (v7.16.1); with a long history, ordinary content words have all been seen, so check *which*
+word was seen — a rare name is strong evidence, a generic noun is weak. Measurements:
 [`benchmarks/dejavu_bench.py`](https://github.com/sixgodgit/nyx/blob/main/benchmarks/dejavu_bench.py); design:
 [`docs/dejavu.md`](https://github.com/sixgodgit/nyx/blob/main/docs/dejavu.md).
 
@@ -389,7 +390,7 @@ sure (they go to the quarantine and can be restored for 30 days).
 - **End-to-end QA accuracy not measured yet**: the [Benchmark](#benchmark) numbers are retrieval metrics; Mem0 / Zep and others report QA accuracy (an LLM answers and an LLM judges)
 - **Weak spots**: on LoCoMo multi-hop questions the agent sees only 41% of the evidence (48% with reranking); LongMemEval preference questions 0.71 (lower with reranking)
 - **Little English fact extraction**: rule-based extraction mostly covers Chinese; in English Nyx relies on retrieving the original text with its date. Without `[vector]`, English paraphrases that share no words with the memory are not found ("which editor do I use" does not find "I switched from VS Code to Zed"). Install `[vector]`, or enable `NYX_UNDERSTAND_LLM` for LLM extraction
-- **Coarse English tokenisation in Déjà Vu**: common words count as seen, so short English questions can look familiar
+- **Déjà Vu on a long English history**: common words no longer count (v7.16.1), but after thousands of English turns ordinary content words have all been seen, so 10 of 10 unrelated test questions are still "familiar" through words like *teacher* or *workshop* (0 of 10 after 20 turns, 3 of 10 after 200; `benchmarks/dejavu_english_real.py`)
 - **Small default embedding model**: the local multilingual MiniLM is small and fast; with a stronger API model the fusion weights may need retuning (`NYX_EMBED_Z` / `NYX_EMBED_WEIGHT`)
 
 ---
@@ -480,7 +481,8 @@ When the semantic backend is on but the index was not built, both harnesses fail
 | `benchmarks/poisoning_drill.py` | Memory poisoning: 0 of 16 attacks reach the prompt unlabelled, 0 of the user's 8 hurt | v7.8 |
 | `benchmarks/forget_restore_drill.py` | 150 wrongly deleted → restored byte for byte; a purge is still irreversible | v7.6 |
 | `tests/integration/hermes_real_check.py` | The full provider chain against real Hermes source (needs `HERMES_AGENT_SRC`) | v7.12 |
-| `benchmarks/dejavu_bench.py` | Déjà Vu familiar / unfamiliar classification | v7.5 |
+| `benchmarks/dejavu_bench.py` | Déjà Vu familiar / unfamiliar classification (E2: English) | v7.5, v7.16.1 |
+| `benchmarks/dejavu_english_real.py` | Déjà Vu false familiarity on real English conversation (LongMemEval-S) | v7.16.1 |
 | `benchmarks/recall_latency.py` | Hermes provider start-up, first turn and per-turn recall time with 30K / 150K memories; conversation mode follows a real rhythm (write one, query one) | v7.13.2–v7.13.3 |
 
 > Older versions listed a "lexical recall 75%" from `tests/eval/run_eval.py` here. That script scored an in-memory list with
@@ -490,6 +492,7 @@ When the semantic backend is on but the index was not built, both harnesses fail
 
 ## 📝 Recent updates
 
+- **v7.16.1**: Déjà Vu no longer counts common English words (*the, about, talked*…): one remembered English sentence used to make every unrelated English question "familiar"
 - **v7.16.0**: English first — docs, terminal commands and `hermes memory setup` are English by default (`NYX_LANG=zh`, or `lang: zh` in Hermes, for Chinese; a Chinese system locale picks Chinese automatically); text the model reads (tool descriptions, recall labels, placeholders) is English throughout; stored data is not rewritten, and old Chinese placeholders and labels are still recognised
 - **v7.15.4**: recall about twice as fast (10K real turns, prefetch p50 from ~88 ms to ~47 ms), results identical
 - **v7.15.3**: newer Hermes recognises Nyx as a memory provider, so `hermes plugins install … --enable` sets `memory.provider`; post-install notes English first

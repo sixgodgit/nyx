@@ -295,6 +295,40 @@ def test_scent_empty():
     assert scent("") == []
     assert scent(None or "") == []
 
+
+def test_scent_chinese_unchanged():
+    """英文停用词（v7.16.1）不影响中文分词：锁住改动前的切法。"""
+    assert sorted(scent("上周三和张老板聊了川菜馆的事")) == [
+        "三和", "上周", "了川", "周三", "和张", "川菜", "张老", "板聊", "的事", "老板", "聊了", "菜馆", "馆的"]
+    assert {'"川菜馆"', "川菜馆"} <= set(scent('"川菜馆" 和 "the"')), "引号里的中文照收"
+
+
+def test_scent_skips_english_common_words():
+    """the / what / about / talked 这类词不算 token：几乎每句英文都有，算进去就什么都「见过」（v7.16.1）。"""
+    assert scent("I don't remember what we talked about") == []
+    toks = set(scent("What About the Sichuan place on Clement Street"))
+    assert toks == {"sichuan", "place", "clement", "street", "clement street"}, "全由常用词组成的专名也不算"
+    assert "may" in scent("my trip in May"), "may 也是五月，不当常用词"
+
+
+def test_unrelated_english_question_is_unfamiliar(dv):
+    """记过一句英文之后：毫不相干的英文问题是陌生，共享一个实词的问题是熟悉。v7.16.0 两个都是熟悉。"""
+    dv.imprint("msg-1", "Last Wednesday Sam told me about that Sichuan place on Clement Street")
+    for q in ("that quantum computing paper we talked about", "what did you tell me about the weather",
+              "the ramen bar in Osaka I told you about"):
+        r = dv.sense(q)
+        assert not r.familiar and r.phantoms == [], (q, r)
+    r = dv.sense("the Sichuan restaurant we talked about")
+    assert r.familiar and r.phantoms == ["sichuan"]
+    assert any("msg-1" in p.refs for p in dv.hunt("the Sichuan restaurant we talked about"))
+
+
+def test_common_words_imprinted_by_older_versions_are_never_probed(dv):
+    """以前的版本把 about / that 记进了 Veil：sense 不再产出它们，所以不会因此熟悉（不用迁移数据）。"""
+    for w in ("about", "that", "talked", "what"):
+        dv.veil.touch(w)
+    assert not dv.sense("what about that quantum paper we talked about").familiar
+
 # ── refs 存储契约（内嵌串，非规范化表）─────────────────────
 # 曾尝试把 refs 规范化到独立表，实测更差（同数据量磁盘 518 vs 151 B/token，
 # 写入慢 5 倍），已回退。这些测试锁定回退后的行为，防止再犯。

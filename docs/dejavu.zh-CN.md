@@ -176,6 +176,37 @@ _在 10,000 条记忆、每项 2000 次采样._
 | **Déjà Vu 挽回的检索失败** | **3/4** |
 | 噪音查询误报熟悉 | 0/3 |
 
+### 英文：常用词不算证据（v7.16.1）
+
+英文聊天里满是 the / what / about / you / talked。v7.16.0 以前它们也算 token，于是只要记过一句英文，
+任何一个毫不相干的英文问题都是「熟悉」（下表的 6 个不相干问题，当时 6/6 熟悉）。现在它们不算了，剩下的是实词。
+同一个基准的 E2 节：
+
+| 问题 | 应当 | `sense()` | 分数 | 见过的词 |
+|---|---|---|---|---|
+| the Sichuan restaurant we talked about | 熟悉 | 熟悉 | 0.50 | sichuan |
+| when do I have my lessons with Alvarez | 熟悉 | 熟悉 | 1.00 | alvarez, lessons |
+| did the skylight ever get fixed | 熟悉 | 熟悉 | 0.50 | skylight |
+| what did we say about Byzantine gold coin minting | 陌生 | 陌生 | 0.00 | — |
+| do you remember the penguin migration routes in Antarctica | 陌生 | 陌生 | 0.00 | — |
+| that quantum computing paper we talked about | 陌生 | 陌生 | 0.00 | — |
+| the ramen bar in Osaka I told you about | 陌生 | 陌生 | 0.00 | — |
+| what was the name of my accordion teacher | 陌生 | 陌生 | 0.00 | — |
+| how is the lighthouse renovation going | 陌生 | 陌生 | 0.00 | — |
+
+相关问题判定熟悉 **3/3**（`hunt()` 找回目标 3/3）；不相干的问题误报熟悉 **0/6**。背景：1,500 条英文记忆。
+
+上面的背景语料是合成的，和不相干问题没有共同的实词，所以只测常用词造成的误报。换成**真实**英文对话
+（`benchmarks/dejavu_english_real.py`，LongMemEval-S 的用户发言，10 个不相干的问题）：
+
+| 记了多少轮 | v7.16.0 | v7.16.1 |
+|---|---|---|
+| 20 | 10/10 熟悉 | **0/10** |
+| 200 | 10/10 | **3/10**（bar、grandmother、teacher） |
+| 2,000 | 10/10 | 10/10（antarctica、podcast、workshop……） |
+
+记得够多之后，普通实词也都见过了 —— 见「它不是什么」第 6 条。
+
 ---
 
 ## 五、它不是什么
@@ -187,6 +218,7 @@ _在 10,000 条记忆、每项 2000 次采样._
 3. **`hunt()` 的寻回能力有限。** 实测中，纯同义改写（「川菜馆」→「麻辣的店」）和跨语言查询寻回率很低 —— 因为寻回依赖 token 字面重合，而这类场景字面不重合。要做到语义寻回需要嵌入模型，那与「零依赖」的设计契约冲突。
 4. **不索引纯数字。** 当前分词器只抓英文词和中文 n-gram，形如 `42`、`19289` 的纯数字 token 不被索引。如果你的关键信息是订单号/金额，需要自行扩展分词器。
 5. **假阳性随规模上升。** 见 4.2 —— 它不是「装了就不用管」的组件，需要监控填充率并及时扩容。
+6. **「熟悉」可能只靠一个普通词成立。** 只要有一个实词见过，`familiar` 就是真。记得多了（几千轮英文），teacher、workshop 这种词都见过，问「我的手风琴老师」就会因为 teacher 而熟悉。看 `phantoms` 里是哪个词：少见的名字（Alvarez、川菜馆）是强证据，普通名词是弱证据。the / about / talked 这类常用词从 v7.16.1 起根本不算 token。中文同理：「我们」「老板」这类二字词只要记过一次就算见过。
 
 一句话：**它把 miss 分成两类，仅此而已。但这一格，此前没人填。**
 
@@ -206,7 +238,7 @@ dv.imprint("msg-2", "今天下午三点开季度复盘会")
 # 检索失败时，先问一句「我是不是接触过？」
 r = dv.sense("我们聊过的那家川菜馆")
 print(f"熟悉度 {r.score:.2f} | {r.reason}")
-# -> 熟悉度 0.22 | 2/9 个 token 见过
+# -> 熟悉度 0.22 | 2/9 tokens seen
 
 # 熟悉的话，把痕迹钓出来
 if r.familiar:
@@ -231,7 +263,7 @@ dv.close()
 | 是否索引「见过没有」 | 独立成层 | 多一次查询（仅当 Veil 命中） |
 | Bloom vs 精确集合 | Bloom | 假阳性（代价是多一次查询，见 §3） |
 | 位图大小 | 固定 128 KiB | 约 1.8 万条中文记忆后需扩容 |
-| 分词 | 中文固定 n-gram + 英文词 | 不索引纯数字；无同义词归并 |
+| 分词 | 中文固定 n-gram + 英文词（去掉常用词） | 不索引纯数字；无同义词归并 |
 | 依赖 | 零（stdlib + sqlite3） | 无法用嵌入模型做语义匹配 |
 | 寻回 | 字面重合匹配 | 同义改写/跨语言寻回率低 |
 
