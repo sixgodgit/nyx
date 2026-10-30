@@ -63,6 +63,8 @@ def test_opt_in_uses_the_key(env, net, monkeypatch):  # noqa: F811
 
 
 def test_nyx_json_switch(env, net, tmp_path, monkeypatch):  # noqa: F811
+    """nyx.json 的 l3_llm: on 在这个 profile 的调用里生效，不写进进程环境（v7.17.0）。"""
+    import os
     import nexsandglass_hermes as nh
     hh = tmp_path / "hermes"
     monkeypatch.setenv("HERMES_HOME", str(hh))
@@ -71,7 +73,51 @@ def test_nyx_json_switch(env, net, tmp_path, monkeypatch):  # noqa: F811
     p._hermes_home = str(hh)
     p._load_settings()
     from nexsandglass.l3 import offset_signals as os_
-    assert os_.llm_on()
+    with p._settings_scope():
+        assert os_.llm_on()
+    assert not os_.llm_on() and "NYX_L3_LLM" not in os.environ, "出了这个 profile 的调用就不算数"
+
+
+def test_one_profile_opting_in_does_not_turn_it_on_for_another(env, net, tmp_path, monkeypatch):  # noqa: F811
+    """Hermes 评审的例子：同一个进程服务两个 profile，A 打开 l3_llm，B 没打开 —— B 的调用不往外发（v7.17.0）。
+
+    以前 _load_settings 把 A 的 nyx.json 复制进 os.environ，B 之后的每次调用都当成打开了。
+    """
+    import os
+    import nexsandglass_hermes as nh
+    from nexsandglass.features import sandglass_think as st
+    from nexsandglass.l3 import offset_signals as os_
+    home_a, home_b = tmp_path / "a", tmp_path / "b"
+    nh.save_config({"l3_llm": "on", "lang": "zh"}, str(home_a))
+    nh.save_config({}, str(home_b))
+    def snapshot():
+        return {k: v for k, v in os.environ.items() if k != "HERMES_HOME"}     # 这个测试自己在切 profile
+    before = snapshot()
+    a, b = _provider(), _provider()
+    monkeypatch.setenv("HERMES_HOME", str(home_a))
+    a.initialize("sa", hermes_home=str(home_a), platform="cli", agent_context="primary")
+    monkeypatch.setenv("HERMES_HOME", str(home_b))
+    b.initialize("sb", hermes_home=str(home_b), platform="cli", agent_context="primary")
+    assert snapshot() == before, "initialize 不改进程环境"
+
+    seen = {}
+    monkeypatch.setattr(st, "_llm", lambda *a_, **k: seen.setdefault("calls", []).append(os_.llm_on()) or "[]")
+    for p in (a, b):
+        with p._settings_scope():
+            seen.setdefault("on", []).append(os_.llm_on())
+    assert seen["on"] == [True, False]
+
+    # B 的真实入口：搭系统提示、同步一轮 —— 一次外发都没有，也没有把开关看成打开
+    b.sync_turn("我决定以后都自己搭服务器，省钱", "好的")
+    b.system_prompt_block()
+    assert net.calls == [] and True not in seen.get("calls", [])
+    # 语言也按 profile：A 是中文，B 是英文（conftest 设了 NYX_LANG=en，这里去掉它，让 nyx.json 说了算）
+    monkeypatch.delenv("NYX_LANG")
+    from nexsandglass.core.lang import is_zh
+    with a._settings_scope():
+        assert is_zh()
+    with b._settings_scope():
+        assert not is_zh()
 
 
 def test_hermes_secret_scope_wins(monkeypatch):

@@ -82,12 +82,20 @@ def resolve_data_dir(home: Optional[str] = None) -> str:
     return DEFAULT_DATA_DIR
 
 
+# nexsandglass.core.sandglass_paths 在 import 时读它（v7.17.0；以前写进 NEXSANDBASE_HOME 环境变量）
+_BOOT_DATA_DIR: Optional[str] = None
+
+
 def apply_data_dir(home: Optional[str] = None) -> str:
-    """在 import nexsandglass 之前把数据目录落到环境变量。已经 import 过且目录不同 → 警告。"""
+    """在 import nexsandglass 之前定下数据目录。已经 import 过且目录不同 → 警告（记忆插件会拒绝这个 profile）。
+
+    不写环境变量：一个 Hermes 进程服务多个 profile，环境变量会让第一个 profile 的目录粘住整个进程和它的子进程。
+    """
+    global _BOOT_DATA_DIR
     target = resolve_data_dir(home)
     paths = sys.modules.get("nexsandglass.core.sandglass_paths")
     if paths is None:
-        os.environ["NEXSANDBASE_HOME"] = target
+        _BOOT_DATA_DIR = target
     elif os.path.abspath(getattr(paths, "_NB", target)) != target:
         logger.warning("nyx: nexsandglass was already initialised with %s; the configured data_dir=%s takes effect after a restart",
                        getattr(paths, "_NB", "?"), target)

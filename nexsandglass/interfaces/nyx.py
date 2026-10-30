@@ -35,7 +35,8 @@ def _default_nb() -> str:
     仅作为**未配置环境变量时**的兜底；调用方应显式设置
     ``NEXSANDBASE_HOME``。为兼容既有部署，该名字沿用旧约定。
     """
-    return os.environ.get("NEXSANDBASE_HOME") or _DEFAULT_NB
+    from nexsandglass.core.sandglass_paths import configured_data_dir
+    return configured_data_dir() or _DEFAULT_NB
 
 
 _inst: Optional[DejaVu] = None

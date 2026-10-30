@@ -28,6 +28,10 @@ def _transform(response_text: str = "", session_id: str = "", **kwargs):
 
 
 def register(ctx) -> None:
+    # import nexsandglass 会定下数据目录：先按当前 profile 的 nyx.json 定，否则这个插件比记忆插件先加载时，
+    # 进程用的是默认目录，配了 data_dir 的 profile 会被记忆插件拒绝（v7.17.0）
+    import nexsandglass_hermes
+    nexsandglass_hermes.apply_data_dir()
     from nexsandglass.core import secret_vault
     ctx.register_hook("transform_llm_output", _transform)
     secret_vault.mark_hook_registered()

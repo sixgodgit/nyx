@@ -18,7 +18,8 @@ import os
 
 
 def is_zh() -> bool:
-    v = (os.environ.get("NYX_LANG") or "").strip().lower()
+    from nexsandglass.core import settings      # Hermes 里按 profile 的 nyx.json lang（v7.17.0）
+    v = settings.get("NYX_LANG").strip().lower()
     if v and v != "auto":
         return v.startswith("zh")
     for key in ("LC_ALL", "LC_MESSAGES", "LANG"):

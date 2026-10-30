@@ -142,7 +142,7 @@ is **never silent**: the system prompt gets a line "⚠️ Nyx health: …" and 
 
 ## Known limitations
 
-- One nyx memory per process: several Hermes profiles sharing one gateway process share the same `data_dir`
+- Several profiles in one Hermes process (gateway, desktop): each profile's `nyx.json` settings (`l3_llm`, `vault`, `semantic`, `lang`…) apply only to that profile's calls (v7.17.0; before, the first profile's settings were copied into the process environment and applied to all). The data directory is one per process: profiles with the same `data_dir` share memories; a profile configured with a different `data_dir` is reported unavailable in that process — give it the same `data_dir`, or run it in its own process. Sharing a `data_dir` means sharing one memory: a profile that turns on `l3_llm` or an embedding API sends from that shared memory during its own calls, which can include what was said in the other profile. Profiles that must stay apart need their own `data_dir` (and so their own process)
 - Semantic search needs an embedding backend (local model or API); without one, paraphrases are not recalled (asking about "company" when the message said "joined Contoso")
 - After upgrading from v7.13.2 or earlier, the first start fills vectors for all past memories in the background (a few thousand take tens of minutes on a local CPU model); semantic recall becomes complete gradually
 - Quarantine purges are not automatic: run `python3 -c "from nexsandglass.core import erasure; print(erasure.purge(apply=True))"` regularly; the self-check reminds you when purges are overdue

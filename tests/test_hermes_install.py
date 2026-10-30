@@ -54,7 +54,7 @@ def test_shim_is_found_and_loaded_like_hermes(tmp_path):
     yml = open(os.path.join(target, "plugin.yaml"), encoding="utf-8").read()
     assert "name: nyx" in yml and "kind: exclusive" in yml, "普通插件加载器跳过它，只由记忆插件加载器加载"
     p = _load_like_hermes(target)
-    assert p is not None and p.name == "nexsandglass"
+    assert p is not None and p.name == "nyx"
     assert I.write_shim(str(tmp_path))[1] == "updated"
 
 
@@ -298,7 +298,7 @@ def test_repo_plugin_dirs(tmp_path, sub, dep):
     t = tmp_path / "plugins" / "nyx"
     shutil.copytree(src_dir, t)
     p = _load_like_hermes(str(t))
-    assert p is not None and p.name == "nexsandglass"
+    assert p is not None and p.name == "nyx"
 
 
 def _defines_memory_provider(path: str) -> bool:
@@ -351,10 +351,10 @@ def test_hermes_nyx_dispatch(env, tmp_path, monkeypatch, capsys):  # noqa: F811
     hh = tmp_path / "hermes"
     monkeypatch.setenv("HERMES_HOME", str(hh))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    # nyx_command 会直接改进程环境（NYX_VIA_HERMES、按 nyx.json 补 NYX_VAULT）。先用 setenv 登记，结束时 monkeypatch 还原；
-    # delenv 一个本来不存在的变量不登记还原，改动会漏到后面的测试里（实测）
+    # v7.17.0 起 nyx_command 不改进程环境（nyx.json 的开关只在这次命令里生效）。这里设成空串，结束时核对没被动过
     for k in ("NYX_VAULT", "NYX_VIA_HERMES", "NYX_VAULT_REVEAL", "NYX_VAULT_KINDS", "NYX_L3_LLM"):
         monkeypatch.setenv(k, "")
+    env_before = dict(os.environ)
     nh.save_config({"vault": "on"}, str(hh))                  # 开关在当前 profile 的 nyx.json 里
     if not secret_vault._have_crypto():
         pytest.skip("要装 cryptography")
@@ -369,10 +369,15 @@ def test_hermes_nyx_dispatch(env, tmp_path, monkeypatch, capsys):  # noqa: F811
     args = root.parse_args(["nyx", "doctor", "--json"])          # 选项原样交给那个工具自己的 argparse
     args.func(args)
     assert json.loads(capsys.readouterr().out)["checks"]["vault"]["state"] == "on"
+    from nexsandglass import doctor
     from nexsandglass.core import hints
-    assert hints.cmd("vault", "show v3") == "hermes nyx vault show v3", "经 hermes nyx 进来：提示写成 hermes nyx …"
-    monkeypatch.setenv("NYX_VIA_HERMES", "")
-    assert hints.cmd("vault", "show v3") == "python3 -m nexsandglass.vault show v3"
+    seen = []
+    monkeypatch.setattr(doctor, "main", lambda argv: seen.append(hints.cmd("vault", "show v3")) or 0)
+    args = root.parse_args(["nyx", "doctor"])
+    assert args.func(args) == 0
+    assert seen == ["hermes nyx vault show v3"], "经 hermes nyx 进来：提示写成 hermes nyx …"
+    assert hints.cmd("vault", "show v3") == "python3 -m nexsandglass.vault show v3", "命令结束就不算数"
+    assert dict(os.environ) == env_before, "hermes nyx 不改进程环境（v7.17.0）"
     args = root.parse_args(["nyx"])
     assert args.func(args) == 2
 
