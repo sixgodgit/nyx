@@ -107,7 +107,7 @@ def test_instantiates_under_official_abc(hermes):
     fake, mod = hermes
     p = mod.NexSandglassProvider()
     assert isinstance(p, fake.MemoryProvider)
-    assert p.name == "nexsandglass"
+    assert p.name == "nyx"
     assert p.is_available() is True
     assert p.unavailable_reason() == ""
 
@@ -194,7 +194,7 @@ def test_entry_points_declared_and_loadable():
 
     c = Collector()
     nh.register(c)
-    assert c.provider is not None and c.provider.name == "nexsandglass"
+    assert c.provider is not None and c.provider.name == "nyx"
 
 
 def test_plugin_dir_passes_hermes_discovery_heuristic():
@@ -492,3 +492,70 @@ def test_shadow_results_carry_text_not_placeholders(env):
     assert not any(str(s).startswith("shadow#") for s in mc.strings)
     lines = [o.source_id for o in mc.objects if o.provenance != "wthread" and o.source_id]
     assert len(lines) == len(set(lines)), "同一条记录经两个源进来只留一份"
+
+
+def test_data_dir_is_not_written_to_the_environment(tmp_path):
+    """apply_data_dir 在 import nexsandglass 之前定下数据目录，但不写 NEXSANDBASE_HOME（v7.17.0）：
+    写进环境变量会让第一个 profile 的目录粘住整个 Hermes 进程和它起的子进程。"""
+    import subprocess
+    import sys as _sys
+    home, data = tmp_path / "hermes", tmp_path / "nyx-data"
+    code = (
+        "import json, os, sys\n"
+        "import nexsandglass_hermes as nh\n"
+        f"nh.save_config({{'data_dir': {str(data)!r}}}, {str(home)!r})\n"
+        f"target = nh.apply_data_dir({str(home)!r})\n"
+        "from nexsandglass.core import sandglass_paths, memid\n"
+        "print(json.dumps([target, sandglass_paths._NB, memid._nb(), os.environ.get('NEXSANDBASE_HOME')]))\n")
+    env = {k: v for k, v in os.environ.items() if k not in ("NEXSANDBASE_HOME", "HERMES_HOME")}
+    out = subprocess.run([_sys.executable, "-c", code], capture_output=True, text=True, env=env,
+                         cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))), timeout=120)
+    assert out.returncode == 0, out.stderr[-800:]
+    target, nb, memid_nb, env_nb = json.loads(out.stdout.strip().splitlines()[-1])
+    assert target == nb == memid_nb == str(data) and env_nb is None
+
+
+def test_profile_with_another_data_dir_is_refused(env, tmp_path, monkeypatch):
+    """一个进程只有一个 nyx 数据目录。另一个 profile 配了别的 data_dir：插件报不可用（Hermes 会告诉用户），
+    而不是悄悄写进第一个 profile 的记忆（v7.17.0）。"""
+    import nexsandglass_hermes as nh
+    from nexsandglass.core import sandglass_paths
+    from nexsandglass.core.memory_provider import NexSandglassProvider
+    monkeypatch.delenv("NEXSANDBASE_HOME")                    # 不靠环境变量：按各 profile 的 nyx.json
+    in_use = sandglass_paths._NB
+    same, other = tmp_path / "same", tmp_path / "other"
+    nh.save_config({"data_dir": in_use}, str(same))
+    nh.save_config({"data_dir": str(tmp_path / "elsewhere")}, str(other))
+    monkeypatch.setenv("HERMES_HOME", str(same))
+    assert NexSandglassProvider().is_available()
+    monkeypatch.setenv("HERMES_HOME", str(other))
+    p = NexSandglassProvider()
+    assert not p.is_available()
+    assert "one data directory per process" in p.unavailable_reason()
+
+
+def test_reveal_plugin_loaded_first_uses_the_profile_data_dir(tmp_path):
+    """nyx-reveal 是普通插件，可能比记忆插件先加载；它 import nexsandglass 之前也要按 profile 的 data_dir 定目录，
+    否则进程用了默认目录，这个 profile 的记忆插件会被拒绝（v7.17.0）。"""
+    import subprocess
+    import sys as _sys
+    home, data = tmp_path / "hermes", tmp_path / "nyx-data"
+    code = (
+        "import json, os\n"
+        "import nexsandglass_hermes as nh\n"
+        f"nh.save_config({{'data_dir': {str(data)!r}}}, {str(home)!r})\n"
+        "import nexsandglass_hermes_reveal as rv\n"
+        "class Ctx:\n"
+        "    def register_hook(self, *a, **k): pass\n"
+        "rv.register(Ctx())\n"
+        "from nexsandglass.core import sandglass_paths\n"
+        "from nexsandglass.core.memory_provider import NexSandglassProvider\n"
+        "p = NexSandglassProvider()\n"
+        "print(json.dumps([sandglass_paths._NB, p.unavailable_reason(), os.environ.get('NEXSANDBASE_HOME')]))\n")
+    env = {k: v for k, v in os.environ.items() if k not in ("NEXSANDBASE_HOME",)}
+    env["HERMES_HOME"] = str(home)
+    out = subprocess.run([_sys.executable, "-c", code], capture_output=True, text=True, env=env,
+                         cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))), timeout=120)
+    assert out.returncode == 0, out.stderr[-800:]
+    nb, reason, env_nb = json.loads(out.stdout.strip().splitlines()[-1])
+    assert nb == str(data) and reason == "" and env_nb is None

@@ -1,7 +1,6 @@
 """NexSandglass 偏移信号词库 — 单一真相来源。
 sandglass_think 和 decision_particles 都从这里导入，消除循环依赖。"""
 
-import os
 import logging
 
 # ── 偏移信号词库 ──
@@ -20,7 +19,8 @@ _OFFSET_SIGNALS = {
 # 每次调用时现读（不在 import 时定死）：nyx.json 的开关、Hermes 按 profile 给的 key 都在 import 之后才有。
 
 def l3_llm_enabled() -> bool:
-    return (os.environ.get("NYX_L3_LLM") or "").strip().lower() in ("1", "on", "true", "yes")
+    from nexsandglass.core import settings      # 按 profile（v7.17.0）：别的 profile 打开了，这里不跟着开
+    return settings.get("NYX_L3_LLM").strip().lower() in ("1", "on", "true", "yes")
 
 
 def llm_config() -> tuple:

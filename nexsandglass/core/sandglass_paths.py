@@ -6,14 +6,32 @@ NexSandglass 路径配置 — 单一真相来源 V2.2
 """
 
 import os
+import sys
 
-_NB = os.environ.get("NEXSANDBASE_HOME") or os.path.join(os.path.expanduser("~"), ".neurobase")
+
+def _boot_data_dir():
+    """Hermes profile 的 nyx.json data_dir：nexsandglass_hermes.apply_data_dir 在 import nexsandglass 之前定下。
+
+    v7.17.0 以前是写进 NEXSANDBASE_HOME 环境变量 —— 整个进程（和它起的子进程）都看得见，一个进程服务
+    多个 profile 时第一个 profile 的目录粘住所有 profile。现在只在这里读一次；配了别的目录的 profile
+    由记忆插件拒绝（memory_provider.unavailable_reason），不会悄悄写进这里。
+    """
+    nh = sys.modules.get("nexsandglass_hermes")
+    return getattr(nh, "_BOOT_DATA_DIR", None) if nh is not None else None
+
+
+def configured_data_dir():
+    """显式配置的数据目录：NEXSANDBASE_HOME，或者 Hermes 的 data_dir；都没有返回 None（调用方用自己的默认）。"""
+    return os.environ.get("NEXSANDBASE_HOME") or _boot_data_dir()
+
+
+_NB = configured_data_dir() or os.path.join(os.path.expanduser("~"), ".neurobase")
 
 # 很多模块在 import 时就把路径定死了（_NB 及其派生路径），之后改环境变量也追不回来。
 # 所以测试进程在这里、在任何文件被写之前就要拦下（v7.13.9，2026-09-13 事故：测试把合成记忆写进了生产库）。
 from nexsandglass.core import prodguard as _prodguard  # noqa: E402
 _prodguard.check(_NB, "数据目录")
-__version__ = '7.16.2'
+__version__ = '7.17.0'
 _SCRIPTS = os.path.join(_NB, "scripts")
 _PERSONA = os.path.join(_NB, "persona")
 _ARCHIVE = os.path.join(_NB, "archive")

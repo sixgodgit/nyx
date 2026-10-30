@@ -43,7 +43,8 @@ _stats = {"calls": 0, "cut": 0, "last_ms": None}
 
 
 def enabled() -> bool:
-    return (os.environ.get("NYX_RERANK") or "off").strip().lower() in ("local", "on", "1")
+    from nexsandglass.core import settings
+    return settings.get("NYX_RERANK", "off").strip().lower() in ("local", "on", "1")
 
 
 def depth() -> int:

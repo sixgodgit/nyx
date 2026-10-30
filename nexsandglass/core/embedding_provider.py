@@ -95,7 +95,8 @@ class ExternalAPIProvider(EmbeddingProvider):
     """外部 Embedding API（OpenAI 兼容接口，可选）。"""
 
     def __init__(self, api_url: str = "", api_key: str = "", model: str = "text-embedding-3-small"):
-        self._api_url = api_url or os.environ.get("EMBEDDING_API_URL", "")
+        from nexsandglass.core import settings
+        self._api_url = api_url or settings.get("EMBEDDING_API_URL")
         from nexsandglass.core import credentials
         self._api_key = api_key or credentials.get("EMBEDDING_API_KEY")
         self._model = model
@@ -157,7 +158,8 @@ def get_embedding_provider() -> EmbeddingProvider:
     if _provider is not None:
         return _provider
     # 检查是否配置外部 API
-    api_url = os.environ.get("EMBEDDING_API_URL", "")
+    from nexsandglass.core import settings
+    api_url = settings.get("EMBEDDING_API_URL")
     if api_url:
         _provider = ExternalAPIProvider(api_url=api_url)
         if _provider.available:

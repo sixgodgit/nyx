@@ -5,6 +5,54 @@ Benchmark section of the README and `benchmarks/`. Entries from v7.16.0 on are i
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。v7.16.0 起的条目用英文，之前的是中文。
 
+### v7.17.0 (2026-10-30) — Per-profile settings in Hermes; nothing written to `os.environ` or `sys.path`
+
+From the Hermes plugin catalog review (NousResearch/hermes-agent#144689).
+
+**Problem 1: one profile's settings applied to every profile.** One Hermes process (gateway, desktop) serves several
+profiles, each with its own `nyx.json`. The provider copied that file's settings (`l3_llm`, `vault`, `vault_reveal`,
+`vault_kinds`, `semantic`, `embedding_model`, `embedding_api_url`, `rerank`, `lang`) into `os.environ` when the variable
+was unset, so whichever profile loaded first decided for all of them: if profile A turned on `l3_llm`, profile B's
+memory snippets went to DeepSeek / OpenRouter without B opting in. The data directory went the same way
+(`NEXSANDBASE_HOME`), and so did `hermes nyx …`.
+
+**Fix.** The settings stay on the provider instance (Hermes builds one per agent), and every entry point Hermes calls
+runs inside that profile's settings (`core/settings.py`, a `contextvars` scope; background threads started with
+`spawn_context_thread` carry it along). Every reader goes through `settings.get()`: process environment (set by the
+operator for the whole process) > this profile's `nyx.json` > default. `hermes nyx …` uses the same scope for the one
+command. A vault reveal queued in a profile keeps that profile's language when the `nyx-reveal` hook renders it.
+
+**The data directory** is still one per process: the modules fix their paths at import. `apply_data_dir` no longer
+writes `NEXSANDBASE_HOME`; it hands the first profile's `data_dir` to `sandglass_paths` directly. Profiles with the same
+`data_dir` share memories (the default: one memory per person). A profile configured with a different `data_dir` now
+reports unavailable in that process, with the reason — Hermes shows it to the user — instead of silently writing into
+the first profile's memory. Sharing a `data_dir` means sharing one memory: a profile that opts in to `l3_llm` or an
+embedding API sends from that shared memory during its own calls, which can include what was said in the other
+profile; profiles that must stay apart need their own `data_dir`, and so their own process.
+
+The `nyx-reveal` companion plugin imports nexsandglass when it registers; it now resolves the profile's `data_dir`
+first, like the memory provider, so loading it first no longer fixes the process on the default directory.
+
+**Problem 2: `sys.path`.** `initialize()` put `~/.neurobase/scripts` (a user-writable data folder) at the front of the
+whole Hermes process's import path, so any `.py` file there would shadow a module for Hermes and every plugin. Nothing
+imported from it; removed. `features/soul_diff.py`, imported with the package, also put the package's parent directory
+first on `sys.path`; removed too.
+
+**Also from the review**
+- The provider's `name` is `nyx`, matching the catalog and `memory.provider`. Hermes uses it only for logs and
+  de-duplication; the `nexsandglass` entry point and `memory.provider: nexsandglass` keep working.
+- The plugin directories require `nyx-memory>=7.17.0,<8` (was `>=7.15.2`): an environment that already has an
+  older nyx-memory would otherwise satisfy the range and keep the old behavior.
+- `nyx-web/node_modules` is no longer tracked (552 files, including two prebuilt `.node` binaries; NyxBook's
+  dependencies come from `npm install`).
+
+**Verified on Hermes main** (`tests/integration/hermes_multiprofile_check.py`, new): one process, profile A with
+`l3_llm: on`, profile B with the same data directory and nothing turned on, profile C with another data directory.
+With v7.16.2: B made 2 outbound calls, C loaded and wrote into A's data directory, `NEXSANDBASE_HOME` and `NYX_L3_LLM`
+appeared in `os.environ`, and `sys.path` changed. With v7.17.0: B made 0 outbound calls (A still 2), C was refused
+with the reason shown to the user, and `os.environ` and `sys.path` were unchanged.
+`tests/integration/hermes_real_check.py` passes as before.
+
 ### v7.16.2 (2026-10-27) — Déjà Vu: Chinese function words and fragments are not evidence
 
 **Problem.** Chinese is cut into fixed-boundary two-character pieces, and half of the pieces in a sentence are function

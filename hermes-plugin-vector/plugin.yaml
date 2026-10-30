@@ -1,5 +1,5 @@
 name: nyx
-version: 7.16.2
+version: 7.17.0
 kind: exclusive
 # 从这一版起 hermes plugins install 会装 python_dependencies（v2026.9.21）；更老的走 python3 -m nexsandglass_hermes install
 requires_hermes: ">=0.21.4"
@@ -10,4 +10,4 @@ description: >-
   Nyx 夜神：单用户、本地的长期记忆。
 # 同 hermes-plugin/，另带语义检索的本地模型（sentence-transformers，首次运行下载约 470MB）
 python_dependencies:
-  - nyx-memory[vector]>=7.15.2,<8
+  - nyx-memory[vector]>=7.17.0,<8

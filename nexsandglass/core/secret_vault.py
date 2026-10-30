@@ -31,7 +31,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
-from nexsandglass.core.lang import t
+from nexsandglass.core import settings as _settings
+from nexsandglass.core.lang import is_zh, t
 
 logger = logging.getLogger(__name__)
 
@@ -82,17 +83,17 @@ class VaultError(Exception):
 # ══════════════════════════════════════════════════════════
 
 def level() -> str:
-    v = (os.environ.get("NYX_VAULT") or "off").strip().lower()
+    v = _settings.get("NYX_VAULT", "off").strip().lower()
     return "on" if v in ("on", "1", "true", "yes") else "off"
 
 
 def reveal_mode() -> str:
-    v = (os.environ.get("NYX_VAULT_REVEAL") or "direct").strip().lower()
+    v = _settings.get("NYX_VAULT_REVEAL", "direct").strip().lower()
     return v if v in ("direct", "cli", "llm") else "direct"
 
 
 def kinds() -> str:
-    v = (os.environ.get("NYX_VAULT_KINDS") or "all").strip().lower()
+    v = _settings.get("NYX_VAULT_KINDS", "all").strip().lower()
     return v if v in ("all", "tokens") else "all"
 
 
@@ -760,6 +761,7 @@ class _Pending:
     saved: str
     value: str
     expires: float
+    zh: bool = False        # 排队时（在这个 profile 的设置里）定下的语言：render 在 nyx-reveal 钩子里跑，那里没有 profile 设置
 
 
 @dataclass
@@ -825,7 +827,7 @@ def queue_reveal(session_id: str, e: Entry, value: str) -> str:
     with _lock:
         s = _sess(session_id)
         s.pending = [p for p in s.pending if p.vid != e.id and p.expires > time.time()]
-        s.pending.append(_Pending(e.id, e.label, e.created_at[:10], value, time.time() + PENDING_TTL))
+        s.pending.append(_Pending(e.id, e.label, e.created_at[:10], value, time.time() + PENDING_TTL, is_zh()))
     return handle(e.id)
 
 
@@ -862,14 +864,16 @@ def render(session_id: str, text: str) -> Optional[str]:
         return None
     out = text or ""
     tail = []
+    zh = pend[0].zh if pend else is_zh()
     for p in pend:
         h = handle(p.vid)
         if h in out:
             out = out.replace(h, _fmt(p.value))
+        elif p.zh:
+            tail.append(f"🔑 v{p.vid}（{p.label}，{p.saved} 存）：{_fmt(p.value)}")
         else:
-            tail.append(t(f"🔑 v{p.vid} ({p.label}, saved {p.saved}): {_fmt(p.value)}",
-                          f"🔑 v{p.vid}（{p.label}，{p.saved} 存）：{_fmt(p.value)}"))
-    out = re.sub(r"⟦nyx:v\d+⟧", t("(handle expired)", "（句柄已过期）"), out)
+            tail.append(f"🔑 v{p.vid} ({p.label}, saved {p.saved}): {_fmt(p.value)}")
+    out = re.sub(r"⟦nyx:v\d+⟧", "（句柄已过期）" if zh else "(handle expired)", out)
     tail.extend(notes)
     if tail:
         out = out.rstrip() + "\n\n" + "\n".join(tail)

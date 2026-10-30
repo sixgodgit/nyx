@@ -72,6 +72,7 @@ from datetime import datetime, timedelta
 from typing import Iterable, Optional
 
 from nexsandglass.core import memid
+from nexsandglass.core import sandglass_paths as _paths
 from nexsandglass.core.lang import t as _t
 
 logger = logging.getLogger(__name__)
@@ -523,7 +524,7 @@ def _restore_impl(mem_id: str, *, journal_path: str = None, engram_path: str = N
 
     # engram jsonl：按 ts 去重后追加，避免重复还原写两份
     epath = engram_path or os.path.join(
-        os.environ.get("NEXSANDBASE_HOME") or os.path.dirname(jpath), "engram_store.jsonl")
+        _paths.configured_data_dir() or os.path.dirname(jpath), "engram_store.jsonl")
     report["engram"] = _restore_engram(epath, pay.get("engram") or [])
 
     # ── 正文（真相来源）──

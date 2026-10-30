@@ -16,6 +16,7 @@ NexSandglass MemoryProvider — Hermes Agent 官方记忆提供器接口实现
 """
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -83,6 +84,7 @@ try:
 except ImportError:
     def tool_error(msg): return json.dumps({"error": msg}, ensure_ascii=False)
 
+from nexsandglass.core import settings as _settings
 from nexsandglass.core.lang import t as _t
 
 logger = logging.getLogger(__name__)
@@ -228,6 +230,22 @@ def _said_on(objs: list) -> Dict[int, str]:
     return {i: ts[ln] for i, ln in lines.items() if ln in ts}
 
 
+# nyx.json 的键 → 读设置时用的名字（同名环境变量设了的话优先）
+_PROFILE_SETTINGS = (("semantic", "NYX_EMBED"), ("embedding_model", "NYX_EMBED_MODEL"),
+                     ("embedding_api_url", "EMBEDDING_API_URL"), ("rerank", "NYX_RERANK"),
+                     ("vault", "NYX_VAULT"), ("vault_reveal", "NYX_VAULT_REVEAL"), ("vault_kinds", "NYX_VAULT_KINDS"),
+                     ("l3_llm", "NYX_L3_LLM"), ("lang", "NYX_LANG"))
+
+
+def _data_dir_in_use() -> Optional[str]:
+    """这个进程已经定下的 nyx 数据目录（nexsandglass 已经 import 过才有）。"""
+    import sys
+    paths = sys.modules.get("nexsandglass.core.sandglass_paths")
+    if paths is None:
+        return None
+    return os.environ.get("NEXSANDBASE_HOME") or getattr(paths, "_NB", None)
+
+
 def _hermes_cfg():
     """nexsandglass_hermes 只用标准库；拿不到（旧式单文件部署）时退化为无配置。"""
     try:
@@ -258,6 +276,7 @@ class NexSandglassProvider(MemoryProvider):
     _platform = ""
     _turn_no = 0
     _turn_message = ""
+    _profile_env: Optional[dict] = None
 
     def __init__(self, config: dict = None):
         self._config = config or {}
@@ -269,7 +288,9 @@ class NexSandglassProvider(MemoryProvider):
 
     @property
     def name(self) -> str:
-        return "nexsandglass"
+        # 与插件目录、memory.provider 同名（v7.17.0；以前是 nexsandglass —— Hermes 只拿它做日志和去重，
+        # 入口点与 memory.provider: nexsandglass 这个旧名照样认）
+        return "nyx"
 
     def _data_dir(self) -> str:
         nh = _hermes_cfg()
@@ -293,26 +314,53 @@ class NexSandglassProvider(MemoryProvider):
         if probe and os.path.exists(probe) and not os.access(probe, os.W_OK):
             return _t(f"Nyx data directory is not writable: {d} (set NEXSANDBASE_HOME, or data_dir in nyx.json)",
                       f"Nyx 记忆目录不可写：{d}（设置 NEXSANDBASE_HOME 或 nyx.json 的 data_dir）")
+        in_use = _data_dir_in_use()
+        if in_use and os.path.abspath(in_use) != os.path.abspath(d):
+            # 一个进程只有一个 nyx 数据目录（模块在 import 时定下路径）。这个 profile 配的是另一个目录：
+            # 不用，而不是悄悄写进别的 profile 的记忆里（v7.17.0）
+            return _t(f"this Hermes process already serves the Nyx data directory {in_use} for another profile, and "
+                      f"this profile's data_dir is {d}; Nyx keeps one data directory per process. Use the same "
+                      "data_dir, or run this profile in its own process.",
+                      f"这个 Hermes 进程已经在为另一个 profile 使用 Nyx 数据目录 {in_use}，而这个 profile 的 data_dir 是 {d}；"
+                      "Nyx 一个进程只用一个数据目录。请用同一个 data_dir，或者让这个 profile 单独一个进程。")
         return ""
 
-    def _load_settings(self) -> None:
+    def _read_config(self) -> dict:
         cfg = dict(self._config)
         nh = _hermes_cfg()
         if nh is not None:
             cfg = {**nh.load_config(self._hermes_home), **cfg}
+        return cfg
+
+    @staticmethod
+    def _env_from(cfg: dict) -> dict:
+        env = {e: str(cfg[k]) for k, e in _PROFILE_SETTINGS if cfg.get(k)}
+        env["NYX_VIA_HERMES"] = "1"
+        return env
+
+    def _load_settings(self) -> None:
+        cfg = self._read_config()
         owners = cfg.get("owner_ids", os.environ.get("NYX_OWNER_IDS", ""))
         if isinstance(owners, str):
             owners = [o for o in re.split(r"[,，\s]+", owners) if o]
         self._owner_ids = frozenset(str(o) for o in (owners or []))
         self._bots_external = _as_bool(cfg.get("bots_are_external"), True)
         self._prefetch_budget = max(0, _as_int(cfg.get("prefetch_tokens"), _PREFETCH_TOKENS_DEFAULT))
-        # 语义检索后端：配置只在环境变量没设时生效（环境变量 > nyx.json）
-        for key, env in (("semantic", "NYX_EMBED"), ("embedding_model", "NYX_EMBED_MODEL"),
-                         ("embedding_api_url", "EMBEDDING_API_URL"), ("rerank", "NYX_RERANK"),
-                         ("vault", "NYX_VAULT"), ("vault_reveal", "NYX_VAULT_REVEAL"),
-                         ("vault_kinds", "NYX_VAULT_KINDS"), ("l3_llm", "NYX_L3_LLM"), ("lang", "NYX_LANG")):
-            if cfg.get(key) and not os.environ.get(env):
-                os.environ[env] = str(cfg[key])
+        # nyx.json 里的开关留在这个实例上，Hermes 每次调插件时绑到当前上下文（core/settings.py）。
+        # v7.17.0 以前写进 os.environ：一个进程服务多个 profile 时，第一个 profile 的设置粘住所有 profile。
+        # 读的时候仍然是环境变量 > nyx.json
+        self._profile_env = self._env_from(cfg)
+
+    def _settings_scope(self):
+        """这个 profile 的设置。initialize 之前（Hermes 先问 is_available）按当前上下文的 profile 读 nyx.json，
+        只算设置，不动 owner_ids 这些 —— 它们由 initialize 定。"""
+        if self._profile_env is None:
+            try:
+                self._profile_env = self._env_from(self._read_config())
+            except Exception as e:
+                logger.warning("nyx: reading nyx.json failed (using defaults): %s", e)
+                self._profile_env = {"NYX_VIA_HERMES": "1"}
+        return _settings.scope(self._profile_env)
 
     def initialize(self, session_id: str = "", **kwargs) -> None:
         """设置沙漏路径、重建投石问路索引。
@@ -327,40 +375,37 @@ class NexSandglassProvider(MemoryProvider):
             self._agent_context = str(kwargs.get("agent_context") or "primary")
             self._platform = str(kwargs.get("platform") or "")
             self._load_settings()
-            if self._initialized:
-                return
-            nh = _hermes_cfg()
-            if nh is not None:
-                nh.apply_data_dir(self._hermes_home)
-            # 确保 sandglass 模块可导入
-            import sys
-            nb = os.environ.get("NEXSANDBASE_HOME") or os.path.expanduser("~/.neurobase")
-            nb_scripts = os.path.join(nb, "scripts")
-            if nb_scripts not in sys.path:
-                sys.path.insert(0, nb_scripts)
+            with _settings.scope(self._profile_env):     # 上面刚按 hermes_home 重读了设置
+                self._initialize_once()
 
-            from nexsandglass.core.sandglass_paths import validate
-            validate()
-            if self._can_write():
-                # v7.13.2：不再同步全量重建倒排（15 万条记忆时启动卡 2.8 秒）。
-                # 索引本来就按日志行数增量补齐；放到后台补，并顺手把索引和日志镜像读进内存，
-                # 第一轮对话不用再现场加载（实测首轮 1.4 秒 → 与之后各轮相同）
-                self._warm_async()
-                try:
-                    from nexsandglass.core import semantic
-                    semantic.warm_async()    # 后台：加载嵌入模型 + 回填历史向量（无后端时空操作）
-                except Exception as e:
-                    logger.debug("语义索引回填未启动: %s", e)
-                try:
-                    from nexsandglass.core import rerank
-                    rerank.warm_async()      # NYX_RERANK 开着时后台加载重排模型（没开时空操作）
-                except Exception as e:
-                    logger.debug("重排模型预热未启动: %s", e)
-            # Cognitive Memory OS feature flag：NYX_USE_FACADE=1 时走稳定门面（默认关）
-            self._use_facade = os.environ.get("NYX_USE_FACADE", "0") == "1"
-            self._initialized = True
-            logger.info("NexSandglass MemoryProvider initialized (context=%s, owners=%d, facade=%s)",
-                        self._agent_context, len(self._owner_ids), self._use_facade)
+    def _initialize_once(self) -> None:
+        if self._initialized:
+            return
+        nh = _hermes_cfg()
+        if nh is not None:
+            nh.apply_data_dir(self._hermes_home)
+        from nexsandglass.core.sandglass_paths import validate
+        validate()
+        if self._can_write():
+            # v7.13.2：不再同步全量重建倒排（15 万条记忆时启动卡 2.8 秒）。
+            # 索引本来就按日志行数增量补齐；放到后台补，并顺手把索引和日志镜像读进内存，
+            # 第一轮对话不用再现场加载（实测首轮 1.4 秒 → 与之后各轮相同）
+            self._warm_async()
+            try:
+                from nexsandglass.core import semantic
+                semantic.warm_async()    # 后台：加载嵌入模型 + 回填历史向量（无后端时空操作）
+            except Exception as e:
+                logger.debug("语义索引回填未启动: %s", e)
+            try:
+                from nexsandglass.core import rerank
+                rerank.warm_async()      # NYX_RERANK 开着时后台加载重排模型（没开时空操作）
+            except Exception as e:
+                logger.debug("重排模型预热未启动: %s", e)
+        # Cognitive Memory OS feature flag：NYX_USE_FACADE=1 时走稳定门面（默认关）
+        self._use_facade = os.environ.get("NYX_USE_FACADE", "0") == "1"
+        self._initialized = True
+        logger.info("NexSandglass MemoryProvider initialized (context=%s, owners=%d, facade=%s)",
+                    self._agent_context, len(self._owner_ids), self._use_facade)
 
     def _can_write(self) -> bool:
         return (self._agent_context or "") in _WRITE_CONTEXTS
@@ -1260,6 +1305,27 @@ class NexSandglassProvider(MemoryProvider):
             owners = [o for o in re.split(r"[,，\s]+", owners) if o]
         return {"nyx.owner_ids": sorted(str(o) for o in owners)}
 
+
+
+# Hermes 调进来的每个入口都在这个 profile 的设置里运行（core/settings.py）。后台线程用 spawn_context_thread
+# 起，带着同一份上下文；Hermes 的预取 / 同步线程也是。
+_PROFILE_SCOPED = ("is_available", "unavailable_reason", "initialize", "system_prompt_block", "prefetch",
+                   "queue_prefetch", "recall_status", "on_turn_start", "sync_turn", "shutdown", "on_session_end",
+                   "on_session_switch", "on_delegation", "get_tool_schemas", "handle_tool_call", "on_memory_write",
+                   "on_pre_compress", "get_config_schema", "save_config", "backup_paths", "identity_signature")
+
+
+def _in_profile_scope(fn):
+    @functools.wraps(fn)
+    def wrapper(self, *args, **kwargs):
+        with self._settings_scope():
+            return fn(self, *args, **kwargs)
+    return wrapper
+
+
+for _m in _PROFILE_SCOPED:
+    setattr(NexSandglassProvider, _m, _in_profile_scope(getattr(NexSandglassProvider, _m)))
+del _m
 
 # ── 插件自动发现入口 ──
 def register(ctx) -> None:

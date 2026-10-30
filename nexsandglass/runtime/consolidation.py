@@ -25,11 +25,12 @@ from nexsandglass.engram.types import Memory, MemoryObject
 logger = logging.getLogger(__name__)
 
 # 快照目录（可回滚）
-_SNAPSHOT_DIR = os.path.join(
-    os.environ.get("NEXSANDBASE_HOME",
-                   os.path.join(os.path.expanduser("~"), ".nyx")),
-    "consolidation_snapshots",
-)
+def _snapshot_base() -> str:
+    from nexsandglass.core.sandglass_paths import configured_data_dir
+    return configured_data_dir() or os.path.join(os.path.expanduser("~"), ".nyx")
+
+
+_SNAPSHOT_DIR = os.path.join(_snapshot_base(), "consolidation_snapshots")
 
 
 # ══════════════════════════════════════════════════════════

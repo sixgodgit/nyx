@@ -47,3 +47,6 @@ Thumbs.db
 
 # 基准结果里的录音/数据是要提交的（运行时记忆数据 *.jsonl 仍然忽略）
 !benchmarks/results/*.jsonl
+
+# Node（nyx-web 的依赖用 npm install 装，不进仓库）
+node_modules/

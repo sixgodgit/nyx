@@ -48,7 +48,7 @@ report["entry_point"] = "ok (data_dir from nyx.json applied before import)"
 shutil.copytree(os.path.join(NYX, "nexsandglass_hermes"), os.path.join(hh, "plugins", "nyx"))
 assert "nyx" in pm.list_memory_provider_names()
 p2 = pm.load_memory_provider("nyx")
-assert isinstance(p2, MemoryProvider) and p2.name == "nexsandglass"
+assert isinstance(p2, MemoryProvider) and p2.name == "nyx"
 report["user_plugin_dir"] = "ok"
 
 from agent.memory_manager import MemoryManager            # noqa: E402

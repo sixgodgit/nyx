@@ -5,7 +5,7 @@
 > **Memory that stays with your agent for life** — single-user, local, no LLM on the write path.
 > It remembers, finds, can be trusted, and can forget.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.16.2-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.17.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx is a long-term memory layer for agents. It plugs into [Hermes](https://github.com/NousResearch/hermes-agent)
 (as a memory provider), into Claude Desktop / Claude Code or any other MCP client, or into your own Python program.
@@ -482,6 +482,7 @@ When the semantic backend is on but the index was not built, both harnesses fail
 | `benchmarks/poisoning_drill.py` | Memory poisoning: 0 of 16 attacks reach the prompt unlabelled, 0 of the user's 8 hurt | v7.8 |
 | `benchmarks/forget_restore_drill.py` | 150 wrongly deleted → restored byte for byte; a purge is still irreversible | v7.6 |
 | `tests/integration/hermes_real_check.py` | The full provider chain against real Hermes source (needs `HERMES_AGENT_SRC`) | v7.12 |
+| `tests/integration/hermes_multiprofile_check.py` | One Hermes process, three profiles: settings stay per profile, a different `data_dir` is refused, `os.environ` / `sys.path` untouched | v7.17.0 |
 | `benchmarks/dejavu_bench.py` | Déjà Vu familiar / unfamiliar classification (E2: English) | v7.5, v7.16.1 |
 | `benchmarks/dejavu_english_real.py` | Déjà Vu false familiarity on real English conversation (LongMemEval-S) | v7.16.1 |
 | `benchmarks/dejavu_chinese_real.py` | Déjà Vu false familiarity on real Chinese chit-chat (LCCC) | v7.16.2 |
@@ -494,6 +495,7 @@ When the semantic backend is on but the index was not built, both harnesses fail
 
 ## 📝 Recent updates
 
+- **v7.17.0**: per-profile settings in Hermes — one Hermes process serving several profiles no longer lets one profile's `nyx.json` (e.g. `l3_llm: on`) apply to the others; Nyx no longer writes to `os.environ` or `sys.path`; a profile with a different `data_dir` is refused instead of sharing; the provider is named `nyx` (from the Hermes plugin catalog review)
 - **v7.16.2**: Déjà Vu no longer counts Chinese function words and cross-word fragments (我们, 聊过, 的那, 过的…): 20 remembered chat messages used to make 6 of 10 unrelated Chinese questions "familiar", now 0
 - **v7.16.1**: Déjà Vu no longer counts common English words (*the, about, talked*…): one remembered English sentence used to make every unrelated English question "familiar"
 - **v7.16.0**: English first — docs, terminal commands and `hermes memory setup` are English by default (`NYX_LANG=zh`, or `lang: zh` in Hermes, for Chinese; a Chinese system locale picks Chinese automatically); text the model reads (tool descriptions, recall labels, placeholders) is English throughout; stored data is not rewritten, and old Chinese placeholders and labels are still recognised

@@ -44,6 +44,7 @@ import sqlite3
 import threading
 from typing import Iterable, List, Optional, Tuple
 
+from nexsandglass.core import settings as _settings
 from nexsandglass.core import sqlite_open
 from nexsandglass.core.hints import cmd as _hints_cmd
 from nexsandglass.core.lang import t as _t
@@ -149,7 +150,8 @@ class _Local:
 
 
 def _config_key() -> tuple:
-    return tuple(os.environ.get(k, "") for k in (
+    # 按 profile 读（v7.17.0）：两个 profile 配了不同的嵌入后端时，切换 profile 就重新解析
+    return tuple(_settings.get(k) for k in (
         "NYX_EMBED", "NYX_EMBED_PROVIDER", "NYX_EMBED_MODEL", "EMBEDDING_API_URL", "EMBEDDING_API_KEY"))
 
 
@@ -164,10 +166,10 @@ def _problem(msg: str):
 def _resolve():
     global _resolve_problem
     _resolve_problem = None
-    mode = (os.environ.get("NYX_EMBED") or "auto").strip().lower()
+    mode = _settings.get("NYX_EMBED", "auto").strip().lower()
     if mode in ("off", "0", "false", "none", "no"):
         return None
-    custom = os.environ.get("NYX_EMBED_PROVIDER", "").strip()
+    custom = _settings.get("NYX_EMBED_PROVIDER").strip()
     if custom:
         import importlib
         mod, _, attr = custom.partition(":")
@@ -176,8 +178,8 @@ def _resolve():
         if not getattr(p, "name", None):
             p.name = custom
         return p
-    model = os.environ.get("NYX_EMBED_MODEL", "").strip()
-    url = os.environ.get("EMBEDDING_API_URL", "").strip()
+    model = _settings.get("NYX_EMBED_MODEL").strip()
+    url = _settings.get("EMBEDDING_API_URL").strip()
     if mode == "api" or (mode == "auto" and url):
         if not url:
             return _problem(_t("NYX_EMBED=api but EMBEDDING_API_URL is not set; semantic search is off",

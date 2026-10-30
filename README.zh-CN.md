@@ -4,7 +4,7 @@
 
 > **给 agent 一份跟着你一辈子的记忆** —— 单用户、本地、写入不调用大模型。记得住，找得到，信得过，忘得掉。
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.16.2-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.17.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx 是 agent 的长期记忆层：接进 [Hermes](https://github.com/NousResearch/hermes-agent)（作为记忆插件）、
 Claude Desktop / Claude Code 等任意 MCP 客户端，或者你自己的 Python 程序。
@@ -431,6 +431,7 @@ python3 benchmarks/locomo_eval.py locomo10.json --workers 10 --json benchmarks/r
 | `benchmarks/longitudinal_eval.py` | 一个人半年的生活：现在 / 当时以为 / 过去某刻，三个问题分开打分；含留出句式 | v7.9–v7.11 |
 | `benchmarks/poisoning_drill.py` | 记忆投毒：16 条攻击 0 条无标注进 prompt，主人 8 条 0 误伤 | v7.8 |
 | `benchmarks/forget_restore_drill.py` | 误删 150 条 → 逐字节还原；真删仍不可逆 | v7.6 |
+| `tests/integration/hermes_multiprofile_check.py` | 一个 Hermes 进程、三个 profile：设置按 profile、`data_dir` 不同的被拒绝、`os.environ` / `sys.path` 不被改 | v7.17.0 |
 | `tests/integration/hermes_real_check.py` | 对真实 Hermes 源码跑插件全链路（需 `HERMES_AGENT_SRC`） | v7.12 |
 | `benchmarks/dejavu_bench.py` | Déjà Vu「熟悉 / 陌生」分类（E2 节：英文） | v7.5、v7.16.1 |
 | `benchmarks/dejavu_english_real.py` | Déjà Vu 在真实英文对话（LongMemEval-S）上的误报 | v7.16.1 |
@@ -444,6 +445,7 @@ python3 benchmarks/locomo_eval.py locomo10.json --workers 10 --json benchmarks/r
 
 ## 📝 最近更新
 
+- **v7.17.0**：Hermes 里设置按 profile 生效 —— 一个进程服务多个 profile 时，一个 profile 的 `nyx.json`（比如 `l3_llm: on`）不再作用到别的 profile；Nyx 不再改 `os.environ` 和 `sys.path`；`data_dir` 不同的 profile 会被拒绝而不是共用；插件名改成 `nyx`（Hermes 插件目录评审提出）
 - **v7.16.2**：Déjà Vu 不再把中文虚词和跨词碎片（我们、聊过、的那、过的……）算作见过 —— 以前只记 20 句闲聊，10 个不相干的中文问题就有 6 个「熟悉」，现在 0 个
 - **v7.16.1**：Déjà Vu 不再把英文常用词（the、about、talked……）算作见过 —— 以前只要记过一句英文，任何不相干的英文问题都是「熟悉」
 - **v7.16.0**：英文优先 —— 文档、终端命令、`hermes memory setup` 默认英文（`NYX_LANG=zh` 或 Hermes 里 `lang: zh` 用中文，系统语言是中文时自动中文）；给模型看的文字（工具说明、召回标签、占位符）统一英文；已存的数据不改写，旧的中文占位符和标注照样认

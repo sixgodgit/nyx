@@ -74,22 +74,25 @@ def nyx_command(args) -> int:
         print(_t(f"usage: hermes nyx {cmds} … (hermes nyx <command> -h for options)",
                  f"用法：hermes nyx {cmds} …（hermes nyx <子命令> -h 看选项）"))
         return 2
-    os.environ["NYX_VIA_HERMES"] = "1"        # 工具输出里的「下一步」提示写成 hermes nyx …
     import nexsandglass_hermes as nh
     data_dir = nh.apply_data_dir()             # 当前 Hermes profile 的 nyx.json 里的 data_dir
     cfg = nh.load_config()
-    for key, env in (("vault", "NYX_VAULT"), ("vault_reveal", "NYX_VAULT_REVEAL"), ("vault_kinds", "NYX_VAULT_KINDS"),
-                     ("lang", "NYX_LANG")):
-        if cfg.get(key) and not os.environ.get(env):
-            os.environ[env] = str(cfg[key])    # 与 memory_provider._load_settings 一致：环境变量 > nyx.json
-    if name == "status":
-        from nexsandglass.core.sandglass_paths import __version__
-        print(f"nyx-memory {__version__} · Python {sys.executable}\n" + _t(f"data directory {data_dir}", f"数据目录 {data_dir}"))
-        from nexsandglass import vault
-        return vault.main(["status"])
-    mod = importlib.import_module(TOOLS[name][0])
-    rc = mod.main(list(getattr(args, "nyx_args", None) or []))
-    return rc if isinstance(rc, int) else 0
+    # 当前 profile 的设置只在这次命令里生效（core/settings.py；不写 os.environ —— v7.17.0）。环境变量 > nyx.json。
+    # NYX_VIA_HERMES：工具输出里的「下一步」提示写成 hermes nyx …
+    env = {"NYX_VIA_HERMES": "1"}
+    env.update({e: str(cfg[k]) for k, e in (("vault", "NYX_VAULT"), ("vault_reveal", "NYX_VAULT_REVEAL"),
+                                             ("vault_kinds", "NYX_VAULT_KINDS"), ("lang", "NYX_LANG")) if cfg.get(k)})
+    from nexsandglass.core import settings
+    with settings.scope(env):
+        if name == "status":
+            from nexsandglass.core.sandglass_paths import __version__
+            print(f"nyx-memory {__version__} · Python {sys.executable}\n"
+                  + _t(f"data directory {data_dir}", f"数据目录 {data_dir}"))
+            from nexsandglass import vault
+            return vault.main(["status"])
+        mod = importlib.import_module(TOOLS[name][0])
+        rc = mod.main(list(getattr(args, "nyx_args", None) or []))
+        return rc if isinstance(rc, int) else 0
 
 
 nexsandglass_command = nyx_command             # memory.provider 写的是旧名 nexsandglass 时 Hermes 找这个名字

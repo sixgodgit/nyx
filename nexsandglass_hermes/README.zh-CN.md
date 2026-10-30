@@ -126,7 +126,7 @@ hermes plugins enable nyx-reveal      # 再在 hermes memory setup 里把 vault 
 
 ## 已知局限
 
-- 一个进程一份 nyx 记忆：网关里多个 Hermes profile 共进程时共用同一个 `data_dir`
+- 一个 Hermes 进程里有多个 profile（网关、桌面端）：每个 profile 的 `nyx.json` 设置（`l3_llm`、`vault`、`semantic`、`lang`……）只对这个 profile 的调用生效（v7.17.0；以前第一个 profile 的设置被复制进进程环境变量，对所有 profile 生效）。数据目录一个进程一个：`data_dir` 相同的 profile 共用记忆；配了别的 `data_dir` 的 profile 在这个进程里报不可用 —— 改成同一个 `data_dir`，或者让它单独一个进程。共用 `data_dir` 就是共用一份记忆：打开了 `l3_llm` 或嵌入 API 的 profile，在它自己的调用里发出去的内容来自这份共用的记忆，可能包括在另一个 profile 里说过的话。要彼此隔开的 profile 需要各自的 `data_dir`（也就各自一个进程）
 - 语义检索需要嵌入后端（本地模型或 API）；没有时同义改写召不回来（问 company、原话是 joined Contoso）
 - 从 v7.13.2 及更早版本升级后，首次启动会在后台回填全部历史记忆的向量（本地 CPU 模型几千条约几十分钟），期间语义召回逐步变全
 - 隔离区到期不会自动真删：定期执行 `python3 -c "from nexsandglass.core import erasure; print(erasure.purge(apply=True))"`；到期没清时自检会提醒
