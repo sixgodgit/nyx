@@ -230,6 +230,22 @@ def _said_on(objs: list) -> Dict[int, str]:
     return {i: ts[ln] for i, ln in lines.items() if ln in ts}
 
 
+# 每轮注入给 agent 的那段记忆：每条取开头 300 个字符，带说话日期。
+# v7.18.0 试过「长记忆取与问题相关的那一段」：BEAM 上答案可见度 0.492 → 0.498、本地小模型作答 8 胜 8 负，
+# 没有可测的好处，所以不改（benchmarks/beam_format_eval.py、benchmarks/excerpt_variant.py）
+MEMORY_HEADER = "## Nyx memory (relevant to this turn; [date] = when it was said)"
+MEMORY_LINE_CHARS = 300
+
+
+def memory_block(items) -> str:
+    """[(正文, 说这句话的日期)] → 注入给 agent 的那段文字（prefetch 与评测共用）。"""
+    lines = [MEMORY_HEADER]
+    for text, date in items:
+        s = str(text or "")[:MEMORY_LINE_CHARS]
+        lines.append(f"- [{date}] {s}" if date else f"- {s}")
+    return "\n".join(lines)
+
+
 # nyx.json 的键 → 读设置时用的名字（同名环境变量设了的话优先）
 _PROFILE_SETTINGS = (("semantic", "NYX_EMBED"), ("embedding_model", "NYX_EMBED_MODEL"),
                      ("embedding_api_url", "EMBEDDING_API_URL"), ("rerank", "NYX_RERANK"),
@@ -679,30 +695,32 @@ class NexSandglassProvider(MemoryProvider):
             if warm is not None and warm.is_alive():
                 warm.join(_as_int(os.environ.get("NYX_WARM_WAIT_SECONDS"), 10))
             try:
-                from nexsandglass.runtime.orchestrator import get_orchestrator
-                mc = get_orchestrator().recall(query, token_budget=self._prefetch_budget or 1)
-                objs = [o for o in (mc.objects or []) if o.content and str(o.content).strip()]
-                lines = [str(o.content) for o in objs] or \
-                        [s for s in (mc.strings or []) if s and str(s).strip()]
-                cap = max(12, self._prefetch_budget // 100)   # 600 → 12 条；4000 → 40 条
-                from nexsandglass.runtime import intent as _intent
-                cap = max(cap, _intent.breadth_lines(query))   # 汇总 / 时长 / 先后：答案分散在几次对话里（v7.13.7）
-                if self._prefetch_budget and lines:
-                    dates = _said_on(objs[:cap])
-                    parts.append("## Nyx memory (relevant to this turn; [date] = when it was said)")
-                    for i, s in enumerate(lines[:cap]):
-                        d = dates.get(i)
-                        parts.append(f"- [{d}] {s[:300]}" if d else f"- {s[:300]}")
-                    withheld = len(getattr(mc, "withheld", None) or [])
+                items, _objs, withheld = self._recall_view(query)
+                if self._prefetch_budget and items:
+                    parts.append(memory_block(items))
                     if withheld:
                         parts.append(f"({withheld} more withheld: their source looked unsafe)")
-                    self._last_recall = min(len(lines), cap)
+                    self._last_recall = len(items)
             except Exception as e:
                 logger.debug("prefetch 召回失败: %s", e)
         sig = self._signal_line()
         if sig:
             parts.append(sig)
         return "\n".join(parts)
+
+    def _recall_view(self, query: str):
+        """这一轮注入给 agent 的那几条：([(正文, 说这句话的日期)], 对应的召回对象, 因来源可疑被扣下的条数)。
+        评测（benchmarks/beam_eval.py --views）走同一个函数，比较注入写法时用的就是真实会注入的那几条。"""
+        from nexsandglass.runtime.orchestrator import get_orchestrator
+        from nexsandglass.runtime import intent as _intent
+        mc = get_orchestrator().recall(query, token_budget=self._prefetch_budget or 1)
+        objs = [o for o in (mc.objects or []) if o.content and str(o.content).strip()]
+        lines = [str(o.content) for o in objs] or [s for s in (mc.strings or []) if s and str(s).strip()]
+        cap = max(12, self._prefetch_budget // 100)      # 600 → 12 条；4000 → 40 条
+        cap = max(cap, _intent.breadth_lines(query))     # 汇总 / 时长 / 先后：答案分散在几次对话里（v7.13.7）
+        dates = _said_on(objs[:cap])
+        items = [(s, dates.get(i)) for i, s in enumerate(lines[:cap])]
+        return items, objs[:cap], len(getattr(mc, "withheld", None) or [])
 
     def queue_prefetch(self, query: str, *, session_id: str = "") -> None:
         """不预取：召回在 prefetch 里对本轮问题现做（见 prefetch 文档）。"""

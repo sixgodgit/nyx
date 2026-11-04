@@ -1,0 +1,217 @@
+{
+ "benchmark": "BEAM: the same recalled entries written as the first 300 characters (head, kept), the 300 characters about the question (excerpt, tested), whole entries (full, reference); benchmarks/beam_format_eval.py",
+ "visible": "the scoring point's content words appear within one injected entry (4+ word points may miss a quarter)",
+ "visible_100K-1M": {
+  "information_extraction": {
+   "n": 180,
+   "head": 0.539,
+   "chars_head": 3796,
+   "excerpt": 0.5554,
+   "chars_excerpt": 3747,
+   "chrono": 0.539,
+   "chars_chrono": 3796,
+   "full": 0.5574,
+   "chars_full": 20754,
+   "evidence_in_view": 0.6611
+  },
+  "1M": {
+   "n": 280,
+   "head": 0.4984,
+   "chars_head": 4163,
+   "excerpt": 0.5083,
+   "chars_excerpt": 4112,
+   "chrono": 0.4984,
+   "chars_chrono": 4163,
+   "full": 0.5189,
+   "chars_full": 21174,
+   "evidence_in_view": 0.85
+  },
+  "_overall": {
+   "n": 720,
+   "head": 0.492,
+   "chars_head": 4358,
+   "excerpt": 0.4982,
+   "chars_excerpt": 4305,
+   "chrono": 0.492,
+   "chars_chrono": 4358,
+   "full": 0.5145,
+   "chars_full": 21165,
+   "evidence_in_view": 0.8681
+  },
+  "knowledge_update": {
+   "n": 180,
+   "head": 0.7806,
+   "chars_head": 4025,
+   "excerpt": 0.7806,
+   "chars_excerpt": 3983,
+   "chrono": 0.7806,
+   "chars_chrono": 4025,
+   "full": 0.7972,
+   "chars_full": 17050,
+   "evidence_in_view": 0.95
+  },
+  "multi_session_reasoning": {
+   "n": 180,
+   "head": 0.3105,
+   "chars_head": 4556,
+   "excerpt": 0.3143,
+   "chars_excerpt": 4502,
+   "chrono": 0.3105,
+   "chars_chrono": 4556,
+   "full": 0.3495,
+   "chars_full": 25036,
+   "evidence_in_view": 0.8778
+  },
+  "temporal_reasoning": {
+   "n": 180,
+   "head": 0.338,
+   "chars_head": 5055,
+   "excerpt": 0.3426,
+   "chars_excerpt": 4990,
+   "chrono": 0.338,
+   "chars_chrono": 5055,
+   "full": 0.3537,
+   "chars_full": 21820,
+   "evidence_in_view": 0.9833
+  },
+  "500K": {
+   "n": 280,
+   "head": 0.4908,
+   "chars_head": 4390,
+   "excerpt": 0.4999,
+   "chars_excerpt": 4334,
+   "chrono": 0.4908,
+   "chars_chrono": 4390,
+   "full": 0.5045,
+   "chars_full": 20136,
+   "evidence_in_view": 0.8714
+  },
+  "100K": {
+   "n": 160,
+   "head": 0.4829,
+   "chars_head": 4644,
+   "excerpt": 0.4777,
+   "chars_excerpt": 4595,
+   "chrono": 0.4829,
+   "chars_chrono": 4644,
+   "full": 0.5241,
+   "chars_full": 22951,
+   "evidence_in_view": 0.8938
+  }
+ },
+ "visible_10M": {
+  "information_extraction": {
+   "n": 20,
+   "head": 0.625,
+   "chars_head": 4379,
+   "excerpt": 0.625,
+   "chars_excerpt": 4314,
+   "full": 0.625,
+   "chars_full": 14222,
+   "evidence_in_view": 0.8
+  },
+  "10M": {
+   "n": 80,
+   "head": 0.4983,
+   "chars_head": 4808,
+   "excerpt": 0.4921,
+   "chars_excerpt": 4739,
+   "full": 0.4983,
+   "chars_full": 18996,
+   "evidence_in_view": 0.75
+  },
+  "_overall": {
+   "n": 80,
+   "head": 0.4983,
+   "chars_head": 4808,
+   "excerpt": 0.4921,
+   "chars_excerpt": 4739,
+   "full": 0.4983,
+   "chars_full": 18996,
+   "evidence_in_view": 0.75
+  },
+  "knowledge_update": {
+   "n": 20,
+   "head": 0.85,
+   "chars_head": 4291,
+   "excerpt": 0.85,
+   "chars_excerpt": 4255,
+   "full": 0.85,
+   "chars_full": 12801,
+   "evidence_in_view": 0.9
+  },
+  "multi_session_reasoning": {
+   "n": 20,
+   "head": 0.2933,
+   "chars_head": 5132,
+   "excerpt": 0.2933,
+   "chars_excerpt": 5045,
+   "full": 0.2933,
+   "chars_full": 24079,
+   "evidence_in_view": 0.7
+  },
+  "temporal_reasoning": {
+   "n": 20,
+   "head": 0.225,
+   "chars_head": 5432,
+   "excerpt": 0.2,
+   "chars_excerpt": 5343,
+   "full": 0.225,
+   "chars_full": 24881,
+   "evidence_in_view": 0.6
+  }
+ },
+ "llm_answers": {
+  "setup": "Qwen2.5-1.5B-Instruct q8_0 via llama.cpp, temperature 0, max 80 tokens, qa_eval.py prompt; 60 information_extraction + 60 knowledge_update questions drawn with seed 0 from BEAM 100K-1M; score = share of scoring points contained in the answer",
+  "scores": {
+   "information_extraction": {
+    "n": 60,
+    "head": 0.3278,
+    "head_all_correct": 0.3167,
+    "excerpt": 0.3222,
+    "excerpt_all_correct": 0.3167,
+    "excerpt_vs_head": {
+     "wins": 1,
+     "losses": 2,
+     "ties": 57,
+     "sign_p": 1.0
+    }
+   },
+   "knowledge_update": {
+    "n": 60,
+    "head": 0.3444,
+    "head_all_correct": 0.3333,
+    "excerpt": 0.3528,
+    "excerpt_all_correct": 0.3333,
+    "excerpt_vs_head": {
+     "wins": 7,
+     "losses": 6,
+     "ties": 47,
+     "sign_p": 1.0
+    }
+   },
+   "_overall": {
+    "n": 120,
+    "head": 0.3361,
+    "head_all_correct": 0.325,
+    "excerpt": 0.3375,
+    "excerpt_all_correct": 0.325,
+    "excerpt_vs_head": {
+     "wins": 8,
+     "losses": 8,
+     "ties": 104,
+     "sign_p": 1.0
+    }
+   }
+  },
+  "meta": {
+   "model": "qwen2.5-1.5b-instruct-q8_0",
+   "calls": 225,
+   "cache_hits": 15,
+   "usage": {
+    "answer_prompt_tokens": 254043,
+    "answer_completion_tokens": 5769
+   }
+  }
+ }
+}

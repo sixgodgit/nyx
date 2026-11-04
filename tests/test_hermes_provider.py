@@ -416,6 +416,14 @@ def test_prefetch_recalls_for_this_turn(env):
     assert p.recall_status() is None
 
 
+def test_memory_block_format():
+    """注入写法（prefetch 与 benchmarks/beam_format_eval.py 共用）：每条取开头 300 字、带说话日期"""
+    from nexsandglass.core.memory_provider import MEMORY_HEADER, memory_block
+    long = "x" * 500
+    assert memory_block([(long, "2024-03-15"), ("short", None)]) == \
+        f"{MEMORY_HEADER}\n- [2024-03-15] {'x' * 300}\n- short"
+
+
 def test_belief_tool_answers_current_and_history(env):
     p = _provider()
     p.sync_turn("我住在杭州", "好的")

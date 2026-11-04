@@ -5,6 +5,75 @@ Benchmark section of the README and `benchmarks/`. Entries from v7.16.0 on are i
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。v7.16.0 起的条目用英文，之前的是中文。
 
+### v7.18.0 (2026-11-04) — Long memories no longer bury the short answer; BEAM up to 10M tokens
+
+**New benchmark: BEAM** (Tavakoli et al., ICLR 2026, "Beyond a Million Tokens"; `benchmarks/beam_eval.py`). 100 long
+conversations of 100K / 500K / 1M / 10M tokens, 2,000 questions in 10 types, each labelled with the messages that hold
+the answer. Every message goes through the Hermes provider's real write path (`sync_turn`, no LLM); then each question is
+recalled and compared with the labelled messages. Plain BM25 over the same messages is the reference.
+
+**Problem it found: long memories outranked the short message that holds the answer.** BEAM messages average ~2,100
+characters. Nyx scored a candidate by how many of the question's words it contains, whatever its length, so a
+5,000-character assistant reply that touches every topic beat the 200-character user message that states the fact
+("the first sprint ends on March 29"). On BEAM 100K–1M nyx recalled less than plain BM25: recall@10 0.211 vs 0.333.
+
+**Fix.** A memory longer than one injected line (300 characters) is scored down by √(300 / length) — Lucene's classic
+length norm, applied only to long memories, so short chat messages are never ranked by length. Measured on the same
+data before and after (lexical, the default install):
+
+| | v7.17.0 | v7.18.0 | BM25 |
+|---|---|---|---|
+| BEAM 100K–1M, 1,609 questions: recall@5 | 0.164 | **0.382** | 0.257 |
+| — recall@10 | 0.211 | **0.454** | 0.333 |
+| — evidence the agent sees | 0.244 | **0.476** | |
+| LongMemEval-S, 470 questions: all answer sessions in top 5 | 0.781 | **0.826** | |
+| — all in top 10 | 0.860 | **0.900** | |
+| — answer turns the agent sees | 0.738 | **0.847** | |
+| — any answer session in top 5 | **0.955** | 0.945 | |
+| LoCoMo, 1,536 questions: recall@5 | **0.547** | 0.542 | 0.498 |
+| — recall@10 | **0.619** | 0.617 | 0.565 |
+
+With the local semantic model (`[vector]`), both versions on the same stores: LoCoMo is unchanged (recall@5 0.577 →
+0.573, evidence the agent sees 0.655 → 0.654); LongMemEval-S, re-run on every 4th question (116 scored), improves: any
+answer session in top 5 0.983 → 0.991, all in top 5 0.888 → 0.922, all in top 10 0.931 → 0.966, answer turns the agent
+sees 0.863 → 0.930. Recall time is unchanged (BEAM p50 55 ms before and after).
+
+Tried and not used (numbers in `benchmarks/results/beam_retrieval.json`):
+- BM25's length normalisation on every memory (b = 0.75): BEAM recall@10 0.384, but LoCoMo recall@5 0.547 → 0.508 —
+  among short chat messages it also lifts the shortest over the ones that carry the details
+- Scoring a long memory by its best 300-character passage: LoCoMo unchanged, but BEAM recall@10 only 0.294, and +10 ms
+- The threshold and exponent barely matter: 500 characters gives BEAM recall@10 0.436 (LoCoMo unchanged), exponent 1
+  gives 0.453. 300 and √ were chosen up front, to match the injected line
+
+**10M tokens.** BEAM-10M: 10 conversations of about 20,900 messages (46 million characters) each, 176 scored
+questions. Recall@10 0.326 vs BM25 0.218 (recall@5 0.269 vs 0.173), evidence the agent sees 0.350, recall p50 137 ms,
+500 MB on disk per conversation. Writing averaged 108 ms per message, against 12 ms at 100K tokens and 19 ms at 1M:
+something in the write path grows with the store (one 10M-token conversation takes about 40 minutes to import). That is
+the next fix.
+
+**Injection format: tested, kept.** Each injected entry is a memory's first 300 characters. The obvious alternative —
+for a long memory, the 300 characters that cover the most words of the question — was tested on the same recalled
+entries (`benchmarks/beam_format_eval.py`, 720 BEAM 100K–1M questions whose scoring points are short facts). The scoring
+point appears within one injected entry for 0.492 of questions with the first 300 characters, 0.498 with the excerpt
+(better on 18, worse on 11, sign test p = 0.26), and 0.514 even with whole entries at five times the text; at 10M
+tokens 0.498 vs 0.492. A local model (Qwen2.5-1.5B-Instruct, llama.cpp, temperature 0) answering from the injected
+text alone, 60 information-extraction and 60 knowledge-update questions drawn at random: the scoring point is in its
+answer 0.336 of the time with the first 300 characters, 0.338 with the excerpt — 8 better, 8 worse. On BEAM the fact is
+usually in a short user message or early in a reply, so truncation costs little; recall ranking was the bottleneck. The
+format stays; the tested variant is kept in `benchmarks/excerpt_variant.py` so the comparison can be rerun.
+
+A first version of this metric counted a scoring point as visible when its words appeared anywhere in the injected
+text, and showed the excerpt ahead (0.608 → 0.648). Most of that was chance: "10 months" assembled from "10%" in one
+entry and "month" in another. The published numbers require the words in one entry.
+
+Other:
+- `provider._recall_view()` returns the entries the agent will see and `memory_block()` writes them; `prefetch` and
+  the benchmarks both use them. The injected text is unchanged
+- `benchmarks/beam_eval.py --views` saves each question's injected entries for `beam_format_eval.py` (contains dataset
+  text; keep it out of the repository); `--resume` continues an interrupted run, and each conversation's store is
+  deleted as soon as it is scored (a 10M-token one is half a gigabyte)
+- The plugin directories require `nyx-memory>=7.18.0,<8`, so `hermes update` brings the new ranking
+
 ### v7.17.0 (2026-10-30) — Per-profile settings in Hermes; nothing written to `os.environ` or `sys.path`
 
 From the Hermes plugin catalog review (NousResearch/hermes-agent#144689).
