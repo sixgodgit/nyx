@@ -5,7 +5,7 @@
 > **Memory that stays with your agent for life** — single-user, local, no LLM on the write path.
 > It remembers, finds, can be trusted, and can forget.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.17.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.18.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx is a long-term memory layer for agents. It plugs into [Hermes](https://github.com/NousResearch/hermes-agent)
 (as a memory provider), into Claude Desktop / Claude Code or any other MCP client, or into your own Python program.
@@ -16,7 +16,7 @@ All data is plain files on your machine.
 
 | | How | Measured |
 |---|---|---|
-| **Finds things** | Full-text, inverted index, TF-IDF, entities and (optional) semantic search, fused; questions like "how many times / how long between" get a few more results | LongMemEval-S (470 scored questions): the session holding the answer is in the top 5 **98.7%** of the time; LoCoMo evidence recall 0.575 (BM25 0.498). About 30–140 ms per recall |
+| **Finds things** | Full-text, inverted index, TF-IDF, entities and (optional) semantic search, fused; long memories are scored down by length so they don't bury the short message with the answer; questions like "how many times / how long between" get a few more results | LongMemEval-S (470 scored questions): the session holding the answer is in the top 5 **98.7%** of the time; LoCoMo evidence recall 0.573 (BM25 0.498); BEAM, 100K–1M-token conversations: evidence recall@10 **0.454** (BM25 0.333); at 10M tokens 0.326 (BM25 0.218). About 30–140 ms per recall |
 | **Keeps time straight** | Bi-temporal facts: "when it was true" and "when it was learned" are stored separately | "I switched to a Geely back in February" is recorded as February, not as the day it was said; answers "what is believed now" and "what did I think in March" |
 | **Can be trusted** | Source and trust are bound at write time: only what the user said themselves can become a rule; hearsay and web content come back labelled "unverified" | Poisoning drill: 0 of 16 attacks reach the agent's prompt unlabelled; 0 of the user's 8 normal messages are hurt |
 | **Forgets, and can undo it** | Forgetting goes to a quarantine first (recall stops seeing it at once) and can be restored as-is during the retention period (30 days by default); purging after that really deletes, and checks that vectors, indexes and the graph are clean | 150 wrongly deleted memories restored byte for byte; a purge cannot be undone |
@@ -117,7 +117,7 @@ After installing, run `python3 -m nexsandglass.doctor`; all ✅ means everything
 **Recall** (before every turn, entirely local)
 
 1. Full-text (FTS5), inverted index, TF-IDF, entities and (optional) semantic vectors are searched
-2. Fused ranking: complete literal matches first, semantics as support (half weight, only hits clearly above background count)
+2. Fused ranking: complete literal matches first, semantics as support (half weight, only hits clearly above background count); memories longer than 300 characters are scored down by length, so a long reply cannot bury the short message that states the fact
 3. Current beliefs are added ("user lives in Shanghai (since 2026-09-01)")
 4. Trust gate: memories from a tainted source stay out; unverified ones are labelled and cannot act as rules
 5. Injected into the agent with dates: 12 entries by default; 20 for "how many times / how long / which came first / before or after" questions
@@ -389,7 +389,8 @@ sure (they go to the quarantine and can be restored for 30 days).
 
 - **Single-user by design**: one memory per person; one process serves one data directory at a time
 - **End-to-end QA accuracy not measured yet**: the [Benchmark](#benchmark) numbers are retrieval metrics; Mem0 / Zep and others report QA accuracy (an LLM answers and an LLM judges)
-- **Weak spots**: on LoCoMo multi-hop questions the agent sees only 41% of the evidence (48% with reranking); LongMemEval preference questions 0.71 (lower with reranking)
+- **Weak spots**: on LoCoMo multi-hop questions the agent sees only 41% of the evidence (48% with reranking); LongMemEval preference questions 0.71 (lower with reranking); BEAM summarization and event-ordering questions need 10+ messages spread over a long conversation and the agent sees 6–8% of them
+- **Writes slow down as the memory grows**: about 12 ms per message for a 100K-token history, 19 ms at 1M, about 110 ms at 10M (BEAM). Fine for live chat; importing a very large history takes a while
 - **Little English fact extraction**: rule-based extraction mostly covers Chinese; in English Nyx relies on retrieving the original text with its date. Without `[vector]`, English paraphrases that share no words with the memory are not found ("which editor do I use" does not find "I switched from VS Code to Zed"). Install `[vector]`, or enable `NYX_UNDERSTAND_LLM` for LLM extraction
 - **Déjà Vu on a long history**: common words no longer count (English v7.16.1, Chinese v7.16.2), but ordinary content words accumulate. Of 10 unrelated test questions, after 2,000 English turns all 10 are still "familiar" through words like *teacher* or *workshop* (0 after 20 turns, 3 after 200; `benchmarks/dejavu_english_real.py`); after 2,000 Chinese chat messages 3 are (企鹅, 玻璃, 老师; `benchmarks/dejavu_chinese_real.py`)
 - **Small default embedding model**: the local multilingual MiniLM is small and fast; with a stronger API model the fusion weights may need retuning (`NYX_EMBED_Z` / `NYX_EMBED_WEIGHT`)
@@ -400,26 +401,86 @@ sure (they go to the quarantine and can be restored for 30 days).
 
 ## 📊 Benchmark
 
-Both public benchmarks measure **retrieval** only (no LLM, reproducible), feeding every turn through the Hermes provider's real write path.
+All three public benchmarks measure **retrieval** only (no LLM, reproducible), feeding every turn through the Hermes provider's real write path.
 Semantic search uses the default local model `paraphrase-multilingual-MiniLM-L12-v2` (`pip install "nyx-memory[vector]"`).
+
+**BEAM** (`benchmarks/beam_eval.py`; Tavakoli et al., ICLR 2026, "Beyond a Million Tokens": 100 conversations of 100K
+to 10M tokens, 10 question types, each question labelled with the messages that hold the answer; the 200 abstention
+questions have no such messages and are not scored. Lexical only — the default install. The reference is plain BM25
+over the same messages; results in `benchmarks/results/beam_retrieval.json`)
+
+| Conversation length | Conversations | Messages each | nyx R@10 | BM25 R@10 | evidence the agent sees | recall p50 | write per message | disk |
+|---|---|---|---|---|---|---|---|---|
+| 100K tokens | 20 | 287 | **0.532** | 0.417 | 0.559 | 45 ms | 12 ms | 5 MB |
+| 500K tokens | 35 | 1,087 | **0.494** | 0.368 | 0.515 | 51 ms | 16 ms | 23 MB |
+| 1M tokens | 35 | 2,132 | **0.368** | 0.251 | 0.389 | 63 ms | 19 ms | 47 MB |
+| 10M tokens | 10 | 20,870 | **0.326** | 0.218 | 0.350 | 137 ms | 108 ms | 500 MB |
+
+| Question type (100K–1M) | Questions | nyx R@5 | BM25 R@5 | nyx R@10 | BM25 R@10 | evidence the agent sees |
+|---|---|---|---|---|---|---|
+| Contradiction resolution | 180 | **0.681** | 0.568 | **0.765** | 0.644 | 0.781 |
+| Event ordering | 180 | **0.034** | 0.004 | **0.053** | 0.009 | 0.074 |
+| Information extraction | 180 | **0.479** | 0.379 | **0.569** | 0.466 | 0.593 |
+| Instruction following | 180 | **0.189** | 0.057 | **0.234** | 0.104 | 0.242 |
+| Knowledge update | 179 | **0.678** | 0.445 | **0.770** | 0.588 | 0.791 |
+| Multi-session reasoning | 180 | **0.384** | 0.212 | **0.483** | 0.305 | 0.529 |
+| Preference following | 178 | **0.234** | 0.113 | **0.312** | 0.192 | 0.314 |
+| Summarization | 172 | 0.034 | **0.044** | 0.064 | **0.078** | 0.079 |
+| Temporal reasoning | 180 | **0.705** | 0.485 | **0.815** | 0.603 | 0.863 |
+| **Overall** | 1609 | **0.382** | 0.257 | **0.454** | 0.333 | 0.476 |
+
+- R@k = share of the labelled messages found in the top k; "evidence the agent sees" = among the entries injected into
+  the agent (12, or 20 for "how many / how long / which first"); disk ≈ 10× the text written
+- **Writing slows down as the memory grows**: 12 ms per message at 100K tokens, 19 ms at 1M, about 110 ms at 10M. A
+  conversation-sized import is fine, a 10M-token one takes about 40 minutes, and something in the write path grows
+  with the store. It is the next thing to fix
+- Before v7.18.0 nyx recalled **less** than BM25 here (100K–1M R@10 0.211): BEAM messages average ~2,100 characters and
+  long assistant replies outranked the short user message that states the fact. See the v7.18.0 changelog
+- Summarization and event-ordering questions draw on 10+ messages spread over the whole conversation; no top-10 list
+  covers that (BM25 neither). It is the weakest spot: the agent sees 6–8% of what those answers need
+- This is retrieval; the BEAM paper reports LLM-judged answers, a different measure
+
+**How the recalled memories are written into the prompt** (`benchmarks/beam_format_eval.py`, v7.18.0). Each injected
+entry is a memory's first 300 characters. We tested the obvious alternative — for a long memory, the 300 characters that
+cover the most words of the question — on the same recalled entries, 720 BEAM 100K–1M questions whose scoring points are
+short facts. The scoring point appears within one injected entry:
+
+| Question type | Questions | First 300 characters (kept) | Part about the question (tested) | Whole entries (reference) |
+|---|---|---|---|---|
+| Information extraction | 180 | 0.539 | 0.555 | 0.557 |
+| Knowledge update | 180 | 0.781 | 0.781 | 0.797 |
+| Multi-session reasoning | 180 | 0.310 | 0.314 | 0.349 |
+| Temporal reasoning | 180 | 0.338 | 0.343 | 0.354 |
+| **Overall** (characters injected) | 720 | 0.492 (4,358) | 0.498 (4,305) | 0.514 (21,165) |
+
+Better on 18 questions, worse on 11 (sign test p = 0.26); at 10M tokens 0.498 vs 0.492. A local model
+(Qwen2.5-1.5B-Instruct via llama.cpp, temperature 0) answering from the injected text alone, on 60 information-extraction
+and 60 knowledge-update questions drawn at random, has the scoring point in its answer 0.336 of the time with the first
+300 characters and 0.338 with the excerpt: 8 better, 8 worse. Even whole entries add only 2 points: on BEAM the fact is
+usually in a short user message or early in a reply. So the format stays; recall ranking was the bottleneck.
 
 **LongMemEval-S** (`benchmarks/longmemeval_eval.py`, 500 questions, ~50 sessions / 490 turns each; session-level recall as
 officially defined, the 30 abstention questions not scored; results in `benchmarks/results/longmemeval_s_retrieval.json`)
 
-| Type | Questions | any in top 5 | all in top 5 | all in top 10 | answer turns the agent sees | lexical only, all in top 5 |
+| Type | Questions | any in top 5 | all in top 5 | all in top 10 | answer turns the agent sees | lexical only, all in top 5 (v7.18) |
 |---|---|---|---|---|---|---|
-| Knowledge update | 72 | 1.000 | 1.000 | 1.000 | 0.944 | 0.889 |
-| Multi-session | 121 | 0.992 | 0.793 | 0.901 | 0.804 | 0.603 |
+| Knowledge update | 72 | 1.000 | 1.000 | 1.000 | 0.944 | 0.931 |
+| Multi-session | 121 | 0.992 | 0.793 | 0.901 | 0.804 | 0.711 |
 | Single-session (assistant) | 56 | 1.000 | 1.000 | 1.000 | 0.982 | 0.982 |
-| Single-session (preference) | 30 | 0.900 | 0.900 | 0.900 | 0.706 | 0.700 |
-| Single-session (user) | 64 | 1.000 | 1.000 | 1.000 | 0.961 | 0.984 |
-| Temporal reasoning | 127 | 0.984 | 0.779 | 0.866 | 0.804 | 0.693 |
-| **Overall** | 470 | **0.987** | **0.881** | **0.932** | **0.862** | 0.774 |
+| Single-session (preference) | 30 | 0.900 | 0.900 | 0.900 | 0.706 | 0.600 |
+| Single-session (user) | 64 | 1.000 | 1.000 | 1.000 | 0.961 | 1.000 |
+| Temporal reasoning | 127 | 0.984 | 0.779 | 0.866 | 0.804 | 0.772 |
+| **Overall** | 470 | **0.987** | **0.881** | **0.932** | **0.862** | 0.826 |
 
 "any in top 5" = at least one answer session among the top 5 recalled; "all in top 5" = when the answer is spread over
 several sessions, the top 5 found all of them; "answer turns the agent sees" = of the turns the dataset marks as holding
 the answer, how many are among the entries injected into the agent (12 by default, 20 for "how many / how long / which
 first" questions) — the closest to whether the agent can answer (v7.13.7).
+
+The semantic columns are the full v7.17.0 run. v7.18.0 (long memories scored down by length) was re-run with semantic
+search on every 4th question (116 scored), both versions on the same stores: any in top 5 0.983 → 0.991, all in top 5
+0.888 → 0.922, all in top 10 0.931 → 0.966, answer turns the agent sees 0.863 → 0.930. Lexical only, full set:
+all in top 5 0.781 → 0.826, answer turns the agent sees 0.738 → 0.847, any in top 5 0.955 → 0.945.
 
 **LoCoMo** (`benchmarks/locomo_eval.py`, 10 long two-person conversations, 5,882 turns over months; 1,536 scored questions,
 446 adversarial and 4 without evidence labels excluded as usual; the metric is how much of the labelled evidence is in the
@@ -427,11 +488,11 @@ top k; the reference is plain BM25 over the same sentences; results in `benchmar
 
 | Category | Questions | nyx R@5 | lexical R@5 | BM25 R@5 | nyx R@10 | BM25 R@10 | evidence the agent sees |
 |---|---|---|---|---|---|---|---|
-| Multi-hop | 282 | **0.301** | 0.289 | 0.180 | **0.397** | 0.264 | 0.413 |
-| Temporal | 321 | **0.674** | 0.666 | 0.611 | **0.744** | 0.678 | 0.756 |
-| Open-domain | 92 | 0.273 | **0.282** | 0.243 | **0.352** | 0.272 | 0.358 |
-| Single-hop | 841 | **0.661** | 0.615 | 0.590 | **0.725** | 0.655 | 0.732 |
-| **Overall** | 1536 | **0.575** | 0.546 | 0.498 | **0.646** | 0.565 | 0.656 |
+| Multi-hop | 282 | **0.291** | 0.281 | 0.180 | **0.398** | 0.264 | 0.414 |
+| Temporal | 321 | **0.680** | 0.660 | 0.611 | **0.741** | 0.678 | 0.756 |
+| Open-domain | 92 | **0.273** | 0.271 | 0.243 | **0.352** | 0.272 | 0.358 |
+| Single-hop | 841 | **0.660** | 0.615 | 0.590 | **0.720** | 0.655 | 0.727 |
+| **Overall** | 1536 | **0.573** | 0.542 | 0.498 | **0.643** | 0.565 | 0.654 |
 
 How to read these tables:
 - This is **retrieval**, not the scores others report. The LongMemEval / LoCoMo numbers from Mem0, Zep and Hindsight are QA
@@ -469,6 +530,11 @@ python3 benchmarks/longmemeval_eval.py longmemeval_s_cleaned.json --workers 8 --
 python3 benchmarks/longmemeval_eval.py longmemeval_s_cleaned.json --workers 8 --no-semantic --json longmemeval_s_lexical.json
 # LoCoMo (CC BY-NC 4.0, not in the repository): https://github.com/snap-research/locomo
 python3 benchmarks/locomo_eval.py locomo10.json --workers 10 --json benchmarks/results/locomo.json
+# BEAM (CC BY-SA 4.0, not in the repository): https://huggingface.co/datasets/Mohammadta/BEAM and Mohammadta/BEAM-10M
+pip install pyarrow
+python3 benchmarks/beam_eval.py 100K.parquet 500K.parquet 1M.parquet --workers 4 --no-semantic --json beam.json --views views.jsonl
+python3 benchmarks/beam_eval.py 10M-00000-of-00002.parquet 10M-00001-of-00002.parquet --workers 4 --no-semantic --json beam_10m.json
+python3 benchmarks/beam_format_eval.py views.jsonl            # add --llm with NYX_EVAL_API_URL / NYX_EVAL_MODEL for step 2
 ```
 
 When the semantic backend is on but the index was not built, both harnesses fail loudly (v7.13.6) — lexical-only results are never recorded as "semantic on".
@@ -477,6 +543,8 @@ When the semantic backend is on but the index was not built, both harnesses fail
 
 | Evaluation | What it measures | Version |
 |---|---|---|
+| `benchmarks/beam_eval.py` | BEAM retrieval evidence recall from 100K to 10M tokens (above), with a BM25 reference, write speed and disk | v7.18.0 |
+| `benchmarks/beam_format_eval.py` | How recalled memories are written into the prompt: is the answer visible, does a model use it | v7.18.0 |
 | `benchmarks/locomo_eval.py` | LoCoMo retrieval evidence recall (above), with a BM25 reference | v7.13.5 |
 | `benchmarks/longitudinal_eval.py` | Half a year of one person's life: now / believed then / at some past moment, scored separately; includes held-out phrasings | v7.9–v7.11 |
 | `benchmarks/poisoning_drill.py` | Memory poisoning: 0 of 16 attacks reach the prompt unlabelled, 0 of the user's 8 hurt | v7.8 |
@@ -495,6 +563,7 @@ When the semantic backend is on but the index was not built, both harnesses fail
 
 ## 📝 Recent updates
 
+- **v7.18.0**: long memories no longer bury the short message that holds the answer (BEAM recall@10 0.211 → 0.454, now above BM25's 0.333; LongMemEval-S answer turns the agent sees 0.738 → 0.847, lexical); new BEAM benchmark up to 10M tokens; tested injecting the part of a long memory about the question instead of its first 300 characters — no measurable difference, so the format stays
 - **v7.17.0**: per-profile settings in Hermes — one Hermes process serving several profiles no longer lets one profile's `nyx.json` (e.g. `l3_llm: on`) apply to the others; Nyx no longer writes to `os.environ` or `sys.path`; a profile with a different `data_dir` is refused instead of sharing; the provider is named `nyx` (from the Hermes plugin catalog review)
 - **v7.16.2**: Déjà Vu no longer counts Chinese function words and cross-word fragments (我们, 聊过, 的那, 过的…): 20 remembered chat messages used to make 6 of 10 unrelated Chinese questions "familiar", now 0
 - **v7.16.1**: Déjà Vu no longer counts common English words (*the, about, talked*…): one remembered English sentence used to make every unrelated English question "familiar"

@@ -34,6 +34,18 @@ def simhash_rerank(candidates, query) -> list:
     return sorted(candidates, key=hamming)
 
 
+# 长记忆按长度打折（v7.18.0）。以前只看「问句里的词在这条里出现了多少」，不管这条有多长：长消息
+# （助手的长回复、贴进来的文档）词多，什么问题都能沾上几个词，把一两百字、真正说了答案的那句挤出去 ——
+# BEAM（消息平均两千多字）上 recall@10 只有 0.211，最朴素的 BM25 是 0.333；打折后 0.454。
+# 用 Lucene 经典的 1/√长度，但只对超过一行注入（300 字）的记忆：聊天短句之间不分长短。
+# 像 BM25 那样连短句一起归一，LoCoMo（全是短句）recall@5 从 0.547 掉到 0.508，所以不那么做
+_LONG_CHARS = 300
+
+
+def _length_norm(n_chars: int) -> float:
+    return 1.0 if n_chars <= _LONG_CHARS else math.sqrt(_LONG_CHARS / n_chars)
+
+
 def sand_density(candidates, query_tokens, query) -> list:
     q_fp = _l3_simhash(query)
     if q_fp == -1:
@@ -68,7 +80,7 @@ def sand_density(candidates, query_tokens, query) -> list:
         # 这一步的成本放大了近一个数量级，实测合并排序占了单次查询 2.5s 中的 1.9s。
         low = text.lower()
         matched = sum(weights[t] for t in query_tokens if t in low)
-        density = matched / nq
+        density = matched / nq * _length_norm(len(low))
         trust = trust_scores.get(ln, 0.5)
         fp = _l3_simhash(text[:500])
         if fp == -1:
