@@ -5,7 +5,7 @@
 > **Memory that stays with your agent for life** — single-user, local, no LLM on the write path.
 > It remembers, finds, can be trusted, and can forget.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.18.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.18.1-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx is a long-term memory layer for agents. It plugs into [Hermes](https://github.com/NousResearch/hermes-agent)
 (as a memory provider), into Claude Desktop / Claude Code or any other MCP client, or into your own Python program.
@@ -390,7 +390,6 @@ sure (they go to the quarantine and can be restored for 30 days).
 - **Single-user by design**: one memory per person; one process serves one data directory at a time
 - **End-to-end QA accuracy not measured yet**: the [Benchmark](#benchmark) numbers are retrieval metrics; Mem0 / Zep and others report QA accuracy (an LLM answers and an LLM judges)
 - **Weak spots**: on LoCoMo multi-hop questions the agent sees only 41% of the evidence (48% with reranking); LongMemEval preference questions 0.71 (lower with reranking); BEAM summarization and event-ordering questions need 10+ messages spread over a long conversation and the agent sees 6–8% of them
-- **Writes slow down as the memory grows**: about 12 ms per message for a 100K-token history, 19 ms at 1M, about 110 ms at 10M (BEAM). Fine for live chat; importing a very large history takes a while
 - **Little English fact extraction**: rule-based extraction mostly covers Chinese; in English Nyx relies on retrieving the original text with its date. Without `[vector]`, English paraphrases that share no words with the memory are not found ("which editor do I use" does not find "I switched from VS Code to Zed"). Install `[vector]`, or enable `NYX_UNDERSTAND_LLM` for LLM extraction
 - **Déjà Vu on a long history**: common words no longer count (English v7.16.1, Chinese v7.16.2), but ordinary content words accumulate. Of 10 unrelated test questions, after 2,000 English turns all 10 are still "familiar" through words like *teacher* or *workshop* (0 after 20 turns, 3 after 200; `benchmarks/dejavu_english_real.py`); after 2,000 Chinese chat messages 3 are (企鹅, 玻璃, 老师; `benchmarks/dejavu_chinese_real.py`)
 - **Small default embedding model**: the local multilingual MiniLM is small and fast; with a stronger API model the fusion weights may need retuning (`NYX_EMBED_Z` / `NYX_EMBED_WEIGHT`)
@@ -411,10 +410,10 @@ over the same messages; results in `benchmarks/results/beam_retrieval.json`)
 
 | Conversation length | Conversations | Messages each | nyx R@10 | BM25 R@10 | evidence the agent sees | recall p50 | write per message | disk |
 |---|---|---|---|---|---|---|---|---|
-| 100K tokens | 20 | 287 | **0.532** | 0.417 | 0.559 | 45 ms | 12 ms | 5 MB |
-| 500K tokens | 35 | 1,087 | **0.494** | 0.368 | 0.515 | 51 ms | 16 ms | 23 MB |
-| 1M tokens | 35 | 2,132 | **0.368** | 0.251 | 0.389 | 63 ms | 19 ms | 47 MB |
-| 10M tokens | 10 | 20,870 | **0.326** | 0.218 | 0.350 | 137 ms | 108 ms | 500 MB |
+| 100K tokens | 20 | 287 | **0.532** | 0.417 | 0.559 | 43 ms | 11 ms | 5 MB |
+| 500K tokens | 35 | 1,087 | **0.494** | 0.368 | 0.515 | 54 ms | 10 ms | 23 MB |
+| 1M tokens | 35 | 2,132 | **0.368** | 0.251 | 0.389 | 66 ms | 10 ms | 47 MB |
+| 10M tokens | 10 | 20,870 | **0.326** | 0.218 | 0.350 | 149 ms | 12 ms | 500 MB |
 
 | Question type (100K–1M) | Questions | nyx R@5 | BM25 R@5 | nyx R@10 | BM25 R@10 | evidence the agent sees |
 |---|---|---|---|---|---|---|
@@ -431,9 +430,8 @@ over the same messages; results in `benchmarks/results/beam_retrieval.json`)
 
 - R@k = share of the labelled messages found in the top k; "evidence the agent sees" = among the entries injected into
   the agent (12, or 20 for "how many / how long / which first"); disk ≈ 10× the text written
-- **Writing slows down as the memory grows**: 12 ms per message at 100K tokens, 19 ms at 1M, about 110 ms at 10M. A
-  conversation-sized import is fine, a 10M-token one takes about 40 minutes, and something in the write path grows
-  with the store. It is the next thing to fix
+- Writing one message takes about the same time however large the memory is: about 10 ms from 100K to 10M tokens
+  (v7.18.1; in v7.18.0 it grew from 12 ms to 108 ms, so a 10M-token import took about 40 minutes, now about 4)
 - Before v7.18.0 nyx recalled **less** than BM25 here (100K–1M R@10 0.211): BEAM messages average ~2,100 characters and
   long assistant replies outranked the short user message that states the fact. See the v7.18.0 changelog
 - Summarization and event-ordering questions draw on 10+ messages spread over the whole conversation; no top-10 list
@@ -563,6 +561,7 @@ When the semantic backend is on but the index was not built, both harnesses fail
 
 ## 📝 Recent updates
 
+- **v7.18.1**: writing no longer slows down as the memory grows: about 10 ms per message from 100K to 10M tokens (before: 12 ms to 108 ms; BEAM). Recall unchanged
 - **v7.18.0**: long memories no longer bury the short message that holds the answer (BEAM recall@10 0.211 → 0.454, now above BM25's 0.333; LongMemEval-S answer turns the agent sees 0.738 → 0.847, lexical); new BEAM benchmark up to 10M tokens; tested injecting the part of a long memory about the question instead of its first 300 characters — no measurable difference, so the format stays
 - **v7.17.0**: per-profile settings in Hermes — one Hermes process serving several profiles no longer lets one profile's `nyx.json` (e.g. `l3_llm: on`) apply to the others; Nyx no longer writes to `os.environ` or `sys.path`; a profile with a different `data_dir` is refused instead of sharing; the provider is named `nyx` (from the Hermes plugin catalog review)
 - **v7.16.2**: Déjà Vu no longer counts Chinese function words and cross-word fragments (我们, 聊过, 的那, 过的…): 20 remembered chat messages used to make 6 of 10 unrelated Chinese questions "familiar", now 0

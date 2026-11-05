@@ -5,6 +5,41 @@ Benchmark section of the README and `benchmarks/`. Entries from v7.16.0 on are i
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。v7.16.0 起的条目用英文，之前的是中文。
 
+### v7.18.1 (2026-11-05) — Writing no longer slows down as the memory grows
+
+**Problem.** v7.18.0's BEAM run showed the time to write one message growing with the size of the memory: 12 ms per
+message at 100K tokens, 19 ms at 1M, 108 ms at 10M, so importing a 10M-token conversation took about 40 minutes.
+Profiling `provider.sync_turn` over a 10M-token conversation found the cause. Every message promoted to long-term
+memory read the whole `engram_store.jsonl`, decoded every row, and wrote every row back. At 5,000 messages that was 85%
+of the write time, and it grew with every row. Picking the 50 most recent rows for the duplicate check also read the
+whole file. A smaller term: shadow sand split, de-duplicated and re-sorted an entity's whole line-number list on every
+mention, and frequent entities (quoted identifiers in code, such as 'id') have long lists.
+
+**Fix.**
+- A new engram row is appended to the end of the file, and the recent rows are read from the end of the file.
+- Updating an existing row (reinforce / dedup, when a short message repeats word for word) looks only at the last 4 MB
+  of the file, updates the most recent identical row (before: the oldest), and replaces the file atomically. Messages
+  longer than 300 characters skip the search: only their first 300 characters are stored, so they cannot match.
+- The one full rewrite left (an override that names the row it replaces; the normal write path never passes one) is
+  atomic too. Before, every write truncated the file and wrote it back in place, so a reader in another process could
+  see half a file.
+- Shadow sand appends the new line number instead of re-sorting the list (line numbers only grow), and updates each
+  entity once per message. A message that mentioned an entity twice used to update it twice.
+
+**Measured** (BEAM, same data, lexical, 4 workers on 4 cores):
+
+| Conversation length | Write per message, v7.18.0 | v7.18.1 |
+|---|---|---|
+| 100K tokens | 12.4 ms | **10.9 ms** |
+| 500K tokens | 15.7 ms | **10.3 ms** |
+| 1M tokens | 19.2 ms | **10.3 ms** |
+| 10M tokens | 108 ms | **11.6 ms** |
+
+One 10M-token conversation now takes about 4 minutes to import instead of about 38. In the profile of one 10M
+conversation, a turn (user message + reply) took 24 ms at turn 500 and 121 ms at turn 2,500 before; now 12 ms and 13 ms,
+and 17 ms at turn 5,000. Recall results are identical to v7.18.0 on every question type (recall@10 0.454 at 100K–1M,
+0.326 at 10M), as they should be: only the write path changed.
+
 ### v7.18.0 (2026-11-04) — Long memories no longer bury the short answer; BEAM up to 10M tokens
 
 **New benchmark: BEAM** (Tavakoli et al., ICLR 2026, "Beyond a Million Tokens"; `benchmarks/beam_eval.py`). 100 long

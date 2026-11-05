@@ -80,11 +80,11 @@ def stats() -> dict:
 
 
 def recent(n: int = 10) -> list:
-    """最近 n 条 engram 记忆。"""
+    """最近 n 条 engram 记忆。只从文件尾部往回读（v7.18.1；以前每次都把整份读进来）。"""
     out = []
     if os.path.exists(_STORE):
         try:
-            for line in open(_STORE, encoding="utf-8").readlines()[-n:]:
+            for line in _tail_lines(_STORE, n):
                 line = line.strip()
                 if line:
                     try:
@@ -94,6 +94,27 @@ def recent(n: int = 10) -> list:
         except Exception:
             pass
     return out
+
+
+def _tail_lines(path: str, n: int) -> list:
+    """文件最后 n 行，等同于 readlines()[-n:]，但只读文件尾部。"""
+    if n <= 0:
+        return []
+    with open(path, "rb") as f:
+        f.seek(0, os.SEEK_END)
+        pos, data, block = f.tell(), b"", 1 << 16
+        while pos > 0 and data.count(b"\n") <= n:
+            step = min(block, pos)
+            pos -= step
+            f.seek(pos)
+            data = f.read(step) + data
+            block *= 2
+    lines = data.split(b"\n")
+    if data.endswith(b"\n"):
+        lines.pop()                     # readlines() 不会在结尾的换行后面多出一个空行
+    if pos > 0:
+        lines = lines[1:]               # 没读到文件开头：第一段可能是半行
+    return [ln.decode("utf-8", errors="replace") for ln in lines[-n:]]
 
 
 # ══════════════════════════════════════════════════════════
@@ -208,64 +229,141 @@ def ingest_classified(
     - OVERRIDE : 旧行标记 superseded_by，追加新 active 行
     - CONFLICT : 追加到 contradictions 源（不静默覆盖）
     返回 {status, id, matched_id?}
+
+    v7.18.1：新增只在文件末尾追加一行。以前每写一条都把整份 engram_store.jsonl 读进来、
+    再整份写回去，记忆越多写得越慢 —— BEAM 1000 万 token 的长对话写到 5000 条消息时，
+    每轮写入 120 ms，其中八成多花在这里。要改旧行的（强化 / 去重 / 指名取代）才整份替换，而且是原子替换。
     """
-    import json as _json
     mtype = mem_type or classify_memory_type(text)
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     os.makedirs(os.path.dirname(_STORE), exist_ok=True)
 
-    # 读现有行
-    rows = []
-    if os.path.exists(_STORE):
-        with open(_STORE, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    try:
-                        rows.append(_json.loads(line))
-                    except Exception:
-                        rows.append({"_raw": line})
-
-    # REINFORCE / DEDUP：找同内容行
+    # REINFORCE / DEDUP：找同内容行（最近的那条），原地更新
     if action in ("REINFORCE", "DEDUP"):
-        for r in rows:
-            if r.get("content") == text:
-                r["access_count"] = r.get("access_count", 0) + 1
-                if action == "REINFORCE":
-                    r["decay_weight"] = min(r.get("decay_weight", 1.0) + 0.1, 1.0)
-                r["action"] = action
-                r["last_accessed"] = ts
-                _write_rows(rows)
+        hit = _find_same_content(text)
+        if hit is not None:
+            start, stop, old, r = hit
+            r["access_count"] = r.get("access_count", 0) + 1
+            if action == "REINFORCE":
+                r["decay_weight"] = min(r.get("decay_weight", 1.0) + 0.1, 1.0)
+            r["action"] = action
+            r["last_accessed"] = ts
+            if _replace_line(start, stop, old, r):
                 return {"status": action.lower(), "matched_id": f"engram:{r.get('ts','')}"}
         # 没找到 → 退化为 INSERT
         action = "INSERT"
 
-    # OVERRIDE：标记旧行 superseded
-    if action == "OVERRIDE" and supersede_id:
-        for r in rows:
-            if f"engram:{r.get('ts','')}" == supersede_id:
-                r["superseded_by"] = ts
-                r["status"] = "historical"
-
-    # CONFLICT：写入 contradictions
     if action == "CONFLICT":
-        rows.append({
+        _append_row({
             "ts": ts, "content": text[:300], "type": "contradiction",
             "status": "conflict_candidate", "action": "conflict",
             **_trust_fields(origin, trust_signal, source_mem_id),
         })
-        _write_rows(rows)
         return {"status": "conflict", "id": f"engram:{ts}"}
 
     # INSERT / OVERRIDE(新值)
-    rows.append({
+    row = {
         "ts": ts, "content": text[:300], "type": mtype,
         "action": action, "status": "active",
         "decay_weight": 1.0, "access_count": 0, "created_at": ts,
         **_trust_fields(origin, trust_signal, source_mem_id),
-    })
-    _write_rows(rows)
+    }
+    if action == "OVERRIDE" and supersede_id:
+        _supersede_and_append(supersede_id, ts, row)
+    else:
+        _append_row(row)
     return {"status": "insert", "id": f"engram:{ts}"}
+
+
+def _append_row(row: dict) -> None:
+    """在 engram_store.jsonl 末尾追加一行。上一次写入要是没写完（结尾没有换行），先补一个换行，不把新行粘上去。"""
+    line = (json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8")
+    with open(_STORE, "a+b") as f:
+        f.seek(0, os.SEEK_END)
+        if f.tell() > 0:
+            f.seek(-1, os.SEEK_END)
+            if f.read(1) != b"\n":
+                line = b"\n" + line
+        f.write(line)
+
+
+# 找同内容行时只看文件最后这么多字节（约几千条）。判定「强化 / 去重」用的是最近 50 条，
+# 再往前找一模一样的旧行没有意义，却要把整份文件读一遍 —— 那又是随记忆变多而变慢的一步
+_SAME_CONTENT_TAIL = 4 << 20
+
+
+def _find_same_content(text: str):
+    """内容与 text 完全相同的最近一条 → (行起点, 行终点, 原行字节, 行)；没有 → None。偏移量是相对整份文件的。
+
+    存进去的内容只有前 300 字（ingest / ingest_classified 都截断），比 300 字长的 text 不可能完全相同，直接返回。
+    只读文件尾部（_SAME_CONTENT_TAIL），先按 JSON 编码后的字符串在原始字节里定位，只解析可能命中的行。"""
+    if len(text) > 300 or not os.path.exists(_STORE):
+        return None
+    with open(_STORE, "rb") as f:
+        f.seek(0, os.SEEK_END)
+        floor = max(0, f.tell() - _SAME_CONTENT_TAIL)
+        f.seek(floor)
+        data = f.read()
+    lo = 0 if floor == 0 else data.find(b"\n") + 1      # 没从文件开头读：跳过第一段半行
+    if floor and lo == 0:
+        return None
+    needles = {json.dumps(text, ensure_ascii=False).encode("utf-8"), json.dumps(text).encode("utf-8")}
+    best = None
+    for needle in needles:
+        pos = data.rfind(needle, lo)
+        while pos != -1 and (best is None or pos > best[0] - floor):
+            start = data.rfind(b"\n", 0, pos) + 1
+            stop = data.find(b"\n", pos)
+            stop = len(data) if stop == -1 else stop
+            try:
+                r = json.loads(data[start:stop].decode("utf-8"))
+            except Exception:
+                r = None
+            if isinstance(r, dict) and r.get("content") == text:
+                if best is None or floor + start > best[0]:
+                    best = (floor + start, floor + stop, data[start:stop], r)
+                break
+            pos = data.rfind(needle, lo, start)
+    return best
+
+
+def _replace_line(start: int, stop: int, old: bytes, row: dict) -> bool:
+    """把 [start, stop) 那一行换成 row，原子替换整份文件（其余行逐字节不动）。
+    那一行在这期间被别人改动过（遗忘、整理）就不换，返回 False。"""
+    from nexsandglass.core.fsutil import atomic_write
+    with open(_STORE, "rb") as f:
+        data = f.read()
+    if data[start:stop] != old:
+        return False
+    with atomic_write(_STORE, mode="wb") as f:
+        f.write(data[:start] + json.dumps(row, ensure_ascii=False).encode("utf-8") + data[stop:])
+    return True
+
+
+def _supersede_and_append(supersede_id: str, ts: str, row: dict) -> None:
+    """OVERRIDE 指名了被取代的行：标记它，再追加新行。要改旧行，所以整份替换（正常写入路径不传 supersede_id）。"""
+    from nexsandglass.core.fsutil import atomic_write
+    out = []
+    if os.path.exists(_STORE):
+        with open(_STORE, encoding="utf-8") as f:
+            for line in f:
+                raw = line.rstrip("\n")
+                if not raw.strip():
+                    continue
+                try:
+                    r = json.loads(raw)
+                except Exception:
+                    out.append(raw)             # 解析不了的行原样保留
+                    continue
+                if isinstance(r, dict) and f"engram:{r.get('ts','')}" == supersede_id:
+                    r["superseded_by"] = ts
+                    r["status"] = "historical"
+                    raw = json.dumps(r, ensure_ascii=False)
+                out.append(raw)
+    out.append(json.dumps(row, ensure_ascii=False))
+    with atomic_write(_STORE) as f:
+        for raw in out:
+            f.write(raw + "\n")
 
 
 def _trust_fields(origin, trust_signal, source_mem_id) -> dict:
@@ -279,12 +377,3 @@ def _trust_fields(origin, trust_signal, source_mem_id) -> dict:
     if source_mem_id:
         out["source_mem_id"] = source_mem_id
     return out
-
-
-def _write_rows(rows: list) -> None:
-    """写回 engram_store.jsonl。"""
-    import json as _json
-    os.makedirs(os.path.dirname(_STORE), exist_ok=True)
-    with open(_STORE, "w", encoding="utf-8") as f:
-        for r in rows:
-            f.write(_json.dumps(r, ensure_ascii=False) + "\n")
