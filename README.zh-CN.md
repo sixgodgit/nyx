@@ -4,7 +4,7 @@
 
 > **给 agent 一份跟着你一辈子的记忆** —— 单用户、本地、写入不调用大模型。记得住，找得到，信得过，忘得掉。
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.18.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.18.1-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx 是 agent 的长期记忆层：接进 [Hermes](https://github.com/NousResearch/hermes-agent)（作为记忆插件）、
 Claude Desktop / Claude Code 等任意 MCP 客户端，或者你自己的 Python 程序。
@@ -345,7 +345,6 @@ LoCoMo 证据召回 +4.7 个点，代价是每轮召回多 0.3–1.5 秒、偏�
 - **单用户设计**：一个人一份记忆；一个进程同一时刻只服务一个数据目录
 - **端到端问答准确率还没测**：[Benchmark](#benchmark) 里都是检索指标；Mem0 / Zep 们报的是问答准确率（需要大模型作答与裁判）
 - **还弱的题型**：LoCoMo 多跳题 agent 看到的证据只有 41%（开重排 48%）；LongMemEval 偏好题 0.71（开重排反而更低）；BEAM 的「总结」「事件先后」题要用到散在长对话里的十几条消息，agent 只看到其中 6–8%
-- **记忆越多写得越慢**：10 万 token 的历史每条约 12 ms，100 万时 19 ms，1000 万时约 110 ms（BEAM）。日常聊天不受影响，一次导入很长的历史要等一阵
 - **英文事实抽取较少**：规则抽取以中文为主，英文主要靠检索原文 + 日期；可开 `NYX_UNDERSTAND_LLM` 用 LLM 抽取。不装 `[vector]` 时，和记忆没有共同词的英文改写问法找不到（「which editor do I use」找不到「I switched from VS Code to Zed」）
 - **Déjà Vu 在很长的历史上**：常用词已经不算了（英文 v7.16.1、中文 v7.16.2），但普通实词会越积越多。10 个不相干的测试问题里，记了 2000 轮英文之后仍有 10 个靠 teacher、workshop 这类词判成熟悉（20 轮时 0 个、200 轮时 3 个；`benchmarks/dejavu_english_real.py`）；记了 2000 句中文闲聊之后有 3 个（企鹅、玻璃、老师；`benchmarks/dejavu_chinese_real.py`）
 - **默认嵌入模型偏小**：本地多语言 MiniLM 胜在小而快；换更强的 API 模型时，融合权重可能需要重新调（`NYX_EMBED_Z` / `NYX_EMBED_WEIGHT`）
@@ -365,10 +364,10 @@ LoCoMo 证据召回 +4.7 个点，代价是每轮召回多 0.3–1.5 秒、偏�
 
 | 对话长度 | 段数 | 每段消息数 | nyx R@10 | BM25 R@10 | agent 看到的证据 | 召回 p50 | 每条写入 | 磁盘 |
 |---|---|---|---|---|---|---|---|---|
-| 10 万 token | 20 | 287 | **0.532** | 0.417 | 0.559 | 45 ms | 12 ms | 5 MB |
-| 50 万 token | 35 | 1,087 | **0.494** | 0.368 | 0.515 | 51 ms | 16 ms | 23 MB |
-| 100 万 token | 35 | 2,132 | **0.368** | 0.251 | 0.389 | 63 ms | 19 ms | 47 MB |
-| 1000 万 token | 10 | 20,870 | **0.326** | 0.218 | 0.350 | 137 ms | 108 ms | 500 MB |
+| 10 万 token | 20 | 287 | **0.532** | 0.417 | 0.559 | 43 ms | 11 ms | 5 MB |
+| 50 万 token | 35 | 1,087 | **0.494** | 0.368 | 0.515 | 54 ms | 10 ms | 23 MB |
+| 100 万 token | 35 | 2,132 | **0.368** | 0.251 | 0.389 | 66 ms | 10 ms | 47 MB |
+| 1000 万 token | 10 | 20,870 | **0.326** | 0.218 | 0.350 | 149 ms | 12 ms | 500 MB |
 
 | 题型（10 万–100 万） | 题数 | nyx R@5 | BM25 R@5 | nyx R@10 | BM25 R@10 | agent 看到的证据 |
 |---|---|---|---|---|---|---|
@@ -385,8 +384,8 @@ LoCoMo 证据召回 +4.7 个点，代价是每轮召回多 0.3–1.5 秒、偏�
 
 - R@k = 标注的那几条消息在前 k 条里找到了多少；「agent 看到的证据」= 注入给 agent 的那些条（12 条；问「一共 / 多久 / 先后」时 20 条）里
   找到了多少；磁盘约为写入文字的 10 倍
-- **记忆越多，写入越慢**：10 万 token 时每条 12 ms，100 万时 19 ms，1000 万时约 110 ms。日常对话量没问题，一次导入 1000 万
-  token 要 40 分钟左右 —— 写入路径里有随库变大而变慢的环节，这是下一步要修的
+- 写一条消息的时间不随记忆变多而变长：从 10 万到 1000 万 token 都是每条 10 ms 左右（v7.18.1；v7.18.0 时从 12 ms 涨到
+  108 ms，一次导入 1000 万 token 要 40 分钟左右，现在 4 分钟左右）
 - v7.18.0 以前 nyx 在这里**不如** BM25（10 万–100 万 R@10 0.211）：BEAM 的消息平均约 2100 个字符，助手的长回复把说了事实的
   那条用户短消息挤了下去。见 v7.18.0 更新日志
 - 「总结」和「事件先后」的答案要用到散在整段对话里的十几条消息，前 10 条怎么排都覆盖不了（BM25 也一样）。这是最弱的地方：
@@ -508,6 +507,7 @@ python3 benchmarks/beam_format_eval.py views.jsonl            # 第 2 步加 --l
 
 ## 📝 最近更新
 
+- **v7.18.1**：记忆越多写得越慢的问题修好了：从 10 万到 1000 万 token 每条写入都在 10 ms 左右（以前从 12 ms 涨到 108 ms；BEAM），召回不变
 - **v7.18.0**：长记忆不再把说了答案的短消息挤下去（BEAM recall@10 0.211 → 0.454，超过 BM25 的 0.333；LongMemEval-S agent 看到的含答案轮次 0.738 → 0.847，纯词法）；新增 BEAM 基准，最长 1000 万 token；试了「长记忆注入与问题相关的那段、不取开头 300 字」，没有可测的差别，写法不改
 - **v7.17.0**：Hermes 里设置按 profile 生效 —— 一个进程服务多个 profile 时，一个 profile 的 `nyx.json`（比如 `l3_llm: on`）不再作用到别的 profile；Nyx 不再改 `os.environ` 和 `sys.path`；`data_dir` 不同的 profile 会被拒绝而不是共用；插件名改成 `nyx`（Hermes 插件目录评审提出）
 - **v7.16.2**：Déjà Vu 不再把中文虚词和跨词碎片（我们、聊过、的那、过的……）算作见过 —— 以前只记 20 句闲聊，10 个不相干的中文问题就有 6 个「熟悉」，现在 0 个

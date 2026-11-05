@@ -187,6 +187,22 @@ def shadow_boost(candidate_lines: set, limit: int = 10) -> list:
 
 # ═══════════════════ 写入（落沙后同步） ═══════════════════
 
+def _append_line_num(lns: str, line_num: int) -> str:
+    """把行号并进实体的行号串（逗号分隔、升序）。
+
+    行号由 ID 中枢按写入顺序分配，新的一条总比串里最后一个大：直接接在后面（v7.18.1）。
+    以前每写一条都把整串拆开、去重、排序再拼回去 —— 常见实体（代码里带引号的 'id'、"name"）的串随记忆一起变长，
+    写入也跟着越来越慢。不是追加的情况（重建、还原）照旧去重排序。
+    """
+    last = lns[lns.rfind(",") + 1:]
+    if not lns:
+        return str(line_num)
+    if last.isdigit() and int(last) < line_num:
+        return f"{lns},{line_num}"
+    nums = {x.strip() for x in lns.split(",") if x.strip().isdigit()} | {str(line_num)}
+    return ",".join(sorted(nums, key=int))
+
+
 def shadow_index(text: str, category: str = "general", tags: str = "",
                  line_num: int = 0, mem_id: str = None) -> None:
     """落沙后同步索引。
@@ -212,33 +228,31 @@ def shadow_index(text: str, category: str = "general", tags: str = "",
                 "[shadow_index] 未收到行号，退回 COUNT(*)+1 估算（%s）—— "
                 "这会造成 provenance 错位，调用方应改为经 memid.allocate 获取", line_num)
 
-        # 提取实体
+        # 提取实体（同一条里重复出现的只记一次）
+        names = []
         for m in _ENTITY_RE.finditer(text):
-            name = m.group(1) or m.group(2) or m.group(3) or ""
-            name = name.strip()
-            if name and len(name) > 1:
-                row = db.execute(
-                    "SELECT line_nums FROM entities WHERE name = ?", (name,)
-                ).fetchone()
-                if row:
-                    nums = set(row[0].split(",")) | {str(line_num)}
-                    db.execute(
-                        "UPDATE entities SET line_nums = ? WHERE name = ?",
-                        (",".join(sorted(nums, key=int)), name)
-                    )
-                    if has_memid and mem_id:
-                        cur = db.execute(
-                            "SELECT mem_ids FROM entities WHERE name = ?", (name,)).fetchone()
-                        mids = {m for m in (cur[0] or "").split(",") if m} | {mem_id}
-                        db.execute("UPDATE entities SET mem_ids = ? WHERE name = ?",
-                                   (",".join(sorted(mids)), name))
-                else:
-                    db.execute(
-                        "INSERT INTO entities (name, line_nums, mem_ids) VALUES (?, ?, ?)"
-                        if has_memid else
-                        "INSERT INTO entities (name, line_nums) VALUES (?, ?)",
-                        (name, str(line_num), mem_id or "") if has_memid else (name, str(line_num))
-                    )
+            name = (m.group(1) or m.group(2) or m.group(3) or "").strip()
+            if name and len(name) > 1 and name not in names:
+                names.append(name)
+        cols = "rowid, line_nums, mem_ids" if has_memid else "rowid, line_nums"
+        for name in names:
+            row = db.execute(f"SELECT {cols} FROM entities WHERE name = ?", (name,)).fetchone()
+            if row is None:
+                db.execute(
+                    "INSERT INTO entities (name, line_nums, mem_ids) VALUES (?, ?, ?)"
+                    if has_memid else
+                    "INSERT INTO entities (name, line_nums) VALUES (?, ?)",
+                    (name, str(line_num), mem_id or "") if has_memid else (name, str(line_num))
+                )
+                continue
+            lns = _append_line_num(row[1] or "", line_num)
+            if has_memid and mem_id:
+                mids = row[2] or ""
+                if f",{mem_id}," not in f",{mids},":
+                    mids = f"{mids},{mem_id}" if mids else mem_id
+                db.execute("UPDATE entities SET line_nums = ?, mem_ids = ? WHERE rowid = ?", (lns, mids, row[0]))
+            else:
+                db.execute("UPDATE entities SET line_nums = ? WHERE rowid = ?", (lns, row[0]))
 
         # 写入信任记录
         db.execute(
