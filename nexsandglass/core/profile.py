@@ -254,6 +254,31 @@ def _refresh(conn: Optional[sqlite3.Connection], max_rows: Optional[int]) -> int
     return added
 
 
+def reconsider(mem_ids) -> int:
+    """从隔离区救回来的记忆重新分类（v7.20.0）。
+
+    refresh 只看水位线之后的、没删的行：一条话在画像刷新时正好在隔离区里，就被跳过了；救回来以后水位线早就过了它，
+    不会再看 —— 救回的「我对花生过敏」从此不在常驻块里。救回时调这个补上。
+    """
+    from nexsandglass.core import memid
+    conn = memid.get_conn()
+    _ensure(conn)
+    added = 0
+    with _REFRESH_LOCK:
+        for mid in mem_ids or ():
+            r = conn.execute("SELECT seq, text, line_start FROM memories WHERE mem_id = ? AND sender = 'user' "
+                             "AND deleted_at IS NULL", (mid,)).fetchone()
+            if not r:
+                continue
+            hit = classify(r[1])
+            if hit and _trusted(r[2]):
+                conn.execute("INSERT OR REPLACE INTO profile_items(mem_id, seq, kind) VALUES (?, ?, ?)",
+                             (mid, r[0], hit[0]))
+                added += 1
+        conn.commit()
+    return added
+
+
 # ══════════════════════════════════════════════════════════
 # 渲染
 # ══════════════════════════════════════════════════════════

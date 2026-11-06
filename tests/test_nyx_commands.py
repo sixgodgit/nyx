@@ -2,10 +2,19 @@
 import json
 from types import SimpleNamespace
 
+import pytest
+
 from tests.test_hermes_provider import env, _reindex, _provider  # noqa: F401  复用隔离目录
 
 import nexsandglass_hermes_commands as cmds
 from nexsandglass.core import recording
+
+
+@pytest.fixture(autouse=True)
+def _never_leave_paused():
+    # 暂停状态是数据目录里的一个文件（整个测试会话共用）：哪个测试中途失败，也不能让后面的测试都不记录
+    yield
+    recording.resume()
 
 
 def _src(chat_type="dm", user_id="42", user_name="owner", is_bot=False, platform="telegram"):

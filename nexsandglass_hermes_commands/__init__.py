@@ -5,8 +5,8 @@ nyx-commands —— 会话里的 /nyx 命令（v7.20.0，配套的 Hermes 普通
     /nyx status             版本、记忆条数、有没有暂停、画像里各类有几条
     /nyx pause              暂停记录：之后的对话不写进 Nyx（召回照常），直到 /nyx resume
     /nyx resume             恢复记录
-    /nyx forget-last [N]    把这个会话最近 N 轮（默认 1）送进隔离区；保留期内可以恢复
-                            （hermes nyx restore <mem_id>，或者让 agent 调 nyx_restore）
+    /nyx forget-last [N]    把这个会话最近 N 轮（默认 1）送进隔离区，回显忘掉的是哪几句；保留期内可以恢复
+                            （hermes nyx restore <mem_id>）
 
 命令在 Hermes 里直接执行，不经过模型；结果只显示在这个聊天里。
 谁能用：本机（CLI / TUI / 桌面）和私聊里都能用；群聊、频道里只能看 status —— 群里任何人都能打命令。
@@ -120,7 +120,7 @@ def _forget_last(n: int, session_id: str) -> str:
                   "（按全部记忆里最新的算：Nyx 启动以来没有记到这个聊天的轮次）")
     if not ids:
         return _t("Nothing to forget.", "没有可以遗忘的。")
-    # 先取原文：回显给用户核对忘的是不是那一句（送进隔离区之后中枢里还在，但先取更直接）
+    # 先取原文：回显给用户核对忘的是不是那一句（送进隔离区之后中枢里的正文就清空了，原文只在隔离区表里）
     marks = ",".join("?" * len(ids))
     said = [(r[0], r[1]) for r in memid.get_conn().execute(
         f"SELECT sender, text FROM memories WHERE mem_id IN ({marks}) ORDER BY seq", ids).fetchall()]
@@ -131,11 +131,12 @@ def _forget_last(n: int, session_id: str) -> str:
     until = str(r.get("purge_after") or "")[:10]
     shown = [t for s, t in said if s not in ("agent", "assistant")] or [t for _, t in said]
     preview = "\n".join("  · " + " ".join(str(t).split())[:60] + ("…" if len(str(t)) > 60 else "") for t in shown[:5])
+    from nexsandglass.core import hints
+    again = hints.cmd("restore", " ".join(ids))
     return _t(f"Moved {r['removed']} memories to the quarantine{note}"
-              + (f"; restorable until {until}" if until else "") + f":\n{preview}\nRestore with nyx_restore or "
-              f"`hermes nyx restore <mem_id>`: {', '.join(ids)}",
+              + (f"; restorable until {until}" if until else "") + f":\n{preview}\nTo bring them back: `{again}`",
               f"已把 {r['removed']} 条送进隔离区{note}" + (f"，{until} 之前都能恢复" if until else "")
-              + f"：\n{preview}\n要恢复：让 agent 调 nyx_restore，或运行 `hermes nyx restore <mem_id>`：{', '.join(ids)}")
+              + f"：\n{preview}\n要恢复：`{again}`")
 
 
 def handle(raw_args: str = "", source: Any = None, session_id: str = "", **_kw) -> str:

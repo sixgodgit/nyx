@@ -286,12 +286,8 @@ def _provider():
 
 def _after_import() -> None:
     try:
-        from nexsandglass.core import sandglass_sqlite, profile, semantic
-        from nexsandglass.features import sandglass_vault
-        sandglass_sqlite.sync_incremental()
-        sandglass_vault._sync_index()
-        profile.refresh()
-        semantic.schedule_index()
+        from nexsandglass.core import lookup
+        lookup.after_write()
     except Exception as e:
         print(t(f"(index refresh after import failed, it will catch up on the next start: {e})",
                 f"（导入后的索引补齐失败，下次启动时会自动补上：{e}）"), file=sys.stderr)

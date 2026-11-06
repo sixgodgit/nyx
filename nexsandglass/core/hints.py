@@ -18,11 +18,13 @@ def via_hermes() -> bool:
     return settings.get("NYX_VIA_HERMES") == "1" or "hermes_cli" in sys.modules
 
 
-# 命令名和模块名不一样的（import 是 Python 关键字，模块叫 history_import）
-_MODULES = {"import": "history_import", "memory": "memory_cli"}
+# 命令名和模块名不一样的（import 是 Python 关键字，模块叫 history_import；
+# search / show / forget / restore / edit 是同一个模块的子命令，v7.20.0）
+_MODULES = {"import": "history_import",
+            **{c: f"memory_cli {c}" for c in ("search", "show", "forget", "restore", "edit")}}
 
 
 def cmd(tool: str, rest: str = "") -> str:
-    """tool：vault / doctor / scrub / repair / import / …。rest：后面的参数。"""
+    """tool：vault / doctor / scrub / repair / import / search / show / forget / restore / edit。rest：后面的参数。"""
     base = f"hermes nyx {tool}" if via_hermes() else f"python3 -m nexsandglass.{_MODULES.get(tool, tool)}"
     return f"{base} {rest}".rstrip()

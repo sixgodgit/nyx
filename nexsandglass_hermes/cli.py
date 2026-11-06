@@ -7,6 +7,8 @@ hermes nyx … —— Nyx 的命令行，经 Hermes 运行（v7.15.2；v7.16.0 �
     hermes nyx scrub [--apply]         # 已经存下的密钥 / 密码：找出来、原地隐去
     hermes nyx repair                  # 中枢对不上日志时：按内容体检与修复
     hermes nyx import                  # 把以前在 Hermes 里的对话导进来（v7.20.0）
+    hermes nyx search 花生 [--since 2026-03 --until 2026-03]   # 找记忆（v7.20.0）
+    hermes nyx show m_ab12… / forget … / restore … / edit …   # 看全文、遗忘、救回、改一条（v7.20.0）
     hermes nyx status                  # 版本、数据目录
 
 为什么要有它：新版 Hermes 把 nyx-memory 装在它自己的隔离环境里，系统 Python 里没有 nyx，
@@ -56,7 +58,18 @@ TOOLS = {
                                        "中枢对不上日志时：按内容体检与修复")),
     "import": ("nexsandglass.history_import", ("import past Hermes conversations (Hermes's side is read-only)",
                                                "把以前在 Hermes 里的对话导进来（Hermes 那边只读）")),
+    # v7.20.0：同一个模块的子命令（命令名原样作为第一个参数传过去）
+    "search": ("nexsandglass.memory_cli", ("find memories; --since / --until for a date range",
+                                           "找记忆；--since / --until 限定日期")),
+    "show": ("nexsandglass.memory_cli", ("one memory in full, with what was said around it", "看一条的全文和前后几句")),
+    "forget": ("nexsandglass.memory_cli", ("move memories to the quarantine (--now: erase for good)",
+                                           "送进隔离区（--now：当场擦掉）")),
+    "restore": ("nexsandglass.memory_cli", ("bring forgotten memories back; no id = list the quarantine",
+                                            "把忘掉的救回来；不写编号 = 看隔离区")),
+    "edit": ("nexsandglass.memory_cli", ("correct a memory (the old one goes to the quarantine)",
+                                         "改一条记忆（旧的进隔离区）")),
 }
+_SUBCOMMANDS = {"search", "show", "forget", "restore", "edit"}
 
 
 def register_cli(subparser) -> None:
@@ -94,7 +107,8 @@ def nyx_command(args) -> int:
             from nexsandglass import vault
             return vault.main(["status"])
         mod = importlib.import_module(TOOLS[name][0])
-        rc = mod.main(list(getattr(args, "nyx_args", None) or []))
+        rest = list(getattr(args, "nyx_args", None) or [])
+        rc = mod.main(([name] if name in _SUBCOMMANDS else []) + rest)
         return rc if isinstance(rc, int) else 0
 
 
