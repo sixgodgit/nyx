@@ -341,6 +341,8 @@ _NOT_PLACE = re.compile(r"^(那边|这边|那里|这里|哪里|哪儿|那儿|这
 # 实体不会以体助词开头：「在乌得勒支住过一阵」里「住」后面的「过一阵」不是地名。
 # （留出评测发现；这条是普遍规则，但它是看过留出结果后加的 —— 见 README v7.10）
 _ASPECT_HEAD = re.compile(r"^(过|了|着|一阵|一下|一段|几年|几个月|很久|到现在|到今天|至今|到如今|下来)")
+_EN_NOT_PLACE = frozenset("""the this that these those here there now then near with and but for from into
+a an my our your his her their its some any one small big new old nice tiny huge same other another""".split())
 _NOT_COMPANY = re.compile(r"^(家|这里|那里|这|那|哪|海牙|阿姆斯特丹|鹿特丹|国内|国外)$")
 # 数量词 / 指示词开头的不是公司名：「在一家做机器人的公司当工程师」没有说是哪家
 _VAGUE_COMPANY = re.compile(r"^(一家|一个|一所|一间|某|某家|这家|那家|哪家|家里|别的|其他)")
@@ -363,6 +365,90 @@ def _sentences(text: str) -> list:
     return [s for s in re.split(r"[。！？!?\n]+", text or "") if s.strip()]
 
 
+# ══════════════════════════════════════════════════════════
+# 说的是谁（v7.19.0）
+# ══════════════════════════════════════════════════════════
+# 以前每个子句的主语一律当成用户：「我妈住在青岛」→ user lives in 青岛，「我男朋友是厨师」→ 用户的职位是厨师，
+# 「我女儿下个月过生日，她特别喜欢恐龙」→ user likes 恐龙。个人对话里家人、伴侣、朋友的事很多，记错人比漏记更糟。
+# 现在看关系词前面的主语：是家人 / 朋友就记在 "user's mother" 这类主语名下；是「她 / 他」就往前找同一句里提到的人，
+# 找不到就不记。「我们」「我和我老婆」「my wife and I」仍然包括用户。
+_KIN_ZH = {
+    "妈妈": "mother", "母亲": "mother", "老妈": "mother", "爸爸": "father", "父亲": "father", "老爸": "father",
+    "女儿": "daughter", "闺女": "daughter", "儿子": "son", "孩子": "child", "宝宝": "child",
+    "老婆": "wife", "妻子": "wife", "媳妇": "wife", "太太": "wife", "爱人": "spouse", "老公": "husband", "丈夫": "husband",
+    "男朋友": "boyfriend", "男友": "boyfriend", "女朋友": "girlfriend", "女友": "girlfriend", "对象": "partner",
+    "哥哥": "brother", "弟弟": "brother", "姐姐": "sister", "妹妹": "sister",
+    "爷爷": "grandfather", "奶奶": "grandmother", "外公": "grandfather", "外婆": "grandmother",
+    "姥姥": "grandmother", "姥爷": "grandfather", "公公": "father-in-law", "婆婆": "mother-in-law",
+    "岳父": "father-in-law", "岳母": "mother-in-law", "父母": "parents", "爸妈": "parents",
+    "朋友": "friend", "同事": "colleague", "老板": "boss", "领导": "boss", "室友": "roommate", "邻居": "neighbour",
+}
+_KIN_ZH_SHORT = {"妈": "mother", "爸": "father", "哥": "brother", "姐": "sister", "弟": "brother", "妹": "sister"}
+_KIN_ZH_RX = re.compile(r"(?:我(?:的)?)?(" + "|".join(sorted(_KIN_ZH, key=len, reverse=True)) + r")"
+                        r"|我(" + "|".join(_KIN_ZH_SHORT) + r")")
+_KIN_EN_RX = re.compile(r"\bmy (mother|mom|mum|father|dad|son|daughter|kids?|child|baby|wife|husband|partner|spouse|"
+                        r"boyfriend|girlfriend|fianc[eé]e?|brother|sister|grandma|grandmother|grandpa|grandfather|"
+                        r"parents|friend|colleague|coworker|boss|roommate|neighbou?r)\b", re.I)
+_EN_ROLE = {"mom": "mother", "mum": "mother", "dad": "father", "kid": "child", "kids": "children", "baby": "child",
+            "grandma": "grandmother", "grandpa": "grandfather", "coworker": "colleague", "neighbor": "neighbour"}
+_PRONOUN_RX = re.compile(r"(?<![其吉])[他她它](?:们)?|\b(?:he|she|they|it)\b", re.I)
+_SELF_TOO_RX = re.compile(r"我们|咱们|我(?:和|跟|与)|(?:和|跟|与)我|\bwe\b|\band i\b|\bi and\b", re.I)
+# 「我」在主语位置：「我妈说我住在…」这种转述先不管，关系词前最近的主语说了算
+_SELF_RX = re.compile(r"我(?!们)|\bi\b", re.I)
+
+
+def _role_of(m) -> str:
+    if m.re is _KIN_EN_RX:
+        w = m.group(1).lower()
+        return _EN_ROLE.get(w, w.replace("é", "e"))
+    return _KIN_ZH.get(m.group(1) or "", "") or _KIN_ZH_SHORT.get(m.group(2) or "", "")
+
+
+def _last_person(text: str):
+    """这段话里最后提到的人：("kin", 角色) / ("pronoun", "") / ("self", "") / None。"""
+    marks = []
+    for rx in (_KIN_ZH_RX, _KIN_EN_RX):
+        for m in rx.finditer(text):
+            if m.group(0).strip():
+                marks.append((m.start(), "kin", _role_of(m)))
+    for m in _PRONOUN_RX.finditer(text):
+        marks.append((m.start(), "pronoun", ""))
+    for m in _SELF_TOO_RX.finditer(text):
+        marks.append((m.start(), "self", ""))
+    for m in _SELF_RX.finditer(text):
+        # 「我妈」「我女儿」里的「我」是领属，不是主语
+        if not _KIN_ZH_RX.match(text, m.start()):
+            marks.append((m.start(), "self", ""))
+    if not marks:
+        return None
+    marks.sort(key=lambda x: x[0])
+    return marks[-1][1], marks[-1][2]
+
+
+_OTHERS_RX = re.compile(r"其他人|别人|大家|有人|很多人|好多人|\b(?:everyone|everybody|people|others|someone|somebody)\b", re.I)
+
+
+def _who(clause: str, pos: int, sentence: str) -> Optional[str]:
+    """关系词前面的主语：用户本人 → None；别人 → "user's 角色"；不知道是谁的第三人称 → ""。"""
+    prefix = clause[:max(0, pos)]
+    if _SELF_TOO_RX.search(prefix):
+        return None                     # 「我和我老婆」「我们」「my wife and I」：包括用户
+    if _OTHERS_RX.search(prefix) and not _SELF_RX.search(prefix):
+        return ""                       # 「其他人都住在北京」：不是用户，也说不上是谁
+    last = _last_person(prefix)
+    if last is None or last[0] == "self":
+        return None
+    if last[0] == "kin":
+        return f"user's {last[1]}" if last[1] else ""
+    # 第三人称代词：往前找同一句里最后提到的家人 / 朋友
+    head = sentence[:max(0, sentence.find(clause))] if clause in sentence else ""
+    for m in reversed(list(_KIN_ZH_RX.finditer(head)) + list(_KIN_EN_RX.finditer(head))):
+        role = _role_of(m)
+        if role:
+            return f"user's {role}"
+    return ""
+
+
 def extract_rules(text: str, now: Optional[datetime] = None, subject: str = "user") -> list:
     now = now or _clock_now()
     out: list = []
@@ -371,8 +457,11 @@ def extract_rules(text: str, now: Optional[datetime] = None, subject: str = "use
         for cl in _clauses(sent):
             asp = aspect(cl)
             when = parse_when(cl, now) or (sent_time if len(_clauses(sent)) == 1 else None)
-            for rel, obj, ev in _find(cl):
-                f = Fact(subject=subject, relation=rel, object=obj, evidence=ev,
+            for rel, obj, ev, pos in _find(cl):
+                who = _who(cl, pos, sent) if subject == "user" else None
+                if who == "":
+                    continue                # 说的是别人（「她」），又不知道是谁：不记到用户头上
+                f = Fact(subject=who or subject, relation=rel, object=obj, evidence=ev,
                          valid_from=when if rel in SINGLE_VALUED else None,
                          ongoing=asp if rel in SINGLE_VALUED else None)
                 if rel in SINGLE_VALUED and asp is False and when is None:
@@ -382,24 +471,29 @@ def extract_rules(text: str, now: Optional[datetime] = None, subject: str = "use
 
 
 def _find(cl: str) -> list:
-    """在一个子句里找所有 (关系, 对象, 证据)。"""
+    """在一个子句里找所有 (关系, 对象, 证据, 匹配起点)。"""
     hits = []
     for m in _EMAIL.finditer(cl):
-        hits.append(("邮箱", m.group(0), m.group(0)))
+        hits.append(("邮箱", m.group(0), m.group(0), m.start()))
     if re.search(_REL_NOUNS["电话"], cl, re.I):
         for m in _PHONE.finditer(cl):
             num = re.sub(r"\s+", "", m.group(1))
             if len(re.sub(r"\D", "", num)) >= 7:
-                hits.append(("电话", num, m.group(0)))
+                hits.append(("电话", num, m.group(0), m.start()))
     for m in _LIVE.finditer(cl):
         raw = m.group(1)
         city = re.match(_CITY_RX, raw)
         obj = city.group(0) if city else _cut(raw, 12)
+        if not city and raw[:1].isascii():
+            # 英文地名取开头连续的大写词：「Seattle and work as…」→ Seattle，「New York」整个保留（v7.19.0）
+            en = re.match(r"(?:the\s+)?([A-Z][A-Za-z.'-]*(?:\s+[A-Z][A-Za-z.'-]*)*)", raw)
+            low = re.match(r"([a-z][a-z.'-]{2,})", raw)          # 聊天里常有全小写：「i live in seattle」
+            obj = en.group(1) if en else (low.group(1) if low and low.group(1) not in _EN_NOT_PLACE else "")
         if obj and len(obj) >= 2 and not _NOT_PLACE.match(obj) and not _ASPECT_HEAD.match(obj):
-            hits.append(("住在", obj, m.group(0)))
+            hits.append(("住在", obj, m.group(0), m.start()))
     if _CAR_CTX.search(cl) or re.search(_CAR_RX, cl):
         for m in _CAR.finditer(cl):
-            hits.append(("使用", m.group(1), m.group(0)))
+            hits.append(("使用", m.group(1), m.group(0), m.start()))
     if _WORK_CTX.search(cl):
         for rx in (_COMPANY_IS, _COMPANY):
             for m in rx.finditer(cl):
@@ -408,18 +502,18 @@ def _find(cl: str) -> list:
                         and not _VAGUE_COMPANY.match(obj) \
                         and not _ASPECT_HEAD.match(obj) \
                         and not re.fullmatch(_CITY_RX, obj):
-                    hits.append(("公司", obj, m.group(0)))
+                    hits.append(("公司", obj, m.group(0), m.start()))
     for m in _TITLE.finditer(cl):
         obj = _cut(m.group(1) or m.group(2) or m.group(3), 16)
         if obj and len(obj) >= 2:
-            hits.append(("职位", obj, m.group(0)))
+            hits.append(("职位", obj, m.group(0), m.start()))
     for rx, rel in ((_DISLIKE, "反感"), (_PREF, "偏好")):
         for m in rx.finditer(cl):
             if rel == "偏好" and re.search(r"不喜欢|不偏好", cl[max(0, m.start() - 1):m.end()]):
                 continue
             obj = _cut(m.group(1), 12)
             if obj and len(obj) >= 2:
-                hits.append((rel, obj, m.group(0)))
+                hits.append((rel, obj, m.group(0), m.start()))
     return hits
 
 

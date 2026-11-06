@@ -197,6 +197,7 @@ def run_conversation(conv: dict, *, budget: int) -> dict:
     from nexsandglass.runtime import intent as _intent
     from nexsandglass.runtime.orchestrator import get_orchestrator
     orch = get_orchestrator()
+    from nexsandglass.core import relevance
     qs = []
     for i, q in enumerate(questions(conv)):
         t1 = time.time()
@@ -209,6 +210,12 @@ def run_conversation(conv: dict, *, budget: int) -> dict:
                 unmapped += 1
             elif d not in ranked:
                 ranked.append(d)
+        # 注入前的那道门（v7.19.0，core/relevance.py）：agent 实际看到的是门后的这些
+        gated = []
+        for seq in map_to_seqs(conn, relevance.keep(q["question"], list(mc.objects or []))):
+            d = seq_msg.get(seq) if seq is not None else None
+            if d is not None and d not in gated:
+                gated.append(d)
         base = []
         for j in bm25.rank(q["question"]):
             if ids[j] not in base:
@@ -216,7 +223,7 @@ def run_conversation(conv: dict, *, budget: int) -> dict:
             if len(base) >= 50:
                 break
         qs.append({"i": i, "type": q["type"], "evidence": q["evidence"], "updated": q["updated"],
-                   "ranked": ranked[:50], "bm25": base,
+                   "ranked": ranked[:50], "gated": gated[:50], "bm25": base,
                    "n_objects": len(mc.objects), "unmapped": unmapped, "recall_ms": round(ms, 1),
                    "view_n": max(VIEW_LINES, _intent.breadth_lines(q["question"]))})
     views = _views(p, conn, seq_msg, conv) if os.environ.get("NYX_EVAL_VIEWS") == "1" else None
@@ -357,6 +364,10 @@ def _group(rows: list) -> dict:
     return {"n": len(rows), "nyx": _metrics(rows, "ranked"), "bm25": _metrics(rows, "bm25"),
             "nyx_in_view": round(sum(len(set(r["ranked"][:r["view_n"]]) & set(r["evidence"])) / len(r["evidence"])
                                      for r in rows) / len(rows), 4),
+            # 经过注入前那道门之后（v7.19.0）
+            "nyx_in_view_gated": (round(sum(len(set(r["gated"][:r["view_n"]]) & set(r["evidence"])) / len(r["evidence"])
+                                            for r in rows if "gated" in r) / max(1, sum(1 for r in rows if "gated" in r)), 4)
+                                  if any("gated" in r for r in rows) else None),
             # 知识更新题：更新后的那条进了 agent 的视野（新值看得见，才谈得上用新值）
             "updated_in_view": round(sum(bool(set(r["ranked"][:r["view_n"]]) & set(r["updated"])) for r in upd)
                                      / len(upd), 4) if upd else None,
@@ -379,6 +390,10 @@ def score(results: list) -> dict:
             by_type["_overall"].append(q)
     out = {"by_type": {t: _group(rows) for t, rows in sorted(by_type.items())},
            "by_scale": {s: _group(by_scale[s]) for s in SCALES if by_scale.get(s)}}
+    # 拒答题（问的事对话里没有，没有证据）：门后一条都不注入的比例（v7.19.0）
+    abst = [q for c in results if "error" not in c for q in c["questions"] if q["type"] == "abstention" and "gated" in q]
+    if abst:
+        out["abstention_gate"] = {"n": len(abst), "nothing_injected": round(sum(1 for q in abst if not q["gated"]) / len(abst), 4)}
     ok = [c for c in results if "error" not in c]
     per_scale = {}
     for s in SCALES:
@@ -402,13 +417,16 @@ def score(results: list) -> dict:
 
 def _print(report: dict) -> None:
     head = (f"{'':26s} {'n':>5s}   {'nyx R@5':>8s} {'BM25 R@5':>8s}   {'nyx R@10':>8s} {'BM25 R@10':>9s}"
-            f"   {'nyx hit@10':>10s}   {'in view':>7s}   {'p50 ms':>7s}")
+            f"   {'nyx hit@10':>10s}   {'in view':>7s} {'gated':>6s}   {'p50 ms':>7s}")
     for title, groups in (("by type", report["by_type"]), ("by scale", report["by_scale"])):
         print(f"\n{title}\n{head}")
         for g, row in groups.items():
             a, b = row["nyx"], row["bm25"]
             print(f"{g:26s} {row['n']:5d}   {a['recall@5']:8.3f} {b['recall@5']:8.3f}   {a['recall@10']:8.3f}"
-                  f" {b['recall@10']:9.3f}   {a['hit@10']:10.3f}   {row['nyx_in_view']:7.3f}   {row['recall_ms_p50']:7.1f}")
+                  f" {b['recall@10']:9.3f}   {a['hit@10']:10.3f}   {row['nyx_in_view']:7.3f}"
+                  f" {row.get('nyx_in_view_gated') or 0:6.3f}   {row['recall_ms_p50']:7.1f}")
+    if report.get("abstention_gate"):
+        print("abstention (gate):", json.dumps(report["abstention_gate"]))
     print(json.dumps(report["_meta"], ensure_ascii=False))
 
 

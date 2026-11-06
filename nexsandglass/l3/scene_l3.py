@@ -369,17 +369,33 @@ def _save_scenes(tags: list) -> None:
 # ═══════════════════════════════════════════════
 # 场景关键词（可扩展）
 # ═══════════════════════════════════════════════
+# 代码里只放通用类别。以前这张表里还有「口腔诊所管理」「NeuroBase 开发」「语音助手刘浩存」这类最初那位用户
+# 自己的场景 —— 别的用户提到「代码」「脚本」也会被标成「NeuroBase 开发」（v7.19.0 移出）。
+# 自己的场景放在 <数据目录>/persona/scene_keywords.json：{"场景名": ["关键词", ...]}，和下面的合并。
 _SCENE_KEYWORDS = {
-    "工作项目": ["项目", "任务", "进度", "交付", "上线", "需求", "方案"],
-    "学习研究": ["学习", "教程", "算法", "框架", "论文", "原理"],
-    "个人事务": ["生活", "日常", "计划", "健身", "旅行", "购物"],
-    "技术开发": ["代码", "架构", "部署", "API", "bug", "性能", "脚本"],
-    "口腔诊所管理": ["e看牙", "口腔", "诊所", "患者", "美团", "牙", "门诊", "预约"],
-    "NeuroBase 开发": ["沙漏", "封框", "第二层", "第三层", "neurobase", "hermes", "代码", "架构", "索引", "脚本"],
-    "语音助手刘浩存": ["刘浩存", "唤醒", "语音", "TTS", "ASR", "omni", "qwen", "打断"],
-    "个人困惑": ["困惑", "迷茫", "不知道", "怎么办", "纠结", "焦虑"],
-    "个人喜好": ["喜欢", "偏好", "审美", "字体", "颜色", "风格", "TencentSans"],
+    "工作项目": ["项目", "任务", "进度", "交付", "上线", "需求", "方案", "project", "deadline", "release"],
+    "学习研究": ["学习", "教程", "算法", "框架", "论文", "原理", "study", "paper", "tutorial"],
+    "个人事务": ["生活", "日常", "计划", "健身", "旅行", "购物", "travel", "shopping", "workout"],
+    "技术开发": ["代码", "架构", "部署", "API", "bug", "性能", "脚本", "code", "deploy", "script"],
+    "个人困惑": ["困惑", "迷茫", "不知道", "怎么办", "纠结", "焦虑", "anxious", "confused"],
+    "个人喜好": ["喜欢", "偏好", "审美", "字体", "颜色", "风格", "favourite", "favorite"],
 }
+_CUSTOM_SCENES = os.path.join(_PERSONA_DIR, "scene_keywords.json")
+
+
+def _scene_keywords() -> dict:
+    """通用类别 + 用户自己的场景（persona/scene_keywords.json，读不了就只用通用的）。"""
+    table = dict(_SCENE_KEYWORDS)
+    try:
+        if os.path.exists(_CUSTOM_SCENES):
+            with open(_CUSTOM_SCENES, "r", encoding="utf-8") as f:
+                custom = json.load(f)
+            for name, kws in (custom or {}).items():
+                if isinstance(name, str) and isinstance(kws, list):
+                    table[name] = [str(k) for k in kws if str(k).strip()]
+    except Exception as e:
+        logger.warning("自定义场景读取失败（只用通用类别）: %s", e)
+    return table
 
 
 def scene_remove(tag: str) -> list:
@@ -400,7 +416,7 @@ def scene_guess() -> list:
     text = " ".join(t[2] for t in sands).lower()
 
     matched = []
-    for scene, keywords in _SCENE_KEYWORDS.items():
+    for scene, keywords in _scene_keywords().items():
         if any(kw.lower() in text for kw in keywords):
             matched.append(scene)
     return matched

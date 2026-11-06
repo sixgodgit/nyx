@@ -137,7 +137,9 @@ _TOOL_SCHEMAS = [
         "Bi-temporal facts about the user (where they live, what they use, employer, job title, email, phone, "
         "likes, dislikes). By default returns what is believed now; as_of=DATE → what was true on that day; "
         "known_at=DATE → what was believed at that time; history=true → how the fact and the belief changed. "
-        "Use it for \"where do I live now / where did I work before / when did that change\".",
+        "Use it for \"where do I live now / where did I work before / when did that change\". "
+        "Facts about the user's family and friends are kept under their own subject, e.g. \"user's mother\", "
+        "\"user's daughter\", \"user's boyfriend\".",
         {"subject": {"type": "string", "default": "user"},
          "relation": {"type": "string",
                       "enum": ["lives_in", "uses", "employer", "job_title", "email", "phone", "likes", "dislikes"]},
@@ -439,6 +441,11 @@ class NexSandglassProvider(MemoryProvider):
             from nexsandglass.runtime.orchestrator import get_orchestrator
             get_orchestrator().recall("记忆预热", token_budget=200)
             logger.info("Nyx 预热完成：%.0f ms", (time.time() - t0) * 1000)
+            # 常驻画像：老库升级后第一次要把历史上用户说过的话分一遍类，放在后台做（v7.19.0）
+            from nexsandglass.core import profile
+            n = profile.refresh()
+            if n:
+                logger.info("Nyx 画像：新收进 %d 条", n)
         except Exception as e:
             logger.warning("Nyx 预热失败（不影响使用，首轮查询会现场加载）: %s", e)
 
@@ -452,71 +459,59 @@ class NexSandglassProvider(MemoryProvider):
         self._warm_thread = t
 
     def system_prompt_block(self) -> str:
-        """V2.9.8: 四层问答式注入 — 你是谁→往哪走→怎么变成这样→还没做完"""
+        """每个会话常驻的那一段（v7.19.0 重写）。
+
+        只放对 agent 有用、而且来自这个用户自己的内容，有内容的才出现：
+          [About the user]          画像：用户亲口说过的长期信息（core/profile.py）——
+                                    对 agent 的要求、饮食和健康禁忌、家人和宠物、住处和工作、喜好
+          [Who you are]             persona.md（用户用 persona_build 生成过才有）
+          [Where you are heading]   决策偏移、最近的决定、图谱里的矛盾、情绪 —— 平稳时不写
+          [How you got here]        织线因果（三元组够多时）
+          [Unfinished]              待办和纪律
+        以前还有 [Core facts]（一次空问题召回 = 日志里最早的十来条，混着助手的客套话）、
+        [Contradictions]（含「不要 / 别」就算矛盾）、[Confidence] / [Time]、写死的场景和阶段 —— v7.19.0 去掉。
+        """
         try:
             from nexsandglass.features.sandglass_vault import count
             from nexsandglass.features.sandglass_think import comprehensive_offset, _current_stage
             from nexsandglass.features.sandglass_think import _emotional_entropy, search_filter
 
             total = count()
-            off = comprehensive_offset()
-            stage = _current_stage()
-            ent = _emotional_entropy()
-            mood = _mood(ent)
-
-            # 偏移方向
-            off_label = _OFFSET_LABELS.get(off.get('direction', ''), 'steady')
-            off_pct = off.get('offset', 0)
-
+            # 阶段只在真的有阶段时间线时才写：没有时间线时 _current_stage 回一个写死的默认值（"2026-06"）
+            from nexsandglass.features import sandglass_think as _st
+            stage = _current_stage() if os.path.exists(getattr(_st, "_PERSONA_TIMELINE", "") or "") else ""
             blocks = []
 
-            # ═══════ 第一层：你是谁 ═══════
-            persona_text = ""
-            scene_text = ""
+            # ═══════ 关于用户（画像） ═══════
+            try:
+                from nexsandglass.core import profile
+                prof = profile.render()
+                if prof:
+                    blocks.append(prof)
+            except Exception:
+                logger.debug("画像渲染失败", exc_info=True)
+
+            # ═══════ 你是谁（persona.md） ═══════
             try:
                 sf = search_filter("")
                 if sf.get("persona_context"):
                     raw = sf["persona_context"][:250]
-                    # 保留完整结构（含日期/沙子来源→精准定位），截到段落边界
-                    cut = raw.rfind("\n\n")
+                    cut = raw.rfind("\n\n")              # 截到段落边界
                     if cut > 80:
                         raw = raw[:cut]
-                    persona_text = raw.strip()
-                if sf.get("scene_context"):
-                    raw_scene = sf["scene_context"]
-                    if "：" in raw_scene:
-                        raw_scene = raw_scene.split("：", 1)[1]
-                    scene_text = raw_scene
+                    if raw.strip():
+                        blocks.append("[Who you are]\n" + raw.strip())
             except Exception:
                 logger.debug("search_filter 失败", exc_info=True)
 
-            # 场景如果在画像中已出现，不重复
-            if scene_text and persona_text and any(s in persona_text for s in scene_text.split("、")):
-                scene_text = ""
-
-            # fallback: scene_current
-            if not scene_text:
-                try:
-                    from nexsandglass.l3.scene_l3 import scene_current
-                    scenes = scene_current()
-                    if scenes:
-                        scene_text = f"Current scene: {', '.join(scenes[:3])}"
-                except Exception:
-                    pass
-
-            persona_parts = []
-            if persona_text:
-                persona_parts.append(persona_text)
-            if scene_text:
-                persona_parts.append(f"📍 {scene_text}")
-            persona_layer = "\n".join(persona_parts)
-
-            # ═══════ 第二层：你在往哪走 ═══════
+            # ═══════ 你在往哪走：只写有内容的 ═══════
+            off = comprehensive_offset()
+            mood = _mood(_emotional_entropy())
+            off_label = _OFFSET_LABELS.get(off.get('direction', ''), 'steady')
+            off_pct = off.get('offset', 0)
             layer2 = ["[Where you are heading]"]
             if off_label != "steady":
                 layer2.append(f"💰 leaning {off_label} ({off_pct:+d}%)")
-            else:
-                layer2.append("💰 decisions steady")
 
             # 最近决策
             decisions = []
@@ -560,10 +555,11 @@ class NexSandglassProvider(MemoryProvider):
 
             if mood != "steady":
                 layer2.append(f"🎭 Mood: {mood}")
+            if len(layer2) > 1:
+                blocks.append("\n".join(layer2))
 
-            offset_layer = "\n".join(layer2[1:]) if len(layer2) > 1 else ""
-
-            # ═══════ 第三层：你怎么变成这样 ═══════
+            # ═══════ 你怎么变成这样 ═══════
+            thread_layer = ""
             try:
                 from nexsandglass.features.weavethread import wthread_stats, wthread_weave
                 stats = wthread_stats()
@@ -574,7 +570,7 @@ class NexSandglassProvider(MemoryProvider):
             except Exception:
                 logger.debug("织线失败", exc_info=True)
 
-            # ═══════ 第四层：还没做完 ═══════
+            # ═══════ 还没做完 ═══════
             layer4 = []
 
             # 待办
@@ -615,36 +611,20 @@ class NexSandglassProvider(MemoryProvider):
             else:
                 open_loops_layer = ""
 
-            # ═══════ B2：唯一出口 MemoryBundle → render ═══════
-            # persona/offset/thread/open_loops 作为槽位输入；body 仅由 bundle.render() 产出
-            thread_layer = locals().get("thread_layer", "")
-            try:
-                from nexsandglass.runtime.orchestrator import get_orchestrator
-                orch = get_orchestrator()
-                bundle = orch.recall_bundle(
-                    "",
-                    max_tokens=self._bundle_max_tokens(),
-                    persona_layer=persona_layer,
-                    offset_layer=offset_layer,
-                    thread_layer=thread_layer,
-                    open_loops=open_loops_layer,
-                )
-                body = bundle.render()
-            except Exception as e:
-                # 降级仅在 orch 真正不可用时触发，并打 warning
-                logger.warning("system_prompt_block Bundle 路径失败，fallback: %s", e)
-                fb = []
-                if persona_layer: fb.append("[Who you are]\n" + persona_layer)
-                if offset_layer: fb.append("[Where you are heading]\n" + offset_layer)
-                if thread_layer: fb.append("[How you got here]\n" + thread_layer)
-                if open_loops_layer: fb.append("[Unfinished]\n" + open_loops_layer)
-                body = "\n\n".join(fb).strip()
+            if thread_layer:
+                blocks.append("[How you got here]\n" + thread_layer)
+            if open_loops_layer:
+                blocks.append("[Unfinished]\n" + open_loops_layer)
 
-            tail = f"Nyx memory: {total} entries | stage: {stage}"
+            tail = (f"Nyx memory: {total} entries. When the user refers to something from the past that is not "
+                    f"shown here, search it with sandglass_search.")
+            if stage:
+                tail += f" Stage: {stage}."
             warn = self._health_warning()
             if _vault.level() == "on":
                 tail += ("\n`#vN` in a memory is a secret-vault entry id. Call nyx_secret_reveal only when the user "
                          "explicitly asks to see the secret; never guess, reconstruct or repeat it.")
+            body = "\n\n".join(blocks)
             return (body + "\n\n" + tail + (("\n" + warn) if warn else "")).strip()
         except Exception:
             logger.warning("system_prompt_block 整体失败", exc_info=True)
@@ -676,6 +656,9 @@ class NexSandglassProvider(MemoryProvider):
             ent = _emotional_entropy()
             mood = _mood(ent)
             off_d = _OFFSET_LABELS.get(off.get('direction', ''), 'steady')
+            if off_d == "steady" and mood == "steady":
+                # 平稳时这一行不带任何信息，Hermes 却会把它留在每条用户消息里、之后每轮重发（v7.19.0 起不写）
+                return ""
             return f"## Now\nDecision drift: {off_d} ({off.get('offset', 0):+d}%) | Mood: {mood}\n"
         except Exception:
             return ""
@@ -713,9 +696,12 @@ class NexSandglassProvider(MemoryProvider):
         评测（benchmarks/beam_eval.py --views）走同一个函数，比较注入写法时用的就是真实会注入的那几条。"""
         from nexsandglass.runtime.orchestrator import get_orchestrator
         from nexsandglass.runtime import intent as _intent
+        from nexsandglass.core import relevance
         mc = get_orchestrator().recall(query, token_budget=self._prefetch_budget or 1)
         objs = [o for o in (mc.objects or []) if o.content and str(o.content).strip()]
-        lines = [str(o.content) for o in objs] or [s for s in (mc.strings or []) if s and str(s).strip()]
+        # 只因为虚词撞上的不注入；一个实词都对不上就一条都不注入（v7.19.0，core/relevance.py）
+        objs = relevance.keep(query, objs)
+        lines = [str(o.content) for o in objs]
         cap = max(12, self._prefetch_budget // 100)      # 600 → 12 条；4000 → 40 条
         cap = max(cap, _intent.breadth_lines(query))     # 汇总 / 时长 / 先后：答案分散在几次对话里（v7.13.7）
         dates = _said_on(objs[:cap])

@@ -641,15 +641,13 @@ def search_filter(query: str) -> dict:
         result["scene_context"] = f"当前场景：{'、'.join(scenes)}"
 
     # ── 画像感知（始终生效）──
+    # persona.md 是用户自己用 persona_build 生成的：有就用。以前还要求里面出现「开源 / 免费 / Python / Hermes」
+    # 这类词才放进来 —— 那是按最初那位用户写死的，别人的画像大多被挡掉（v7.19.0）
     if os.path.exists(_PERSONA):
         with open(_PERSONA, "r", encoding="utf-8") as f:
             persona = f.read()
-        for dim, keywords in [("认知内核", ["决策", "核心价值", "驱动力"]),
-                               ("偏好", ["喜欢", "偏好", "开源", "免费", "本地"]),
-                               ("工具", ["Python", "Hermes", "本地"])]:
-            if any(kw in persona for kw in keywords):
-                result["persona_context"] = persona[:500]
-                break
+        if persona.strip():
+            result["persona_context"] = persona[:500]
     try:
         cross = cross_stage_offset(query)
         if cross.get("evolution"):
