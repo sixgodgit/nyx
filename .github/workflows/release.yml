@@ -91,7 +91,7 @@ jobs:
           eps = sorted(e.name for e in md.entry_points(group="hermes_agent.memory_providers"))
           assert eps == ["nexsandglass", "nyx"], eps
           plugs = sorted(e.name for e in md.entry_points(group="hermes_agent.plugins"))
-          assert plugs == ["nyx-reveal"], plugs
+          assert plugs == ["nyx-commands", "nyx-reveal"], plugs
 
           class Ctx:
               provider = None
@@ -118,6 +118,18 @@ jobs:
           c2 = Ctx()
           mod.register(c2)
           assert c2.provider is not None
+
+          # 配套插件 nyx-commands 从装好的 wheel 里注册出 /nyx；终端命令的模块能导入（v7.20.1）
+          import importlib
+          class CmdCtx:
+              name = None
+              def register_command(self, name, handler, description="", args_hint=""):
+                  self.name = name
+          cc = CmdCtx()
+          importlib.import_module("nexsandglass_hermes_commands").register(cc)
+          assert cc.name == "nyx", cc.name
+          for m in ("nexsandglass.memory_cli", "nexsandglass.history_import", "nexsandglass.core.lookup"):
+              importlib.import_module(m)
 
           whl = glob.glob(os.path.join(os.environ["GITHUB_WORKSPACE"], "dist", "*.whl"))[0]
           names = zipfile.ZipFile(whl).namelist()

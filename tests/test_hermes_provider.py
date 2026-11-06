@@ -197,6 +197,23 @@ def test_entry_points_declared_and_loadable():
     assert c.provider is not None and c.provider.name == "nyx"
 
 
+def _declared(group: str) -> list:
+    txt = open(os.path.join(_ROOT, "pyproject.toml"), encoding="utf-8").read()
+    block = txt.split(f'[project.entry-points."{group}"]', 1)[1].split("\n[", 1)[0]
+    return sorted(re.findall(r'^([\w-]+)\s*=\s*"[^"]+"', block, re.M))
+
+
+def test_release_smoke_test_expects_every_declared_entry_point():
+    """release.yml 的冒烟测试把入口点名单写死了。pyproject 里加了插件、名单没跟着改，发布会在最后一步失败、
+    PyPI 上就没有这个版本 —— v7.20.0 就是这样（加了 nyx-commands，名单还是只有 nyx-reveal）。"""
+    import ast
+    yml = open(os.path.join(_ROOT, ".github", "workflows", "release.yml"), encoding="utf-8").read()
+    for var, group in (("eps", "hermes_agent.memory_providers"), ("plugs", "hermes_agent.plugins")):
+        m = re.search(rf"assert {var} == (\[[^\]]*\]), {var}", yml)
+        assert m, f"release.yml no longer checks {group}"
+        assert sorted(ast.literal_eval(m.group(1))) == _declared(group), group
+
+
 def test_plugin_dir_passes_hermes_discovery_heuristic():
     """目录插件：__init__.py 必须提到 register_memory_provider / MemoryProvider（Hermes 的免 import 探测）。"""
     d = os.path.join(_ROOT, "nexsandglass_hermes")

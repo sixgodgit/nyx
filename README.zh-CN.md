@@ -4,7 +4,7 @@
 
 > **给 agent 一份跟着你一辈子的记忆** —— 单用户、本地、写入不调用大模型。记得住，找得到，信得过，忘得掉。
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.20.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.20.1-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx 是 agent 的长期记忆层：接进 [Hermes](https://github.com/NousResearch/hermes-agent)（作为记忆插件）、
 Claude Desktop / Claude Code 等任意 MCP 客户端，或者你自己的 Python 程序。
@@ -603,6 +603,7 @@ python3 benchmarks/personamem_eval.py questions_32k.csv --answer views.jsonl --l
 
 ## 📝 最近更新
 
+- **v7.20.1**：就是 PyPI 上的 v7.20.0（v7.20.0 的发布检查只认一个配套插件、实际有两个，没有发布出去）
 - **v7.20.0**：记什么由你说了算。任何聊天里 `/nyx pause` / `resume` / `forget-last` / `status`（`hermes plugins enable nyx-commands`）；终端里 `hermes nyx search / show / forget / restore / edit`，不经过模型；`hermes nyx import` 把装 Nyx 之前的对话按原来的时间导进来，后导入的旧话不会盖过新的。agent 的搜索结果带日期和谁说的、能限定日期范围，`nyx_read` 看一条的全文和前后几句（MCP 也有）。修好：从隔离区救回的记忆可能一直不回常驻画像。个人场景和 PersonaMem 评测里 agent 看到的没有变化
 - **v7.19.0**：为个人 agent 而做。每个会话的系统提示先放用户说过的关于自己的事（对 agent 的要求、饮食健康、家人、住处工作、
   喜好），用原话；只靠「什么 / 帮我 / what」这类词和问题撞上的记忆不再注入，什么都不相关就一条都不注入；家人的事记在家人名下

@@ -5,6 +5,14 @@ Benchmark section of the README and `benchmarks/`. Entries from v7.16.0 on are i
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。v7.16.0 起的条目用英文，之前的是中文。
 
+### v7.20.1 (2026-11-06) — v7.20.0 as published on PyPI
+
+v7.20.0 never reached PyPI. The release workflow's clean-install check listed the Hermes companion plugins it
+expected by name, only `nyx-reveal`; v7.20.0 added `nyx-commands`, so the check failed after the tests had passed and
+the publish step was skipped. The code is v7.20.0's. Changes: the check now expects both plugins and also registers
+`/nyx` from the installed wheel and imports the new terminal modules; a test compares the names the check expects with
+the entry points declared in `pyproject.toml`, so the next new plugin fails in CI instead of at release.
+
 ### v7.20.0 (2026-11-06) — You stay in charge: `/nyx` in chat, look up and correct in the terminal, import from Hermes
 
 **Why.** A personal agent's memory has to be something its owner can steer, not only something that happens to them.
