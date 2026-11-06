@@ -135,6 +135,74 @@
      "proxy_turn": 0.245
     }
    }
+  },
+  "v7.20.0": {
+   "n": 589,
+   "conditions": [
+    "none",
+    "nyx",
+    "block",
+    "turn"
+   ],
+   "proxy": {
+    "none": 0.25,
+    "nyx": 0.396,
+    "block": 0.276,
+    "turn": 0.398
+   },
+   "llm": {},
+   "by_type": {
+    "generalizing_to_new_scenarios": {
+     "n": 57,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.386,
+     "proxy_block": 0.281,
+     "proxy_turn": 0.368
+    },
+    "provide_preference_aligned_recommendations": {
+     "n": 55,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.382,
+     "proxy_block": 0.327,
+     "proxy_turn": 0.4
+    },
+    "recall_user_shared_facts": {
+     "n": 129,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.37,
+     "proxy_block": 0.304,
+     "proxy_turn": 0.314
+    },
+    "recalling_facts_mentioned_by_the_user": {
+     "n": 17,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.471,
+     "proxy_block": 0.382,
+     "proxy_turn": 0.529
+    },
+    "recalling_the_reasons_behind_previous_updates": {
+     "n": 99,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.556,
+     "proxy_block": 0.313,
+     "proxy_turn": 0.581
+    },
+    "suggest_new_ideas": {
+     "n": 93,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.505,
+     "proxy_block": 0.247,
+     "proxy_turn": 0.541
+    },
+    "track_full_preference_evolution": {
+     "n": 139,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.236,
+     "proxy_block": 0.209,
+     "proxy_turn": 0.245
+    }
+   },
+   "note": "Views identical to v7.19.0 on all 589 questions (the same memories injected in the same order) except the block's entry-count line, which now counts memories instead of journal lines; the local-model step was not rerun. One extra run under heavy CPU load differed on 19 questions: a recall source that misses its time budget (1.5-3 s) is dropped; a rerun matched v7.19.0 exactly."
   }
  },
  "llm_subset": {

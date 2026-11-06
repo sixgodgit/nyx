@@ -5,7 +5,7 @@
 > **Memory that stays with your agent for life** — single-user, local, no LLM on the write path.
 > It remembers, finds, can be trusted, and can forget.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.19.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.20.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx is a long-term memory layer for agents. It plugs into [Hermes](https://github.com/NousResearch/hermes-agent)
 (as a memory provider), into Claude Desktop / Claude Code or any other MCP client, or into your own Python program.
@@ -20,6 +20,7 @@ All data is plain files on your machine.
 | **Knows who you are** | What you told it about yourself — requests to the agent ("reply in Chinese, no emoji"), allergies and diet, family, home and work, likes — is in every session's system prompt in your own words; memories that match a question only through words like *what / 帮我* are not injected; a relative's facts stay theirs | Eight personal stories (v7.19.0): the facts the agent needed and saw went from 25–38% to **100%**, unrelated entries per question from 9 to 1–2, and unrelated questions get nothing injected 88% of the time (was 13–25%) |
 | **Keeps time straight** | Bi-temporal facts: "when it was true" and "when it was learned" are stored separately | "I switched to a Geely back in February" is recorded as February, not as the day it was said; answers "what is believed now" and "what did I think in March" |
 | **Can be trusted** | Source and trust are bound at write time: only what the user said themselves can become a rule; hearsay and web content come back labelled "unverified" | Poisoning drill: 0 of 16 attacks reach the agent's prompt unlabelled; 0 of the user's 8 normal messages are hurt |
+| **You stay in charge** | In any chat, `/nyx pause` stops remembering until `/nyx resume` and `/nyx forget-last` takes back the last turn; in the terminal, `hermes nyx search / show / forget / restore / edit` find, read and correct memories without going through the model; `hermes nyx import` brings in what you told Hermes before Nyx was installed (v7.20.0) | Checked with Hermes's own plugin loader and command dispatch, as the terminal and the messaging gateway call it; an imported old "I live in Hangzhou" never overrides a newer "I moved to Shanghai" |
 | **Forgets, and can undo it** | Forgetting goes to a quarantine first (recall stops seeing it at once) and can be restored as-is during the retention period (30 days by default); purging after that really deletes, and checks that vectors, indexes and the graph are clean | 150 wrongly deleted memories restored byte for byte; a purge cannot be undone |
 | **Cheap and private** | Zero LLM calls and zero API keys on the write path, zero runtime dependencies; no network by default ([exceptions](#privacy)) | Everything lives in `~/.neurobase` |
 | **Secrets stay out of memory** | Tokens, API keys, private keys and passwords pasted into chat are replaced with `[hidden: HF token …a1b2]` before they are written anywhere | Across ~200,000 real turns in LongMemEval-S only 19 turns (0.01%) triggered it, all pasted code or config; 0 false hits on ordinary sentences |
@@ -47,6 +48,13 @@ For semantic search (paraphrases and cross-language matches; downloads a ~470 MB
 [Secret vault](https://github.com/sixgodgit/nyx/blob/main/docs/secret-vault.md): also run `hermes plugins enable nyx-reveal`
 and set `vault` to `on` in `hermes memory setup`.
 
+Two optional steps (v7.20.0):
+
+```bash
+hermes plugins enable nyx-commands    # /nyx status · pause · resume · forget-last in any chat
+hermes nyx import                     # bring in your earlier Hermes conversations (lists them first, asks before importing)
+```
+
 <details>
 <summary>Older Hermes (no <code>--no-deps</code> in <code>hermes plugins install --help</code>, e.g. hermes-agent 0.19.x from PyPI)</summary>
 
@@ -63,9 +71,11 @@ nyx-memory there if it is missing, writes the entry file in `plugins/nyx/`, sets
 loads it once with Hermes's own loader to confirm. `--check` only checks.
 </details>
 
-From then on every turn is remembered and recalled automatically. The agent also gets tools such as `nyx_belief`
-(what is believed now / what was believed then), `nyx_forget` / `nyx_restore` (forget and restore) and `nyx_health`
-(self-check); in the terminal there are `hermes nyx doctor`, `hermes nyx vault …` and more. Full guide:
+From then on every turn is remembered and recalled automatically. The agent also gets tools such as `sandglass_search`
+(with dates and a date range), `nyx_read` (one memory in full, with what was said around it), `nyx_belief` (what is
+believed now / what was believed then), `nyx_forget` / `nyx_restore` (forget and restore) and `nyx_health`
+(self-check). In the terminal: `hermes nyx search 花生 --since 2026-03`, `hermes nyx show <id>`,
+`hermes nyx forget / restore / edit <id>`, `hermes nyx doctor` and more. Full guide:
 [`nexsandglass_hermes/README.md`](https://github.com/sixgodgit/nyx/blob/main/nexsandglass_hermes/README.md).
 
 ### MCP (Claude Desktop / Claude Code / any MCP client)
@@ -81,7 +91,7 @@ For other clients, add this to the config file:
 { "mcpServers": { "nyx": { "command": "python3", "args": ["-m", "nexsandglass.interfaces.sandglass_mcp"] } } }
 ```
 
-26 tools; see [MCP tools](#mcp-tools).
+27 tools; see [MCP tools](#mcp-tools).
 
 ### Python
 
@@ -112,7 +122,7 @@ After installing, run `python3 -m nexsandglass.doctor`; all ✅ means everything
 1. The message is appended to `sandglass.txt` and gets a unique `mem_id` — this journal is the single source of truth; everything else can be rebuilt from it
 2. Source and trust are bound: the user themselves / a bot / someone else in a group / external content, fixed at write time and not changeable by editing the text later
 3. Promotion gate: what is worth keeping goes to the processing layer (facts, graph, engram); small talk and verification codes are not promoted (the message is still in the journal and still searchable)
-4. Understanding: "switched to a Geely on Feb 25" → (user, car, Geely, from Feb 25, still true), stored as a bi-temporal fact; the old fact is not overwritten but gets an end date
+4. Understanding: "switched to a Geely on Feb 25" → (user, car, Geely, from Feb 25, still true), stored as a bi-temporal fact; the old fact is not overwritten but gets an end date. Something said long ago but written now (an imported conversation, a correction) is filed as history and never overrides what was learned later (v7.20.0)
 5. Full-text, inverted and (optional) semantic indexes are updated incrementally
 
 **Every session** (the system prompt, v7.19.0)
@@ -149,7 +159,10 @@ lets "what should I cook tonight?" see "I'm allergic to peanuts", which shares n
 | 🩺 **Self-check** | `doctor.py` | Hub vs journal consistency, each index, forgetting integrity, quarantine due dates, rule poisoning — each with the reason |
 | 🧯 **Check and repair** | `repair.py`, `core/forensics.py` | When the hub does not match the journal, checks record by record by content: adds what is missing, moves misplaced rows back, recognises overwritten memories, removes synthetic records and the "facts" derived from them; backs up first, never changes the journal |
 | 🔌 **Hermes memory provider** | `nexsandglass_hermes/`, `core/memory_provider.py` | Implements Hermes's `MemoryProvider` interface; installed with `hermes plugins install sixgodgit/nyx/hermes-plugin --enable` |
-| 🔌 **MCP server** | `interfaces/sandglass_mcp.py` | stdio, standard library only, 26 tools |
+| ⏸️ **`/nyx` in chat** | `nexsandglass_hermes_commands/`, `core/recording.py` | `status`, `pause` / `resume` (stop and restart remembering; recall keeps working), `forget-last [N]` (this chat's last turns to the quarantine, shown so you can check). Runs in Hermes, never through the model; in group chats only the owner can change anything (v7.20.0) |
+| 🗂️ **Look up and correct** | `memory_cli.py`, `core/lookup.py` | `hermes nyx search` (date range with `--since` / `--until`), `show` (full text and the lines around it), `forget` (`--now` erases for good), `restore`, `edit` (the corrected words replace the old ones, at the original date); the agent's `sandglass_search` / `nyx_read` use the same code (v7.20.0) |
+| 📥 **Import from Hermes** | `history_import.py` | Reads the profile's Hermes session database read-only and brings in your own conversations (local and private chats; not group chats, subagents or scheduled tasks) with their original dates; skips what Nyx already has; can resume (v7.20.0) |
+| 🔌 **MCP server** | `interfaces/sandglass_mcp.py` | stdio, standard library only, 27 tools |
 | 👻 **Déjà Vu** | `dejavu/` (standalone subpackage) | Tells "never talked about it" from "talked about it but cannot find it"; see the next section |
 | 🕸️ **Knowledge graph** | `features/weavethread.py` | Entity–relation triples + typed relations (belongs_to / evolved_from / contradicts …) + PPR graph boost |
 
@@ -279,8 +292,9 @@ Start (stdio): `python3 -m nexsandglass.interfaces.sandglass_mcp`
 | `memory_recall` | Unified recall (intent-adaptive + trust gate) |
 | `memory_feedback` | Recall feedback (reinforce / weaken) |
 | `memory_forget` | Forget: `memory_id` / `contains` / `dry_run`; **goes to the quarantine by default** and can be restored during retention; returns `ok=false` when nothing was removed |
-| `sandglass_search` / `sandglass_semantic` | Keyword search / synonym + SimHash + TF-IDF search |
-| `sandglass_recent` / `sandglass_ping` | Last N entries / health check (`status=degraded` when the semantic index is broken) |
+| `sandglass_search` / `sandglass_semantic` | Search with an id, date and speaker per result, `since` / `until` for a date range (v7.20.0) / synonym + SimHash + TF-IDF search |
+| `nyx_read` | One memory in full, with when it was said, who said it and the lines around it (v7.20.0) |
+| `sandglass_recent` / `sandglass_ping` | Last N entries by date, optionally within a date range / health check (`status=degraded` when the semantic index is broken) |
 | `sandglass_persona` / `sandglass_tasks` | User persona / open tasks |
 | `sandglass_offset` / `sandglass_echo` / `sandglass_chart` | Decision drift / sentiment / emotion-entropy chart |
 | `sandglass_dejavu` | Déjà Vu familiarity |
@@ -358,8 +372,22 @@ is still downloading (first run); Hugging Face's download servers are unreachabl
 
 **The same message remembered twice?** Most likely the v3.x plugin files are still there; see "Upgrading" above.
 
-**Want to delete a memory?** In the agent use `nyx_forget` (preview, then confirm; goes to the quarantine); in Python `forget()`.
-Changed your mind: `nyx_restore` / `restore()` or `python3 scripts/nyx_quarantine.py restore <mem_id>`.
+**Want to delete a memory?** In the terminal: `hermes nyx search …` to find it, then `hermes nyx forget <id>` (lists what
+goes and asks; `--now` erases for good). In a chat: `/nyx forget-last` takes back the last turn (with `nyx-commands`
+enabled); the agent's `nyx_forget` previews, then confirms. In Python `forget()`. Changed your mind: `hermes nyx restore`
+lists the quarantine and `hermes nyx restore <id>` brings one back (or `nyx_restore` / `restore()`).
+
+**Something it remembers is wrong?** `hermes nyx edit <id> "the right words"`: the corrected text is kept as yours, dated
+when the original was said, and the old one goes to the quarantine (facts derived from it go with it).
+
+**Want it to stop remembering for a while?** `/nyx pause` in the chat (helping someone else, a private matter);
+`/nyx resume` turns it back on. While paused nothing is written (turns, the end-of-session catch-up, subagent results);
+recall and what you explicitly ask for still work, and the agent is told it is paused. It stays paused across restarts.
+
+**Used Hermes before installing Nyx?** `hermes nyx import` lists your earlier conversations and imports the ones you pick
+(`--all` for everything) with their original dates. Only your own words and the agent's replies are imported — not group
+chats, subagents, scheduled tasks, or the memory text Hermes injected; with several people in private chats, set
+`owner_ids` first. Hermes's database is opened read-only, and running it again only adds what is new.
 After the retention period (30 days by default) nothing is deleted **automatically**: run
 `python3 -c "from nexsandglass.core import erasure; print(erasure.purge(apply=True))"` to really delete
 (in a source checkout also `python3 scripts/nyx_quarantine.py purge --apply`); a daily cron is a good idea, and `doctor` shows ❌ when purges are overdue.
@@ -446,6 +474,8 @@ Four stories were used while developing; four were held out until the end. Lexic
 - What is left (held out): common English verbs still let unrelated entries through — "Where do I work now?" brings 11
   "why does X work in staging…" messages, "How do I look after succulents?" brings 20 "I looked at it…" replies. The two
   work questions still bring generic chat about production and migrations, which may or may not help
+- v7.20.0: every number above is unchanged. The block is 6 characters longer on average (634 → 640) because a relative's
+  health ("my mum has diabetes", "my wife is pregnant") is now listed under family rather than under the user's health
 
 **PersonaMem** (`benchmarks/personamem_eval.py`; Jiang et al. 2025, "Know Me, Respond to Me", MIT; data not in the
 repository: https://huggingface.co/datasets/bowen-upenn/PersonaMem-v1). 20 simulated users talk with a chatbot over many
@@ -473,6 +503,9 @@ the agent would see. Results in `benchmarks/results/personamem.json`.
   questions). PersonaMem conversations open with the user introducing themselves, which the old block (the oldest ten
   messages) happened to hold, and the proxy counts shared words, so it favours the longer block. The model's answers show
   no such drop (recommendations 0.667 in both versions, new ideas 0.176 in both)
+- v7.20.0: what the agent sees is identical to v7.19.0 on all 589 questions (proxy 0.396), apart from the block's entry
+  count, which now counts memories instead of journal lines. One run on a heavily loaded machine differed on 19
+  questions: a recall source that misses its time budget (1.5–3 s) is left out of that turn; a rerun matched exactly
 - The proxy: for each reply, the words only it has; the share of them found in the memory text; the highest wins, ties
   count as a random pick
 - Not comparable with PersonaMem scores reported elsewhere (TencentDB Agent Memory reports 48% → 76%): other models,
@@ -633,8 +666,8 @@ When the semantic backend is on but the index was not built, both harnesses fail
 
 | Evaluation | What it measures | Version |
 |---|---|---|
-| `benchmarks/personal_eval.py` | Personal scenarios: in a new session, does the agent see the user's own statements it needs, how much unrelated text comes along, are family facts attributed to the right person (above) | v7.19.0 |
-| `benchmarks/personamem_eval.py` | PersonaMem: what the agent sees at each question, then a local model picks the best of four replies, with and without memory (above) | v7.19.0 |
+| `benchmarks/personal_eval.py` | Personal scenarios: in a new session, does the agent see the user's own statements it needs, how much unrelated text comes along, are family facts attributed to the right person (above) | v7.19.0, v7.20.0 |
+| `benchmarks/personamem_eval.py` | PersonaMem: what the agent sees at each question, then a local model picks the best of four replies, with and without memory (above) | v7.19.0, v7.20.0 |
 | `benchmarks/beam_eval.py` | BEAM retrieval evidence recall from 100K to 10M tokens (above), with a BM25 reference, write speed and disk | v7.18.0 |
 | `benchmarks/beam_format_eval.py` | How recalled memories are written into the prompt: is the answer visible, does a model use it | v7.18.0 |
 | `benchmarks/locomo_eval.py` | LoCoMo retrieval evidence recall (above), with a BM25 reference | v7.13.5 |
@@ -655,6 +688,13 @@ When the semantic backend is on but the index was not built, both harnesses fail
 
 ## 📝 Recent updates
 
+- **v7.20.0**: you stay in charge of what is remembered. `/nyx pause` / `resume` / `forget-last` / `status` in any chat
+  (`hermes plugins enable nyx-commands`); `hermes nyx search / show / forget / restore / edit` in the terminal, never
+  through the model; `hermes nyx import` brings in conversations from before Nyx with their original dates, and an old
+  statement imported later never overrides a newer one. The agent's search results now carry dates and speakers, accept
+  a date range, and `nyx_read` gives a memory in full with what was said around it (MCP too). Fixed: a memory restored
+  from the quarantine could stay missing from the always-on profile. What the agent sees in the personal and PersonaMem
+  evaluations is unchanged
 - **v7.19.0**: built for a personal agent. Every session's system prompt now starts with what the user said about themselves
   (requests to the agent, health and diet, family, home and work, likes), in their own words; memories that match a question
   only through words like *what / 什么 / 帮我* are no longer injected, and nothing is injected when nothing is relevant; a

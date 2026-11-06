@@ -72,9 +72,44 @@ nyx 是当前记忆插件时，Hermes 会多出 `hermes nyx` 这组命令（数�
 | `hermes nyx vault list` / `show v3 [--copy]` / `delete v3` / `gc` / `rekey` / `audit` / `status` | 密钥保险箱 |
 | `hermes nyx scrub [--apply] [--to-vault]` | 已经存下来的密钥 / 密码：找出来、原地隐去 |
 | `hermes nyx repair [--apply]` | 中枢对不上日志时：按内容体检与修复 |
+| `hermes nyx import [--list] [--all] [--session ID…] [--since 日期]` | 把以前在 Hermes 里的对话导进来（v7.20.0，见下） |
+| `hermes nyx search <词> [--since 日期] [--until 日期] [-n N]` | 找记忆，相关的在前，带日期和谁说的；日期写 YYYY-MM-DD、YYYY-MM 或 YYYY，含当天。不写词、只给日期范围 = 那段时间说了什么（v7.20.0） |
+| `hermes nyx show <编号> [--around N]` | 看一条的全文：日期、谁说的、能不能信、在不在隔离区 / 擦没擦，以及前后几句（v7.20.0） |
+| `hermes nyx forget <编号…> \| --contains 一段话 [--now] [--yes]` | 先列出来问你，再送进隔离区；`--now` 当场擦掉（输入 `erase` 确认）（v7.20.0） |
+| `hermes nyx restore [<编号…>]` | 不写编号：隔离区里有什么、哪天到期；写编号：救回来（v7.20.0） |
+| `hermes nyx edit <编号> [改正后的话]` | 改一条：新的按你说的、原来的日期记下，旧的进隔离区（v7.20.0） |
 | `hermes nyx status` | 版本、Python、数据目录、保险箱 |
 
-agent 转告给你的命令（自检警告、「在终端里取」）也会写成 `hermes nyx …`。
+agent 转告给你的命令（自检警告、「在终端里取」）也会写成 `hermes nyx …`。每个命令都有 `--json`；都不经过模型。
+
+## 聊天里的 `/nyx`（v7.20.0）
+
+斜杠命令只能由 Hermes 的普通插件注册（记忆提供器注册不了），所以它作为配套插件随 nyx-memory 一起装。启用一次：
+
+```bash
+hermes plugins enable nyx-commands
+```
+
+| 命令 | 作用 |
+|---|---|
+| `/nyx status` | 版本、记忆条数、在记录还是已暂停、画像里有什么 |
+| `/nyx pause` | 暂停记录：每轮对话、会话结束的补记、子任务结果、内置记忆的镜像都不写。召回和明确的要求（「忘掉那条」）照常，agent 也会知道现在没在记。重启、换会话之后仍是暂停的 |
+| `/nyx resume` | 恢复记录 |
+| `/nyx forget-last [N]` | 把这个聊天最近 N 轮（默认 1，最多 20）送进隔离区；回显忘掉的是哪几句，附上救回的命令 |
+
+命令在 Hermes 里直接执行，回复只留在这个聊天里，模型看不到。谁能用：本机（CLI、TUI、桌面）和私聊里都能用；群聊、频道里只能看
+`status` —— 群里任何人都能打命令。配了 `owner_ids` 时，只有主人能暂停、恢复和遗忘（在群里也行）。机器人永远不能。
+
+## 导入以前的对话：`hermes nyx import`（v7.20.0）
+
+装 Nyx 之前就在用 Hermes 的话，你说过的话在 Hermes 的会话库里（`$HERMES_HOME/state.db`）。`hermes nyx import` **只读**打开它，
+列出能导的会话，问你导哪些（`--all` 全导，`--session` 挑几个，`--list` 只看不导）：
+
+- **导**：本机会话（CLI、TUI、桌面）和私聊 —— 你说的话和 agent 的回复，按原来的时间，走正常的写入路径（密钥照样隐去、照样抽事实、画像跟着更新）
+- **不导**：群聊和频道（别人说的）、子 agent 和定时任务（那里的「用户」是 agent 自己）、API / 批处理 / 测试会话；工具调用；回退掉的消息、压缩摘要、系统插入的续写；以及 Hermes 当时注入给模型的记忆文本 —— 只导你打的字
+- 配了 `owner_ids` 时只导主人的私聊。没配、而私聊来自好几个人时，`--all` 会被拒绝：Nyx 分不清哪个是你
+- Nyx 已经有的（一天之内的同一句）跳过；每个会话导到哪记着，再跑一次只补新的
+- 旧话不会盖过新话：1 月说的「我住在杭州」在你 10 月说「搬到上海了」之后才导进来，会记成以前住的地方
 
 ## 密钥保险箱（v7.15.0，默认关）
 
@@ -115,7 +150,8 @@ hermes plugins enable nyx-reveal      # 再在 hermes memory setup 里把 vault 
 
 | 工具 | 作用 |
 |---|---|
-| `sandglass_search` / `sandglass_recent` | 召回 / 最近记忆（非主人来源带 `(unverified · source: …)` 标注） |
+| `sandglass_search` / `sandglass_recent` | 搜索 / 最近的记忆。每条带编号、说的日期和谁说的；`since` / `until`（YYYY-MM-DD、YYYY-MM 或 YYYY，含当天）限定时间段；超过 300 字的截断（`more: true`）。主人和 agent 以外的来源带 `(unverified · source: …)` 标注（日期和时间段 v7.20.0） |
+| `nyx_read` | 看一条的全文和前后几句（`around`，默认 3）。忘掉的、疑似注入的不给正文（v7.20.0） |
 | `nyx_belief` | 双时态事实：现在信什么；`as_of` 那天什么为真；`known_at` 那时我以为是什么；`history` 演变链 |
 | `nyx_forget` | 遗忘 → **隔离区**（先预览、再 `confirm=true`；一次最多 20 条）。agent 无权永久擦除 |
 | `nyx_restore` / `nyx_quarantine` | 从隔离区原样还原 / 查看隔离区 |

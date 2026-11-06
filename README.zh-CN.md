@@ -4,7 +4,7 @@
 
 > **给 agent 一份跟着你一辈子的记忆** —— 单用户、本地、写入不调用大模型。记得住，找得到，信得过，忘得掉。
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.19.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.20.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx 是 agent 的长期记忆层：接进 [Hermes](https://github.com/NousResearch/hermes-agent)（作为记忆插件）、
 Claude Desktop / Claude Code 等任意 MCP 客户端，或者你自己的 Python 程序。
@@ -18,6 +18,7 @@ Claude Desktop / Claude Code 等任意 MCP 客户端，或者你自己的 Python
 | **认得你** | 你说过的关于自己的事 —— 对 agent 的要求（「以后用中文、别用 emoji」）、过敏和饮食、家人、住处工作、喜好 —— 用原话放在每个会话的系统提示里；只靠「什么 / 帮我 / what」和问题撞上的记忆不注入；家人的事记在家人名下 | 8 个个人故事（v7.19.0）：agent 该看到的事实从 25–38% 到 **100%**，每个问题的无关注入从 9 条降到 1–2 条，无关问题 88% 一条都不注入（以前 13–25%） |
 | **分得清时间** | 双时态事实：「何时为真」和「何时得知」分开记 | 「我 2 月就换成吉利了」记下的是 2 月，不是说这句话的那天；能回答「现在信什么」「三月时我以为是什么」 |
 | **信得过** | 写入时绑定来源与信任：只有主人亲口说的能成为规则；别人转述的、网页抄来的，召回时带「未经证实」标注 | 投毒演练：16 条攻击 0 条无标注进入 agent 提示，主人的 8 条正常信息 0 误伤 |
+| **你说了算** | 任何聊天里 `/nyx pause` 暂停记录、`/nyx resume` 恢复，`/nyx forget-last` 收回上一轮；终端里 `hermes nyx search / show / forget / restore / edit` 查、看、忘、救回、改，不经过模型；`hermes nyx import` 把装 Nyx 之前在 Hermes 里说过的话导进来（v7.20.0） | 用 Hermes 自己的插件加载器和命令分发验证过，按终端和消息网关两种调用方式；导入的旧话「我住在杭州」不会盖过后来说的「我搬到上海了」 |
 | **忘得掉、救得回** | 遗忘先进隔离区（检索立刻读不到），保留期（默认 30 天）内原样还原；到期后清理即真删，并验收向量、索引、图谱都清干净了 | 误删 150 条，逐字节救回；真删不可逆 |
 | **便宜、私密** | 写入零 LLM 调用、零 API key、零运行时依赖；默认不联网（[例外](#privacy)） | 全部数据在 `~/.neurobase` |
 | **密钥不进记忆** | 聊天里贴的 token、API key、私钥、密码，在写进任何地方之前换成 `[hidden: HF token …a1b2]` | LongMemEval-S 近 20 万轮真实对话只触发 19 轮（0.01%），全是贴出来的代码配置；普通句子 0 误伤 |
@@ -42,6 +43,13 @@ Hermes 把插件放进 `~/.hermes/plugins/nyx/`，再把它声明的依赖 nyx-m
 要语义检索（同义改写、跨语言也找得到；首次运行下载约 470MB 模型）就装 `sixgodgit/nyx/hermes-plugin-vector`。
 [密钥保险箱](https://github.com/sixgodgit/nyx/blob/main/docs/secret-vault.zh-CN.md)：再 `hermes plugins enable nyx-reveal`，在 `hermes memory setup` 里把 `vault` 设成 `on`。
 
+两个可选步骤（v7.20.0）：
+
+```bash
+hermes plugins enable nyx-commands    # 任何聊天里都能用 /nyx status · pause · resume · forget-last
+hermes nyx import                     # 把以前在 Hermes 里的对话导进来（先列出来，问过你再导）
+```
+
 <details>
 <summary>老版本 Hermes（<code>hermes plugins install --help</code> 里没有 <code>--no-deps</code>，比如 PyPI 上的 hermes-agent 0.19.x）</summary>
 
@@ -56,8 +64,8 @@ python3 -m nexsandglass_hermes install       # 也认新版：新版上它就是
 在 `plugins/nyx/` 放入口文件，设 `memory.provider: nyx`，最后用 Hermes 自己的加载器加载一次确认。`--check` 只检查不改。
 </details>
 
-之后每轮对话自动记忆、自动召回；agent 还多了 `nyx_belief`（现在 / 当时信什么）、`nyx_forget` / `nyx_restore`
-（遗忘与还原）、`nyx_health`（自检）等工具；终端里有 `hermes nyx doctor` / `hermes nyx vault …` 等命令。完整说明见 [`nexsandglass_hermes/README.zh-CN.md`](https://github.com/sixgodgit/nyx/blob/main/nexsandglass_hermes/README.zh-CN.md)。
+之后每轮对话自动记忆、自动召回；agent 还多了 `sandglass_search`（带日期，可限定日期范围）、`nyx_read`（看一条的全文和前后几句）、`nyx_belief`（现在 / 当时信什么）、`nyx_forget` / `nyx_restore`（遗忘与还原）、`nyx_health`（自检）等工具。终端里：
+`hermes nyx search 花生 --since 2026-03`、`hermes nyx show <编号>`、`hermes nyx forget / restore / edit <编号>`、`hermes nyx doctor` 等。完整说明见 [`nexsandglass_hermes/README.zh-CN.md`](https://github.com/sixgodgit/nyx/blob/main/nexsandglass_hermes/README.zh-CN.md)。
 
 ### MCP（Claude Desktop / Claude Code / 任意 MCP 客户端）
 
@@ -72,7 +80,7 @@ claude mcp add nyx -- python3 -m nexsandglass.interfaces.sandglass_mcp     # Cla
 { "mcpServers": { "nyx": { "command": "python3", "args": ["-m", "nexsandglass.interfaces.sandglass_mcp"] } } }
 ```
 
-26 个工具，见 [MCP 工具](#mcp-tools)。
+27 个工具，见 [MCP 工具](#mcp-tools)。
 
 ### Python
 
@@ -99,7 +107,7 @@ restore(r["preview"][0]["mem_id"])                     # 隔离期内原样还�
 1. 原话追加到 `sandglass.txt`，拿到唯一编号 `mem_id` —— 这份日志是唯一真相来源，其余一切都能从它重建
 2. 绑定来源与信任：主人亲口说的 / 机器人 / 群里其他人 / 外部内容，写入时定下，之后改正文也改不了
 3. 晋升门：值得记的进入加工层（事实、图谱、engram）；闲聊、验证码不晋升（原话仍在日志里，照样搜得到）
-4. 话语理解：「2 月 25 号就换成吉利了」→（user, 车, 吉利, 自 2 月 25 日起, 至今仍真），写成双时态事实；旧事实不被覆盖，而是记下「到何时为止」
+4. 话语理解：「2 月 25 号就换成吉利了」→（user, 车, 吉利, 自 2 月 25 日起, 至今仍真），写成双时态事实；旧事实不被覆盖，而是记下「到何时为止」。很早以前说的、现在才写进来的话（导入的旧对话、改正的一条）只补成历史，不会盖过后来知道的（v7.20.0）
 5. 全文、倒排、（可选）语义索引增量更新
 
 **每个会话**（系统提示，v7.19.0）
@@ -135,7 +143,10 @@ restore(r["preview"][0]["mem_id"])                     # 隔离期内原样还�
 | 🩺 **自检** | `doctor.py` | 中枢与日志一致性、各索引、遗忘完整性、隔离区到期、规则投毒，逐项给出原因 |
 | 🧯 **体检与修复** | `repair.py`、`core/forensics.py` | 中枢对不上日志时按内容逐条核对：补缺失、挪错位、认回被覆盖的记忆、撤下合成记录及其派生「事实」；先备份，不改日志 |
 | 🔌 **Hermes 记忆提供器** | `nexsandglass_hermes/`、`core/memory_provider.py` | 按 Hermes 的 `MemoryProvider` 接口实现；`hermes plugins install sixgodgit/nyx/hermes-plugin --enable` 装进 Hermes |
-| 🔌 **MCP 服务** | `interfaces/sandglass_mcp.py` | stdio，纯标准库，26 个工具 |
+| ⏸️ **聊天里的 `/nyx`** | `nexsandglass_hermes_commands/`、`core/recording.py` | `status`、`pause` / `resume`（暂停 / 恢复记录，召回照常）、`forget-last [N]`（把这个聊天最近几轮送进隔离区，回显给你核对）。在 Hermes 里直接执行，不经过模型；群聊里只有主人能改（v7.20.0） |
+| 🗂️ **查找和改正** | `memory_cli.py`、`core/lookup.py` | `hermes nyx search`（`--since` / `--until` 限定日期）、`show`（全文和前后几句）、`forget`（`--now` 当场擦掉）、`restore`、`edit`（改正后的话替换旧的，日期不变）；agent 的 `sandglass_search` / `nyx_read` 用同一套代码（v7.20.0） |
+| 📥 **从 Hermes 导入** | `history_import.py` | 只读打开当前 profile 的 Hermes 会话库，把你自己的对话（本机和私聊；不含群聊、子 agent、定时任务）按原来的时间导进来；Nyx 已有的跳过；可以断点续导（v7.20.0） |
+| 🔌 **MCP 服务** | `interfaces/sandglass_mcp.py` | stdio，纯标准库，27 个工具 |
 | 👻 **Déjà Vu** | `dejavu/`（独立子包） | 分清「没聊过」和「聊过但找不到」，见下一节 |
 | 🕸️ **知识图谱** | `features/weavethread.py` | 实体关系三元组 + 类型化关系（belongs_to / evolved_from / contradicts …）+ PPR 图增强 |
 
@@ -254,8 +265,9 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜', refs=['msg-1'
 | `memory_recall` | 统一召回（意图自适应 + 信任门） |
 | `memory_feedback` | 召回反馈（强化 / 弱化） |
 | `memory_forget` | 遗忘：`memory_id` / `contains` / `dry_run`；**默认进隔离区**，保留期内可还原；什么都没删时返回 `ok=false` |
-| `sandglass_search` / `sandglass_semantic` | 关键词搜索 / 同义词 + SimHash + TF-IDF 搜索 |
-| `sandglass_recent` / `sandglass_ping` | 最近 N 条 / 健康检查（语义索引坏了时 `status=degraded`） |
+| `sandglass_search` / `sandglass_semantic` | 搜索，每条带编号、日期和谁说的，`since` / `until` 限定日期范围（v7.20.0）/ 同义词 + SimHash + TF-IDF 搜索 |
+| `nyx_read` | 看一条的全文：什么时候说的、谁说的、前后几句（v7.20.0） |
+| `sandglass_recent` / `sandglass_ping` | 按日期最近的 N 条，可限定日期范围 / 健康检查（语义索引坏了时 `status=degraded`） |
 | `sandglass_persona` / `sandglass_tasks` | 主人画像 / 待办 |
 | `sandglass_offset` / `sandglass_echo` / `sandglass_chart` | 偏移率 / 情感风向 / 情绪熵图 |
 | `sandglass_dejavu` | Déjà Vu 模糊感知 |
@@ -325,8 +337,14 @@ SQLite 删行后原文还留在文件的空闲页里，FTS5 删掉的词元连 V
 
 **同一句话被记了两遍？** 多半是 v3.x 的旧插件文件还在，见上面「从旧版本升级」。
 
-**想删掉一条记忆？** agent 里用 `nyx_forget`（先预览、再确认，进隔离区）；Python 用 `forget()`。
-后悔了用 `nyx_restore` / `restore()` 或 `python3 scripts/nyx_quarantine.py restore <mem_id>`。
+**想删掉一条记忆？** 终端里先 `hermes nyx search …` 找到，再 `hermes nyx forget <编号>`（先列出来问你；`--now` 当场擦掉）。聊天里 `/nyx forget-last` 收回上一轮（需要启用 `nyx-commands`）；agent 的 `nyx_forget` 先预览、再确认。Python 用 `forget()`。
+后悔了：`hermes nyx restore` 列出隔离区，`hermes nyx restore <编号>` 救回（或 `nyx_restore` / `restore()`）。
+
+**记错了？** `hermes nyx edit <编号> "正确的说法"`：改正后的话算你说的、日期还是原来那天，旧的进隔离区（由它得出的事实一起撤掉）。
+
+**想让它暂时别记？** 聊天里 `/nyx pause`（帮别人问事、聊私事），`/nyx resume` 恢复。暂停期间什么都不写（每轮对话、会话结束的补记、子任务结果）；召回和你明确要求的照常，agent 也会知道现在没在记。重启之后仍是暂停的。
+
+**装 Nyx 之前就在用 Hermes？** `hermes nyx import` 列出以前的对话，导你挑的（`--all` 全导），按原来的时间。只导你说的话和 agent 的回复 —— 不导群聊、子 agent、定时任务，也不导 Hermes 注入的记忆文本；私聊里有好几个人时先配 `owner_ids`。Hermes 的库只读打开，再跑一次只补新的。
 隔离期（默认 30 天）过了**不会自动删**：执行
 `python3 -c "from nexsandglass.core import erasure; print(erasure.purge(apply=True))"` 真删
 （源码仓库里也可以 `python3 scripts/nyx_quarantine.py purge --apply`），建议放进每天的 cron；到期没清时 `doctor` 会报 ❌。
@@ -395,6 +413,7 @@ LoCoMo 证据召回 +4.7 个点，代价是每轮召回多 0.3–1.5 秒、偏�
 - 还剩的问题（留出集）：常见英文动词还会放进不相关的条目 ——「Where do I work now?」带进 11 条「why does X work in staging…」，
   「How do I look after succulents?」带进 20 条「I looked at it…」。2 个工作问题仍会带进讲线上环境、数据迁移的工作对话，
   算不算有用见仁见智
+- v7.20.0：上面每个数都没变。常驻块平均多 6 个字（634 → 640）：家人的健康情况（「我妈有糖尿病」「我老婆怀孕了」）现在列在家人下面，不再算用户自己的饮食健康
 
 **PersonaMem**（`benchmarks/personamem_eval.py`；Jiang et al. 2025, "Know Me, Respond to Me"，MIT；数据不放进仓库：
 https://huggingface.co/datasets/bowen-upenn/PersonaMem-v1）。20 个虚构用户和聊天机器人聊很多段，偏好会变；32K 档 589 题，
@@ -416,6 +435,7 @@ nyx 按真实写入路径收下提问之前的每一轮 —— 数据集里的 s
   新场景 0.351 → 0.386），3 类变差（按偏好推荐 0.509 → 0.382、提新点子 0.565 → 0.505、用户提到过的事实 0.706 → 0.471，17 题）。
   PersonaMem 的对话开头通常是用户自我介绍，旧常驻块（最早 10 条消息）恰好装着这些；这个参照按共同词打分，偏向字多的一方。
   模型作答在这几类上没有同样的下降（按偏好推荐两版都是 0.667，提新点子两版都是 0.176）
+- v7.20.0：589 题里 agent 看到的和 v7.19.0 完全一样（参照分 0.396），只有常驻块里的条数现在数的是记忆条数、不是日志行数。有一次在负载很高的机器上跑，19 题不同：召回某一路超过时限（1.5–3 秒）就不等它了；重跑一次完全一致
 - 零 LLM 参照：每个回答「只有它有」的词，在记忆里出现的比例，最高的算选中，打平按随机选算期望
 - 不能和别处报的 PersonaMem 分数比（TencentDB Agent Memory 报 48% → 76%）：模型和设置都不同。这里是 CPU 上的 1.5B 小模型，
   还偏爱选 (c)；看的是两个版本之间的差别
@@ -561,8 +581,8 @@ python3 benchmarks/personamem_eval.py questions_32k.csv --answer views.jsonl --l
 
 | 评测 | 测什么 | 版本 |
 |---|---|---|
-| `benchmarks/personal_eval.py` | 个人场景：新会话里 agent 能不能看到它需要的用户原话、带进来多少无关内容、家人的事有没有记到对的人头上（见上） | v7.19.0 |
-| `benchmarks/personamem_eval.py` | PersonaMem：每道题 agent 看到的记忆，再让本地模型从四个回答里选，对照不给记忆（见上） | v7.19.0 |
+| `benchmarks/personal_eval.py` | 个人场景：新会话里 agent 能不能看到它需要的用户原话、带进来多少无关内容、家人的事有没有记到对的人头上（见上） | v7.19.0、v7.20.0 |
+| `benchmarks/personamem_eval.py` | PersonaMem：每道题 agent 看到的记忆，再让本地模型从四个回答里选，对照不给记忆（见上） | v7.19.0、v7.20.0 |
 | `benchmarks/beam_eval.py` | BEAM 检索证据召回，10 万到 1000 万 token（见上），附 BM25 参照、写入速度与磁盘占用 | v7.18.0 |
 | `benchmarks/beam_format_eval.py` | 召回结果怎么写进提示词：答案看不看得见、模型用不用得上 | v7.18.0 |
 | `benchmarks/locomo_eval.py` | LoCoMo 检索证据召回（见上），附 BM25 参照 | v7.13.5 |
@@ -583,6 +603,7 @@ python3 benchmarks/personamem_eval.py questions_32k.csv --answer views.jsonl --l
 
 ## 📝 最近更新
 
+- **v7.20.0**：记什么由你说了算。任何聊天里 `/nyx pause` / `resume` / `forget-last` / `status`（`hermes plugins enable nyx-commands`）；终端里 `hermes nyx search / show / forget / restore / edit`，不经过模型；`hermes nyx import` 把装 Nyx 之前的对话按原来的时间导进来，后导入的旧话不会盖过新的。agent 的搜索结果带日期和谁说的、能限定日期范围，`nyx_read` 看一条的全文和前后几句（MCP 也有）。修好：从隔离区救回的记忆可能一直不回常驻画像。个人场景和 PersonaMem 评测里 agent 看到的没有变化
 - **v7.19.0**：为个人 agent 而做。每个会话的系统提示先放用户说过的关于自己的事（对 agent 的要求、饮食健康、家人、住处工作、
   喜好），用原话；只靠「什么 / 帮我 / what」这类词和问题撞上的记忆不再注入，什么都不相关就一条都不注入；家人的事记在家人名下
   （「我妈住在青岛」不再变成用户住青岛）。8 个个人故事上，agent 该看到的事实从 25–38% 到 100%，每个问题的无关注入从 9 条
