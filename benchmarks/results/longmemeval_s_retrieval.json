@@ -961,5 +961,135 @@
    "recall_all@10": 0.8957,
    "answer_in_view": 0.8343
   }
+ },
+ "v7.19.0_lexical": {
+  "backend": "off",
+  "scores": {
+   "_overall": {
+    "n": 470,
+    "recall_any@1": 0.8723,
+    "recall_all@1": 0.2894,
+    "recall_any@3": 0.9234,
+    "recall_all@3": 0.7532,
+    "recall_any@5": 0.9447,
+    "recall_all@5": 0.8255,
+    "recall_any@10": 0.9745,
+    "recall_all@10": 0.9,
+    "turn_hit@10": 0.8936,
+    "answer_in_view": 0.8471,
+    "answer_in_view_gated": 0.8485,
+    "recall_ms_p50": 43.0
+   },
+   "knowledge-update": {
+    "n": 72,
+    "recall_any@1": 0.9583,
+    "recall_all@1": 0.0,
+    "recall_any@3": 0.9722,
+    "recall_all@3": 0.875,
+    "recall_any@5": 0.9861,
+    "recall_all@5": 0.9306,
+    "recall_any@10": 1.0,
+    "recall_all@10": 0.9722,
+    "turn_hit@10": 0.9722,
+    "answer_in_view": 0.9259,
+    "answer_in_view_gated": 0.9259,
+    "recall_ms_p50": 40.1
+   },
+   "multi-session": {
+    "n": 121,
+    "recall_any@1": 0.8843,
+    "recall_all@1": 0.0,
+    "recall_any@3": 0.9339,
+    "recall_all@3": 0.5868,
+    "recall_any@5": 0.9669,
+    "recall_all@5": 0.7107,
+    "recall_any@10": 0.9917,
+    "recall_all@10": 0.8182,
+    "turn_hit@10": 0.8926,
+    "answer_in_view": 0.8095,
+    "answer_in_view_gated": 0.8084,
+    "recall_ms_p50": 41.7
+   },
+   "single-session-assistant": {
+    "n": 56,
+    "recall_any@1": 0.9464,
+    "recall_all@1": 0.9464,
+    "recall_any@3": 0.9821,
+    "recall_all@3": 0.9821,
+    "recall_any@5": 0.9821,
+    "recall_all@5": 0.9821,
+    "recall_any@10": 1.0,
+    "recall_all@10": 1.0,
+    "turn_hit@10": 0.8571,
+    "answer_in_view": 0.8571,
+    "answer_in_view_gated": 0.875,
+    "recall_ms_p50": 56.3
+   },
+   "single-session-preference": {
+    "n": 30,
+    "recall_any@1": 0.2,
+    "recall_all@1": 0.2,
+    "recall_any@3": 0.4667,
+    "recall_all@3": 0.4667,
+    "recall_any@5": 0.6,
+    "recall_all@5": 0.6,
+    "recall_any@10": 0.8333,
+    "recall_all@10": 0.8333,
+    "turn_hit@10": 0.6,
+    "answer_in_view": 0.5167,
+    "answer_in_view_gated": 0.5167,
+    "recall_ms_p50": 34.8
+   },
+   "single-session-user": {
+    "n": 64,
+    "recall_any@1": 0.9844,
+    "recall_all@1": 0.9844,
+    "recall_any@3": 0.9844,
+    "recall_all@3": 0.9844,
+    "recall_any@5": 1.0,
+    "recall_all@5": 1.0,
+    "recall_any@10": 1.0,
+    "recall_all@10": 1.0,
+    "turn_hit@10": 0.9844,
+    "answer_in_view": 0.9766,
+    "answer_in_view_gated": 0.9766,
+    "recall_ms_p50": 41.1
+   },
+   "temporal-reasoning": {
+    "n": 127,
+    "recall_any@1": 0.8819,
+    "recall_all@1": 0.1102,
+    "recall_any@3": 0.937,
+    "recall_all@3": 0.6929,
+    "recall_any@5": 0.937,
+    "recall_all@5": 0.7717,
+    "recall_any@10": 0.9528,
+    "recall_all@10": 0.8583,
+    "turn_hit@10": 0.8898,
+    "answer_in_view": 0.8467,
+    "answer_in_view_gated": 0.8451,
+    "recall_ms_p50": 44.5
+   },
+   "_abstention_gate": {
+    "n": 30,
+    "nothing_injected": 0.0333
+   },
+   "_meta": {
+    "questions": 500,
+    "errors": 0,
+    "abstention_skipped": 30,
+    "ingest_s_total": 1239.6,
+    "unmapped_objects": 0,
+    "data": "longmemeval_s_cleaned.json",
+    "wall_s": 460.0,
+    "budget": 1500,
+    "workers": 3,
+    "semantic_backend": [
+     "off"
+    ],
+    "nyx_version": "7.19.0"
+   }
+  },
+  "note": "v7.19.0: ranking unchanged; nyx_in_view_gated / answer_in_view_gated = what the agent sees after the relevance gate (core/relevance.py); abstention / adversarial: share of questions where nothing is injected"
  }
 }

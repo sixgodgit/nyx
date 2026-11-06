@@ -458,7 +458,12 @@ class RecallPlanner:
             results = rerank.rerank(query, router.search(query, limit=max(limit, rerank.depth())))[:limit]
         else:
             results = router.search(query, limit=limit)
-        return [_from_search_item(item, "search_router") for item in results]
+        objs = [_from_search_item(item, "search_router") for item in results]
+        vs = getattr(router, "last_vector_scores", None) or {}
+        for o in objs:
+            if o.source_id and str(o.source_id).isdigit() and int(o.source_id) in vs:
+                o.vector_score = vs[int(o.source_id)]          # 注入前那道门放行语义命中（v7.19.0）
+        return objs
 
     def _adapt_shadow(self, query: str) -> list[MemoryObject]:
         from nexsandglass.features.shadow_sand import shadow_search

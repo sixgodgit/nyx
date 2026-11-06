@@ -194,6 +194,10 @@ def run_instance(inst: dict, *, budget: int, prefetch_tokens: int, want_context:
     from nexsandglass.runtime import intent as _intent
     view_n = max(VIEW_LINES, _intent.breadth_lines(inst["question"]))
     seen_answers = {sq for sq in seqs[:view_n] if sq in answer_seqs}
+    # 注入前的那道门（v7.19.0，core/relevance.py）：agent 实际看到的是门后的这些
+    from nexsandglass.core import relevance
+    gated = [sq for sq in map_to_seqs(conn, relevance.keep(inst["question"], list(mc.objects or []))) if sq is not None]
+    seen_gated = {sq for sq in gated[:view_n] if sq in answer_seqs}
     for seq in seqs:
         if seq is None or seq not in seq_session:
             unmapped += 1
@@ -209,7 +213,8 @@ def run_instance(inst: dict, *, budget: int, prefetch_tokens: int, want_context:
         "answer_session_ids": inst.get("answer_session_ids", []),
         "ranked_sessions": ranked_sessions[:50], "answer_turn_hits": ranked_answer_hits[:50],
         "n_answer_turns": len(answer_seqs), "n_objects": len(mc.objects), "unmapped": unmapped,
-        "view_n": view_n, "answer_in_view": len(seen_answers),
+        "view_n": view_n, "answer_in_view": len(seen_answers), "answer_in_view_gated": len(seen_gated),
+        "n_gated": len(gated),
         "n_sessions": len(sessions), "n_turns": n_turns, "n_memories": max_seq(),
         "ingest_s": round(ingest_s, 3), "recall_ms": round(recall_ms, 1),
         "semantic": {k: sem.get(k) for k in ("backend", "indexed", "pending")},
@@ -304,8 +309,16 @@ def score(results: list, ks=(1, 3, 5, 10)) -> dict:
                 # agent 实际看到的记录里，含答案的轮次找到了多少（v7.13.7）
                 row["answer_in_view"] = round(sum(r["answer_in_view"] / r["n_answer_turns"] for r in with_turns)
                                               / len(with_turns), 4)
+            if all("answer_in_view_gated" in r for r in with_turns):
+                row["answer_in_view_gated"] = round(sum(r["answer_in_view_gated"] / r["n_answer_turns"]
+                                                        for r in with_turns) / len(with_turns), 4)
         row["recall_ms_p50"] = sorted(r["recall_ms"] for r in rs)[len(rs) // 2]
         out[g] = row
+    abst = [r for r in results if "error" not in r and r.get("abstention") and "n_gated" in r]
+    if abst:
+        # 拒答题（问的事对话里没有）：门后一条都不注入的比例（v7.19.0）
+        out["_abstention_gate"] = {"n": len(abst),
+                                   "nothing_injected": round(sum(1 for r in abst if r["n_gated"] == 0) / len(abst), 4)}
     errs = [r for r in results if "error" in r]
     out["_meta"] = {"questions": len(results), "errors": len(errs),
                     "abstention_skipped": sum(1 for r in results if r.get("abstention")),
@@ -386,12 +399,23 @@ def main(argv=None) -> int:
         report["_meta"]["nyx_version"] = __version__
     except Exception:
         pass
+    if args.json:
+        # 先落盘再打印：500 题要跑一个多小时，打印出错不能把结果一起丢掉
+        os.makedirs(os.path.dirname(os.path.abspath(args.json)), exist_ok=True)
+        json.dump({"scores": report, "results": [{k: v for k, v in r.items() if k != "context"}
+                                                 for r in results]},
+                  open(args.json, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
     for g, row in report.items():
-        if g != "_meta":
-            print(f"{g:28s} n={row['n']:4d}  any@5={row['recall_any@5']:.3f}  all@5={row['recall_all@5']:.3f}"
-                  f"  any@10={row['recall_any@10']:.3f}  all@10={row['recall_all@10']:.3f}"
-                  f"  in_view={row.get('answer_in_view', float('nan')):.3f}  p50={row['recall_ms_p50']}ms")
+        if g == "_meta":
+            continue
+        if "recall_any@5" not in row:
+            print(f"{g:28s} n={row['n']:4d}  {json.dumps({k: v for k, v in row.items() if k != 'n'})}")
+            continue
+        print(f"{g:28s} n={row['n']:4d}  any@5={row['recall_any@5']:.3f}  all@5={row['recall_all@5']:.3f}"
+              f"  any@10={row['recall_any@10']:.3f}  all@10={row['recall_all@10']:.3f}"
+              f"  in_view={row.get('answer_in_view', float('nan')):.3f}"
+              f"  gated={row.get('answer_in_view_gated', float('nan')):.3f}  p50={row['recall_ms_p50']}ms")
     print(json.dumps(report["_meta"], ensure_ascii=False))
     for r in results:
         if "error" in r:
@@ -413,8 +437,7 @@ def main(argv=None) -> int:
         print(f"假设文件：{hyp_path}\n官方打分：python3 src/evaluation/evaluate_qa.py gpt-4o "
               f"{hyp_path} {args.data}")
 
-    if args.json:
-        os.makedirs(os.path.dirname(os.path.abspath(args.json)), exist_ok=True)
+    if args.json and args.qa:                        # 带了 QA 错误信息，重写一次
         json.dump({"scores": report, "results": [{k: v for k, v in r.items() if k != "context"}
                                                  for r in results]},
                   open(args.json, "w", encoding="utf-8"), ensure_ascii=False, indent=1)

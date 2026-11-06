@@ -43,31 +43,25 @@ def check(name, cond, detail=""):
 # Bug1: system_prompt_block 用 Bundle 而非 fallback
 # ══════════════════════════════════════════════════════════
 def test_system_prompt_block_uses_bundle():
-    print("[Bug1: system_prompt_block Bundle 路径]")
+    """v7.19.0 起常驻块不再走「空问题召回 → Bundle」：那次召回实际是日志里最早的十来条（混着助手的客套话），
+    还会把含「不要 / 别」的句子标成 [Contradictions]。现在常驻块由画像（core/profile.py）和几个有内容才出现的层组成。"""
+    print("[Bug1: system_prompt_block 不走空问题召回]")
     from nexsandglass.core.memory_provider import NexSandglassProvider
 
     p = NexSandglassProvider.__new__(NexSandglassProvider)
     p._use_facade = True
-    # 直接用真实 orchestrator（不再 NameError fallback）
     sp = p.system_prompt_block()
-    # Bundle 路径应成功，输出含槽位或沙漏统计（非纯 fallback 文本）
-    check("输出含 Bundle/统计", "【你是谁】" in sp or "【核心事实】" in sp or "沙漏" in sp, sp[:80])
-    # fallback 文本（旧四层拼接）不应出现"记忆系统已就绪"兜底
-    check("非兜底 fallback", "记忆系统已就绪" not in sp)
+    assert "Nyx memory is ready" not in sp, sp[:120]          # 不是整体失败后的兜底
+    assert "Nyx memory:" in sp and "sandglass_search" in sp, sp[:200]
+    for gone in ("[Core facts]", "[Contradictions]", "[Confidence]", "[Time]"):
+        assert gone not in sp, sp
 
-    # 用 mock 验证 open_loops 传入（Bug1 根因：open_loops 未定义变量）
-    fake_bundle = MagicMock()
-    fake_bundle.render.return_value = "【你是谁】mock-bundle"
     fake_orch = MagicMock()
-    fake_orch.recall_bundle.return_value = fake_bundle
-    with patch("nexsandglass.runtime.orchestrator.get_orchestrator", return_value=fake_orch):
+    with patch("nexsandglass.runtime.orchestrator.get_orchestrator", return_value=fake_orch), \
+            patch("nexsandglass.l3.l3_tasks.task_pending", return_value=[{"task": "交周报"}]):
         sp2 = p.system_prompt_block()
-    # 断言 recall_bundle 被调用，且 open_loops 以关键字传入
-    call_kwargs = fake_orch.recall_bundle.call_args.kwargs
-    check("recall_bundle 被调用", fake_orch.recall_bundle.called)
-    check("open_loops 传入", "open_loops" in call_kwargs, str(call_kwargs.keys()))
-    check("open_loops 非空", bool(call_kwargs.get("open_loops")) or True)
-    check("render 被用", "mock-bundle" in sp2)
+    assert not fake_orch.recall_bundle.called and not fake_orch.recall.called
+    assert "[Unfinished]" in sp2 and "交周报" in sp2, sp2
 
 
 # ══════════════════════════════════════════════════════════

@@ -59,7 +59,7 @@ instructions? Run `install` once more and it switches to an installation Hermes 
 | Key | Default | Meaning |
 |---|---|---|
 | `data_dir` | `~/.neurobase` | Memory directory. By default shared with nyx's MCP server / CLI (one memory per person). `NEXSANDBASE_HOME` wins. Restart after changing it |
-| `prefetch_tokens` | `600` | Budget for each turn's automatic recall; 0 = only the drift / mood signal |
+| `prefetch_tokens` | `600` | Budget for each turn's automatic recall; 0 = no recall (only the drift / mood signal, when it is not steady) |
 | `semantic` | `auto` | Semantic search: `auto` (an API if configured; the local model if `nyx-memory[vector]` is installed; otherwise off) / `local` / `api` / `off` |
 | `embedding_model` | empty | Embedding model name; after a change, old vectors are dropped and rebuilt in the background |
 | `embedding_api_url` / `embedding_api_key` | empty | OpenAI-compatible `/embeddings`; the key goes only to `.env` |
@@ -113,12 +113,18 @@ Two things the vault cannot protect against:
 
 Threat model and tests: [docs/secret-vault.md](https://github.com/sixgodgit/nyx/blob/main/docs/secret-vault.md).
 
-## What happens each turn
+## What happens each session and each turn
 
+- **system prompt** (once per session): `[About the user]` — what the user has said about themselves, in their own words
+  and newest first: standing requests to the agent, health and diet, family / partner / pets, home and work, likes and
+  dislikes (v7.19.0; `core/profile.py`). Below it, when there is something to say: the persona the user built, decision
+  drift, open to-dos and rules
 - **prefetch**: a fresh local recall for this turn's question (about 30–140 ms per turn), each entry with the date it was said;
   for questions about where the user lives / works / their job, the current bi-temporal belief is added
-  ("user lives in Shanghai (since 2026-09-01)"). 12 entries by default; 20 for "how many times / how long / which came
-  first / before or after" questions (`NYX_BREADTH_LINES`, 0 = off). Hermes shows `🧠 Nyx` with the number of memories recalled
+  ("user lives in Shanghai (since 2026-09-01)"). Only entries sharing at least one content word with the question are
+  injected, so an unrelated question gets nothing (v7.19.0). Up to 12 entries by default; up to 20 for "how many times /
+  how long / which came first / before or after" questions (`NYX_BREADTH_LINES`, 0 = off). Hermes shows `🧠 Nyx` with the
+  number of memories recalled
 - **sync_turn**: the message goes to the journal (audit log) + promotion gate + fact extraction; the source is bound from `turn_author`
 - **subagent / cron / flush contexts are read-only**: nothing is written, and write tools refuse
 

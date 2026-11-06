@@ -348,6 +348,7 @@ class SearchRouter:
             except Exception:
                 vector = None
         self.vector = vector
+        self.last_vector_scores: dict = {}
 
     def search(self, query: str, limit: int = 10) -> list:
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
@@ -361,6 +362,14 @@ class SearchRouter:
         idx_hits = fut_idx.result() or []
         tfidf_hits = fut_tfidf.result() or []
         vector_hits = fut_vector.result() if fut_vector else []
+        # 语义这一路命中的行（已过「明显高于背景」的门槛，见 semantic._standout_threshold）：
+        # 注入前那道门（core/relevance.py）放行它们 —— 同义改写和问句本来就没有字面重叠（v7.19.0）
+        self.last_vector_scores = {}
+        for hit in vector_hits or []:
+            try:
+                self.last_vector_scores[int(hit[0])] = float(hit[1])
+            except (TypeError, ValueError, IndexError):
+                continue
         if shadow_hits:
             try:
                 from nexsandglass.features.shadow_sand import shadow_retrieval_bump

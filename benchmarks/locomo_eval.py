@@ -191,6 +191,7 @@ def run_conversation(sample: dict, *, budget: int, prefetch_tokens: int = 0, wan
     clock.set_global((sess[-1][1] if sess else datetime.now()) + timedelta(days=1))
     from nexsandglass.runtime import intent as _intent
     from nexsandglass.runtime.orchestrator import get_orchestrator
+    from nexsandglass.core import relevance
     orch = get_orchestrator()
     qs = []
     for i, q in enumerate(sample.get("qa") or []):
@@ -204,6 +205,12 @@ def run_conversation(sample: dict, *, budget: int, prefetch_tokens: int = 0, wan
                 unmapped += 1
             elif d not in ranked:
                 ranked.append(d)
+        # 注入前的那道门（v7.19.0，core/relevance.py）：agent 实际看到的是门后的这些
+        gated = []
+        for seq in map_to_seqs(conn, relevance.keep(str(q.get("question") or ""), list(mc.objects or []))):
+            d = seq_dia.get(seq) if seq is not None else None
+            if d is not None and d not in gated:
+                gated.append(d)
         base = []
         for j in bm25.rank(str(q.get("question") or "")):
             if dia_order[j] not in base:
@@ -212,8 +219,8 @@ def run_conversation(sample: dict, *, budget: int, prefetch_tokens: int = 0, wan
                 break
         view_n = max(VIEW_LINES, _intent.breadth_lines(str(q.get("question") or "")))
         qs.append({"i": i, "category": q.get("category"), "evidence": evidence(q.get("evidence")),
-                   "ranked": ranked[:50], "bm25": base, "unmapped": unmapped, "recall_ms": round(ms, 1),
-                   "view_n": view_n})
+                   "ranked": ranked[:50], "gated": gated[:50], "bm25": base, "unmapped": unmapped,
+                   "recall_ms": round(ms, 1), "view_n": view_n})
         if want_context:
             qs[-1]["context"] = p.prefetch(str(q.get("question") or ""), session_id="q")
     clock.set_global(None)
@@ -297,8 +304,16 @@ def score(results: list) -> dict:
                   # agent 实际看到的记录里（默认 12 条，汇总 / 时长 / 先后类 20 条）证据句找到了多少（v7.13.7）
                   "nyx_in_view": round(sum(len(set(r["ranked"][:r["view_n"]]) & set(r["evidence"])) / len(r["evidence"])
                                            for r in view) / len(view), 4) if view else None,
+                  # 经过注入前那道门之后（v7.19.0）
+                  "nyx_in_view_gated": (round(sum(len(set(r["gated"][:r["view_n"]]) & set(r["evidence"]))
+                                                  / len(r["evidence"]) for r in view if "gated" in r)
+                                            / max(1, sum(1 for r in view if "gated" in r)), 4)
+                                        if any("gated" in r for r in view) else None),
                   "nyx_returned_p50": sorted(len(r["ranked"]) for r in rows)[len(rows) // 2],
                   "recall_ms_p50": sorted(r["recall_ms"] for r in rows)[len(rows) // 2]}
+    adv = [q for c in results if "error" not in c for q in c["questions"] if q["category"] == 5 and "gated" in q]
+    if adv:
+        out["5 adversarial (gate)"] = {"n": len(adv), "nothing_injected": round(sum(1 for q in adv if not q["gated"]) / len(adv), 4)}
     ok = [c for c in results if "error" not in c]
     out["_meta"] = {"conversations": len(results), "errors": len(results) - len(ok),
                     "questions_scored": len(groups.get("_overall", [])), "skipped": dict(skipped),
@@ -353,13 +368,17 @@ def main(argv=None) -> int:
         pass
 
     print(f"{'':16s} {'n':>5s}   {'nyx R@5':>8s} {'BM25 R@5':>8s}   {'nyx R@10':>8s} {'BM25 R@10':>9s}"
-          f"   {'nyx all@10':>10s} {'BM25 all@10':>11s}   {'nyx 视野内':>8s}")
+          f"   {'nyx all@10':>10s} {'BM25 all@10':>11s}   {'nyx 视野内':>8s} {'门后':>6s}")
     for g, row in report.items():
         if g == "_meta":
             continue
+        if "nyx" not in row:
+            print(f"{g:16s} {row['n']:5d}   {json.dumps({k: v for k, v in row.items() if k != 'n'})}")
+            continue
         a, b = row["nyx"], row["bm25"]
         print(f"{g:16s} {row['n']:5d}   {a['recall@5']:8.3f} {b['recall@5']:8.3f}   {a['recall@10']:8.3f}"
-              f" {b['recall@10']:9.3f}   {a['all@10']:10.3f} {b['all@10']:11.3f}   {row['nyx_in_view'] or 0:8.3f}")
+              f" {b['recall@10']:9.3f}   {a['all@10']:10.3f} {b['all@10']:11.3f}   {row['nyx_in_view'] or 0:8.3f}"
+              f" {row.get('nyx_in_view_gated') or 0:6.3f}")
     print(json.dumps(report["_meta"], ensure_ascii=False))
     for r in results:
         if "error" in r:
