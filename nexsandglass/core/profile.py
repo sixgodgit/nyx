@@ -27,7 +27,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-RULES_VERSION = "2"
+RULES_VERSION = "3"
 KINDS = ("instruction", "health", "people", "identity", "likes")
 HEADERS = {
     "instruction": "Standing requests to you",
@@ -144,6 +144,12 @@ def _sentences(text: str) -> list:
     return out or [str(text or "").strip()]
 
 
+# 句子说的是家人（开头就是「我妈 / 我老婆 / My mother …」）
+_ABOUT_RELATIVE = re.compile(r"^\s*(我(的)?(女儿|儿子|孩子|闺女|宝宝|老婆|老公|妻子|丈夫|爱人|媳妇|对象|男朋友|女朋友|妈妈|母亲|爸爸|父亲|"
+                             r"父母|爸妈|妈|爸|爷爷|奶奶|外公|外婆|姥姥|姥爷|哥哥|姐姐|弟弟|妹妹)|my (wife|husband|partner|"
+                             r"girlfriend|boyfriend|son|daughter|kids?|child|baby|mom|mum|mother|dad|father|parents|"
+                             r"brother|sister|grandma|grandmother|grandpa|grandfather)\b)", re.I)
+
 # 对着助手说的评价（「I like the way you…」「你这个方案我喜欢」）是对这次回答的反馈，不是这个人的喜好
 _TO_ASSISTANT = re.compile(r"\byou(r|'ve|'re|'d|'ll)?\b|你(的|这|写|说|改|给)", re.I)
 
@@ -161,6 +167,8 @@ def classify(text: str) -> Optional[tuple]:
             if kind == "likes" and _TO_ASSISTANT.search(s):
                 continue
             if any(p.search(s) for p in _COMPILED[kind]):
+                if kind == "health" and _ABOUT_RELATIVE.search(s):
+                    kind = "people"          # 「我妈有糖尿病」是家人的事，放在「健康」下面像是用户自己的
                 return kind, _excerpt(text, sents, i)
     return None
 
@@ -246,6 +254,31 @@ def _refresh(conn: Optional[sqlite3.Connection], max_rows: Optional[int]) -> int
     return added
 
 
+def reconsider(mem_ids) -> int:
+    """从隔离区救回来的记忆重新分类（v7.20.0）。
+
+    refresh 只看水位线之后的、没删的行：一条话在画像刷新时正好在隔离区里，就被跳过了；救回来以后水位线早就过了它，
+    不会再看 —— 救回的「我对花生过敏」从此不在常驻块里。救回时调这个补上。
+    """
+    from nexsandglass.core import memid
+    conn = memid.get_conn()
+    _ensure(conn)
+    added = 0
+    with _REFRESH_LOCK:
+        for mid in mem_ids or ():
+            r = conn.execute("SELECT seq, text, line_start FROM memories WHERE mem_id = ? AND sender = 'user' "
+                             "AND deleted_at IS NULL", (mid,)).fetchone()
+            if not r:
+                continue
+            hit = classify(r[1])
+            if hit and _trusted(r[2]):
+                conn.execute("INSERT OR REPLACE INTO profile_items(mem_id, seq, kind) VALUES (?, ?, ?)",
+                             (mid, r[0], hit[0]))
+                added += 1
+        conn.commit()
+    return added
+
+
 # ══════════════════════════════════════════════════════════
 # 渲染
 # ══════════════════════════════════════════════════════════
@@ -257,8 +290,9 @@ def items(conn: Optional[sqlite3.Connection] = None) -> dict:
     _ensure(conn)
     out = {k: [] for k in KINDS}
     seen = set()
+    # 按说话的时间排，不按写入先后：导入的旧对话（hermes nyx import）写得晚，但不能排到最新
     rows = conn.execute("SELECT p.kind, m.mem_id, m.ts, m.text FROM profile_items p JOIN memories m "
-                        "ON m.mem_id = p.mem_id WHERE m.deleted_at IS NULL ORDER BY m.seq DESC")
+                        "ON m.mem_id = p.mem_id WHERE m.deleted_at IS NULL ORDER BY m.ts DESC, m.seq DESC")
     for kind, mem_id, ts, text in rows:
         if all(len(out[k]) >= PER_KIND[k] for k in KINDS):
             break                                    # 每类都满了：更早的不用再看

@@ -11,7 +11,11 @@ Optional: **secret vault**. A key you pasted in chat can later be handed back to
 hermes plugins enable nyx-reveal      # then set vault to on in hermes memory setup, and restart
 ```
 
-Terminal commands: `hermes nyx vault | doctor | scrub | repair | status`.
+Optional: **`/nyx` in any chat** (status, pause and resume remembering, forget the last turn): `hermes plugins enable nyx-commands`.
+
+Optional: **bring in your earlier Hermes conversations** with their original dates: `hermes nyx import` (lists them first; Hermes's data is only read).
+
+Terminal commands: `hermes nyx search | show | forget | restore | edit | import | vault | doctor | scrub | repair | status`.
 Docs: https://github.com/sixgodgit/nyx/blob/main/hermes-plugin/README.md
 
 This variant also installs a local embedding model (sentence-transformers, about 470 MB downloaded from Hugging Face on first run).
@@ -27,4 +31,8 @@ This variant also installs a local embedding model (sentence-transformers, about
 
 可选：**密钥保险箱**（聊天里贴过的 key 之后还能让 agent 交还给你，要你确认，原文不经过模型）：`hermes plugins enable nyx-reveal`，再在 `hermes memory setup` 里把 vault 设成 on，然后重启。
 
-终端命令：`hermes nyx vault | doctor | scrub | repair | status`。中文界面：`hermes memory setup` 里把 `lang` 设成 `zh`。中文说明：https://github.com/sixgodgit/nyx/blob/main/nexsandglass_hermes/README.zh-CN.md
+可选：**聊天里的 `/nyx`**（看状态、暂停 / 恢复记录、收回上一轮）：`hermes plugins enable nyx-commands`。
+
+可选：**把以前在 Hermes 里的对话导进来**，按原来的时间：`hermes nyx import`（先列出来；Hermes 的数据只读）。
+
+终端命令：`hermes nyx search | show | forget | restore | edit | import | vault | doctor | scrub | repair | status`。中文界面：`hermes memory setup` 里把 `lang` 设成 `zh`。中文说明：https://github.com/sixgodgit/nyx/blob/main/nexsandglass_hermes/README.zh-CN.md

@@ -1798,5 +1798,901 @@
     ]
    }
   ]
+ },
+ "v7.20.0": {
+  "note": "Same facts seen, same injections as v7.19.0. The always-on block is 634 -> 640.5 characters on average: a relative's health (\"my mum has diabetes\", \"my wife is pregnant\") is now listed under family instead of health and diet, which adds the family header in two stories. The block's entry count now counts memories, not journal lines.",
+  "report": {
+   "all": {
+    "stories": 8,
+    "errors": 0,
+    "probes": 62,
+    "fact_visible": 1.0,
+    "fact_visible_via_block": 0.786,
+    "probe_complete": 1.0,
+    "junk_per_probe": 1.23,
+    "echo_per_probe": 0.08,
+    "lines_per_probe": 1.5,
+    "unrelated_clean": 0.88,
+    "inject_chars": 144.82,
+    "block_chars": 640.5,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "recall_ms_mean": 12.49
+   },
+   "split=dev": {
+    "stories": 4,
+    "errors": 0,
+    "probes": 32,
+    "fact_visible": 1.0,
+    "fact_visible_via_block": 0.719,
+    "probe_complete": 1.0,
+    "junk_per_probe": 0.84,
+    "echo_per_probe": 0.09,
+    "lines_per_probe": 1.22,
+    "unrelated_clean": 0.88,
+    "inject_chars": 88.91,
+    "block_chars": 639.75,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "recall_ms_mean": 12.93
+   },
+   "split=test": {
+    "stories": 4,
+    "errors": 0,
+    "probes": 30,
+    "fact_visible": 1.0,
+    "fact_visible_via_block": 0.875,
+    "probe_complete": 1.0,
+    "junk_per_probe": 1.63,
+    "echo_per_probe": 0.07,
+    "lines_per_probe": 1.8,
+    "unrelated_clean": 0.88,
+    "inject_chars": 204.47,
+    "block_chars": 641.25,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "recall_ms_mean": 12.01
+   },
+   "lang=en": {
+    "stories": 4,
+    "errors": 0,
+    "probes": 31,
+    "fact_visible": 1.0,
+    "fact_visible_via_block": 0.75,
+    "probe_complete": 1.0,
+    "junk_per_probe": 1.94,
+    "echo_per_probe": 0.03,
+    "lines_per_probe": 2.19,
+    "unrelated_clean": 0.75,
+    "inject_chars": 237.74,
+    "block_chars": 755.0,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "recall_ms_mean": 13.81
+   },
+   "lang=zh": {
+    "stories": 4,
+    "errors": 0,
+    "probes": 31,
+    "fact_visible": 1.0,
+    "fact_visible_via_block": 0.821,
+    "probe_complete": 1.0,
+    "junk_per_probe": 0.52,
+    "echo_per_probe": 0.13,
+    "lines_per_probe": 0.81,
+    "unrelated_clean": 1.0,
+    "inject_chars": 51.9,
+    "block_chars": 526.0,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "recall_ms_mean": 11.16
+   }
+  },
+  "stories": [
+   {
+    "id": "zh-hangzhou",
+    "split": "dev",
+    "lang": "zh",
+    "wrong_beliefs": [],
+    "block_chars": 492,
+    "probes": [
+     {
+      "q": "今晚吃什么好？给我推荐几个菜",
+      "kind": "personal",
+      "visible": {
+       "diet": "block",
+       "allergy": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "帮我给同事写封邮件，说明天请假",
+      "kind": "personal",
+      "visible": {
+       "no_emoji": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "给孩子准备什么生日礼物好",
+      "kind": "personal",
+      "visible": {
+       "daughter": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "这周末去哪儿玩比较好",
+      "kind": "personal",
+      "visible": {
+       "shanghai": "turn",
+       "hiking": "turn"
+      },
+      "n_lines": 2,
+      "junk": 0,
+      "echo": 0,
+      "chars": 152,
+      "stale": []
+     },
+     {
+      "q": "我现在住在哪个城市？",
+      "kind": "personal",
+      "visible": {
+       "shanghai": "turn"
+      },
+      "n_lines": 2,
+      "junk": 0,
+      "echo": 1,
+      "chars": 170,
+      "stale": []
+     },
+     {
+      "q": "线上数据库要升级大版本，要注意什么",
+      "kind": "work",
+      "visible": {
+       "db": "turn"
+      },
+      "n_lines": 10,
+      "junk": 9,
+      "echo": 0,
+      "chars": 445,
+      "stale": []
+     },
+     {
+      "q": "光速大概是多少？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "怎么给自行车补胎？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "zh-chengdu",
+    "split": "dev",
+    "lang": "zh",
+    "wrong_beliefs": [],
+    "block_chars": 553,
+    "probes": [
+     {
+      "q": "下午想喝点东西，推荐一下",
+      "kind": "personal",
+      "visible": {
+       "lactose": "block"
+      },
+      "n_lines": 1,
+      "junk": 0,
+      "echo": 1,
+      "chars": 122,
+      "stale": []
+     },
+     {
+      "q": "周末全家出去吃饭，帮我挑个餐厅",
+      "kind": "personal",
+      "visible": {
+       "wife": "block",
+       "cilantro": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "给我详细讲讲什么是量子计算",
+      "kind": "personal",
+      "visible": {
+       "short": "block",
+       "name": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "孩子学琴总是坐不住怎么办",
+      "kind": "personal",
+      "visible": {
+       "son": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "猫最近不爱吃饭是怎么回事",
+      "kind": "personal",
+      "visible": {
+       "cat": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "我值夜班太累了，有什么提神的办法",
+      "kind": "personal",
+      "visible": {
+       "job": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "珠穆朗玛峰有多高？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "怎么叠一只纸鹤？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "zh-beijing",
+    "split": "test",
+    "lang": "zh",
+    "wrong_beliefs": [],
+    "block_chars": 538,
+    "probes": [
+     {
+      "q": "推荐几本适合周末看的书",
+      "kind": "personal",
+      "visible": {
+       "no_webnovel": "turn"
+      },
+      "n_lines": 1,
+      "junk": 0,
+      "echo": 0,
+      "chars": 100,
+      "stale": []
+     },
+     {
+      "q": "帮我列一个这周的工作计划",
+      "kind": "personal",
+      "visible": {
+       "no_table": "block"
+      },
+      "n_lines": 1,
+      "junk": 0,
+      "echo": 1,
+      "chars": 115,
+      "stale": []
+     },
+     {
+      "q": "我妈过生日，送什么好",
+      "kind": "personal",
+      "visible": {
+       "mom": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "下午犯困，喝点什么提神",
+      "kind": "personal",
+      "visible": {
+       "heart": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "我现在在哪里工作？",
+      "kind": "personal",
+      "visible": {
+       "publisher": "block"
+      },
+      "n_lines": 2,
+      "junk": 1,
+      "echo": 1,
+      "chars": 156,
+      "stale": []
+     },
+     {
+      "q": "周末去哪儿拍点东西",
+      "kind": "personal",
+      "visible": {
+       "photo": "block"
+      },
+      "n_lines": 1,
+      "junk": 1,
+      "echo": 0,
+      "chars": 105,
+      "stale": []
+     },
+     {
+      "q": "地球到月球有多远？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "怎么养多肉植物？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "zh-shenzhen",
+    "split": "test",
+    "lang": "zh",
+    "wrong_beliefs": [],
+    "block_chars": 521,
+    "probes": [
+     {
+      "q": "我有点感冒发烧，能吃什么药",
+      "kind": "personal",
+      "visible": {
+       "penicillin": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "今晚吃什么",
+      "kind": "personal",
+      "visible": {
+       "beef": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "下个月纪念日，送什么礼物好",
+      "kind": "personal",
+      "visible": {
+       "boyfriend": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "这周末去哪跑步",
+      "kind": "personal",
+      "visible": {
+       "guangzhou": "block",
+       "marathon": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "帮我分析一下要不要多开一个店铺",
+      "kind": "personal",
+      "visible": {
+       "blunt": "block"
+      },
+      "n_lines": 5,
+      "junk": 5,
+      "echo": 0,
+      "chars": 244,
+      "stale": []
+     },
+     {
+      "q": "长颈鹿怎么睡觉？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "为什么天空是蓝色的？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "en-seattle",
+    "split": "dev",
+    "lang": "en",
+    "wrong_beliefs": [],
+    "block_chars": 700,
+    "probes": [
+     {
+      "q": "What should I cook for dinner tonight?",
+      "kind": "personal",
+      "visible": {
+       "vegan": "block",
+       "shellfish": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Draft an email to my manager asking for Friday off",
+      "kind": "personal",
+      "visible": {
+       "no_emoji": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Any gift ideas for my kid's birthday?",
+      "kind": "personal",
+      "visible": {
+       "son": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Where should I go this weekend?",
+      "kind": "personal",
+      "visible": {
+       "portland": "turn",
+       "kayak": "turn"
+      },
+      "n_lines": 2,
+      "junk": 0,
+      "echo": 0,
+      "chars": 178,
+      "stale": []
+     },
+     {
+      "q": "Which city do I live in now?",
+      "kind": "personal",
+      "visible": {
+       "portland": "turn"
+      },
+      "n_lines": 3,
+      "junk": 1,
+      "echo": 1,
+      "chars": 266,
+      "stale": []
+     },
+     {
+      "q": "We need to upgrade the production database, what should we watch out for?",
+      "kind": "work",
+      "visible": {
+       "db": "turn"
+      },
+      "n_lines": 10,
+      "junk": 9,
+      "echo": 0,
+      "chars": 856,
+      "stale": []
+     },
+     {
+      "q": "How fast does light travel?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 8,
+      "junk": 8,
+      "echo": 0,
+      "chars": 519,
+      "stale": []
+     },
+     {
+      "q": "How do I patch a bike tire?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "en-london",
+    "split": "dev",
+    "lang": "en",
+    "wrong_beliefs": [],
+    "block_chars": 814,
+    "probes": [
+     {
+      "q": "Recommend something to drink this afternoon",
+      "kind": "personal",
+      "visible": {
+       "lactose": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Pick a restaurant for a family dinner this weekend",
+      "kind": "personal",
+      "visible": {
+       "wife": "block",
+       "coriander": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Explain quantum computing in detail",
+      "kind": "personal",
+      "visible": {
+       "short": "block",
+       "name": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "My dog has stopped eating, what could be wrong?",
+      "kind": "personal",
+      "visible": {
+       "dog": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "How can I stay awake after a long shift?",
+      "kind": "personal",
+      "visible": {
+       "job": "turn"
+      },
+      "n_lines": 1,
+      "junk": 0,
+      "echo": 0,
+      "chars": 137,
+      "stale": []
+     },
+     {
+      "q": "How can I get better at my favourite game?",
+      "kind": "personal",
+      "visible": {
+       "chess": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "How tall is Mount Everest?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "How do I fold a paper crane?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "en-toronto",
+    "split": "test",
+    "lang": "en",
+    "wrong_beliefs": [],
+    "block_chars": 794,
+    "probes": [
+     {
+      "q": "Recommend a few books for the weekend",
+      "kind": "personal",
+      "visible": {
+       "no_selfhelp": "turn"
+      },
+      "n_lines": 1,
+      "junk": 0,
+      "echo": 0,
+      "chars": 132,
+      "stale": []
+     },
+     {
+      "q": "Make me a work plan for this week",
+      "kind": "personal",
+      "visible": {
+       "no_table": "block"
+      },
+      "n_lines": 10,
+      "junk": 10,
+      "echo": 0,
+      "chars": 1014,
+      "stale": []
+     },
+     {
+      "q": "What should I get my mum for her birthday?",
+      "kind": "personal",
+      "visible": {
+       "mom": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Suggest a quick lunch I can make",
+      "kind": "personal",
+      "visible": {
+       "gluten": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Where do I work now?",
+      "kind": "personal",
+      "visible": {
+       "publisher": "block"
+      },
+      "n_lines": 11,
+      "junk": 11,
+      "echo": 0,
+      "chars": 900,
+      "stale": []
+     },
+     {
+      "q": "Where should I go to take some pictures this weekend?",
+      "kind": "personal",
+      "visible": {
+       "photo": "block"
+      },
+      "n_lines": 1,
+      "junk": 1,
+      "echo": 0,
+      "chars": 112,
+      "stale": []
+     },
+     {
+      "q": "How far is the Moon from Earth?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "How do I look after succulents?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 20,
+      "junk": 20,
+      "echo": 0,
+      "chars": 3120,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "en-austin",
+    "split": "test",
+    "lang": "en",
+    "wrong_beliefs": [],
+    "block_chars": 712,
+    "probes": [
+     {
+      "q": "I have a fever and a sore throat, what medicine can I take?",
+      "kind": "personal",
+      "visible": {
+       "penicillin": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "What should I have for dinner?",
+      "kind": "personal",
+      "visible": {
+       "pork": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "What should I get for our anniversary next month?",
+      "kind": "personal",
+      "visible": {
+       "boyfriend": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Where should I go running this weekend?",
+      "kind": "personal",
+      "visible": {
+       "denver": "block",
+       "marathon": "turn"
+      },
+      "n_lines": 1,
+      "junk": 0,
+      "echo": 0,
+      "chars": 136,
+      "stale": []
+     },
+     {
+      "q": "Should I open a second online store?",
+      "kind": "personal",
+      "visible": {
+       "blunt": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "How do giraffes sleep?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Why is the sky blue?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   }
+  ]
  }
 }

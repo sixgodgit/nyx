@@ -88,16 +88,10 @@ def _handle_tool(name, args, request_id):
                 }]
             })
 
-        elif name == "sandglass_search":
-            from nexsandglass.runtime.orchestrator import get_orchestrator
-            orch = get_orchestrator()
-            rr = orch.recall(args.get("query", ""), token_budget=args.get("limit", 10) * 200)
-            texts = rr.strings[: args.get("limit", 10)]
-            data = [
-                {"text": t[:200], "id": rr.memory_ids[i] if i < len(rr.memory_ids) else t}
-                for i, t in enumerate(texts)
-            ]
-            return _result(request_id, {"content": [{"type": "text", "text": json.dumps(data, ensure_ascii=False)}]})
+        elif name in ("sandglass_search", "sandglass_recent", "nyx_read"):
+            # 和 Hermes 记忆提供器同一套实现：带日期、谁说的、since / until；nyx_read 看全文和前后几句（v7.20.0）
+            from nexsandglass.core import lookup
+            return _result(request_id, {"content": [{"type": "text", "text": lookup.tool(name, args)}]})
 
         elif name == "sandglass_semantic":
             from nexsandglass.features.sandglass_think import search_semantic
@@ -106,11 +100,6 @@ def _handle_tool(name, args, request_id):
             data = [{"line": ln, "ts": ts, "text": txt[:200]} for ln, ts, txt, *_ in r]
             return _result(request_id, {"content": [{"type": "text", "text": json.dumps(data, ensure_ascii=False)}]})
 
-        elif name == "sandglass_recent":
-            from nexsandglass.features.sandglass_vault import recent
-            r = recent(args.get("limit", 10))
-            data = [{"line": ln, "ts": ts, "text": txt[:200]} for ln, ts, txt, *_ in r]
-            return _result(request_id, {"content": [{"type": "text", "text": json.dumps(data, ensure_ascii=False)}]})
 
         elif name == "sandglass_offset":
             from nexsandglass.features.sandglass_think import comprehensive_offset
@@ -272,17 +261,30 @@ def _tool(name, description, properties=None, required=None):
 TOOLS = [
     _tool("sandglass_ping", "Health check: number of memories, current stage, semantic index status "
                             "(status=degraded means one retrieval path is down)."),
-    _tool("sandglass_search", "Keyword search over the user's memories.",
-          {"query": {"type": "string", "description": "What to search for"},
-           "limit": {"type": "integer", "description": "Number of results"}},
+    _tool("sandglass_search", "Search the user's memories. Each result has an id, the date it was said and who said "
+                              "it. since / until (YYYY-MM-DD, YYYY-MM or YYYY, inclusive) keep only what was said in "
+                              "that period. Texts longer than 300 characters are cut (more: true): nyx_read gives the "
+                              "whole text.",
+          {"query": {"type": "string", "description": "What to search for (may be empty when since / until is given)"},
+           "limit": {"type": "integer", "description": "Number of results"},
+           "since": {"type": "string", "description": "YYYY-MM-DD, YYYY-MM or YYYY (inclusive)"},
+           "until": {"type": "string", "description": "YYYY-MM-DD, YYYY-MM or YYYY (inclusive)"}},
           ["query"]),
+    _tool("nyx_read", "Read one memory in full: the whole text, when it was said, who said it, and the lines said "
+                      "just before and after it.",
+          {"id": {"type": "string", "description": "The id from sandglass_search or sandglass_recent"},
+           "around": {"type": "integer", "description": "How many lines before and after (0-10, default 3)"}},
+          ["id"]),
     _tool("sandglass_semantic", "Fuzzy search over memories (synonyms + SimHash + TF-IDF).",
           {"query": {"type": "string", "description": "What to search for"},
            "limit": {"type": "integer", "description": "Number of results"},
            "backend": {"type": "string", "description": "tfidf or chromadb"}},
           ["query"]),
-    _tool("sandglass_recent", "The most recent N memories.",
-          {"limit": {"type": "integer", "description": "Number of results"}}),
+    _tool("sandglass_recent", "The most recent N memories, newest first, with dates; since / until (inclusive) "
+                              "give the most recent ones within that period.",
+          {"limit": {"type": "integer", "description": "Number of results"},
+           "since": {"type": "string", "description": "YYYY-MM-DD, YYYY-MM or YYYY (inclusive)"},
+           "until": {"type": "string", "description": "YYYY-MM-DD, YYYY-MM or YYYY (inclusive)"}}),
     _tool("sandglass_offset", "The user's decision drift (saving / spending / drifting)."),
     _tool("sandglass_persona", "The user's profile for the current stage."),
     _tool("sandglass_tasks", "Open to-do items."),

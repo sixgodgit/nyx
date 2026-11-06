@@ -82,9 +82,54 @@ Newer Hermes installs nyx-memory in its own isolated environment, so the system 
 | `hermes nyx vault list` / `show v3 [--copy]` / `delete v3` / `gc` / `rekey` / `audit` / `status` | Secret vault |
 | `hermes nyx scrub [--apply] [--to-vault]` | Secrets / passwords already stored: find them and hide them in place |
 | `hermes nyx repair [--apply]` | When the hub does not match the journal: check and repair by content |
+| `hermes nyx import [--list] [--all] [--session ID…] [--since DATE]` | Bring in earlier Hermes conversations (v7.20.0, below) |
+| `hermes nyx search <words> [--since D] [--until D] [-n N]` | Find memories, most relevant first, with date and speaker; dates are YYYY-MM-DD, YYYY-MM or YYYY, inclusive. No words + a date range = what was said then (v7.20.0) |
+| `hermes nyx show <id> [--around N]` | One memory in full: date, speaker, trust, live / in the quarantine / erased, and the lines around it (v7.20.0) |
+| `hermes nyx forget <id…> \| --contains TEXT [--now] [--yes]` | To the quarantine after listing what goes and asking; `--now` erases for good (type `erase` to confirm) (v7.20.0) |
+| `hermes nyx restore [<id…>]` | No id: what is in the quarantine and until when; with ids: bring them back (v7.20.0) |
+| `hermes nyx edit <id> [new text]` | Correct a memory: the new text is kept as your words at the original date, the old one goes to the quarantine (v7.20.0) |
 | `hermes nyx status` | Version, Python, data directory, vault |
 
 Commands the agent passes on to you (health warnings, "get it in the terminal") are written as `hermes nyx …` too.
+Every command takes `--json`. None of them goes through the model.
+
+## `/nyx` in any chat (v7.20.0)
+
+Slash commands need a regular Hermes plugin (a memory provider cannot register them), so they ship as a companion plugin in
+nyx-memory. Enable it once:
+
+```bash
+hermes plugins enable nyx-commands
+```
+
+| Command | Effect |
+|---|---|
+| `/nyx status` | Version, number of memories, recording on or paused, what the profile holds |
+| `/nyx pause` | Stop remembering: turns, the end-of-session catch-up, subagent results and the built-in memory mirror are not written. Recall and explicit requests ("forget that") keep working, and the agent is told recording is paused. Stays paused across restarts and sessions |
+| `/nyx resume` | Start remembering again |
+| `/nyx forget-last [N]` | This chat's last N turns (default 1, at most 20) to the quarantine; the forgotten lines are shown so you can check, with the command that brings them back |
+
+They run in Hermes and the reply stays in the chat; the model never sees them. Who may use them: anyone on the local
+machine (CLI, TUI, desktop) and in a private chat; in group chats and channels only `status`, because anyone there can
+type a command. With `owner_ids` set, only the owner can pause, resume and forget, also in groups. Bots never can.
+
+## Importing earlier conversations: `hermes nyx import` (v7.20.0)
+
+If you used Hermes before installing Nyx, what you told it is in Hermes's session database (`$HERMES_HOME/state.db`).
+`hermes nyx import` opens it **read-only**, lists the conversations it can import and asks which (`--all` for every
+one, `--session` for some, `--list` to only look):
+
+- **Imported**: your local sessions (CLI, TUI, desktop) and private chats — your words and the agent's replies, with their
+  original dates, through the normal write path (secrets hidden, facts extracted, the profile updated)
+- **Not imported**: group chats and channels (other people), subagents and scheduled tasks (their "user" is the agent),
+  API, batch and test sessions; tool calls; messages that were rewound, compression summaries and system-inserted
+  continuations; and the memory text Hermes injected into what the model saw — only what you typed
+- With `owner_ids` set, only the owner's private chats. Without it, if the private chats come from several people,
+  `--all` is refused: Nyx cannot tell which of them is you
+- What Nyx already has (the same sentence within a day) is skipped, and each session's progress is kept, so running it
+  again only adds what is new
+- Older statements never override newer ones: "I live in Hangzhou" from January, imported after you said "I moved to
+  Shanghai" in October, is filed as where you lived before
 
 ## Secret vault (v7.15.0, off by default)
 
@@ -132,7 +177,8 @@ Threat model and tests: [docs/secret-vault.md](https://github.com/sixgodgit/nyx/
 
 | Tool | Effect |
 |---|---|
-| `sandglass_search` / `sandglass_recent` | Recall / recent memories (sources other than the user are labelled `(unverified · source: …)`) |
+| `sandglass_search` / `sandglass_recent` | Search / the most recent memories. Each result has an id, the date it was said and who said it; `since` / `until` (YYYY-MM-DD, YYYY-MM or YYYY, inclusive) limit it to a period; texts over 300 characters are cut (`more: true`). Sources other than the user and the agent are labelled `(unverified · source: …)` (dates and range v7.20.0) |
+| `nyx_read` | One memory in full, with the lines said around it (`around`, default 3). Forgotten memories and ones flagged as injection are not shown (v7.20.0) |
 | `nyx_belief` | Bi-temporal facts: what is believed now; what was true on `as_of`; what was believed at `known_at`; `history` = how it changed |
 | `nyx_forget` | Forget → **quarantine** (preview first, then `confirm=true`; at most 20 at a time). The agent cannot erase permanently |
 | `nyx_restore` / `nyx_quarantine` | Restore from the quarantine as-is / list the quarantine |

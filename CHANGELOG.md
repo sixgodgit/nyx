@@ -5,6 +5,85 @@ Benchmark section of the README and `benchmarks/`. Entries from v7.16.0 on are i
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。v7.16.0 起的条目用英文，之前的是中文。
 
+### v7.20.0 (2026-11-06) — You stay in charge: `/nyx` in chat, look up and correct in the terminal, import from Hermes
+
+**Why.** A personal agent's memory has to be something its owner can steer, not only something that happens to them.
+Four gaps: there was no way to say "don't remember this part" in the middle of a chat; checking or correcting what Nyx
+had stored meant asking the model (which may paraphrase, and cannot erase); the agent's search returned bare text with
+no date or speaker, so "what did I say in March" had nothing to go on; and anyone who used Hermes before installing Nyx
+started from an empty memory.
+
+**Changes.**
+- **`/nyx` in any chat** (companion plugin `nyx-commands`, a pip entry point like `nyx-reveal`; enable once with
+  `hermes plugins enable nyx-commands`). A memory provider cannot register slash commands in Hermes, so a regular
+  plugin does. `/nyx status`; `/nyx pause` and `/nyx resume` (`core/recording.py`: while paused, turns, the
+  end-of-session catch-up, subagent results and the built-in memory mirror are not written; recall and explicit
+  requests still work; the agent is told it is paused; the state is a file in the data directory, so it survives
+  restarts); `/nyx forget-last [N]` (this chat's last N turns to the quarantine, echoing the lines it took so a wrong
+  pick is visible, with the command that brings them back). Commands run in Hermes, never through the model. Local
+  sessions can always use them, including local sessions routed through the shared gateway (`Platform.LOCAL`); in group
+  chats and channels only `status` unless `owner_ids` is set, and then only the owner; bots never.
+- **`hermes nyx search / show / forget / restore / edit`** (`memory_cli.py`; outside Hermes
+  `python3 -m nexsandglass.memory_cli …`). `search` uses the per-turn recall path and relevance gate and prints id,
+  date, speaker and trust; `--since` / `--until` take YYYY-MM-DD, YYYY-MM or YYYY, inclusive, and with a range the hub
+  is also scanned within it for the question's content words, so a match is found even when recall ranks it below
+  memories from other periods. `show` gives the full text, status (live / quarantined until … / erased) and the lines
+  around it. `forget` lists what goes and asks (`--yes` to skip, refused without a terminal), `--contains` for a
+  substring, `--now` to erase for good after typing `erase`. `restore` lists the quarantine or brings memories back.
+  `edit` records the corrected text as the user's words at the original date, then moves the old memory to the
+  quarantine; facts derived from it go with it.
+- **The agent's tools** (`core/lookup.py`, shared with the terminal; the MCP server too). `sandglass_search` results
+  carry `id`, `date`, `who` (user / assistant / the source) and accept `since` / `until`; texts over 300 characters are
+  cut with `more: true`. `sandglass_recent` is ordered by when things were said and takes a range. New `nyx_read(id,
+  around)`: one memory in full with the lines around it; forgotten memories and ones flagged as injection come back
+  without text; other external sources keep their `(unverified · source: …)` tag (dropped for the assistant's own
+  lines, whose `who` already says so). Ids from older results (`search_router:123`, sequence numbers) still resolve.
+- **`hermes nyx import`** (`history_import.py`). Opens the profile's Hermes `state.db` read-only and imports the user's
+  own conversations — local sessions and private chats; not group chats or channels, subagents, scheduled tasks, API,
+  batch or test sessions — with their original timestamps, in global time order, through the normal write path.
+  Only what was typed (`content`, never `api_content`, which holds the memory Hermes injected), no rewound messages,
+  compression summaries, system-inserted continuations or tool traffic. What Nyx already has (same text and speaker
+  within a day) is skipped; progress is kept per session, so a second run adds only what is new. With `owner_ids`, only
+  the owner's private chats; without it, private chats from several people make `--all` refuse.
+- **Older statements never override newer ones** (`engram/loops/temporal_fact.py`). A fact recorded with an earlier
+  time than what is already known about the same relation — an imported conversation, a correction — is added as
+  history only: it closes and retracts nothing; inside a later-known interval it is kept as "said then". January's
+  "I live in Hangzhou", imported after October's "I moved to Shanghai", becomes where the user lived before.
+- **Profile**: entries are ordered by when they were said, not when they were written (imports are written late); a
+  relative's health ("我妈有糖尿病", "my wife is pregnant") is listed under family, not under the user's health and diet.
+- **Fixed**: a memory restored from the quarantine could stay missing from the always-on profile for good — the profile
+  is built incrementally, and if a memory was in the quarantine when its turn came, the watermark moved past it.
+  Restoring now re-classifies it. Found by the new `forget → restore` test.
+- **Fixed**: the block's "Nyx memory: N entries" counted journal lines, so long messages and forgotten ones were
+  counted (one PersonaMem conversation: 482 lines, 177 memories). It now counts live memories.
+
+**Checked against real Hermes** (main, Python 3.14, its own code, not mocks): the plugin loader finds and enables
+`nyx-commands` from the entry point; `/nyx` dispatched as `cli.py` calls it (`source=None`) and as the gateway does
+(`SessionSource` for a stranger in a group, the owner in a group, another person's and the owner's private chat, a bot,
+a local session through the gateway) — each allowed or refused as above; pause stops `MemoryManager.sync_all` from
+writing and `prefetch` says so; `forget-last` removes exactly the last turn and the profile follows. `hermes nyx search /
+show / forget / restore / edit / status` routed through Hermes's own `hermes nyx` subcommand. The import was checked
+on a session database built with Hermes's own `SessionDB` (CLI, Telegram private and group chats, a subagent, a
+scheduled task, tool calls, a compression summary, an auto-continue message, injected memory in `api_content`).
+
+**Measured.** Recall is unchanged; what the agent sees was compared question by question.
+- Personal scenarios: every metric equals v7.19.0 (facts seen 100%, unrelated per question 1.23, unrelated questions
+  clean 88%, wrong beliefs 0). The block is 634 → 640 characters on average: in two stories a relative's health moved
+  under a new family header.
+- PersonaMem, 589 questions: the injected memories are identical to v7.19.0, in the same order; the block differs only
+  in the entry count. Zero-LLM proxy 0.396, as before; the local-model step was not rerun. One extra run on a heavily
+  loaded machine differed on 19 questions — recall drops a source that misses its time budget (1.5–3 s per source,
+  existing behaviour) — and a rerun matched exactly. Before blaming that, the import guard was ruled out: with it
+  removed the views are identical too.
+- LongMemEval, LoCoMo, BEAM: no change to the recall path; their harnesses replay sessions in date order, so the import
+  guard never fires there.
+- Tests: 783 passed (Python 3.11), including 21 new for the commands, the terminal tools and `nyx_read`, and 7 for the
+  import.
+
+**Not done.** `/nyx forget-last` knows a chat's turns only since Nyx started in that process; after a restart it takes
+the newest memories overall and says so. The MCP server has `nyx_read` but still no restore tool. `edit` keeps the
+original date; it does not ask whether the correction was "true all along" or "changed since".
+
 ### v7.19.0 (2026-11-06) — Built for a personal agent: an always-on profile, nothing injected when nothing is relevant, family facts kept apart
 
 **Why.** Nyx is memory for one person's agent. We compared it with TencentDB Agent Memory (layered memory, an

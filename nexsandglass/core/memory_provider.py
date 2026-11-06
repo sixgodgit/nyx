@@ -103,6 +103,40 @@ _PREFETCH_TOKENS_DEFAULT = 600
 _WRITE_CONTEXTS = ("", "primary")
 
 
+from nexsandglass.core import recording as _recording  # noqa: E402
+
+# 每个会话最近几轮写进去的 mem_id（/nyx forget-last 用；只在这个进程里，重启就没了 —— 那时按中枢里最新的几条算）
+_RECENT_TURNS: Dict[str, "deque"] = {}
+_INFLIGHT: Dict[str, int] = {}
+_TURNS_LOCK = threading.Lock()
+
+
+def _turn_begin(session_id: str) -> None:
+    with _TURNS_LOCK:
+        _INFLIGHT[session_id] = _INFLIGHT.get(session_id, 0) + 1
+
+
+def _turn_end(session_id: str, mem_ids: List[str]) -> None:
+    from collections import deque
+    with _TURNS_LOCK:
+        _INFLIGHT[session_id] = max(0, _INFLIGHT.get(session_id, 0) - 1)
+        if mem_ids:
+            _RECENT_TURNS.setdefault(session_id, deque(maxlen=50)).append(list(mem_ids))
+
+
+def recent_turns(session_id: str, n: int, wait: float = 3.0) -> List[List[str]]:
+    """这个会话最近 n 轮写进去的 mem_id（新的在前）。还有一轮正在写，就最多等 wait 秒。"""
+    deadline = time.time() + max(0.0, wait)
+    while time.time() < deadline:
+        with _TURNS_LOCK:
+            if not _INFLIGHT.get(session_id):
+                break
+        time.sleep(0.05)
+    with _TURNS_LOCK:
+        turns = list(_RECENT_TURNS.get(session_id) or [])
+    return list(reversed(turns))[:max(0, n)]
+
+
 def _fn(name: str, description: str, properties: dict, required: list = None) -> dict:
     schema = {"type": "object", "properties": properties}
     if required:
@@ -115,12 +149,26 @@ def _fn(name: str, description: str, properties: dict, required: list = None) ->
 # ══════════════════════════════════════════════════════════
 
 _TOOL_SCHEMAS = [
-    _fn("sandglass_search", "Search the user's long-term memory (full-text, inverted index and entity search, fused). "
-        "Results from sources other than the user carry an \"(unverified · source: …)\" tag.",
-        {"query": {"type": "string", "description": "What to search for"},
-         "limit": {"type": "integer", "default": 10}}, ["query"]),
-    _fn("sandglass_recent", "The most recent N memories.",
-        {"n": {"type": "integer", "default": 10}}),
+    _fn("sandglass_search", "Search the user's long-term memory (full-text, inverted index, entity and semantic search, "
+        "fused). Each result has an id, the date it was said and who said it (user / assistant / another source). "
+        "since / until (YYYY-MM-DD, YYYY-MM or YYYY, both inclusive) keep only what was said in that period, e.g. "
+        "since=2026-03, until=2026-03 for March. Results from sources other than the user carry an "
+        "\"(unverified · source: …)\" tag. Texts longer than 300 characters are cut (more: true): nyx_read gives the "
+        "whole text and what was said around it.",
+        {"query": {"type": "string", "description": "What to search for (may be empty when since / until is given)"},
+         "limit": {"type": "integer", "default": 10},
+         "since": {"type": "string", "description": "YYYY-MM-DD, YYYY-MM or YYYY (inclusive)"},
+         "until": {"type": "string", "description": "YYYY-MM-DD, YYYY-MM or YYYY (inclusive)"}}, ["query"]),
+    _fn("sandglass_recent", "The most recent N memories, newest first, with dates. since / until (YYYY-MM-DD, "
+        "YYYY-MM or YYYY, inclusive) give the most recent ones within that period instead.",
+        {"n": {"type": "integer", "default": 10},
+         "since": {"type": "string", "description": "YYYY-MM-DD, YYYY-MM or YYYY (inclusive)"},
+         "until": {"type": "string", "description": "YYYY-MM-DD, YYYY-MM or YYYY (inclusive)"}}),
+    _fn("nyx_read", "Read one memory in full: the whole text, when it was said, who said it, and the lines said just "
+        "before and after it. Use it when a search result was cut off (more: true) or you need the context around it.",
+        {"id": {"type": "string", "description": "The id from sandglass_search or sandglass_recent"},
+         "around": {"type": "integer", "default": 3, "description": "How many lines before and after (0-10)"}},
+        ["id"]),
     _fn("sandglass_offset", "The user's current decision drift (offset): which way recent decisions lean, as a percentage and direction.", {}),
     _fn("fact_store", "Structured fact store with trust scores. action=add stores a fact; search finds facts; "
         "probe lists trust scores for an entity; reason returns the best-supported memory for an entity.",
@@ -472,11 +520,16 @@ class NexSandglassProvider(MemoryProvider):
         [Contradictions]（含「不要 / 别」就算矛盾）、[Confidence] / [Time]、写死的场景和阶段 —— v7.19.0 去掉。
         """
         try:
-            from nexsandglass.features.sandglass_vault import count
             from nexsandglass.features.sandglass_think import comprehensive_offset, _current_stage
             from nexsandglass.features.sandglass_think import _emotional_entropy, search_filter
 
-            total = count()
+            # 中枢里没删的条数（v7.20.0）：以前数日志行，隔离区里的、/nyx forget-last 送走的也算进去
+            try:
+                from nexsandglass.core import memid
+                total = memid.count()
+            except Exception:
+                from nexsandglass.features.sandglass_vault import count
+                total = count()
             # 阶段只在真的有阶段时间线时才写：没有时间线时 _current_stage 回一个写死的默认值（"2026-06"）
             from nexsandglass.features import sandglass_think as _st
             stage = _current_stage() if os.path.exists(getattr(_st, "_PERSONA_TIMELINE", "") or "") else ""
@@ -689,6 +742,10 @@ class NexSandglassProvider(MemoryProvider):
         sig = self._signal_line()
         if sig:
             parts.append(sig)
+        pz = _recording.paused()
+        if pz:
+            parts.append(f"(Nyx: recording paused by the user since {str(pz.get('since') or '')[:16]}; this conversation "
+                         f"is not being remembered. /nyx resume turns it back on.)")
         return "\n".join(parts)
 
     def _recall_view(self, query: str):
@@ -757,12 +814,15 @@ class NexSandglassProvider(MemoryProvider):
           - 用 PromotionEngine 判断是否晋升长期（Promote/SessionOnly/Drop）
           - 只对 promote 的候选经 orchestrator 写长期 engram/fact
         """
-        if not self._can_write():
-            return
+        if not self._can_write() or _recording.paused():
+            return                              # 暂停记录（/nyx pause，v7.20.0）：这一轮不写
+        sid = session_id or self._session_id or ""
+        written: List[str] = []
         # 密钥 / 密码在进入任何存储之前隐去：日志、中枢、engram、影子沙、图谱、向量都只见到占位符（v7.14.0）
         user_content, assistant_content = self._scrub_turn(user_content, assistant_content)
         user_src = self._user_source(turn_author)
         pairs = [(user_content, user_src, user_src), (assistant_content, "agent", "assistant")]
+        _turn_begin(sid)                        # 与下面的 finally 成对：/nyx forget-last 等这一轮写完
         try:
             from nexsandglass.runtime.orchestrator import get_orchestrator
             from nexsandglass.runtime.promotion import PromotionEngine
@@ -775,7 +835,9 @@ class NexSandglassProvider(MemoryProvider):
                 # 1. raw 落沙（审计日志，始终保留）
                 try:
                     from nexsandglass.core.sandglass_log import log_message
-                    log_message(msg, sender)
+                    mid = log_message(msg, sender, return_id=True)
+                    if mid:
+                        written.append(mid)
                 except Exception as e:
                     logger.warning("sync_turn raw 落沙失败: %s", e)
                 # 2. 候选晋升判断（raw 已在上方落过 → raw_already_logged=True 防双写）
@@ -799,6 +861,8 @@ class NexSandglassProvider(MemoryProvider):
                 self._index_semantic()
             except Exception as e2:
                 logger.warning("sync_turn fallback 落沙失败: %s", e2)
+        finally:
+            _turn_end(sid, written)
 
     @staticmethod
     def _scrub_turn(user_content: str, assistant_content: str):
@@ -1077,7 +1141,7 @@ class NexSandglassProvider(MemoryProvider):
         会把多人会话里别人说的话重新记成「主人说的」。
         """
         try:
-            if self._can_write() and not self._turn_count:
+            if self._can_write() and not self._turn_count and not _recording.paused():
                 from nexsandglass.runtime.orchestrator import get_orchestrator
                 orch = get_orchestrator()
                 for msg in (messages or [])[-5:]:
@@ -1104,7 +1168,7 @@ class NexSandglassProvider(MemoryProvider):
 
     def on_delegation(self, task: str, result: str, *, child_session_id: str = "", **kwargs) -> None:
         """子 agent 的结果是 agent 推断，不是主人的话：以 agent 来源记入，经晋升门。"""
-        if not self._can_write() or not (task or result):
+        if not self._can_write() or not (task or result) or _recording.paused():
             return
         try:
             from nexsandglass.runtime.orchestrator import get_orchestrator
@@ -1127,24 +1191,9 @@ class NexSandglassProvider(MemoryProvider):
                 if not self._can_write():
                     return tool_error(f"{name}: Nyx is read-only in the {self._agent_context} context")
 
-            if name == "sandglass_search":
-                from nexsandglass.runtime.orchestrator import get_orchestrator
-                orch = get_orchestrator()
-                limit = _as_int(args.get("limit"), 10)
-                rr = orch.recall(args.get("query", ""), token_budget=limit * 200)
-                return json.dumps(
-                    [{"text": t[:200], "id": rr.memory_ids[i] if i < len(rr.memory_ids) else t} for i, t in enumerate(rr.strings[:limit])],
-                    ensure_ascii=False,
-                )
-
-            if name == "sandglass_recent":
-                from nexsandglass.runtime.orchestrator import get_orchestrator
-                orch = get_orchestrator()
-                objs = orch.recent(_as_int(args.get("n"), 10))
-                return json.dumps(
-                    [{"id": o.memory_id, "text": o.content[:200]} for o in objs],
-                    ensure_ascii=False,
-                )
+            if name in ("sandglass_search", "sandglass_recent", "nyx_read"):
+                from nexsandglass.core import lookup          # 带日期、谁说的、since / until（v7.20.0）
+                return lookup.tool(name, args)
 
             if name == "sandglass_offset":
                 from nexsandglass.features.sandglass_think import comprehensive_offset
@@ -1189,7 +1238,7 @@ class NexSandglassProvider(MemoryProvider):
 
     def on_memory_write(self, action: str, target: str, content: str, metadata: dict = None) -> None:
         """镜像内置记忆写入——同步落沙（agent 的决定，来源记为 memory_write）。"""
-        if not self._can_write():
+        if not self._can_write() or _recording.paused():
             return
         try:
             from nexsandglass.core.sandglass_log import log_message

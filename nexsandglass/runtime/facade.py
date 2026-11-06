@@ -315,6 +315,11 @@ def restore(mem_id: str) -> dict:
                 semantic.schedule_index()
             except Exception:
                 pass
+            try:                         # 常驻画像的水位线可能早就过了它（v7.20.0）
+                from nexsandglass.core import profile
+                profile.reconsider([mem_id])
+            except Exception as e:
+                logger.warning("[facade.restore] 画像补收失败: %s", e)
         return {"ok": rep["ok"], "action": "restore", "mem_id": mem_id,
                 "found": rep["found"], "problems": rep["problems"],
                 "notes": rep.get("notes", []),

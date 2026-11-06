@@ -69,7 +69,7 @@ def register(ctx):
     ctx.register_memory_provider(NexSandglassProvider())
 '''
 
-CLI_SHIM = '''"""hermes nyx … — Nyx's command line (vault / doctor / scrub / repair / status).
+CLI_SHIM = '''"""hermes nyx … — Nyx's command line (vault / doctor / scrub / repair / import / search / show / forget / restore / edit / status).
 
 Hermes loads register_cli from this file when nyx is the active memory provider. It only forwards: the real code
 is in nyx-memory (nexsandglass_hermes/cli.py).
