@@ -40,6 +40,8 @@ nexsandglass = "nexsandglass_hermes"
 # 密钥保险箱的直达取回（v7.15.0）：Hermes 普通插件，hermes plugins enable nyx-reveal 启用
 [project.entry-points."hermes_agent.plugins"]
 nyx-reveal = "nexsandglass_hermes_reveal"
+# 会话里的 /nyx 命令（v7.20.0）：hermes plugins enable nyx-commands
+nyx-commands = "nexsandglass_hermes_commands"
 
 [tool.setuptools.dynamic]
 version = {attr = "nexsandglass.__version__"}
