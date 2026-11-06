@@ -149,12 +149,26 @@ def _fn(name: str, description: str, properties: dict, required: list = None) ->
 # ══════════════════════════════════════════════════════════
 
 _TOOL_SCHEMAS = [
-    _fn("sandglass_search", "Search the user's long-term memory (full-text, inverted index and entity search, fused). "
-        "Results from sources other than the user carry an \"(unverified · source: …)\" tag.",
-        {"query": {"type": "string", "description": "What to search for"},
-         "limit": {"type": "integer", "default": 10}}, ["query"]),
-    _fn("sandglass_recent", "The most recent N memories.",
-        {"n": {"type": "integer", "default": 10}}),
+    _fn("sandglass_search", "Search the user's long-term memory (full-text, inverted index, entity and semantic search, "
+        "fused). Each result has an id, the date it was said and who said it (user / assistant / another source). "
+        "since / until (YYYY-MM-DD, YYYY-MM or YYYY, both inclusive) keep only what was said in that period, e.g. "
+        "since=2026-03, until=2026-03 for March. Results from sources other than the user carry an "
+        "\"(unverified · source: …)\" tag. Texts longer than 300 characters are cut (more: true): nyx_read gives the "
+        "whole text and what was said around it.",
+        {"query": {"type": "string", "description": "What to search for (may be empty when since / until is given)"},
+         "limit": {"type": "integer", "default": 10},
+         "since": {"type": "string", "description": "YYYY-MM-DD, YYYY-MM or YYYY (inclusive)"},
+         "until": {"type": "string", "description": "YYYY-MM-DD, YYYY-MM or YYYY (inclusive)"}}, ["query"]),
+    _fn("sandglass_recent", "The most recent N memories, newest first, with dates. since / until (YYYY-MM-DD, "
+        "YYYY-MM or YYYY, inclusive) give the most recent ones within that period instead.",
+        {"n": {"type": "integer", "default": 10},
+         "since": {"type": "string", "description": "YYYY-MM-DD, YYYY-MM or YYYY (inclusive)"},
+         "until": {"type": "string", "description": "YYYY-MM-DD, YYYY-MM or YYYY (inclusive)"}}),
+    _fn("nyx_read", "Read one memory in full: the whole text, when it was said, who said it, and the lines said just "
+        "before and after it. Use it when a search result was cut off (more: true) or you need the context around it.",
+        {"id": {"type": "string", "description": "The id from sandglass_search or sandglass_recent"},
+         "around": {"type": "integer", "default": 3, "description": "How many lines before and after (0-10)"}},
+        ["id"]),
     _fn("sandglass_offset", "The user's current decision drift (offset): which way recent decisions lean, as a percentage and direction.", {}),
     _fn("fact_store", "Structured fact store with trust scores. action=add stores a fact; search finds facts; "
         "probe lists trust scores for an entity; reason returns the best-supported memory for an entity.",
@@ -1177,24 +1191,9 @@ class NexSandglassProvider(MemoryProvider):
                 if not self._can_write():
                     return tool_error(f"{name}: Nyx is read-only in the {self._agent_context} context")
 
-            if name == "sandglass_search":
-                from nexsandglass.runtime.orchestrator import get_orchestrator
-                orch = get_orchestrator()
-                limit = _as_int(args.get("limit"), 10)
-                rr = orch.recall(args.get("query", ""), token_budget=limit * 200)
-                return json.dumps(
-                    [{"text": t[:200], "id": rr.memory_ids[i] if i < len(rr.memory_ids) else t} for i, t in enumerate(rr.strings[:limit])],
-                    ensure_ascii=False,
-                )
-
-            if name == "sandglass_recent":
-                from nexsandglass.runtime.orchestrator import get_orchestrator
-                orch = get_orchestrator()
-                objs = orch.recent(_as_int(args.get("n"), 10))
-                return json.dumps(
-                    [{"id": o.memory_id, "text": o.content[:200]} for o in objs],
-                    ensure_ascii=False,
-                )
+            if name in ("sandglass_search", "sandglass_recent", "nyx_read"):
+                from nexsandglass.core import lookup          # 带日期、谁说的、since / until（v7.20.0）
+                return lookup.tool(name, args)
 
             if name == "sandglass_offset":
                 from nexsandglass.features.sandglass_think import comprehensive_offset
