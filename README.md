@@ -5,7 +5,7 @@
 > **Memory that stays with your agent for life** — single-user, local, no LLM on the write path.
 > It remembers, finds, can be trusted, and can forget.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.18.1-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.19.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx is a long-term memory layer for agents. It plugs into [Hermes](https://github.com/NousResearch/hermes-agent)
 (as a memory provider), into Claude Desktop / Claude Code or any other MCP client, or into your own Python program.
@@ -17,6 +17,7 @@ All data is plain files on your machine.
 | | How | Measured |
 |---|---|---|
 | **Finds things** | Full-text, inverted index, TF-IDF, entities and (optional) semantic search, fused; long memories are scored down by length so they don't bury the short message with the answer; questions like "how many times / how long between" get a few more results | LongMemEval-S (470 scored questions): the session holding the answer is in the top 5 **98.7%** of the time; LoCoMo evidence recall 0.573 (BM25 0.498); BEAM, 100K–1M-token conversations: evidence recall@10 **0.454** (BM25 0.333); at 10M tokens 0.326 (BM25 0.218). About 30–140 ms per recall |
+| **Knows who you are** | What you told it about yourself — requests to the agent ("reply in Chinese, no emoji"), allergies and diet, family, home and work, likes — is in every session's system prompt in your own words; memories that match a question only through words like *what / 帮我* are not injected; a relative's facts stay theirs | Eight personal stories (v7.19.0): the facts the agent needed and saw went from 25–38% to **100%**, unrelated entries per question from 9 to 1–2, and unrelated questions get nothing injected 88% of the time (was 13–25%) |
 | **Keeps time straight** | Bi-temporal facts: "when it was true" and "when it was learned" are stored separately | "I switched to a Geely back in February" is recorded as February, not as the day it was said; answers "what is believed now" and "what did I think in March" |
 | **Can be trusted** | Source and trust are bound at write time: only what the user said themselves can become a rule; hearsay and web content come back labelled "unverified" | Poisoning drill: 0 of 16 attacks reach the agent's prompt unlabelled; 0 of the user's 8 normal messages are hurt |
 | **Forgets, and can undo it** | Forgetting goes to a quarantine first (recall stops seeing it at once) and can be restored as-is during the retention period (30 days by default); purging after that really deletes, and checks that vectors, indexes and the graph are clean | 150 wrongly deleted memories restored byte for byte; a purge cannot be undone |
@@ -114,13 +115,21 @@ After installing, run `python3 -m nexsandglass.doctor`; all ✅ means everything
 4. Understanding: "switched to a Geely on Feb 25" → (user, car, Geely, from Feb 25, still true), stored as a bi-temporal fact; the old fact is not overwritten but gets an end date
 5. Full-text, inverted and (optional) semantic indexes are updated incrementally
 
+**Every session** (the system prompt, v7.19.0)
+
+What the user has said about themselves, in their own words and newest first: standing requests to the agent ("reply in
+Chinese, no emoji"), health and diet (allergies, vegetarian), family, partner and pets, where they live and work, likes and
+dislikes. Picked by rules from the owner's own messages only (no LLM); a forgotten memory leaves it at once. This is what
+lets "what should I cook tonight?" see "I'm allergic to peanuts", which shares no word with it.
+
 **Recall** (before every turn, entirely local)
 
 1. Full-text (FTS5), inverted index, TF-IDF, entities and (optional) semantic vectors are searched
 2. Fused ranking: complete literal matches first, semantics as support (half weight, only hits clearly above background count); memories longer than 300 characters are scored down by length, so a long reply cannot bury the short message that states the fact
-3. Current beliefs are added ("user lives in Shanghai (since 2026-09-01)")
+3. Current beliefs are added ("user lives in Shanghai (since 2026-09-01)"); facts about family and friends are kept under their own subject ("user's mother lives in Qingdao")
 4. Trust gate: memories from a tainted source stay out; unverified ones are labelled and cannot act as rules
-5. Injected into the agent with dates: 12 entries by default; 20 for "how many times / how long / which came first / before or after" questions
+5. Relevance gate (v7.19.0): an entry is injected only if it shares at least one content word with the question — matches through *what / how / 什么 / 帮我 / 几个* alone don't count — so nothing is injected when nothing is relevant
+6. Injected into the agent with dates: up to 12 entries by default; up to 20 for "how many times / how long / which came first / before or after" questions
 
 ---
 
@@ -130,6 +139,8 @@ After installing, run `python3 -m nexsandglass.doctor`; all ✅ means everything
 |---|---|---|
 | 🆔 **Journal + ID hub** | `core/memid.py`, `core/sandglass_log.py` | Every memory has a `mem_id` and a line span; tombstones keep deleted memories from coming back on rebuild |
 | 🔍 **Multi-route search** | `core/search_router.py`, `core/semantic.py` | FTS5 / inverted index / TF-IDF / shadow sand + optional semantics (local multilingual model or an OpenAI-compatible API), RRF fusion |
+| 🪪 **Always-on profile** | `core/profile.py` | The user's own statements about themselves (requests to the agent, health and diet, family, home and work, likes) in every session's system prompt; owner-only, trusted sources only, follows forgetting (v7.19.0) |
+| 🚪 **Relevance gate** | `core/relevance.py` | Before injection: entries that match the question only through function words are dropped; nothing is injected when nothing is relevant (v7.19.0) |
 | 🕰️ **Bi-temporal facts** | `engram/loops/temporal_fact.py`, `core/understand.py` | `as_of` asks about the world, `known_at` about what was believed then, `belief_timeline` about how a view changed; hypothetical times never pose as stated ones |
 | 🛡️ **Source trust** | `core/provenance.py` | trusted / unverified / tainted; only what the user said can become a rule (against OWASP ASI06 memory poisoning) |
 | 🕯️ **Forgetting quarantine** | `core/quarantine.py`, `core/erasure.py` | Two-stage forgetting: quarantine → restore, or erase when due; erasure goes through the journal, indexes, graph and vectors and can be verified independently |
@@ -388,10 +399,14 @@ sure (they go to the quarantine and can be restored for 30 days).
 ## ⚠️ Known limitations
 
 - **Single-user by design**: one memory per person; one process serves one data directory at a time
-- **End-to-end QA accuracy not measured yet**: the [Benchmark](#benchmark) numbers are retrieval metrics; Mem0 / Zep and others report QA accuracy (an LLM answers and an LLM judges)
+- **No end-to-end QA with a strong model yet**: the [Benchmark](#benchmark) numbers are retrieval metrics, what the agent sees, and a small local model (1.5B) choosing among four replies on PersonaMem; Mem0 / Zep and others report QA accuracy with large models (an LLM answers and an LLM judges)
 - **Weak spots**: on LoCoMo multi-hop questions the agent sees only 41% of the evidence (48% with reranking); LongMemEval preference questions 0.71 (lower with reranking); BEAM summarization and event-ordering questions need 10+ messages spread over a long conversation and the agent sees 6–8% of them
 - **Little English fact extraction**: rule-based extraction mostly covers Chinese; in English Nyx relies on retrieving the original text with its date. Without `[vector]`, English paraphrases that share no words with the memory are not found ("which editor do I use" does not find "I switched from VS Code to Zed"). Install `[vector]`, or enable `NYX_UNDERSTAND_LLM` for LLM extraction
 - **Déjà Vu on a long history**: common words no longer count (English v7.16.1, Chinese v7.16.2), but ordinary content words accumulate. Of 10 unrelated test questions, after 2,000 English turns all 10 are still "familiar" through words like *teacher* or *workshop* (0 after 20 turns, 3 after 200; `benchmarks/dejavu_english_real.py`); after 2,000 Chinese chat messages 3 are (企鹅, 玻璃, 老师; `benchmarks/dejavu_chinese_real.py`)
+- **The profile and the relevance gate are rules, not understanding** (v7.19.0): the profile picks up statements in common
+  phrasings ("I'm allergic to…", "from now on…", "my daughter…", "我对…过敏", "以后…别…"); a preference only implied ("ugh,
+  coriander again") is not in it. The gate is lexical: without `[vector]`, a relevant memory that shares no content word
+  with the question is not injected (with `[vector]`, semantic hits pass)
 - **Small default embedding model**: the local multilingual MiniLM is small and fast; with a stronger API model the fusion weights may need retuning (`NYX_EMBED_Z` / `NYX_EMBED_WEIGHT`)
 
 ---
@@ -400,8 +415,70 @@ sure (they go to the quarantine and can be restored for 30 days).
 
 ## 📊 Benchmark
 
-All three public benchmarks measure **retrieval** only (no LLM, reproducible), feeding every turn through the Hermes provider's real write path.
-Semantic search uses the default local model `paraphrase-multilingual-MiniLM-L12-v2` (`pip install "nyx-memory[vector]"`).
+Every evaluation feeds each turn through the Hermes provider's real write path. The first two (v7.19.0) score what a
+personal agent sees about its user; the three public benchmarks after them measure **retrieval** only (no LLM,
+reproducible). Semantic search uses the default local model `paraphrase-multilingual-MiniLM-L12-v2`
+(`pip install "nyx-memory[vector]"`).
+
+**Personal scenarios** (`benchmarks/personal_eval.py`, stories in `benchmarks/personal_cases.py`; results in
+`benchmarks/results/personal_eval.json`). Eight stories, four Chinese and four English, of one person and their agent
+over 40 days: 300 turns of work and small talk, and in between a diet, an allergy, standing requests to the agent
+("reply in Chinese, no emoji"), family, home and a move. A new session then asks 62 questions: personal ones ("what
+should I cook tonight?", "I have a fever, what medicine can I take?"), two work ones, and 16 unrelated ones ("how far is
+the Moon?"). Scored on what the agent sees — the session's system-prompt block plus that turn's injected memories.
+Four stories were used while developing; four were held out until the end. Lexical (the default install).
+
+| | Dev, v7.18.1 | Dev, v7.19.0 | Held out, v7.18.1 | Held out, v7.19.0 |
+|---|---|---|---|---|
+| Facts the agent needed and saw | 38% | **100%** | 25% | **100%** |
+| Personal questions where it saw everything it needed | 33% | **100%** | 18% | **100%** |
+| Unrelated entries injected per question | 9.0 | **0.8** | 8.6 | **1.6** |
+| Unrelated questions with nothing injected | 25% | **88%** | 13% | **88%** |
+| Characters injected per question | 721 | **89** | 742 | **204** |
+| Assistant lines in the system-prompt block | 17 | **0** | 17 | **0** |
+| Hard-coded lines in the block (not from this user) | 4 | **0** | 5 | **0** |
+| A relative's fact recorded as the user's | 1 | **0** | 3 | **0** |
+
+- Most of the gain is the always-on profile: 79% of the facts seen are seen there, without sharing a word with the question
+- The stories and the profile rules were written together, with all eight stories in view; the held-out half is held
+  out for the relevance gate and the attribution fix, less so for the profile rules. PersonaMem (next) is the
+  independent check
+- What is left (held out): common English verbs still let unrelated entries through — "Where do I work now?" brings 11
+  "why does X work in staging…" messages, "How do I look after succulents?" brings 20 "I looked at it…" replies. The two
+  work questions still bring generic chat about production and migrations, which may or may not help
+
+**PersonaMem** (`benchmarks/personamem_eval.py`; Jiang et al. 2025, "Know Me, Respond to Me", MIT; data not in the
+repository: https://huggingface.co/datasets/bowen-upenn/PersonaMem-v1). 20 simulated users talk with a chatbot over many
+sessions while their preferences change; 589 questions in the 32K-token split, each a user message mid-conversation and
+four candidate replies, of which one fits this user best (recall what they shared, acknowledge the latest preference,
+recommend in line with it, … 7 types). Nyx gets every turn up to the question through the real write path — not the
+dataset's system messages, which describe the persona to the generator; a real agent never has them — and we take what
+the agent would see. Results in `benchmarks/results/personamem.json`.
+
+| | v7.18.1 | v7.19.0 |
+|---|---|---|
+| System-prompt block, median characters | 5,971 | **916** |
+| Injected per turn, median characters | 3,737 | 3,685 |
+| A local model picks the right reply, 200 questions (no memory: 0.370) | 0.425 | **0.445** |
+| Zero-LLM proxy, all 589 questions (chance: 0.25) | 0.380 | **0.396** |
+
+- The local model is Qwen2.5-1.5B-Instruct (llama.cpp, temperature 0). It reads only nyx's memory text, the user's
+  message and the four replies; 200 questions spread evenly over the split. v7.19.0 against no memory: right on 21
+  questions the model got wrong without memory, wrong on 6 it got right (sign test p = 0.006); v7.18.1 against no
+  memory: 23 / 12 (p = 0.09). v7.19.0 against v7.18.1: 12 / 8 (p = 0.50) — no significant difference, with a block
+  6.5× shorter
+- By type the proxy rose on 4 of 7 (reasons behind a preference change 0.455 → 0.556, preference evolution
+  0.182 → 0.236, facts the user shared 0.319 → 0.370, new scenarios 0.351 → 0.386) and fell on 3 (recommendations in line
+  with preferences 0.509 → 0.382, suggesting new ideas 0.565 → 0.505, facts the user mentioned 0.706 → 0.471, 17
+  questions). PersonaMem conversations open with the user introducing themselves, which the old block (the oldest ten
+  messages) happened to hold, and the proxy counts shared words, so it favours the longer block. The model's answers show
+  no such drop (recommendations 0.667 in both versions, new ideas 0.176 in both)
+- The proxy: for each reply, the words only it has; the share of them found in the memory text; the highest wins, ties
+  count as a random pick
+- Not comparable with PersonaMem scores reported elsewhere (TencentDB Agent Memory reports 48% → 76%): other models,
+  other setups. Here a 1.5B model on a CPU, which also leans toward option (c); the point is the difference between
+  versions
+
 
 **BEAM** (`benchmarks/beam_eval.py`; Tavakoli et al., ICLR 2026, "Beyond a Million Tokens": 100 conversations of 100K
 to 10M tokens, 10 question types, each question labelled with the messages that hold the answer; the 200 abstention
@@ -437,6 +514,10 @@ over the same messages; results in `benchmarks/results/beam_retrieval.json`)
 - Summarization and event-ordering questions draw on 10+ messages spread over the whole conversation; no top-10 list
   covers that (BM25 neither). It is the weakest spot: the agent sees 6–8% of what those answers need
 - This is retrieval; the BEAM paper reports LLM-judged answers, a different measure
+- The relevance gate (v7.19.0) costs nothing here: evidence the agent sees is 0.476 before and after it (100K–1M).
+  It does not help BEAM's 180 abstention questions either — none of them ends up with nothing injected: they are long
+  English questions that share content words with the conversation, which a lexical gate cannot tell apart. Ranking is
+  unchanged, so recall@k is identical to v7.18.1
 
 **How the recalled memories are written into the prompt** (`benchmarks/beam_format_eval.py`, v7.18.0). Each injected
 entry is a memory's first 300 characters. We tested the obvious alternative — for a long memory, the 300 characters that
@@ -470,6 +551,10 @@ officially defined, the 30 abstention questions not scored; results in `benchmar
 | Temporal reasoning | 127 | 0.984 | 0.779 | 0.866 | 0.804 | 0.772 |
 | **Overall** | 470 | **0.987** | **0.881** | **0.932** | **0.862** | 0.826 |
 
+v7.19.0 (lexical): ranking unchanged; answer turns the agent sees 0.847 without the relevance gate and 0.849 with it;
+of the 30 abstention questions, 1 ends up with nothing injected (the gate keeps a median of 18 of 22 recalled entries:
+the questions are long and share content words with the sessions).
+
 "any in top 5" = at least one answer session among the top 5 recalled; "all in top 5" = when the answer is spread over
 several sessions, the top 5 found all of them; "answer turns the agent sees" = of the turns the dataset marks as holding
 the answer, how many are among the entries injected into the agent (12 by default, 20 for "how many / how long / which
@@ -491,6 +576,9 @@ top k; the reference is plain BM25 over the same sentences; results in `benchmar
 | Open-domain | 92 | **0.273** | 0.271 | 0.243 | **0.352** | 0.272 | 0.358 |
 | Single-hop | 841 | **0.660** | 0.615 | 0.590 | **0.720** | 0.655 | 0.727 |
 | **Overall** | 1536 | **0.573** | 0.542 | 0.498 | **0.643** | 0.565 | 0.654 |
+
+v7.19.0 (lexical): ranking unchanged; evidence the agent sees 0.626 with and without the relevance gate; the 446
+adversarial questions still get entries injected (they ask about people and events that are in the conversation).
 
 How to read these tables:
 - This is **retrieval**, not the scores others report. The LongMemEval / LoCoMo numbers from Mem0, Zep and Hindsight are QA
@@ -533,6 +621,10 @@ pip install pyarrow
 python3 benchmarks/beam_eval.py 100K.parquet 500K.parquet 1M.parquet --workers 4 --no-semantic --json beam.json --views views.jsonl
 python3 benchmarks/beam_eval.py 10M-00000-of-00002.parquet 10M-00001-of-00002.parquet --workers 4 --no-semantic --json beam_10m.json
 python3 benchmarks/beam_format_eval.py views.jsonl            # add --llm with NYX_EVAL_API_URL / NYX_EVAL_MODEL for step 2
+# Personal scenarios (stories in the repository) and PersonaMem (MIT, not in the repository)
+python3 benchmarks/personal_eval.py --show
+python3 benchmarks/personamem_eval.py questions_32k.csv shared_contexts_32k.jsonl --views views.jsonl
+python3 benchmarks/personamem_eval.py questions_32k.csv --answer views.jsonl --llm --limit 200    # NYX_EVAL_API_URL / NYX_EVAL_MODEL
 ```
 
 When the semantic backend is on but the index was not built, both harnesses fail loudly (v7.13.6) — lexical-only results are never recorded as "semantic on".
@@ -541,6 +633,8 @@ When the semantic backend is on but the index was not built, both harnesses fail
 
 | Evaluation | What it measures | Version |
 |---|---|---|
+| `benchmarks/personal_eval.py` | Personal scenarios: in a new session, does the agent see the user's own statements it needs, how much unrelated text comes along, are family facts attributed to the right person (above) | v7.19.0 |
+| `benchmarks/personamem_eval.py` | PersonaMem: what the agent sees at each question, then a local model picks the best of four replies, with and without memory (above) | v7.19.0 |
 | `benchmarks/beam_eval.py` | BEAM retrieval evidence recall from 100K to 10M tokens (above), with a BM25 reference, write speed and disk | v7.18.0 |
 | `benchmarks/beam_format_eval.py` | How recalled memories are written into the prompt: is the answer visible, does a model use it | v7.18.0 |
 | `benchmarks/locomo_eval.py` | LoCoMo retrieval evidence recall (above), with a BM25 reference | v7.13.5 |
@@ -561,6 +655,12 @@ When the semantic backend is on but the index was not built, both harnesses fail
 
 ## 📝 Recent updates
 
+- **v7.19.0**: built for a personal agent. Every session's system prompt now starts with what the user said about themselves
+  (requests to the agent, health and diet, family, home and work, likes), in their own words; memories that match a question
+  only through words like *what / 什么 / 帮我* are no longer injected, and nothing is injected when nothing is relevant; a
+  relative's facts stay theirs ("my mum lives in Qingdao" is not the user's home). On eight personal stories the agent saw
+  25–38% of the facts it needed and now sees 100%, with 1–2 unrelated entries per question instead of 9 (held-out half:
+  1.6). Public benchmarks: retrieval unchanged, nothing lost to the gate
 - **v7.18.1**: writing no longer slows down as the memory grows: about 10 ms per message from 100K to 10M tokens (before: 12 ms to 108 ms; BEAM). Recall unchanged
 - **v7.18.0**: long memories no longer bury the short message that holds the answer (BEAM recall@10 0.211 → 0.454, now above BM25's 0.333; LongMemEval-S answer turns the agent sees 0.738 → 0.847, lexical); new BEAM benchmark up to 10M tokens; tested injecting the part of a long memory about the question instead of its first 300 characters — no measurable difference, so the format stays
 - **v7.17.0**: per-profile settings in Hermes — one Hermes process serving several profiles no longer lets one profile's `nyx.json` (e.g. `l3_llm: on`) apply to the others; Nyx no longer writes to `os.environ` or `sys.path`; a profile with a different `data_dir` is refused instead of sharing; the provider is named `nyx` (from the Hermes plugin catalog review)

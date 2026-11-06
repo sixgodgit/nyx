@@ -1,0 +1,208 @@
+{
+ "benchmark": "PersonaMem v1, 32k split (589 questions, 7 types), MIT — data not in the repository",
+ "lexical": true,
+ "proxy_zero_llm": {
+  "v7.18.1": {
+   "n": 589,
+   "conditions": [
+    "none",
+    "nyx",
+    "block",
+    "turn"
+   ],
+   "proxy": {
+    "none": 0.25,
+    "nyx": 0.38,
+    "block": 0.306,
+    "turn": 0.403
+   },
+   "llm": {},
+   "by_type": {
+    "generalizing_to_new_scenarios": {
+     "n": 57,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.351,
+     "proxy_block": 0.386,
+     "proxy_turn": 0.412
+    },
+    "provide_preference_aligned_recommendations": {
+     "n": 55,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.509,
+     "proxy_block": 0.418,
+     "proxy_turn": 0.418
+    },
+    "recall_user_shared_facts": {
+     "n": 129,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.319,
+     "proxy_block": 0.28,
+     "proxy_turn": 0.31
+    },
+    "recalling_facts_mentioned_by_the_user": {
+     "n": 17,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.706,
+     "proxy_block": 0.588,
+     "proxy_turn": 0.529
+    },
+    "recalling_the_reasons_behind_previous_updates": {
+     "n": 99,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.455,
+     "proxy_block": 0.263,
+     "proxy_turn": 0.581
+    },
+    "suggest_new_ideas": {
+     "n": 93,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.565,
+     "proxy_block": 0.398,
+     "proxy_turn": 0.548
+    },
+    "track_full_preference_evolution": {
+     "n": 139,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.182,
+     "proxy_block": 0.187,
+     "proxy_turn": 0.241
+    }
+   }
+  },
+  "v7.19.0": {
+   "n": 589,
+   "conditions": [
+    "none",
+    "nyx",
+    "block",
+    "turn"
+   ],
+   "proxy": {
+    "none": 0.25,
+    "nyx": 0.396,
+    "block": 0.276,
+    "turn": 0.398
+   },
+   "llm": {},
+   "by_type": {
+    "generalizing_to_new_scenarios": {
+     "n": 57,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.386,
+     "proxy_block": 0.281,
+     "proxy_turn": 0.368
+    },
+    "provide_preference_aligned_recommendations": {
+     "n": 55,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.382,
+     "proxy_block": 0.327,
+     "proxy_turn": 0.4
+    },
+    "recall_user_shared_facts": {
+     "n": 129,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.37,
+     "proxy_block": 0.304,
+     "proxy_turn": 0.314
+    },
+    "recalling_facts_mentioned_by_the_user": {
+     "n": 17,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.471,
+     "proxy_block": 0.382,
+     "proxy_turn": 0.529
+    },
+    "recalling_the_reasons_behind_previous_updates": {
+     "n": 99,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.556,
+     "proxy_block": 0.313,
+     "proxy_turn": 0.581
+    },
+    "suggest_new_ideas": {
+     "n": 93,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.505,
+     "proxy_block": 0.247,
+     "proxy_turn": 0.541
+    },
+    "track_full_preference_evolution": {
+     "n": 139,
+     "proxy_none": 0.25,
+     "proxy_nyx": 0.236,
+     "proxy_block": 0.209,
+     "proxy_turn": 0.245
+    }
+   }
+  }
+ },
+ "llm_subset": {
+  "model": "Qwen2.5-1.5B-Instruct q8_0 (llama.cpp, temperature 0), memory text + message + 4 options",
+  "n": 200,
+  "accuracy": {
+   "none": 0.37,
+   "v7.18.1": 0.425,
+   "v7.19.0": 0.445
+  },
+  "v7.19.0_vs_v7.18.1": {
+   "wins": 12,
+   "losses": 8,
+   "p": 0.5034
+  },
+  "v7.19.0_vs_none": {
+   "wins": 21,
+   "losses": 6,
+   "p": 0.0059
+  },
+  "v7.18.1_vs_none": {
+   "wins": 23,
+   "losses": 12,
+   "p": 0.0895
+  },
+  "by_type": {
+   "generalizing_to_new_scenarios": {
+    "n": 15,
+    "none": 0.267,
+    "v7.18.1": 0.467,
+    "v7.19.0": 0.467
+   },
+   "provide_preference_aligned_recommendations": {
+    "n": 24,
+    "none": 0.292,
+    "v7.18.1": 0.667,
+    "v7.19.0": 0.667
+   },
+   "recall_user_shared_facts": {
+    "n": 46,
+    "none": 0.261,
+    "v7.18.1": 0.348,
+    "v7.19.0": 0.326
+   },
+   "recalling_facts_mentioned_by_the_user": {
+    "n": 6,
+    "none": 0.5,
+    "v7.18.1": 0.5,
+    "v7.19.0": 0.5
+   },
+   "recalling_the_reasons_behind_previous_updates": {
+    "n": 33,
+    "none": 0.697,
+    "v7.18.1": 0.576,
+    "v7.19.0": 0.667
+   },
+   "suggest_new_ideas": {
+    "n": 34,
+    "none": 0.147,
+    "v7.18.1": 0.176,
+    "v7.19.0": 0.176
+   },
+   "track_full_preference_evolution": {
+    "n": 42,
+    "none": 0.476,
+    "v7.18.1": 0.429,
+    "v7.19.0": 0.476
+   }
+  }
+ }
+}

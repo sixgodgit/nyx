@@ -5,6 +5,100 @@ Benchmark section of the README and `benchmarks/`. Entries from v7.16.0 on are i
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。v7.16.0 起的条目用英文，之前的是中文。
 
+### v7.19.0 (2026-11-06) — Built for a personal agent: an always-on profile, nothing injected when nothing is relevant, family facts kept apart
+
+**Why.** Nyx is memory for one person's agent. We compared it with TencentDB Agent Memory (layered memory, an
+always-on user persona, "better nothing than wrong" recall) and asked which ideas fit a personal agent. To measure that,
+a new benchmark of personal scenarios (`benchmarks/personal_eval.py`, stories in `personal_cases.py`): eight stories,
+four Chinese and four English, of one person and their agent over 40 days. Between 300 turns of work and small talk
+they mention a diet, an allergy, standing requests to the agent ("reply in Chinese, no emoji"), family, where they live
+and a move. Then a new session asks "what should I cook tonight?", "I have a fever, what can I take?", "gift ideas for my
+kid?". It scores what the agent actually sees — the system-prompt block for the session plus that turn's injected
+memories: are the user's own statements there, how much unrelated text comes along, and are facts attributed to the
+right person. Four stories were used while developing (dev), four were kept for the end (held out).
+
+**What it found in v7.18.1.** The agent saw 32% of the facts it needed (the penicillin allergy never came up when asking
+about medicine); every question injected about 9 unrelated entries; in 4 of 8 stories a relative's fact became the
+user's ("my mum lives in Qingdao" → *user lives in Qingdao*). Three causes:
+1. The system-prompt block's `[Core facts]` came from a recall with an empty question, which returned the **oldest ten
+   or so messages in the journal** (usually the first day's small talk and work chat), mixed with the assistant's
+   acknowledgements ("Got it."). `[Contradictions]` listed any sentence containing 不要 / 别 ("don't"); `[Confidence]`
+   and `[Time]` said nothing; and a scene table and a default stage written for the first user ("NeuroBase 开发",
+   "2026-06") showed up for everyone.
+2. Per-turn recall treated every two-character piece of a Chinese question alike. 什么 / 给我 / 几个 / 帮我 occur all
+   over work chat, so "今晚吃什么好？给我推荐几个菜" ("what should I eat tonight? recommend a few dishes") injected 20
+   entries like "看看为什么…" ("see why…"). English in-word 4-grams did the same (tonight → nigh / ight).
+3. Fact extraction took the subject of every clause to be the user.
+
+**Changes.**
+- **Always-on profile** (`core/profile.py`). The system-prompt block now starts with `[About the user]`: what the user
+  said about themselves, in their own words, newest first — standing requests to the agent, health and diet, family /
+  partner / pets, home and work, likes and dislikes. Zero-LLM rules in Chinese and English; only the owner's own
+  messages from trusted sources; text over 300 characters never counts as a request to the agent (a pasted web page
+  saying "from now on…" must not become a rule), and text over 1,500 characters is ignored. The profile stores
+  references only, so a forgotten memory or a scrubbed secret leaves it at once. It is built incrementally; on an
+  existing large memory the first pass runs in the background warm-up thread (about 90 µs per message).
+- **The rest of the block only appears when it says something**: the persona the user built (`persona.md`, now without
+  a keyword gate that only matched the first user's wording), decision drift / recent decisions / mood when not steady,
+  causal threads, to-dos and rules. Removed: `[Core facts]`, `[Contradictions]`, `[Confidence]`, `[Time]`, the scene
+  line, and the default stage. The scene table keeps only generic categories; personal scenes go in
+  `<data_dir>/persona/scene_keywords.json`. The per-turn "Decision drift: steady | Mood: steady" line is no longer
+  injected when both are steady (Hermes keeps each turn's injection and resends it every later turn).
+- **Relevance gate before injection** (`core/relevance.py`). An entry is injected only if it contains at least one
+  content word of the question; function words, measure words and request phrases don't count (the Chinese rules are
+  Déjà Vu's from v7.16.2). If nothing qualifies, nothing is injected. Beliefs added by intent ("where do I live" →
+  *user lives in Shanghai*) and semantic hits (already above the background threshold) pass. Ranking is unchanged, so
+  the retrieval metrics below are unchanged; what changes is what the agent is shown.
+- **Facts go to the right person** (`core/understand.py`). "我妈住在青岛" → *user's mother* lives in Qingdao; a pronoun
+  looks back for the person named earlier in the sentence ("我女儿下个月过生日，她特别喜欢恐龙" → *user's daughter* likes
+  dinosaurs); 我们 / 我和我老婆 / "my wife and I" still include the user; "其他人都住在北京" ("everyone else lives in
+  Beijing") is not about the user. English place names stop at the name ("I live in Seattle and work as…" → Seattle,
+  "i moved to portland" → portland). `nyx_belief` takes `subject="user's mother"`. Beliefs already stored are not
+  rewritten.
+
+**Measured** (all lexical, the default install).
+
+Personal scenarios — what the agent sees in a new session:
+
+| | Dev, v7.18.1 | Dev, v7.19.0 | Held out, v7.18.1 | Held out, v7.19.0 |
+|---|---|---|---|---|
+| Facts the agent needed and saw | 38% | **100%** | 25% | **100%** |
+| Personal questions where it saw everything it needed | 33% | **100%** | 18% | **100%** |
+| Unrelated entries injected per question | 9.0 | **0.8** | 8.6 | **1.6** |
+| Unrelated questions with nothing injected | 25% | **88%** | 13% | **88%** |
+| Characters injected per question | 721 | **89** | 742 | **204** |
+| Assistant lines in the system-prompt block | 17 | **0** | 17 | **0** |
+| Hard-coded lines in the block | 4 | **0** | 5 | **0** |
+| A relative's fact recorded as the user's | 1 | **0** | 3 | **0** |
+
+79% of the facts seen are seen in the profile, without a word in common with the question. The stories and the profile
+rules were written together, with all eight stories in view, so the held-out half is held out for the gate and
+the attribution fix but not entirely for the profile rules. Left on the held-out half: common English verbs still let
+unrelated entries through ("Where do I work now?" → 11 "why does X work in staging" messages; "How do I look after
+succulents?" → 20 "I looked at it" replies). We did not tune on those cases.
+
+PersonaMem (32K split; the rules were not written against it): the system-prompt block shrinks from a median 5,971
+characters to 916. A local model (Qwen2.5-1.5B-Instruct) picking one of four replies from nyx's memory alone, 200
+questions: no memory 0.370, v7.18.1 0.425, v7.19.0 0.445. v7.19.0 against no memory: 21 better, 6 worse (p = 0.006);
+against v7.18.1: 12 / 8 (p = 0.50, no significant difference). A zero-LLM proxy over all 589 questions: 0.380 → 0.396,
+up on 4 of 7 types, down on 3 — PersonaMem conversations open with the user introducing themselves, which the old block
+(the oldest ten messages) happened to hold, and the proxy favours more text; the model's answers show no drop on those
+types. The 1.5B model is weak and leans toward option (c); the comparison is between versions, not with other systems'
+PersonaMem scores.
+
+Public benchmarks, same data as v7.18.1: ranking is unchanged (BEAM 100K–1M recall@10 0.454, LoCoMo R@5 0.542,
+LongMemEval-S all-in-top-5 0.826). What the agent sees after the relevance gate: BEAM 0.476 → 0.476, LongMemEval-S answer
+turns 0.847 → 0.849, LoCoMo 0.626 → 0.626 — the gate drops nothing they need. It does not help their unanswerable
+questions either: of BEAM's 180 abstention questions none, of LongMemEval's 30 one, of LoCoMo's 446 adversarial none end
+up with nothing injected. They are long English questions that share content words with the conversation; a lexical
+gate cannot tell them apart. The gate is for short everyday questions. Writing speed: 9.1 / 8.4 / 8.5 ms per message at
+100K / 500K / 1M tokens (v7.18.1's own run: 10.9 / 10.3 / 10.3); the attribution check adds nothing measurable.
+
+**Not done (yet).** The profile and the gate are rules: an implied preference ("ugh, coriander again") is not picked up,
+and without `[vector]` a relevant memory with no content word in common is not injected. Existing wrong beliefs (a
+relative's fact recorded as the user's before this version) are not rewritten; saying the right fact again updates a
+single-valued one, or `nyx_forget` removes it.
+
 ### v7.18.1 (2026-11-05) — Writing no longer slows down as the memory grows
 
 **Problem.** v7.18.0's BEAM run showed the time to write one message growing with the size of the memory: 12 ms per

@@ -50,7 +50,7 @@ python3 -m nexsandglass_hermes install
 | 键 | 默认 | 说明 |
 |---|---|---|
 | `data_dir` | `~/.neurobase` | 记忆目录。默认与 nyx 的 MCP / CLI 共用一份记忆（一个人一份记忆）。`NEXSANDBASE_HOME` 优先。改动后重启 |
-| `prefetch_tokens` | `600` | 每轮自动召回的预算；0 = 只注入偏移/情绪信号 |
+| `prefetch_tokens` | `600` | 每轮自动召回的预算；0 = 不召回（偏移/情绪不平稳时只注入这一行信号） |
 | `semantic` | `auto` | 语义检索：`auto`（配了 API 用 API；装了 `nyx-memory[vector]` 用本地模型；都没有则关）/ `local` / `api` / `off` |
 | `embedding_model` | 空 | 嵌入模型名；换模型后旧向量自动作废并后台重建 |
 | `embedding_api_url` / `embedding_api_key` | 空 | OpenAI 兼容 `/embeddings`；密钥只进 `.env` |
@@ -99,11 +99,15 @@ hermes plugins enable nyx-reveal      # 再在 hermes memory setup 里把 vault 
 
 威胁模型和实测结果见 [docs/secret-vault.zh-CN.md](https://github.com/sixgodgit/nyx/blob/main/docs/secret-vault.zh-CN.md)。
 
-## 每轮做什么
+## 每个会话、每轮做什么
 
+- **系统提示**（每个会话一次）：`[About the user]` —— 用户说过的关于自己的事，用原话、新的在前：对 agent 的长期要求、
+  饮食和健康、家人伴侣宠物、住处和工作、喜好（v7.19.0，`core/profile.py`）。下面是有内容时才出现的：用户自己生成的画像、
+  决策偏移、待办和纪律
 - **prefetch**：对本轮问题现做本地召回（每轮约 30–140ms），每条带「哪天说的」；问到住处 / 公司 / 职位等时，
-  附上双时态的当前信念（「user lives in 上海 (since 2026-09-01)」）。默认注入 12 条；问「一共几次 / 隔了多久 / 哪个先 / 之前之后」时
-  20 条（`NYX_BREADTH_LINES`，0 = 关闭）。界面上显示 `🧠 Nyx — recalled N memories`
+  附上双时态的当前信念（「user lives in 上海 (since 2026-09-01)」）。只注入和问题至少有一个实词对得上的，不相关的问题
+  一条都不注入（v7.19.0）。默认最多 12 条；问「一共几次 / 隔了多久 / 哪个先 / 之前之后」时最多 20 条
+  （`NYX_BREADTH_LINES`，0 = 关闭）。界面上显示 `🧠 Nyx — recalled N memories`
 - **sync_turn**：原文落沙（审计日志）+ 晋升门 + 事实抽取；按 `turn_author` 绑定来源
 - **subagent / cron / flush 上下文只读**：不写记忆，写类工具直接拒绝
 
