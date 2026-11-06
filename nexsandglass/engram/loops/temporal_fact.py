@@ -309,6 +309,29 @@ def record_fact(conn: sqlite3.Connection, subject: str, relation: str, obj: str,
         rep.inserted = True
         return rep
 
+    # ── 补历史（v7.20.0）──
+    # 这句话的记录时刻早于库里同一关系某条事实的记录时刻：是导入的旧对话（hermes nyx import），不是新消息。
+    # 后来才知道的事不能被更早的话改写 ——「去年说住杭州」不能盖过「上周说搬到上海」。
+    # 只把它补成历史：不截断、不撤回任何已有的行；落在后来知道的区间里的，记成零长度（当时这么说过）。
+    newer = conn.execute(
+        "SELECT 1 FROM wthread_triples WHERE subject=? AND relation=? AND retracted_at IS NULL "
+        "AND recorded_at > ? LIMIT 1", (subject, relation, now_s)).fetchone()
+    if newer:
+        containing = [r for r in believed if r[2] <= vf and (r[3] is None or r[3] > vf)]
+        if any(r[1] == obj for r in containing):
+            return rep                                   # 那时候就已经知道是这个
+        if containing:
+            base["valid_until"], base["closed_at"] = vf, now_s
+        else:
+            nxt = next((r for r in believed if r[2] > vf and r[1] != obj), None)
+            if nxt is not None:
+                base["valid_until"], base["closed_at"] = nxt[2], now_s
+        rep.late_arrival = True
+        rep.valid_until = base["valid_until"]
+        rep.inserted_id = _insert(conn, base)
+        rep.inserted = True
+        return rep
+
     # ── 单值时序关系 ──
     containing = [r for r in believed
                   if r[2] <= vf and (r[3] is None or r[3] > vf)]

@@ -6,6 +6,7 @@ hermes nyx … —— Nyx 的命令行，经 Hermes 运行（v7.15.2；v7.16.0 �
     hermes nyx doctor                  # 自检
     hermes nyx scrub [--apply]         # 已经存下的密钥 / 密码：找出来、原地隐去
     hermes nyx repair                  # 中枢对不上日志时：按内容体检与修复
+    hermes nyx import                  # 把以前在 Hermes 里的对话导进来（v7.20.0）
     hermes nyx status                  # 版本、数据目录
 
 为什么要有它：新版 Hermes 把 nyx-memory 装在它自己的隔离环境里，系统 Python 里没有 nyx，
@@ -53,6 +54,8 @@ TOOLS = {
                                      "已经存下来的密钥 / 密码：找出来、原地隐去")),
     "repair": ("nexsandglass.repair", ("when the hub does not match the journal: check and repair by content",
                                        "中枢对不上日志时：按内容体检与修复")),
+    "import": ("nexsandglass.history_import", ("import past Hermes conversations (Hermes's side is read-only)",
+                                               "把以前在 Hermes 里的对话导进来（Hermes 那边只读）")),
 }
 
 
