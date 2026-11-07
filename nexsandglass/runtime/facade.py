@@ -339,9 +339,16 @@ def purge_forgotten(*, apply: bool = False, mem_ids: list = None) -> dict:
     try:
         from nexsandglass.core import erasure
         rep = erasure.purge(mem_ids=mem_ids, apply=apply)
+        if apply:
+            try:                         # 记录都擦掉了的素材，文件一起删（v7.21.0）
+                from nexsandglass import media
+                rep["media_erased"] = media.purge()
+            except Exception as e:
+                logger.warning("[facade.purge_forgotten] 素材清理失败: %s", e)
         return {"ok": rep.get("ok", False), "action": rep.get("action", ""),
                 "selected": rep["selected"], "purged": rep["purged"],
-                "vacuumed": rep.get("vacuumed", False), "preview": rep["preview"]}
+                "vacuumed": rep.get("vacuumed", False), "preview": rep["preview"],
+                "media_erased": rep.get("media_erased", 0)}
     except Exception as e:
         logger.error("[facade.purge_forgotten] 失败: %s", e)
         return {"ok": False, "action": "error", "purged": 0, "error": str(e)}

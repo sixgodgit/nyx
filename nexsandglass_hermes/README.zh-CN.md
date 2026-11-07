@@ -78,6 +78,7 @@ nyx 是当前记忆插件时，Hermes 会多出 `hermes nyx` 这组命令（数�
 | `hermes nyx forget <编号…> \| --contains 一段话 [--now] [--yes]` | 先列出来问你，再送进隔离区；`--now` 当场擦掉（输入 `erase` 确认）（v7.20.0） |
 | `hermes nyx restore [<编号…>]` | 不写编号：隔离区里有什么、哪天到期；写编号：救回来（v7.20.0） |
 | `hermes nyx edit <编号> [改正后的话]` | 改一条：新的按你说的、原来的日期记下，旧的进隔离区（v7.20.0） |
+| `hermes nyx media add <文件> [--note 附言] [--when 时间]` / `list` / `show` / `understand [--pending]` / `backends` / `forget [--now]` / `restore` | 图片、声音、视频的记忆（v7.21.0，见下） |
 | `hermes nyx status` | 版本、Python、数据目录、保险箱 |
 
 agent 转告给你的命令（自检警告、「在终端里取」）也会写成 `hermes nyx …`。每个命令都有 `--json`；都不经过模型。
@@ -99,6 +100,18 @@ hermes plugins enable nyx-commands
 
 命令在 Hermes 里直接执行，回复只留在这个聊天里，模型看不到。谁能用：本机（CLI、TUI、桌面）和私聊里都能用；群聊、频道里只能看
 `status` —— 群里任何人都能打命令。配了 `owner_ids` 时，只有主人能暂停、恢复和遗忘（在群里也行）。机器人永远不能。
+
+## 图片、声音、视频（v7.21.0，框架）
+
+`hermes nyx media add <文件>` 登记一张图、一段录音或视频：按内容哈希复制进 `<数据目录>/media/blobs/`（`media_copy: off` 只记路径；超过 `media_max_mb`，默认 500，的不收），写一条记录（「Shared a photo: …」），`--note` 的附言算你说的话，日期用 `--when`（默认现在）。理解后端把内容变成文字 —— 看图描述、语音转写、视频描述 —— 按来源 `media` 存成普通记忆：搜得到，召回时带「未经证实」标注。默认一个后端都没有。内置的是每一类一个本机命令，在 `nyx.json` 里设：
+
+| 键 | 例子 |
+|---|---|
+| `media_audio_cmd` | `whisper-cli -m ggml-base.bin -nt -f {path}` |
+| `media_image_cmd` | 本机视觉模型的命令行，打印 `{path}` 的描述 |
+| `media_video_cmd` | 抽帧再描述的脚本 |
+
+`{path}` 换成文件路径（没写就加在最后），标准输出就是结果，不经过 shell。Python 包可以通过入口点组 `nyx.media_understanders` 加后端（一个有 `name`、`kinds`、`available()`、`understand(asset, path)` 返回 `Moment` 列表的对象）。`hermes nyx media understand --pending` 用现在能用的后端补上以前登记的。`forget` 把一个素材的所有记录送进隔离区，文件留到清理时；`--now` 一起擦掉。还没做：Hermes 聊天里收到的照片、语音自动登记，给 agent 的工具。
 
 ## 导入以前的对话：`hermes nyx import`（v7.20.0）
 

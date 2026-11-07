@@ -88,6 +88,7 @@ Newer Hermes installs nyx-memory in its own isolated environment, so the system 
 | `hermes nyx forget <id…> \| --contains TEXT [--now] [--yes]` | To the quarantine after listing what goes and asking; `--now` erases for good (type `erase` to confirm) (v7.20.0) |
 | `hermes nyx restore [<id…>]` | No id: what is in the quarantine and until when; with ids: bring them back (v7.20.0) |
 | `hermes nyx edit <id> [new text]` | Correct a memory: the new text is kept as your words at the original date, the old one goes to the quarantine (v7.20.0) |
+| `hermes nyx media add <file> [--note T] [--when D]` / `list` / `show` / `understand [--pending]` / `backends` / `forget [--now]` / `restore` | Photos, recordings and videos as memories (v7.21.0, below) |
 | `hermes nyx status` | Version, Python, data directory, vault |
 
 Commands the agent passes on to you (health warnings, "get it in the terminal") are written as `hermes nyx …` too.
@@ -112,6 +113,27 @@ hermes plugins enable nyx-commands
 They run in Hermes and the reply stays in the chat; the model never sees them. Who may use them: anyone on the local
 machine (CLI, TUI, desktop) and in a private chat; in group chats and channels only `status`, because anyone there can
 type a command. With `owner_ids` set, only the owner can pause, resume and forget, also in groups. Bots never can.
+
+## Photos, recordings and videos (v7.21.0, framework)
+
+`hermes nyx media add <file>` registers an image, audio or video file: copied into `<data_dir>/media/blobs/` by content
+hash (`media_copy: off` keeps only the path; files over `media_max_mb`, default 500, are refused), with one record
+("Shared a photo: …") and your `--note` as your own words, dated `--when` (default now). Understanding backends turn
+the content into text — caption, transcript, description — stored as ordinary memories from source `media`, so they are
+searchable and recalled with an "unverified" label. There are none by default. Built in: a local command per kind,
+set in `nyx.json`:
+
+| Key | Example |
+|---|---|
+| `media_audio_cmd` | `whisper-cli -m ggml-base.bin -nt -f {path}` |
+| `media_image_cmd` | a local vision model's CLI that prints a description of `{path}` |
+| `media_video_cmd` | a script that samples frames and describes them |
+
+`{path}` is the file (appended when absent); standard output is the result; no shell is involved. Python packages can
+add backends through the entry-point group `nyx.media_understanders` (an object with `name`, `kinds`, `available()`,
+`understand(asset, path)` returning `Moment`s). `hermes nyx media understand --pending` runs what is available now on
+items registered earlier. `forget` sends all of an item's records to the quarantine and keeps the file until purge;
+`--now` erases both. Not yet: registering photos and voice notes from Hermes chats automatically, an agent tool.
 
 ## Importing earlier conversations: `hermes nyx import` (v7.20.0)
 

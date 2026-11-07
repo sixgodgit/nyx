@@ -5,7 +5,7 @@
 > **Memory that stays with your agent for life** — single-user, local, no LLM on the write path.
 > It remembers, finds, can be trusted, and can forget.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.20.1-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.21.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx is a long-term memory layer for agents. It plugs into [Hermes](https://github.com/NousResearch/hermes-agent)
 (as a memory provider), into Claude Desktop / Claude Code or any other MCP client, or into your own Python program.
@@ -161,6 +161,7 @@ lets "what should I cook tonight?" see "I'm allergic to peanuts", which shares n
 | 🔌 **Hermes memory provider** | `nexsandglass_hermes/`, `core/memory_provider.py` | Implements Hermes's `MemoryProvider` interface; installed with `hermes plugins install sixgodgit/nyx/hermes-plugin --enable` |
 | ⏸️ **`/nyx` in chat** | `nexsandglass_hermes_commands/`, `core/recording.py` | `status`, `pause` / `resume` (stop and restart remembering; recall keeps working), `forget-last [N]` (this chat's last turns to the quarantine, shown so you can check). Runs in Hermes, never through the model; in group chats only the owner can change anything (v7.20.0) |
 | 🗂️ **Look up and correct** | `memory_cli.py`, `core/lookup.py` | `hermes nyx search` (date range with `--since` / `--until`), `show` (full text and the lines around it), `forget` (`--now` erases for good), `restore`, `edit` (the corrected words replace the old ones, at the original date); the agent's `sandglass_search` / `nyx_read` use the same code (v7.20.0) |
+| 🖼️ **Photos, recordings, videos** (framework) | `media/` | `hermes nyx media add photo.jpg --note "…"`: the file is kept by content hash, your note is kept as your words, and what an understanding backend derives (caption, transcript, description) becomes ordinary, searchable memories dated when it was taken, labelled as inferred. No backend by default — plug in a local program (whisper.cpp, a llama.cpp vision model) or a pip plugin, then `understand --pending` fills in what was registered before. Forgetting takes the records and, at purge, the file (v7.21.0) |
 | 📥 **Import from Hermes** | `history_import.py` | Reads the profile's Hermes session database read-only and brings in your own conversations (local and private chats; not group chats, subagents or scheduled tasks) with their original dates; skips what Nyx already has; can resume (v7.20.0) |
 | 🔌 **MCP server** | `interfaces/sandglass_mcp.py` | stdio, standard library only, 27 tools |
 | 👻 **Déjà Vu** | `dejavu/` (standalone subpackage) | Tells "never talked about it" from "talked about it but cannot find it"; see the next section |
@@ -383,6 +384,12 @@ when the original was said, and the old one goes to the quarantine (facts derive
 **Want it to stop remembering for a while?** `/nyx pause` in the chat (helping someone else, a private matter);
 `/nyx resume` turns it back on. While paused nothing is written (turns, the end-of-session catch-up, subagent results);
 recall and what you explicitly ask for still work, and the agent is told it is paused. It stays paused across restarts.
+
+**Photos and voice notes?** v7.21.0 has the framework: `hermes nyx media add <file> --note "…"` registers an image,
+recording or video with its date and your note. To have Nyx also know what is *in* it, point a backend at a local
+program, e.g. `media_audio_cmd: "whisper-cli -m ggml-base.bin -nt -f {path}"` in `nyx.json` (`{path}` is the file; what
+it prints is the transcript), then `hermes nyx media understand --pending`. Nothing is sent anywhere unless the program
+you configure does. Recording photos and voice notes from Hermes chats automatically is not wired up yet.
 
 **Used Hermes before installing Nyx?** `hermes nyx import` lists your earlier conversations and imports the ones you pick
 (`--all` for everything) with their original dates. Only your own words and the agent's replies are imported — not group
@@ -688,6 +695,7 @@ When the semantic backend is on but the index was not built, both harnesses fail
 
 ## 📝 Recent updates
 
+- **v7.21.0**: a framework for remembering photos, recordings and videos: `hermes nyx media add / list / show / understand / backends / forget / restore`; pluggable understanding backends (a local command, or a pip plugin), none by default, so writing still calls no model; derived text is ordinary memory, labelled as inferred, dated when the media was taken
 - **v7.20.1**: v7.20.0 as published on PyPI (v7.20.0's release check expected one companion plugin and found two, so it was never published)
 - **v7.20.0**: you stay in charge of what is remembered. `/nyx pause` / `resume` / `forget-last` / `status` in any chat
   (`hermes plugins enable nyx-commands`); `hermes nyx search / show / forget / restore / edit` in the terminal, never

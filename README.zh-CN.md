@@ -4,7 +4,7 @@
 
 > **给 agent 一份跟着你一辈子的记忆** —— 单用户、本地、写入不调用大模型。记得住，找得到，信得过，忘得掉。
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.20.1-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.21.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx 是 agent 的长期记忆层：接进 [Hermes](https://github.com/NousResearch/hermes-agent)（作为记忆插件）、
 Claude Desktop / Claude Code 等任意 MCP 客户端，或者你自己的 Python 程序。
@@ -145,6 +145,7 @@ restore(r["preview"][0]["mem_id"])                     # 隔离期内原样还�
 | 🔌 **Hermes 记忆提供器** | `nexsandglass_hermes/`、`core/memory_provider.py` | 按 Hermes 的 `MemoryProvider` 接口实现；`hermes plugins install sixgodgit/nyx/hermes-plugin --enable` 装进 Hermes |
 | ⏸️ **聊天里的 `/nyx`** | `nexsandglass_hermes_commands/`、`core/recording.py` | `status`、`pause` / `resume`（暂停 / 恢复记录，召回照常）、`forget-last [N]`（把这个聊天最近几轮送进隔离区，回显给你核对）。在 Hermes 里直接执行，不经过模型；群聊里只有主人能改（v7.20.0） |
 | 🗂️ **查找和改正** | `memory_cli.py`、`core/lookup.py` | `hermes nyx search`（`--since` / `--until` 限定日期）、`show`（全文和前后几句）、`forget`（`--now` 当场擦掉）、`restore`、`edit`（改正后的话替换旧的，日期不变）；agent 的 `sandglass_search` / `nyx_read` 用同一套代码（v7.20.0） |
+| 🖼️ **图片、声音、视频**（框架） | `media/` | `hermes nyx media add 照片.jpg --note "…"`：文件按内容哈希保存，附言算你说的；理解后端得出的文字（看图描述、语音转写、视频描述）变成普通的、搜得到的记忆，日期是拍摄 / 录制时间，标成推断。默认没有后端 —— 接本机程序（whisper.cpp、llama.cpp 视觉模型）或 pip 插件，再用 `understand --pending` 给以前登记的补上。遗忘时记录进隔离区，清理时文件一起删（v7.21.0） |
 | 📥 **从 Hermes 导入** | `history_import.py` | 只读打开当前 profile 的 Hermes 会话库，把你自己的对话（本机和私聊；不含群聊、子 agent、定时任务）按原来的时间导进来；Nyx 已有的跳过；可以断点续导（v7.20.0） |
 | 🔌 **MCP 服务** | `interfaces/sandglass_mcp.py` | stdio，纯标准库，27 个工具 |
 | 👻 **Déjà Vu** | `dejavu/`（独立子包） | 分清「没聊过」和「聊过但找不到」，见下一节 |
@@ -343,6 +344,8 @@ SQLite 删行后原文还留在文件的空闲页里，FTS5 删掉的词元连 V
 **记错了？** `hermes nyx edit <编号> "正确的说法"`：改正后的话算你说的、日期还是原来那天，旧的进隔离区（由它得出的事实一起撤掉）。
 
 **想让它暂时别记？** 聊天里 `/nyx pause`（帮别人问事、聊私事），`/nyx resume` 恢复。暂停期间什么都不写（每轮对话、会话结束的补记、子任务结果）；召回和你明确要求的照常，agent 也会知道现在没在记。重启之后仍是暂停的。
+
+**照片和语音？** v7.21.0 先有了框架：`hermes nyx media add <文件> --note "…"` 登记一张图、一段录音或视频，带时间和你的附言。想让 Nyx 也知道里面有什么，就把理解后端指向本机程序，比如在 `nyx.json` 里写 `media_audio_cmd: "whisper-cli -m ggml-base.bin -nt -f {path}"`（`{path}` 是文件，程序打印的就是转写），再运行 `hermes nyx media understand --pending`。除非你配的程序自己联网，否则什么都不发出去。Hermes 聊天里收到的照片、语音自动登记，还没接上。
 
 **装 Nyx 之前就在用 Hermes？** `hermes nyx import` 列出以前的对话，导你挑的（`--all` 全导），按原来的时间。只导你说的话和 agent 的回复 —— 不导群聊、子 agent、定时任务，也不导 Hermes 注入的记忆文本；私聊里有好几个人时先配 `owner_ids`。Hermes 的库只读打开，再跑一次只补新的。
 隔离期（默认 30 天）过了**不会自动删**：执行
@@ -603,6 +606,7 @@ python3 benchmarks/personamem_eval.py questions_32k.csv --answer views.jsonl --l
 
 ## 📝 最近更新
 
+- **v7.21.0**：图片、声音、视频记忆的框架：`hermes nyx media add / list / show / understand / backends / forget / restore`；理解后端可插拔（本机命令或 pip 插件），默认一个都没有，写入仍然不调用模型；得出的文字是普通记忆，标成推断，日期是拍摄 / 录制时间
 - **v7.20.1**：就是 PyPI 上的 v7.20.0（v7.20.0 的发布检查只认一个配套插件、实际有两个，没有发布出去）
 - **v7.20.0**：记什么由你说了算。任何聊天里 `/nyx pause` / `resume` / `forget-last` / `status`（`hermes plugins enable nyx-commands`）；终端里 `hermes nyx search / show / forget / restore / edit`，不经过模型；`hermes nyx import` 把装 Nyx 之前的对话按原来的时间导进来，后导入的旧话不会盖过新的。agent 的搜索结果带日期和谁说的、能限定日期范围，`nyx_read` 看一条的全文和前后几句（MCP 也有）。修好：从隔离区救回的记忆可能一直不回常驻画像。个人场景和 PersonaMem 评测里 agent 看到的没有变化
 - **v7.19.0**：为个人 agent 而做。每个会话的系统提示先放用户说过的关于自己的事（对 agent 的要求、饮食健康、家人、住处工作、

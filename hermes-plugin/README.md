@@ -20,7 +20,7 @@ hermes gateway restart        # or restart Hermes
 
 Hermes installs the declared dependency `nyx-memory` (PyPI) into its own environment. With the local embedding model, use `sixgodgit/nyx/hermes-plugin-vector` instead; its dependency is `nyx-memory[vector]` (sentence-transformers, about a 470 MB model download on first run).
 
-Options: `hermes memory setup` (set `lang` to `zh` for Chinese output). Terminal commands: `hermes nyx search`, `hermes nyx show`, `hermes nyx forget`, `hermes nyx restore`, `hermes nyx edit`, `hermes nyx import`, `hermes nyx doctor`, `hermes nyx vault list`, `hermes nyx vault show v3`, `hermes nyx scrub`, `hermes nyx repair`, `hermes nyx status`. In chats, `/nyx status | pause | resume | forget-last` after `hermes plugins enable nyx-commands`.
+Options: `hermes memory setup` (set `lang` to `zh` for Chinese output). Terminal commands: `hermes nyx search`, `hermes nyx show`, `hermes nyx forget`, `hermes nyx restore`, `hermes nyx edit`, `hermes nyx import`, `hermes nyx media`, `hermes nyx doctor`, `hermes nyx vault list`, `hermes nyx vault show v3`, `hermes nyx scrub`, `hermes nyx repair`, `hermes nyx status`. In chats, `/nyx status | pause | resume | forget-last` after `hermes plugins enable nyx-commands`.
 
 ## What it touches (disclosure)
 

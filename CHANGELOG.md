@@ -5,6 +5,39 @@ Benchmark section of the README and `benchmarks/`. Entries from v7.16.0 on are i
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。v7.16.0 起的条目用英文，之前的是中文。
 
+### v7.21.0 (2026-11-07) — A framework for remembering photos, recordings and videos
+
+**Why.** Seeing and hearing are how much of a life is remembered: a photo of the cat in the snow, a voice note to
+self. This release sets up the structure so that understanding models can be plugged in later without changing how
+media is stored, recalled or forgotten.
+
+**Changes** (`nexsandglass/media/`).
+- **Registry**: `add(path, note, when)` takes an image, audio or video file; one asset per content hash (adding the
+  same file again only adds the note); copied into `<data_dir>/media/blobs/` (`NYX_MEDIA_COPY=off` keeps the path);
+  over `NYX_MEDIA_MAX_MB` (500) refused. Duration from WAV headers, or `ffprobe` when installed.
+- **Records are ordinary memories**: one "Shared a photo / recording / video: name" line; the note through the normal
+  user write path (profile and facts as usual); derived text from source `media`, so recall labels it unverified and it
+  can never become a rule about the user. All dated when the media was taken. `search`, recall, `nyx_read` and
+  forgetting need nothing new.
+- **Understanding backends** (`media/understanders.py`): `name`, `kinds`, `available()`, `understand(asset, path)` →
+  `Moment(kind, text, start_s, end_s)`. Built in: one local command per kind (`NYX_MEDIA_IMAGE_CMD` /
+  `_AUDIO_CMD` / `_VIDEO_CMD`, `nyx.json` `media_*_cmd`), run without a shell, stdout is the result. Plugins: entry
+  point group `nyx.media_understanders`; a plugin that fails to load is logged and skipped. None is configured by
+  default, so nothing calls a model. Status per asset: ok / partial / failed / unavailable; `understand(pending=True)`
+  re-runs only what has not succeeded.
+- **Forgetting**: `forget(asset)` sends every record to the quarantine and keeps the file; `restore` brings both back;
+  `facade.purge_forgotten(apply=True)` deletes the file once all records are erased; `now=True` erases at once.
+- **Terminal**: `hermes nyx media add / list / show / understand / backends / forget / restore` (outside Hermes
+  `python3 -m nexsandglass.media`).
+
+**Checked**: 11 new tests; 795 passed. Through real Hermes: `hermes nyx media add` of a voice note with
+`media_audio_cmd` set to a local command — transcript stored, dated at recording time, found by `hermes nyx search`,
+labelled unverified, file in the configured data directory.
+
+**Not yet**: photos and voice notes received in Hermes chats are not registered automatically (Hermes passes memory
+providers text only); no agent tool (reading arbitrary local paths needs an allow-list first); no OpenAI-compatible
+vision / transcription backend; capture time is not read from EXIF.
+
 ### v7.20.1 (2026-11-06) — v7.20.0 as published on PyPI
 
 v7.20.0 never reached PyPI. The release workflow's clean-install check listed the Hermes companion plugins it
