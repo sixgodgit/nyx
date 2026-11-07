@@ -128,7 +128,7 @@ jobs:
           cc = CmdCtx()
           importlib.import_module("nexsandglass_hermes_commands").register(cc)
           assert cc.name == "nyx", cc.name
-          for m in ("nexsandglass.memory_cli", "nexsandglass.history_import", "nexsandglass.core.lookup"):
+          for m in ("nexsandglass.memory_cli", "nexsandglass.history_import", "nexsandglass.core.lookup", "nexsandglass.media.cli"):
               importlib.import_module(m)
 
           whl = glob.glob(os.path.join(os.environ["GITHUB_WORKSPACE"], "dist", "*.whl"))[0]

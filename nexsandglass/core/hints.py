@@ -20,7 +20,7 @@ def via_hermes() -> bool:
 
 # 命令名和模块名不一样的（import 是 Python 关键字，模块叫 history_import；
 # search / show / forget / restore / edit 是同一个模块的子命令，v7.20.0）
-_MODULES = {"import": "history_import",
+_MODULES = {"import": "history_import", "media": "media",
             **{c: f"memory_cli {c}" for c in ("search", "show", "forget", "restore", "edit")}}
 
 

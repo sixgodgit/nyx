@@ -68,6 +68,9 @@ TOOLS = {
                                             "把忘掉的救回来；不写编号 = 看隔离区")),
     "edit": ("nexsandglass.memory_cli", ("correct a memory (the old one goes to the quarantine)",
                                          "改一条记忆（旧的进隔离区）")),
+    "media": ("nexsandglass.media.cli", ("photos, recordings and videos as memories: add / list / show / understand / "
+                                         "backends / forget / restore",
+                                         "图片、声音、视频的记忆：add / list / show / understand / backends / forget / restore")),
 }
 _SUBCOMMANDS = {"search", "show", "forget", "restore", "edit"}
 
@@ -97,7 +100,12 @@ def nyx_command(args) -> int:
     # NYX_VIA_HERMES：工具输出里的「下一步」提示写成 hermes nyx …
     env = {"NYX_VIA_HERMES": "1"}
     env.update({e: str(cfg[k]) for k, e in (("vault", "NYX_VAULT"), ("vault_reveal", "NYX_VAULT_REVEAL"),
-                                             ("vault_kinds", "NYX_VAULT_KINDS"), ("lang", "NYX_LANG")) if cfg.get(k)})
+                                             ("vault_kinds", "NYX_VAULT_KINDS"), ("lang", "NYX_LANG"),
+                                             ("media_image_cmd", "NYX_MEDIA_IMAGE_CMD"),
+                                             ("media_audio_cmd", "NYX_MEDIA_AUDIO_CMD"),
+                                             ("media_video_cmd", "NYX_MEDIA_VIDEO_CMD"),
+                                             ("media_max_mb", "NYX_MEDIA_MAX_MB"),
+                                             ("media_copy", "NYX_MEDIA_COPY")) if cfg.get(k)})
     from nexsandglass.core import settings
     with settings.scope(env):
         if name == "status":

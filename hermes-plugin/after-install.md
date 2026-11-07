@@ -15,7 +15,7 @@ Optional: **`/nyx` in any chat** (status, pause and resume remembering, forget t
 
 Optional: **bring in your earlier Hermes conversations** with their original dates: `hermes nyx import` (lists them first; Hermes's data is only read).
 
-Terminal commands: `hermes nyx search | show | forget | restore | edit | import | vault | doctor | scrub | repair | status`.
+Terminal commands: `hermes nyx search | show | forget | restore | edit | import | media | vault | doctor | scrub | repair | status`.
 Docs: https://github.com/sixgodgit/nyx/blob/main/hermes-plugin/README.md
 
 ---
@@ -33,4 +33,4 @@ Docs: https://github.com/sixgodgit/nyx/blob/main/hermes-plugin/README.md
 
 可选：**把以前在 Hermes 里的对话导进来**，按原来的时间：`hermes nyx import`（先列出来；Hermes 的数据只读）。
 
-终端命令：`hermes nyx search | show | forget | restore | edit | import | vault | doctor | scrub | repair | status`。中文界面：`hermes memory setup` 里把 `lang` 设成 `zh`。中文说明：https://github.com/sixgodgit/nyx/blob/main/nexsandglass_hermes/README.zh-CN.md
+终端命令：`hermes nyx search | show | forget | restore | edit | import | media | vault | doctor | scrub | repair | status`。中文界面：`hermes memory setup` 里把 `lang` 设成 `zh`。中文说明：https://github.com/sixgodgit/nyx/blob/main/nexsandglass_hermes/README.zh-CN.md
