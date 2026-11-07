@@ -5,7 +5,7 @@
 > **Memory that stays with your agent for life** — single-user, local, no LLM on the write path.
 > It remembers, finds, can be trusted, and can forget.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.21.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.22.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx is a long-term memory layer for agents. It plugs into [Hermes](https://github.com/NousResearch/hermes-agent)
 (as a memory provider), into Claude Desktop / Claude Code or any other MCP client, or into your own Python program.
@@ -17,7 +17,7 @@ All data is plain files on your machine.
 | | How | Measured |
 |---|---|---|
 | **Finds things** | Full-text, inverted index, TF-IDF, entities and (optional) semantic search, fused; long memories are scored down by length so they don't bury the short message with the answer; questions like "how many times / how long between" get a few more results | LongMemEval-S (470 scored questions): the session holding the answer is in the top 5 **98.7%** of the time; LoCoMo evidence recall 0.573 (BM25 0.498); BEAM, 100K–1M-token conversations: evidence recall@10 **0.454** (BM25 0.333); at 10M tokens 0.326 (BM25 0.218). About 30–140 ms per recall |
-| **Knows who you are** | What you told it about yourself — requests to the agent ("reply in Chinese, no emoji"), allergies and diet, family, home and work, likes — is in every session's system prompt in your own words; memories that match a question only through words like *what / 帮我* are not injected; a relative's facts stay theirs | Eight personal stories (v7.19.0): the facts the agent needed and saw went from 25–38% to **100%**, unrelated entries per question from 9 to 1–2, and unrelated questions get nothing injected 88% of the time (was 13–25%) |
+| **Knows who you are** | What you told it about yourself — requests to the agent ("reply in Chinese, no emoji"), allergies and diet, family, home and work, likes — is in every session's system prompt in your own words; when you change your mind ("reply in English from now on", "I eat meat again", "we moved to Denver") the new words replace the old ones there; memories that match a question only through words like *what / 帮我* are not injected; a relative's facts stay theirs | Eight personal stories (v7.19.0): the facts the agent needed and saw went from 25–38% to **100%**, unrelated entries per question from 9 to 1–2, and unrelated questions get nothing injected 88% of the time (was 13–25%). After a change of mind (v7.22.0, 21 changes in 12 stories) the old words were still shown as current 19 times; now once |
 | **Keeps time straight** | Bi-temporal facts: "when it was true" and "when it was learned" are stored separately | "I switched to a Geely back in February" is recorded as February, not as the day it was said; answers "what is believed now" and "what did I think in March" |
 | **Can be trusted** | Source and trust are bound at write time: only what the user said themselves can become a rule; hearsay and web content come back labelled "unverified" | Poisoning drill: 0 of 16 attacks reach the agent's prompt unlabelled; 0 of the user's 8 normal messages are hurt |
 | **You stay in charge** | In any chat, `/nyx pause` stops remembering until `/nyx resume` and `/nyx forget-last` takes back the last turn; in the terminal, `hermes nyx search / show / forget / restore / edit` find, read and correct memories without going through the model; `hermes nyx import` brings in what you told Hermes before Nyx was installed (v7.20.0) | Checked with Hermes's own plugin loader and command dispatch, as the terminal and the messaging gateway call it; an imported old "I live in Hangzhou" never overrides a newer "I moved to Shanghai" |
@@ -130,7 +130,11 @@ After installing, run `python3 -m nexsandglass.doctor`; all ✅ means everything
 What the user has said about themselves, in their own words and newest first: standing requests to the agent ("reply in
 Chinese, no emoji"), health and diet (allergies, vegetarian), family, partner and pets, where they live and work, likes and
 dislikes. Picked by rules from the owner's own messages only (no LLM); a forgotten memory leaves it at once. This is what
-lets "what should I cook tonight?" see "I'm allergic to peanuts", which shares no word with it.
+lets "what should I cook tonight?" see "I'm allergic to peanuts", which shares no word with it. When the user later says
+something new about the same thing — reply language, emoji, length, what to call them, meat or not, alcohol, coffee, an
+allergy, where they live, their job, liking a particular thing — the new words replace the old ones (v7.22.0); only the
+part that changed goes ("reply in Chinese, no emoji" then "reply in English" keeps "no emoji"), and the replaced words
+are listed last under "Changed since" with the date they changed.
 
 **Recall** (before every turn, entirely local)
 
@@ -149,7 +153,7 @@ lets "what should I cook tonight?" see "I'm allergic to peanuts", which shares n
 |---|---|---|
 | 🆔 **Journal + ID hub** | `core/memid.py`, `core/sandglass_log.py` | Every memory has a `mem_id` and a line span; tombstones keep deleted memories from coming back on rebuild |
 | 🔍 **Multi-route search** | `core/search_router.py`, `core/semantic.py` | FTS5 / inverted index / TF-IDF / shadow sand + optional semantics (local multilingual model or an OpenAI-compatible API), RRF fusion |
-| 🪪 **Always-on profile** | `core/profile.py` | The user's own statements about themselves (requests to the agent, health and diet, family, home and work, likes) in every session's system prompt; owner-only, trusted sources only, follows forgetting (v7.19.0) |
+| 🪪 **Always-on profile** | `core/profile.py` | The user's own statements about themselves (requests to the agent, health and diet, family, home and work, likes) in every session's system prompt; owner-only, trusted sources only, follows forgetting (v7.19.0); a later statement about the same thing replaces the earlier one (v7.22.0) |
 | 🚪 **Relevance gate** | `core/relevance.py` | Before injection: entries that match the question only through function words are dropped; nothing is injected when nothing is relevant (v7.19.0) |
 | 🕰️ **Bi-temporal facts** | `engram/loops/temporal_fact.py`, `core/understand.py` | `as_of` asks about the world, `known_at` about what was believed then, `belief_timeline` about how a view changed; hypothetical times never pose as stated ones |
 | 🛡️ **Source trust** | `core/provenance.py` | trusted / unverified / tainted; only what the user said can become a rule (against OWASP ASI06 memory poisoning) |
@@ -272,6 +276,7 @@ Chinese with `NYX_LANG=zh` (Hermes: `lang: zh`); with `auto`, a Chinese system l
 | `WTHREAD_LLM_EXTRACTION` | off | Extra knowledge-graph extraction via an LLM (needs `LLM_EXTRACT_API_URL`) |
 | `LLM_EXTRACT_API_URL` / `NYX_UNDERSTAND_MODEL` | empty / `deepseek-v4-flash` | OpenAI-compatible gateway and model for extraction |
 | `NYX_FORGET_RETENTION_DAYS` | `30` | Quarantine retention period |
+| `NYX_AUTO_PURGE` | `on` | The Hermes provider erases quarantined memories past their retention period, at most once a day in the background; `off` = only by hand. Hermes: `auto_purge` |
 | `NYX_BUNDLE_MAX_TOKENS` | `1500` | System-prompt injection budget |
 | `NYX_JOURNAL_MIRROR_MB` | `32` | Size limit (journal file size, MB) for the in-memory journal mirror; above it, falls back to line scans. Uses about 3.5× the journal size in memory |
 | `NYX_WARM_WAIT_SECONDS` | `10` | How long Hermes's first turn waits for background warm-up |
@@ -395,9 +400,10 @@ you configure does. Recording photos and voice notes from Hermes chats automatic
 (`--all` for everything) with their original dates. Only your own words and the agent's replies are imported — not group
 chats, subagents, scheduled tasks, or the memory text Hermes injected; with several people in private chats, set
 `owner_ids` first. Hermes's database is opened read-only, and running it again only adds what is new.
-After the retention period (30 days by default) nothing is deleted **automatically**: run
-`python3 -c "from nexsandglass.core import erasure; print(erasure.purge(apply=True))"` to really delete
-(in a source checkout also `python3 scripts/nyx_quarantine.py purge --apply`); a daily cron is a good idea, and `doctor` shows ❌ when purges are overdue.
+After the retention period (30 days by default) the Hermes provider erases them for good on its own, at most once a day
+in the background (v7.22.0; `auto_purge: off` / `NYX_AUTO_PURGE=off` turns it off). Outside Hermes, or to do it now:
+`python3 -c "from nexsandglass.core import erasure; print(erasure.purge(apply=True))"` (only what is past its retention
+period); `doctor` shows ❌ when purges are overdue and when the last automatic one ran.
 
 **Want more accurate recall?** With `[vector]` installed you can set `NYX_RERANK=local` (Hermes: `rerank: local`):
 +4.7 points of LoCoMo evidence recall, at the cost of 0.3–1.5 s more per recall and worse preference questions ([Benchmark](#benchmark)).
@@ -440,7 +446,8 @@ sure (they go to the quarantine and can be restored for 30 days).
 - **Déjà Vu on a long history**: common words no longer count (English v7.16.1, Chinese v7.16.2), but ordinary content words accumulate. Of 10 unrelated test questions, after 2,000 English turns all 10 are still "familiar" through words like *teacher* or *workshop* (0 after 20 turns, 3 after 200; `benchmarks/dejavu_english_real.py`); after 2,000 Chinese chat messages 3 are (企鹅, 玻璃, 老师; `benchmarks/dejavu_chinese_real.py`)
 - **The profile and the relevance gate are rules, not understanding** (v7.19.0): the profile picks up statements in common
   phrasings ("I'm allergic to…", "from now on…", "my daughter…", "我对…过敏", "以后…别…"); a preference only implied ("ugh,
-  coriander again") is not in it. The gate is lexical: without `[vector]`, a relevant memory that shares no content word
+  coriander again") is not in it, and neither is a change of mind said only indirectly ("I've come around on jazz" does
+  not replace "I hate jazz"). The gate is lexical: without `[vector]`, a relevant memory that shares no content word
   with the question is not injected (with `[vector]`, semantic hits pass)
 - **Small default embedding model**: the local multilingual MiniLM is small and fast; with a stronger API model the fusion weights may need retuning (`NYX_EMBED_Z` / `NYX_EMBED_WEIGHT`)
 
@@ -483,6 +490,19 @@ Four stories were used while developing; four were held out until the end. Lexic
   work questions still bring generic chat about production and migrations, which may or may not help
 - v7.20.0: every number above is unchanged. The block is 6 characters longer on average (634 → 640) because a relative's
   health ("my mum has diabetes", "my wife is pregnant") is now listed under family rather than under the user's health
+- **Changes of mind** (v7.22.0). Four more stories (two held out) where the user later changes a standing request, their
+  diet, home, the name they go by or a liking, plus the moves already in the first eight: 21 changes in all. Checked
+  in the block's current part (the "Changed since" list does not count):
+
+  | | Before (v7.21.0) | After | Held out, before | Held out, after |
+  |---|---|---|---|---|
+  | New words shown | 76% | **95%** | 56% | **89%** |
+  | Old words still shown as current | 19 of 21 | **1** | 7 of 9 | **1** |
+  | Facts the agent needed and saw (12 stories) | 93% | **98%** | 87% | **95%** |
+
+  The remaining miss is an indirect change ("Honestly I've come around on jazz"). The first eight stories: every metric
+  above unchanged, the block 46 characters longer (the "Changed since" list). PersonaMem: the block is identical on all
+  589 questions and the proxy is unchanged (its changes of preference are told as stories, not stated)
 
 **PersonaMem** (`benchmarks/personamem_eval.py`; Jiang et al. 2025, "Know Me, Respond to Me", MIT; data not in the
 repository: https://huggingface.co/datasets/bowen-upenn/PersonaMem-v1). 20 simulated users talk with a chatbot over many
@@ -673,7 +693,7 @@ When the semantic backend is on but the index was not built, both harnesses fail
 
 | Evaluation | What it measures | Version |
 |---|---|---|
-| `benchmarks/personal_eval.py` | Personal scenarios: in a new session, does the agent see the user's own statements it needs, how much unrelated text comes along, are family facts attributed to the right person (above) | v7.19.0, v7.20.0 |
+| `benchmarks/personal_eval.py` | Personal scenarios: in a new session, does the agent see the user's own statements it needs, how much unrelated text comes along, are family facts attributed to the right person, do changes of mind replace the old words (above) | v7.19.0–v7.22.0 |
 | `benchmarks/personamem_eval.py` | PersonaMem: what the agent sees at each question, then a local model picks the best of four replies, with and without memory (above) | v7.19.0, v7.20.0 |
 | `benchmarks/beam_eval.py` | BEAM retrieval evidence recall from 100K to 10M tokens (above), with a BM25 reference, write speed and disk | v7.18.0 |
 | `benchmarks/beam_format_eval.py` | How recalled memories are written into the prompt: is the answer visible, does a model use it | v7.18.0 |
@@ -695,6 +715,7 @@ When the semantic backend is on but the index was not built, both harnesses fail
 
 ## 📝 Recent updates
 
+- **v7.22.0**: the always-on profile follows changes of mind — a later "reply in English", "I eat meat again" or "we moved to Denver" replaces what was said before, only the part that changed goes, and the old words are listed under "Changed since" (old words still shown as current after a change: 19 of 21 → 1); forgotten memories past their retention period are erased automatically, at most once a day
 - **v7.21.0**: a framework for remembering photos, recordings and videos: `hermes nyx media add / list / show / understand / backends / forget / restore`; pluggable understanding backends (a local command, or a pip plugin), none by default, so writing still calls no model; derived text is ordinary memory, labelled as inferred, dated when the media was taken
 - **v7.20.1**: v7.20.0 as published on PyPI (v7.20.0's release check expected one companion plugin and found two, so it was never published)
 - **v7.20.0**: you stay in charge of what is remembered. `/nyx pause` / `resume` / `forget-last` / `status` in any chat

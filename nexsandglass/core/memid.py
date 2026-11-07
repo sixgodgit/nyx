@@ -1014,6 +1014,12 @@ def health(journal_path: str = None, window_days: int = 3) -> dict:
             "recoverable": q["recoverable"], "next_due": q["next_due"],
             "retention_days": q["retention_days"],
         }
+        try:                              # 自动清理（v7.22.0）：开没开、上次是什么时候
+            from nexsandglass.core import autopurge
+            out["checks"]["pending_purge"]["auto_purge"] = autopurge.enabled()
+            out["checks"]["pending_purge"]["last_auto_purge"] = (autopurge.last_run() or {}).get("at")
+        except Exception:
+            pass
     except Exception as e:
         out["checks"]["pending_purge"] = {"ok": False, "error": str(e)}
 

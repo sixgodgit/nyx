@@ -60,6 +60,7 @@ python3 -m nexsandglass_hermes install
 | `vault_kinds` | `all` | `tokens` = 不收密码 |
 | `lang` | `auto` | 终端命令、`hermes memory setup` 用什么语言：`en` / `zh`；`auto` = 系统语言是中文就用中文（v7.16.0）。给模型看的文字一律英文 |
 | `l3_llm` | `off` | `on` = 画像 / 偏移率 / 幽灵决策这些 L3 分析调用 DeepSeek 或 OpenRouter（`DEEPSEEK_API_KEY` / `OPENROUTER_API_KEY`，按当前 profile 取），会把相关的记忆片段、画像、近期决策发给它们。v7.15.2 以前不用打开、有 key 就用 |
+| `auto_purge` | `on` | 每天一次，把过了隔离期的遗忘内容（和它们的素材文件）真删掉；还能救回的一条不动（v7.22.0） |
 
 ## 终端命令：`hermes nyx …`（v7.15.2）
 
@@ -150,7 +151,7 @@ hermes plugins enable nyx-reveal      # 再在 hermes memory setup 里把 vault 
 ## 每个会话、每轮做什么
 
 - **系统提示**（每个会话一次）：`[About the user]` —— 用户说过的关于自己的事，用原话、新的在前：对 agent 的长期要求、
-  饮食和健康、家人伴侣宠物、住处和工作、喜好（v7.19.0，`core/profile.py`）。下面是有内容时才出现的：用户自己生成的画像、
+  饮食和健康、家人伴侣宠物、住处和工作、喜好（v7.19.0，`core/profile.py`）。同一件事后来说法改了，新的顶替旧的，被顶替的列在「Changed since」里（v7.22.0）。下面是有内容时才出现的：用户自己生成的画像、
   决策偏移、待办和纪律
 - **prefetch**：对本轮问题现做本地召回（每轮约 30–140ms），每条带「哪天说的」；问到住处 / 公司 / 职位等时，
   附上双时态的当前信念（「user lives in 上海 (since 2026-09-01)」）。只注入和问题至少有一个实词对得上的，不相关的问题

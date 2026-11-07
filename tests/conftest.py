@@ -32,3 +32,5 @@ for _k in ("NYX_EMBED_PROVIDER", "NYX_EMBED_MODEL", "EMBEDDING_API_URL", "EMBEDD
 os.environ["XDG_CONFIG_HOME"] = os.path.join(_SESSION, "config")
 # 给人看的输出默认英文，中文系统语言下才是中文（v7.16.0）：测试不随开发者的系统语言变；要测中文的自己设 zh
 os.environ["NYX_LANG"] = "en"
+# 后台预热顺手清理隔离区（v7.22.0）会和测试里的遗忘 / 清理抢同一份数据：默认关，test_autopurge.py 自己打开
+os.environ["NYX_AUTO_PURGE"] = "off"
