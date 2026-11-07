@@ -300,7 +300,7 @@ def memory_block(items) -> str:
 _PROFILE_SETTINGS = (("semantic", "NYX_EMBED"), ("embedding_model", "NYX_EMBED_MODEL"),
                      ("embedding_api_url", "EMBEDDING_API_URL"), ("rerank", "NYX_RERANK"),
                      ("vault", "NYX_VAULT"), ("vault_reveal", "NYX_VAULT_REVEAL"), ("vault_kinds", "NYX_VAULT_KINDS"),
-                     ("l3_llm", "NYX_L3_LLM"), ("lang", "NYX_LANG"))
+                     ("l3_llm", "NYX_L3_LLM"), ("lang", "NYX_LANG"), ("auto_purge", "NYX_AUTO_PURGE"))
 
 
 def _data_dir_in_use() -> Optional[str]:
@@ -477,8 +477,9 @@ class NexSandglassProvider(MemoryProvider):
         return (self._agent_context or "") in _WRITE_CONTEXTS
 
     @staticmethod
-    def _warm() -> None:
-        """增量补齐索引 + 把倒排与日志镜像读进内存 + 一次预热召回（连接、Déjà Vu、时序表）。"""
+    def _warm(auto_purge: bool = False) -> None:
+        """增量补齐索引 + 把倒排与日志镜像读进内存 + 一次预热召回（连接、Déjà Vu、时序表）；
+        auto_purge：顺手清理隔离区里过了保留期的（一天最多一次，core/autopurge.py）。"""
         t0 = time.time()
         try:
             from nexsandglass.core import sandglass_sqlite, journal_mirror
@@ -496,13 +497,26 @@ class NexSandglassProvider(MemoryProvider):
                 logger.info("Nyx 画像：新收进 %d 条", n)
         except Exception as e:
             logger.warning("Nyx 预热失败（不影响使用，首轮查询会现场加载）: %s", e)
+        if auto_purge:
+            try:
+                from nexsandglass.core import autopurge
+                autopurge.run_if_due()
+            except Exception as e:
+                logger.warning("Nyx: automatic purge of the quarantine failed (doctor shows it): %s", e)
 
     def _warm_async(self) -> None:
+        # 这个 profile 的设置在这里读：后台线程不一定带得上当前的设置作用域
+        try:
+            from nexsandglass.core import autopurge
+            auto = autopurge.enabled()
+        except Exception:
+            auto = False
+        target = (lambda: self._warm(auto_purge=True)) if auto else self._warm    # noqa: E731
         try:
             from agent.memory_provider import spawn_context_thread
-            t = spawn_context_thread(self._warm, name="nyx-warm")
+            t = spawn_context_thread(target, name="nyx-warm")
         except Exception:
-            t = threading.Thread(target=self._warm, name="nyx-warm", daemon=True)
+            t = threading.Thread(target=target, name="nyx-warm", daemon=True)
         t.start()
         self._warm_thread = t
 
@@ -1320,6 +1334,10 @@ class NexSandglassProvider(MemoryProvider):
                                "profile and recent decisions to them. Off by default; before v7.15.2 a key alone was enough.",
                                "画像 / 偏移率 / 幽灵决策这些 L3 分析调用 DeepSeek 或 OpenRouter（用 DEEPSEEK_API_KEY / "
                                "OPENROUTER_API_KEY）。会把相关的记忆片段、画像、近期决策发给它们。默认关；v7.15.2 以前有 key 就用。")},
+            {"key": "auto_purge", "type": "text", "default": "on", "choices": ["on", "off"],
+             "description": _t("Once a day, erase forgotten memories whose retention period is over (and their media "
+                               "files). Memories still within the period are never touched and can be restored.",
+                               "每天一次，把过了保留期的遗忘内容（以及它们的素材文件）真正删掉。还在保留期内的一条都不动，照样能救回。")},
             {"key": "lang", "type": "text", "default": "auto", "choices": ["auto", "en", "zh"],
              "description": _t("Language of Nyx's terminal output and these settings: auto = follow the system locale, "
                                "en = English, zh = Chinese. What the model sees is always English.",

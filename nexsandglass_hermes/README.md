@@ -69,6 +69,7 @@ instructions? Run `install` once more and it switches to an installation Hermes 
 | `vault_kinds` | `all` | `tokens` = do not keep passwords |
 | `lang` | `auto` | Language of terminal commands and `hermes memory setup`: `en` / `zh`; `auto` = Chinese when the system locale is Chinese (v7.16.0). Text the model reads is always English |
 | `l3_llm` | `off` | `on` = the L3 analyses (persona / decision drift / phantom decisions) call DeepSeek or OpenRouter (`DEEPSEEK_API_KEY` / `OPENROUTER_API_KEY`, from the current profile) and send them relevant memory snippets, the persona and recent decisions. Before v7.15.2 this happened whenever a key was present |
+| `auto_purge` | `on` | Once a day, erase forgotten memories past their retention period (and their media files); never touches what can still be restored (v7.22.0) |
 
 ## Terminal commands: `hermes nyx …` (v7.15.2)
 
@@ -184,7 +185,7 @@ Threat model and tests: [docs/secret-vault.md](https://github.com/sixgodgit/nyx/
 
 - **system prompt** (once per session): `[About the user]` — what the user has said about themselves, in their own words
   and newest first: standing requests to the agent, health and diet, family / partner / pets, home and work, likes and
-  dislikes (v7.19.0; `core/profile.py`). Below it, when there is something to say: the persona the user built, decision
+  dislikes (v7.19.0; `core/profile.py`). A later statement about the same thing replaces the earlier one and the replaced words are listed under "Changed since" (v7.22.0). Below it, when there is something to say: the persona the user built, decision
   drift, open to-dos and rules
 - **prefetch**: a fresh local recall for this turn's question (about 30–140 ms per turn), each entry with the date it was said;
   for questions about where the user lives / works / their job, the current bi-temporal belief is added

@@ -5,6 +5,57 @@ Benchmark section of the README and `benchmarks/`. Entries from v7.16.0 on are i
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。v7.16.0 起的条目用英文，之前的是中文。
 
+### v7.22.0 (2026-11-07) — The always-on profile follows changes of mind; forgotten memories are erased when due
+
+**Why.** A personal agent's user changes their mind: "reply in English from now on", "I eat meat again", "we moved to
+Denver", "call me Samantha". The profile kept every statement, newest first, so "reply in Chinese" and "reply in
+English" were both standing requests and the model had to guess from the dates. Separately, forgetting moved memories to
+a quarantine whose expiry nobody ran: nothing erased them unless the user set up a cron.
+
+**Measured first.** Four new personal stories with changes of mind (zh-wuhan and en-boston for development, zh-xiamen
+and en-chicago held out, written before the rules) plus the moves already in the first eight stories: 21 changes. A new
+check reads the block's current part. With v7.21.0, the old words were still shown as current for 19 of the 21 changes
+(held out: 7 of 9), and only 76% of the new words were there at all (some changes were not recognised as statements
+about the user).
+
+A correction to what was said before this release: PersonaMem's preference-evolution questions (139 of 589) do not
+measure this. Their changes are told as stories ("I removed my personal finance blog recently… disheartening") and the
+questions ask for the whole history of one preference that the current message does not mention, so the problem there
+is recall, not the profile. They stay where they were.
+
+**Changes.**
+- **Topic slots** (`core/profile.py`): every clause of a profile line gets the topics it is about — for requests:
+  reply language, emoji, length, tables, lists, what to call the user; health: meat or not, alcohol, smoking, coffee, each
+  allergen; about them: name, where they live, job (only with an employer, a profession or a change of job, so "I work
+  in Shanghai now" is not a new job), age; likes: the thing liked. A later statement on a topic replaces the earlier one;
+  only the clause that changed goes ("reply in Chinese, no emoji" then "reply in English" keeps "…no emoji"); clauses with
+  no recognised topic, and family facts, are never replaced. Order is by when things were said, so an older conversation
+  imported later does not replace newer words.
+- The block ends with up to three "Changed since" lines: the replaced words, their date and the date they changed.
+- Change statements recognised as statements about the user: 不吃素了 / 开始吃肉 / 不怎么喝…了 / 改喝 / 不太爱 / 我也喜欢;
+  "I've started eating meat again", "I don't really enjoy … anymore", "I'm not into …". Rules version 4 (rescanned once).
+- **Automatic purge** (`core/autopurge.py`): the Hermes provider's background warm-up erases quarantined memories whose
+  retention period is over, at most once a day, primary context only; media files go with them. What is still within its
+  retention period is never touched. `auto_purge: off` / `NYX_AUTO_PURGE=off` turns it off; `doctor` shows when it last ran.
+
+**Measured after** (lexical, the default install):
+
+| | v7.21.0 | v7.22.0 | Held out, v7.21.0 | Held out, v7.22.0 |
+|---|---|---|---|---|
+| New words shown in the block's current part | 76% | **95%** | 56% | **89%** |
+| Old words still shown as current | 19 of 21 | **1** | 7 of 9 | **1** |
+| Facts the agent needed and saw (12 stories) | 93% | **98%** | 87% | **95%** |
+| Unrelated entries injected per question | 1.24 | 1.24 | 1.84 | 1.84 |
+
+- The miss left: "Honestly I've come around on jazz" does not replace "I hate jazz".
+- The first eight stories: every metric unchanged; the block is 640 → 686 characters (the "Changed since" lines).
+- PersonaMem: the block is identical on all 589 questions; proxy unchanged. Two runs of the same code differ in the order
+  of tied recall results on about 13 questions — recall merges its sources as they finish — which is a known,
+  separate issue.
+- Automatic purge checked through real Hermes (main): `MemoryManager` starts the provider, the warm-up erases a memory
+  forgotten 40 days ago and leaves one forgotten 3 days ago.
+- Tests: 804 passed on Python 3.11 and 3.10 (9 new).
+
 ### v7.21.0 (2026-11-07) — A framework for remembering photos, recordings and videos
 
 **Why.** Seeing and hearing are how much of a life is remembered: a photo of the cat in the snow, a voice note to
