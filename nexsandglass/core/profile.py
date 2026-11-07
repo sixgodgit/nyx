@@ -27,7 +27,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-RULES_VERSION = "3"
+RULES_VERSION = "4"
 KINDS = ("instruction", "health", "people", "identity", "likes")
 HEADERS = {
     "instruction": "Standing requests to you",
@@ -71,7 +71,7 @@ _ZH = {
     "health": [
         r"过敏", r"吃素|素食|纯素", r"我(从来|从小|平时|一直|基本)?(都)?不(吃|喝)(?!饭|东西|早饭|午饭|晚饭)",
         r"不能(吃|喝)", r"忌口", r"乳糖不耐", r"麸质", r"糖尿病|高血压|痛风|心脏(不好|病)|哮喘", r"怀孕|备孕|孕期",
-        r"戒(酒|烟|糖|咖啡)",
+        r"戒(酒|烟|糖|咖啡)", r"(开始|又|重新|恢复)(吃|喝)(肉|荤|酒|咖啡)|不(再)?吃素了|不再吃素",
     ],
     "people": [
         r"我(的)?(女儿|儿子|孩子|闺女|宝宝|老婆|老公|妻子|丈夫|爱人|媳妇|对象|男朋友|女朋友|男友|女友|"
@@ -87,8 +87,10 @@ _ZH = {
         r"我今年\d{1,2}岁", r"(换到|跳槽到|入职|去了)[^，。！？\n]{1,12}(工作|上班|做|当)",
     ],
     "likes": [
-        r"我(最|特别|非常|很|真的|一直|还挺|挺)?(喜欢|爱吃|爱喝|爱看|爱玩|热爱|讨厌|不喜欢|受不了|偏好|迷上)",
+        r"我(也|还|都)?(最|特别|非常|很|真的|一直|还挺|挺)?(喜欢|爱吃|爱喝|爱看|爱玩|热爱|讨厌|不喜欢|受不了|偏好|迷上)",
         r"我(的)?最爱", r"业余(时间)?(喜欢|爱|会)", r"(我一直在练|我在练|我每周都|我周末(经常|常常|都会))",
+        r"(不再|不怎么|不太|没那么)(喜欢|爱)", r"(不再|不怎么)(吃|喝)[^，。！？\n]{1,10}了", r"改(吃|喝|看|玩|听)",
+        r"(现在|最近)(开始)?(喜欢|爱上|迷上)",
     ],
 }
 
@@ -108,6 +110,7 @@ _EN = {
         r"\ballerg", r"\b(vegan|vegetarian|pescatarian|lactose|gluten|coeliac|celiac|kosher|halal)\b",
         r"\bi (don'?t|do not|can'?t|cannot|never) (eat|drink)\b", r"\b(diabet|pregnan|intoleran|asthma|hypertension)",
         r"\b(heart condition|blood pressure)\b",
+        r"\b(started|start|began) eating (meat|fish)\b|\b(eat|eating) (meat|fish) again\b",
     ],
     "people": [
         r"\bmy (wife|husband|partner|spouse|girlfriend|boyfriend|fianc[eé]e?|son|daughter|kids?|children|child|baby|"
@@ -131,6 +134,8 @@ _EN = {
         r"\bi (really |absolutely |just |also )?(love|like|enjoy|hate|dislike|prefer|adore)\b", r"\bi can'?t stand\b",
         r"\bmy favou?rite\b", r"\bi'?m (a (big|huge) )?fan of\b", r"\bin my spare time\b",
         r"\bi'?m training for\b", r"\bmost (evenings|weekends|mornings)\b",
+        r"\bi (don'?t|do not|no longer) (really |actually )?(love|like|enjoy|care for)\b",
+        r"\bi'?m (not|no longer) (really )?into\b", r"\bi'?m (really )?into\b",
     ],
 }
 
@@ -183,6 +188,105 @@ def _excerpt(text: str, sents: list, i: int) -> str:
         out = out + " " + sents[i + 1]
     out = " ".join(out.split())
     return out if len(out) <= LINE_CHARS else out[: LINE_CHARS - 1].rstrip() + "…"
+
+
+# ══════════════════════════════════════════════════════════
+# 同一件事说法改了：新的顶替旧的（v7.22.0）
+# ══════════════════════════════════════════════════════════
+#
+# 「以后用中文回复」半年后变成「以后用英文吧」，「我是素食者」变成「我不吃素了」：以前两句都留在常驻块里，
+# 靠模型自己按日期判断哪句算数。现在每个分句标上它说的是哪件事（话题槽）；同一个槽，新说的顶替旧说的。
+#   - 一句话里几件事只改了一件：只去掉被改的分句（「以后用中文，不要用 emoji」改了语言，「不要用 emoji」还在）
+#   - 认不出话题的分句从不被顶替；家人的事（people）不参与
+#   - 被顶替的话不丢：常驻块最后一段「Changed since」列出最近几条，带改口的日期；搜索里一直都在
+
+_LANG = (r"中文|英文|英语|日语|日文|韩语|法语|德语|西班牙语|繁体|简体|粤语|普通话|\b(english|chinese|mandarin|cantonese|"
+         r"japanese|korean|french|german|spanish|italian|portuguese|russian|arabic|hindi)\b")
+_SLOT_RULES = {
+    "instruction": [
+        ("lang", re.compile(_LANG, re.I)),
+        ("emoji", re.compile(r"emoji|表情", re.I)),
+        ("length", re.compile(r"简短|简洁|短一点|短些|长一点|详细|啰嗦|字数|不超过|别超过|\b(short|shorter|brief|briefly|"
+                              r"concise|concisely|detailed|longer|lengthy|in detail)\b", re.I)),
+        ("tables", re.compile(r"表格|\btables?\b", re.I)),
+        ("lists", re.compile(r"列表|分点|\bbullet|\blists?\b|\bnumbered\b", re.I)),
+        ("call_me", re.compile(r"叫我|称呼我|\bcall me\b|\baddress me\b", re.I)),
+    ],
+    "health": [
+        ("diet_meat", re.compile(r"吃素|素食|纯素|吃肉|吃荤|\b(vegan|vegetarian|pescatarian)\b|\b(eat|eating|ate) (meat|fish)\b"
+                                 r"|\bmeat\b", re.I)),
+        ("alcohol", re.compile(r"喝酒|戒酒|酒精|\balcohol\b|\bsober\b|\bdrinking\b", re.I)),
+        ("smoking", re.compile(r"抽烟|吸烟|戒烟|\bsmok", re.I)),
+        ("coffee", re.compile(r"咖啡|\bcoffee\b|\bcaffeine\b", re.I)),
+    ],
+    "identity": [
+        ("name", re.compile(r"我叫|名字|\bmy name is\b|\bi'?m called\b", re.I)),
+        ("residence", re.compile(r"住在|搬到|搬去|搬家到?|定居|\blive in\b|\bliving in\b|\bmoved (from [^,.;]{1,30} )?to\b",
+                                 re.I)),
+        ("age", re.compile(r"\d{1,2}岁|\byears old\b", re.I)),
+    ],
+}
+_JOB_VERB = re.compile(r"上班|工作|任职|教书|教[语数英物化生历地政]|当|做|\bwork(s|ing|ed)? (as|at|for|in)\b|\bteach|"
+                       r"\bi'?m an? ", re.I)
+_JOB_WHAT = re.compile(r"工程师|程序员|开发|老师|教师|医生|护士|设计师|学生|老板|律师|会计|编辑|销售|经理|厨师|司机|研究员|作家|记者|"
+                       r"教授|公务员|店长|主管|公司|医院|学校|高中|初中|小学|大学|银行|工厂|出版社|单位|集团|事务所|实验室|研究所|报社|"
+                       r"电商|外贸|餐厅|语文|数学|\b(engineer|developer|programmer|teacher|nurse|doctor|designer|student|lawyer|"
+                       r"editor|chef|manager|founder|writer|researcher|accountant|scientist|consultant|analyst|professor|"
+                       r"journalist|company|startup|hospital|school|bank|firm|agency|studio|university|clinic|restaurant|"
+                       r"math|science)\b", re.I)
+_JOB_CHANGE = re.compile(r"换(了)?(一)?(家|个|份)?[^，。！？\s]{0,6}(工作|公司|单位)|跳槽|入职|辞职|离职|退休|转行|新工作|\bnew job\b|\bswitched jobs\b|"
+                         r"\bretired\b|\bquit my job\b|\bjoined\b", re.I)
+_ALLERGY = re.compile(r"对([^，。！？\s]{1,8}?)过敏|allergic to ([a-z][a-z -]{1,30}?)(?=[,.;!?]|$|\s+(?:and|so|even|but)\b)", re.I)
+_LIKE_ZH = re.compile(r"(?:最爱|爱吃|爱喝|爱看|爱玩|爱听|热爱|喜欢|讨厌|受不了|偏好|迷上|爱上|爱|改|不再|不怎么)"
+                      r"(?P<o>[^，。！？、\s了的啊呀吧]{1,10})")
+_LIKE_EN = re.compile(r"\b(?:love|like|enjoy|hate|dislike|prefer|adore|can'?t stand|fan of|into)\s+(?P<o>[a-z][a-z' -]{1,40}?)"
+                      r"(?=[,.;!?]|$|\s+(?:and|but|because|so|now|anymore|any more|these days|lately|too|a lot|very much|"
+                      r"every|at|in|on)\b)", re.I)
+_EN_DET = re.compile(r"^(the|a|an|my|some|watching|eating|playing|listening to|reading|drinking|going to|to)\s+", re.I)
+_CLAUSE = re.compile(r"[，,；;。！？!?]+\s*|\s+(?:and|but)\s+", re.I)
+
+
+def _en_stem(w: str) -> str:
+    """只用来比较两个说法是不是同一样东西：movie / movies、comedy / comedies、table / tables 落到同一个键。"""
+    if len(w) <= 3 or w.endswith("ss"):
+        return w
+    w = re.sub(r"s$", "", w)
+    return re.sub(r"(ie|y|e)$", "", w) if len(w) > 3 else w
+
+
+def _like_objects(clause: str) -> set:
+    out = set()
+    for m in _LIKE_ZH.finditer(clause):
+        o = re.sub(r"^(吃|喝|看|玩|听|去|用)", "", m.group("o"))
+        if len(o) >= 1 and o not in ("吃", "喝", "看", "玩", "听"):
+            out.add("like:" + o)
+    for m in _LIKE_EN.finditer(clause):
+        o = _EN_DET.sub("", m.group("o").strip().lower())
+        o = " ".join(_en_stem(w) for w in o.split() if w not in ("really", "actually", "just"))
+        if o and o not in ("it", "that", "this", "them", "you"):
+            out.add("like:" + o)
+    return out
+
+
+def slots(kind: str, clause: str) -> set:
+    """这个分句说的是哪几件事。people 不参与；认不出的返回空集（不会被顶替）。"""
+    c = clause or ""
+    found = set()
+    for name, pat in _SLOT_RULES.get(kind, ()):
+        if pat.search(c):
+            found.add(name)
+    if kind == "identity" and (_JOB_CHANGE.search(c) or (_JOB_VERB.search(c) and _JOB_WHAT.search(c))):
+        found.add("job")
+    if kind == "health":
+        for m in _ALLERGY.finditer(c):
+            found.add("allergy:" + (m.group(1) or m.group(2) or "").strip().lower())
+    if kind == "likes":
+        found |= _like_objects(c)
+    return found
+
+
+def _clauses(text: str) -> list:
+    return [c.strip() for c in _CLAUSE.split(text or "") if c and c.strip()]
 
 
 # ══════════════════════════════════════════════════════════
@@ -283,30 +387,59 @@ def reconsider(mem_ids) -> int:
 # 渲染
 # ══════════════════════════════════════════════════════════
 
+CHANGED_KEEP = 3                 # 「Changed since」里最多列几条
+
+
 def items(conn: Optional[sqlite3.Connection] = None) -> dict:
-    """{类别: [(日期, 摘句, mem_id)]}，新的在前，每类有上限，内容相同的只留最新一条。"""
+    """{类别: [(日期, 摘句, mem_id)]}，新的在前，每类有上限，内容相同的只留最新一条；
+    同一件事后来说法改了的，旧的分句不在类别里，列在 out["changed"]：[(日期, 被改的话, mem_id, 改口的日期)]。"""
     from nexsandglass.core import memid
     conn = conn or memid.get_conn()
     _ensure(conn)
     out = {k: [] for k in KINDS}
+    out["changed"] = []
     seen = set()
+    claimed = {}                                     # 话题槽 → 最新说它的那句的日期
     # 按说话的时间排，不按写入先后：导入的旧对话（hermes nyx import）写得晚，但不能排到最新
     rows = conn.execute("SELECT p.kind, m.mem_id, m.ts, m.text FROM profile_items p JOIN memories m "
                         "ON m.mem_id = p.mem_id WHERE m.deleted_at IS NULL ORDER BY m.ts DESC, m.seq DESC")
     for kind, mem_id, ts, text in rows:
-        if all(len(out[k]) >= PER_KIND[k] for k in KINDS):
+        if all(len(out[k]) >= PER_KIND[k] for k in KINDS) and len(out["changed"]) >= CHANGED_KEEP:
             break                                    # 每类都满了：更早的不用再看
-        if kind not in out or len(out[kind]) >= PER_KIND[kind]:
+        if kind not in PER_KIND:
             continue
         hit = classify(text)                         # 正文可能已被隐去密钥 / 改写：按现在的正文重新摘
         if not hit:
             continue
-        key = re.sub(r"[\W_]+", "", hit[1].lower())
+        date, excerpt = str(ts or "")[:10], hit[1]
+        clauses = _clauses(excerpt)
+        cslots = [slots(kind, c) for c in clauses]
+        mine = set().union(*cslots) if cslots else set()
+        gone = {sl for sl in mine if sl in claimed}
+        if gone:
+            keep = [c for c, ss in zip(clauses, cslots) if ss and not ss <= gone]
+            removed = [c for c, ss in zip(clauses, cslots) if ss and ss <= gone]
+            if removed and len(out["changed"]) < CHANGED_KEEP:
+                when = max(claimed[sl] for sl in gone)
+                out["changed"].append((date, ("，" if _is_zh(excerpt) else ", ").join(removed), mem_id, when))
+            if not keep:
+                continue                             # 这句说的事后来都改了
+            joiner = "，" if _is_zh(excerpt) else ", "
+            excerpt = ("…" if clauses and clauses[0] not in keep else "") + joiner.join(keep)
+        for sl in mine - gone:
+            claimed[sl] = date
+        if len(out[kind]) >= PER_KIND[kind]:
+            continue
+        key = re.sub(r"[\W_]+", "", excerpt.lower())
         if key in seen:
             continue
         seen.add(key)
-        out[kind].append((str(ts or "")[:10], hit[1], mem_id))
+        out[kind].append((date, excerpt, mem_id))
     return out
+
+
+def _is_zh(text: str) -> bool:
+    return bool(re.search(r"[一-鿿]", text or ""))
 
 
 def render(conn: Optional[sqlite3.Connection] = None) -> str:
@@ -330,5 +463,14 @@ def render(conn: Optional[sqlite3.Connection] = None) -> str:
             parts.append(HEADERS[kind] + ":\n" + "\n".join(lines))
     if not parts:
         return ""
+    changed = []
+    for date, text, _, when in got.get("changed", []):
+        line = f"- [{date}] {text} (changed {when})"
+        if used + len(line) > TOTAL_CHARS:
+            break
+        changed.append(line)
+        used += len(line)
+    if changed:
+        parts.append("Changed since (their earlier words, replaced by what is above):\n" + "\n".join(changed))
     return ("[About the user: their own words, newest first; [date] = when they said it]\n"
             + "\n".join(parts))

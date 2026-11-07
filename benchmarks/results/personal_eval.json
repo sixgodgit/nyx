@@ -1,5 +1,5 @@
 {
- "benchmark": "personal scenarios (benchmarks/personal_eval.py + personal_cases.py): 8 stories (4 zh, 4 en), 300 filler turns each; dev = used while developing, test = held out",
+ "benchmark": "personal scenarios (benchmarks/personal_eval.py + personal_cases.py): 12 stories (6 zh, 6 en), 300 filler turns each; dev = used while developing, test = held out. v7.22.0 added four stories where the user changes their mind (zh-wuhan, en-boston dev; zh-xiamen, en-chicago held out) and the changes_* metrics",
  "lexical": true,
  "v7.18.1": {
   "report": {
@@ -2689,6 +2689,1502 @@
       "junk": 0,
       "echo": 0,
       "chars": 0,
+      "stale": []
+     }
+    ]
+   }
+  ]
+ },
+ "v7.22.0": {
+  "note": "Profile follows changes of mind. Before (v7.21.0 code, same 12 stories): changes_now 0.76, changes_was 19 of 21; held out 0.56 / 7 of 9. After: 0.95 / 1 (held out 0.89 / 1: 'I've come around on jazz' is not recognised). The original eight stories: every metric unchanged, block 640.5 -> 686.3 chars (the 'Changed since' section).",
+  "baseline_v7.21.0": {
+   "all": {
+    "stories": 12,
+    "errors": 0,
+    "probes": 90,
+    "fact_visible": 0.93,
+    "fact_visible_via_block": 0.674,
+    "probe_complete": 0.91,
+    "junk_per_probe": 1.24,
+    "echo_per_probe": 0.06,
+    "lines_per_probe": 1.54,
+    "unrelated_clean": 0.85,
+    "inject_chars": 147.22,
+    "block_chars": 642.5,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 21,
+    "changes_now": 0.76,
+    "changes_was": 19,
+    "recall_ms_mean": 11.48
+   },
+   "split=dev": {
+    "stories": 6,
+    "errors": 0,
+    "probes": 46,
+    "fact_visible": 0.979,
+    "fact_visible_via_block": 0.688,
+    "probe_complete": 0.97,
+    "junk_per_probe": 0.67,
+    "echo_per_probe": 0.07,
+    "lines_per_probe": 1.04,
+    "unrelated_clean": 0.9,
+    "inject_chars": 79.28,
+    "block_chars": 672.33,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 12,
+    "changes_now": 0.92,
+    "changes_was": 12,
+    "recall_ms_mean": 11.93
+   },
+   "split=test": {
+    "stories": 6,
+    "errors": 0,
+    "probes": 44,
+    "fact_visible": 0.868,
+    "fact_visible_via_block": 0.658,
+    "probe_complete": 0.85,
+    "junk_per_probe": 1.84,
+    "echo_per_probe": 0.05,
+    "lines_per_probe": 2.07,
+    "unrelated_clean": 0.8,
+    "inject_chars": 218.25,
+    "block_chars": 612.67,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 9,
+    "changes_now": 0.56,
+    "changes_was": 7,
+    "recall_ms_mean": 11.02
+   },
+   "lang=en": {
+    "stories": 6,
+    "errors": 0,
+    "probes": 45,
+    "fact_visible": 0.953,
+    "fact_visible_via_block": 0.674,
+    "probe_complete": 0.94,
+    "junk_per_probe": 2.09,
+    "echo_per_probe": 0.02,
+    "lines_per_probe": 2.38,
+    "unrelated_clean": 0.7,
+    "inject_chars": 245.84,
+    "block_chars": 763.33,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 10,
+    "changes_now": 0.8,
+    "changes_was": 9,
+    "recall_ms_mean": 11.99
+   },
+   "lang=zh": {
+    "stories": 6,
+    "errors": 0,
+    "probes": 45,
+    "fact_visible": 0.907,
+    "fact_visible_via_block": 0.674,
+    "probe_complete": 0.89,
+    "junk_per_probe": 0.4,
+    "echo_per_probe": 0.09,
+    "lines_per_probe": 0.71,
+    "unrelated_clean": 1.0,
+    "inject_chars": 48.6,
+    "block_chars": 521.67,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 11,
+    "changes_now": 0.73,
+    "changes_was": 10,
+    "recall_ms_mean": 10.98
+   }
+  },
+  "report": {
+   "all": {
+    "stories": 12,
+    "errors": 0,
+    "probes": 90,
+    "fact_visible": 0.977,
+    "fact_visible_via_block": 0.721,
+    "probe_complete": 0.97,
+    "junk_per_probe": 1.24,
+    "echo_per_probe": 0.06,
+    "lines_per_probe": 1.54,
+    "unrelated_clean": 0.85,
+    "inject_chars": 147.22,
+    "block_chars": 716.42,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 21,
+    "changes_now": 0.95,
+    "changes_was": 1,
+    "recall_ms_mean": 11.8
+   },
+   "split=dev": {
+    "stories": 6,
+    "errors": 0,
+    "probes": 46,
+    "fact_visible": 1.0,
+    "fact_visible_via_block": 0.708,
+    "probe_complete": 1.0,
+    "junk_per_probe": 0.67,
+    "echo_per_probe": 0.07,
+    "lines_per_probe": 1.04,
+    "unrelated_clean": 0.9,
+    "inject_chars": 79.28,
+    "block_chars": 736.5,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 12,
+    "changes_now": 1.0,
+    "changes_was": 0,
+    "recall_ms_mean": 12.38
+   },
+   "split=test": {
+    "stories": 6,
+    "errors": 0,
+    "probes": 44,
+    "fact_visible": 0.947,
+    "fact_visible_via_block": 0.737,
+    "probe_complete": 0.94,
+    "junk_per_probe": 1.84,
+    "echo_per_probe": 0.05,
+    "lines_per_probe": 2.07,
+    "unrelated_clean": 0.8,
+    "inject_chars": 218.25,
+    "block_chars": 696.33,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 9,
+    "changes_now": 0.89,
+    "changes_was": 1,
+    "recall_ms_mean": 11.19
+   },
+   "lang=en": {
+    "stories": 6,
+    "errors": 0,
+    "probes": 45,
+    "fact_visible": 0.977,
+    "fact_visible_via_block": 0.698,
+    "probe_complete": 0.97,
+    "junk_per_probe": 2.09,
+    "echo_per_probe": 0.02,
+    "lines_per_probe": 2.38,
+    "unrelated_clean": 0.7,
+    "inject_chars": 245.84,
+    "block_chars": 829.83,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 10,
+    "changes_now": 0.9,
+    "changes_was": 1,
+    "recall_ms_mean": 11.56
+   },
+   "lang=zh": {
+    "stories": 6,
+    "errors": 0,
+    "probes": 45,
+    "fact_visible": 0.977,
+    "fact_visible_via_block": 0.744,
+    "probe_complete": 0.97,
+    "junk_per_probe": 0.4,
+    "echo_per_probe": 0.09,
+    "lines_per_probe": 0.71,
+    "unrelated_clean": 1.0,
+    "inject_chars": 48.6,
+    "block_chars": 603.0,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 11,
+    "changes_now": 1.0,
+    "changes_was": 0,
+    "recall_ms_mean": 12.03
+   }
+  },
+  "stories": [
+   {
+    "id": "zh-hangzhou",
+    "split": "dev",
+    "lang": "zh",
+    "wrong_beliefs": [],
+    "block_chars": 592,
+    "changes": [
+     {
+      "now": true,
+      "was": false
+     }
+    ],
+    "probes": [
+     {
+      "q": "今晚吃什么好？给我推荐几个菜",
+      "kind": "personal",
+      "visible": {
+       "diet": "block",
+       "allergy": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "帮我给同事写封邮件，说明天请假",
+      "kind": "personal",
+      "visible": {
+       "no_emoji": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "给孩子准备什么生日礼物好",
+      "kind": "personal",
+      "visible": {
+       "daughter": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "这周末去哪儿玩比较好",
+      "kind": "personal",
+      "visible": {
+       "shanghai": "turn",
+       "hiking": "turn"
+      },
+      "n_lines": 2,
+      "junk": 0,
+      "echo": 0,
+      "chars": 152,
+      "stale": []
+     },
+     {
+      "q": "我现在住在哪个城市？",
+      "kind": "personal",
+      "visible": {
+       "shanghai": "turn"
+      },
+      "n_lines": 2,
+      "junk": 0,
+      "echo": 1,
+      "chars": 170,
+      "stale": []
+     },
+     {
+      "q": "线上数据库要升级大版本，要注意什么",
+      "kind": "work",
+      "visible": {
+       "db": "turn"
+      },
+      "n_lines": 10,
+      "junk": 9,
+      "echo": 0,
+      "chars": 445,
+      "stale": []
+     },
+     {
+      "q": "光速大概是多少？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "怎么给自行车补胎？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "zh-chengdu",
+    "split": "dev",
+    "lang": "zh",
+    "wrong_beliefs": [],
+    "block_chars": 553,
+    "changes": [],
+    "probes": [
+     {
+      "q": "下午想喝点东西，推荐一下",
+      "kind": "personal",
+      "visible": {
+       "lactose": "block"
+      },
+      "n_lines": 1,
+      "junk": 0,
+      "echo": 1,
+      "chars": 122,
+      "stale": []
+     },
+     {
+      "q": "周末全家出去吃饭，帮我挑个餐厅",
+      "kind": "personal",
+      "visible": {
+       "wife": "block",
+       "cilantro": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "给我详细讲讲什么是量子计算",
+      "kind": "personal",
+      "visible": {
+       "short": "block",
+       "name": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "孩子学琴总是坐不住怎么办",
+      "kind": "personal",
+      "visible": {
+       "son": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "猫最近不爱吃饭是怎么回事",
+      "kind": "personal",
+      "visible": {
+       "cat": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "我值夜班太累了，有什么提神的办法",
+      "kind": "personal",
+      "visible": {
+       "job": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "珠穆朗玛峰有多高？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "怎么叠一只纸鹤？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "zh-beijing",
+    "split": "test",
+    "lang": "zh",
+    "wrong_beliefs": [],
+    "block_chars": 622,
+    "changes": [
+     {
+      "now": true,
+      "was": false
+     }
+    ],
+    "probes": [
+     {
+      "q": "推荐几本适合周末看的书",
+      "kind": "personal",
+      "visible": {
+       "no_webnovel": "turn"
+      },
+      "n_lines": 1,
+      "junk": 0,
+      "echo": 0,
+      "chars": 100,
+      "stale": []
+     },
+     {
+      "q": "帮我列一个这周的工作计划",
+      "kind": "personal",
+      "visible": {
+       "no_table": "block"
+      },
+      "n_lines": 1,
+      "junk": 0,
+      "echo": 1,
+      "chars": 115,
+      "stale": []
+     },
+     {
+      "q": "我妈过生日，送什么好",
+      "kind": "personal",
+      "visible": {
+       "mom": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "下午犯困，喝点什么提神",
+      "kind": "personal",
+      "visible": {
+       "heart": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "我现在在哪里工作？",
+      "kind": "personal",
+      "visible": {
+       "publisher": "block"
+      },
+      "n_lines": 2,
+      "junk": 1,
+      "echo": 1,
+      "chars": 156,
+      "stale": []
+     },
+     {
+      "q": "周末去哪儿拍点东西",
+      "kind": "personal",
+      "visible": {
+       "photo": "block"
+      },
+      "n_lines": 1,
+      "junk": 1,
+      "echo": 0,
+      "chars": 105,
+      "stale": []
+     },
+     {
+      "q": "地球到月球有多远？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "怎么养多肉植物？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "zh-shenzhen",
+    "split": "test",
+    "lang": "zh",
+    "wrong_beliefs": [],
+    "block_chars": 521,
+    "changes": [],
+    "probes": [
+     {
+      "q": "我有点感冒发烧，能吃什么药",
+      "kind": "personal",
+      "visible": {
+       "penicillin": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "今晚吃什么",
+      "kind": "personal",
+      "visible": {
+       "beef": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "下个月纪念日，送什么礼物好",
+      "kind": "personal",
+      "visible": {
+       "boyfriend": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "这周末去哪跑步",
+      "kind": "personal",
+      "visible": {
+       "guangzhou": "block",
+       "marathon": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "帮我分析一下要不要多开一个店铺",
+      "kind": "personal",
+      "visible": {
+       "blunt": "block"
+      },
+      "n_lines": 5,
+      "junk": 5,
+      "echo": 0,
+      "chars": 244,
+      "stale": []
+     },
+     {
+      "q": "长颈鹿怎么睡觉？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "为什么天空是蓝色的？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "en-seattle",
+    "split": "dev",
+    "lang": "en",
+    "wrong_beliefs": [],
+    "block_chars": 797,
+    "changes": [
+     {
+      "now": true,
+      "was": false
+     }
+    ],
+    "probes": [
+     {
+      "q": "What should I cook for dinner tonight?",
+      "kind": "personal",
+      "visible": {
+       "vegan": "block",
+       "shellfish": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Draft an email to my manager asking for Friday off",
+      "kind": "personal",
+      "visible": {
+       "no_emoji": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Any gift ideas for my kid's birthday?",
+      "kind": "personal",
+      "visible": {
+       "son": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Where should I go this weekend?",
+      "kind": "personal",
+      "visible": {
+       "portland": "turn",
+       "kayak": "turn"
+      },
+      "n_lines": 2,
+      "junk": 0,
+      "echo": 0,
+      "chars": 178,
+      "stale": []
+     },
+     {
+      "q": "Which city do I live in now?",
+      "kind": "personal",
+      "visible": {
+       "portland": "turn"
+      },
+      "n_lines": 3,
+      "junk": 1,
+      "echo": 1,
+      "chars": 266,
+      "stale": []
+     },
+     {
+      "q": "We need to upgrade the production database, what should we watch out for?",
+      "kind": "work",
+      "visible": {
+       "db": "turn"
+      },
+      "n_lines": 10,
+      "junk": 9,
+      "echo": 0,
+      "chars": 856,
+      "stale": []
+     },
+     {
+      "q": "How fast does light travel?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 8,
+      "junk": 8,
+      "echo": 0,
+      "chars": 519,
+      "stale": []
+     },
+     {
+      "q": "How do I patch a bike tire?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "en-london",
+    "split": "dev",
+    "lang": "en",
+    "wrong_beliefs": [],
+    "block_chars": 814,
+    "changes": [],
+    "probes": [
+     {
+      "q": "Recommend something to drink this afternoon",
+      "kind": "personal",
+      "visible": {
+       "lactose": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Pick a restaurant for a family dinner this weekend",
+      "kind": "personal",
+      "visible": {
+       "wife": "block",
+       "coriander": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Explain quantum computing in detail",
+      "kind": "personal",
+      "visible": {
+       "short": "block",
+       "name": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "My dog has stopped eating, what could be wrong?",
+      "kind": "personal",
+      "visible": {
+       "dog": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "How can I stay awake after a long shift?",
+      "kind": "personal",
+      "visible": {
+       "job": "turn"
+      },
+      "n_lines": 1,
+      "junk": 0,
+      "echo": 0,
+      "chars": 137,
+      "stale": []
+     },
+     {
+      "q": "How can I get better at my favourite game?",
+      "kind": "personal",
+      "visible": {
+       "chess": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "How tall is Mount Everest?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "How do I fold a paper crane?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "en-toronto",
+    "split": "test",
+    "lang": "en",
+    "wrong_beliefs": [],
+    "block_chars": 879,
+    "changes": [],
+    "probes": [
+     {
+      "q": "Recommend a few books for the weekend",
+      "kind": "personal",
+      "visible": {
+       "no_selfhelp": "turn"
+      },
+      "n_lines": 1,
+      "junk": 0,
+      "echo": 0,
+      "chars": 132,
+      "stale": []
+     },
+     {
+      "q": "Make me a work plan for this week",
+      "kind": "personal",
+      "visible": {
+       "no_table": "block"
+      },
+      "n_lines": 10,
+      "junk": 10,
+      "echo": 0,
+      "chars": 1014,
+      "stale": []
+     },
+     {
+      "q": "What should I get my mum for her birthday?",
+      "kind": "personal",
+      "visible": {
+       "mom": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Suggest a quick lunch I can make",
+      "kind": "personal",
+      "visible": {
+       "gluten": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Where do I work now?",
+      "kind": "personal",
+      "visible": {
+       "publisher": "block"
+      },
+      "n_lines": 11,
+      "junk": 11,
+      "echo": 0,
+      "chars": 900,
+      "stale": []
+     },
+     {
+      "q": "Where should I go to take some pictures this weekend?",
+      "kind": "personal",
+      "visible": {
+       "photo": "block"
+      },
+      "n_lines": 1,
+      "junk": 1,
+      "echo": 0,
+      "chars": 112,
+      "stale": []
+     },
+     {
+      "q": "How far is the Moon from Earth?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "How do I look after succulents?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 20,
+      "junk": 20,
+      "echo": 0,
+      "chars": 3120,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "en-austin",
+    "split": "test",
+    "lang": "en",
+    "wrong_beliefs": [],
+    "block_chars": 712,
+    "changes": [],
+    "probes": [
+     {
+      "q": "I have a fever and a sore throat, what medicine can I take?",
+      "kind": "personal",
+      "visible": {
+       "penicillin": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "What should I have for dinner?",
+      "kind": "personal",
+      "visible": {
+       "pork": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "What should I get for our anniversary next month?",
+      "kind": "personal",
+      "visible": {
+       "boyfriend": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Where should I go running this weekend?",
+      "kind": "personal",
+      "visible": {
+       "denver": "block",
+       "marathon": "turn"
+      },
+      "n_lines": 1,
+      "junk": 0,
+      "echo": 0,
+      "chars": 136,
+      "stale": []
+     },
+     {
+      "q": "Should I open a second online store?",
+      "kind": "personal",
+      "visible": {
+       "blunt": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "How do giraffes sleep?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Why is the sky blue?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "zh-wuhan",
+    "split": "dev",
+    "lang": "zh",
+    "wrong_beliefs": [],
+    "block_chars": 687,
+    "changes": [
+     {
+      "now": true,
+      "was": false
+     },
+     {
+      "now": true,
+      "was": false
+     },
+     {
+      "now": true,
+      "was": false
+     },
+     {
+      "now": true,
+      "was": false
+     },
+     {
+      "now": true,
+      "was": false
+     }
+    ],
+    "probes": [
+     {
+      "q": "用中文还是英文回复我？",
+      "kind": "personal",
+      "visible": {
+       "english": "turn"
+      },
+      "n_lines": 2,
+      "junk": 1,
+      "echo": 0,
+      "chars": 132,
+      "stale": []
+     },
+     {
+      "q": "帮我写一段生日祝福发给同事",
+      "kind": "personal",
+      "visible": {
+       "english": "block",
+       "no_emoji": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "今晚吃什么？推荐几个菜",
+      "kind": "personal",
+      "visible": {
+       "meat": "block",
+       "mango": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "我现在住在哪个城市？",
+      "kind": "personal",
+      "visible": {
+       "shenzhen": "turn"
+      },
+      "n_lines": 1,
+      "junk": 0,
+      "echo": 0,
+      "chars": 115,
+      "stale": []
+     },
+     {
+      "q": "你一般怎么称呼我？",
+      "kind": "personal",
+      "visible": {
+       "azhou": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "下午帮我点杯咖啡",
+      "kind": "personal",
+      "visible": {
+       "latte": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "长城有多长？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "en-boston",
+    "split": "dev",
+    "lang": "en",
+    "wrong_beliefs": [],
+    "block_chars": 976,
+    "changes": [
+     {
+      "now": true,
+      "was": false
+     },
+     {
+      "now": true,
+      "was": false
+     },
+     {
+      "now": true,
+      "was": false
+     },
+     {
+      "now": true,
+      "was": false
+     },
+     {
+      "now": true,
+      "was": false
+     }
+    ],
+    "probes": [
+     {
+      "q": "Which language should you answer me in?",
+      "kind": "personal",
+      "visible": {
+       "spanish": "turn"
+      },
+      "n_lines": 2,
+      "junk": 1,
+      "echo": 0,
+      "chars": 223,
+      "stale": []
+     },
+     {
+      "q": "Write a quick note to my landlord about the broken heater",
+      "kind": "personal",
+      "visible": {
+       "spanish": "block",
+       "short": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "What should I cook for dinner tonight?",
+      "kind": "personal",
+      "visible": {
+       "fish": "block",
+       "peanut": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Which city do I live in now?",
+      "kind": "personal",
+      "visible": {
+       "denver": "turn"
+      },
+      "n_lines": 2,
+      "junk": 1,
+      "echo": 0,
+      "chars": 153,
+      "stale": []
+     },
+     {
+      "q": "What name should you use for me?",
+      "kind": "personal",
+      "visible": {
+       "samantha": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "Recommend a movie for tonight",
+      "kind": "personal",
+      "visible": {
+       "comedy": "turn"
+      },
+      "n_lines": 2,
+      "junk": 1,
+      "echo": 0,
+      "chars": 179,
+      "stale": []
+     },
+     {
+      "q": "How tall is Mount Everest?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "zh-xiamen",
+    "split": "test",
+    "lang": "zh",
+    "wrong_beliefs": [],
+    "block_chars": 643,
+    "changes": [
+     {
+      "now": true,
+      "was": false
+     },
+     {
+      "now": true,
+      "was": false
+     },
+     {
+      "now": true,
+      "was": false
+     },
+     {
+      "now": true,
+      "was": false
+     }
+    ],
+    "probes": [
+     {
+      "q": "回复我的时候用简体还是繁体？",
+      "kind": "personal",
+      "visible": {
+       "traditional": "turn"
+      },
+      "n_lines": 2,
+      "junk": 1,
+      "echo": 0,
+      "chars": 131,
+      "stale": []
+     },
+     {
+      "q": "帮我给客户写封节日问候邮件",
+      "kind": "personal",
+      "visible": {
+       "traditional": "turn",
+       "no_emoji": null
+      },
+      "n_lines": 1,
+      "junk": 0,
+      "echo": 0,
+      "chars": 104,
+      "stale": []
+     },
+     {
+      "q": "晚饭吃什么好？",
+      "kind": "personal",
+      "visible": {
+       "meat": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "感冒了能吃什么药？",
+      "kind": "personal",
+      "visible": {
+       "penicillin": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "我现在住哪个城市？",
+      "kind": "personal",
+      "visible": {
+       "fuzhou": "turn"
+      },
+      "n_lines": 1,
+      "junk": 0,
+      "echo": 0,
+      "chars": 96,
+      "stale": []
+     },
+     {
+      "q": "推荐点水果",
+      "kind": "personal",
+      "visible": {
+       "durian_now": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "月球离地球多远？",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     }
+    ]
+   },
+   {
+    "id": "en-chicago",
+    "split": "test",
+    "lang": "en",
+    "wrong_beliefs": [],
+    "block_chars": 801,
+    "changes": [
+     {
+      "now": true,
+      "was": false
+     },
+     {
+      "now": true,
+      "was": false
+     },
+     {
+      "now": true,
+      "was": false
+     },
+     {
+      "now": false,
+      "was": true
+     }
+    ],
+    "probes": [
+     {
+      "q": "Which language do you reply to me in?",
+      "kind": "personal",
+      "visible": {
+       "french": "turn"
+      },
+      "n_lines": 1,
+      "junk": 0,
+      "echo": 0,
+      "chars": 147,
+      "stale": []
+     },
+     {
+      "q": "Draft a short message to my school's principal",
+      "kind": "personal",
+      "visible": {
+       "french": "block",
+       "no_bullets": "block"
+      },
+      "n_lines": 10,
+      "junk": 10,
+      "echo": 0,
+      "chars": 1030,
+      "stale": []
+     },
+     {
+      "q": "What should I make for dinner?",
+      "kind": "personal",
+      "visible": {
+       "meat": "block"
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "I need to buy gloves for cleaning, any tips?",
+      "kind": "personal",
+      "visible": {
+       "latex": "block"
+      },
+      "n_lines": 10,
+      "junk": 10,
+      "echo": 0,
+      "chars": 749,
+      "stale": []
+     },
+     {
+      "q": "Which city do I live in now?",
+      "kind": "personal",
+      "visible": {
+       "milwaukee": "turn"
+      },
+      "n_lines": 2,
+      "junk": 1,
+      "echo": 0,
+      "chars": 164,
+      "stale": []
+     },
+     {
+      "q": "Suggest some music for tonight",
+      "kind": "personal",
+      "visible": {
+       "jazz_now": null
+      },
+      "n_lines": 0,
+      "junk": 0,
+      "echo": 0,
+      "chars": 0,
+      "stale": []
+     },
+     {
+      "q": "What is the boiling point of water?",
+      "kind": "unrelated",
+      "visible": {},
+      "n_lines": 10,
+      "junk": 10,
+      "echo": 0,
+      "chars": 1048,
       "stale": []
      }
     ]

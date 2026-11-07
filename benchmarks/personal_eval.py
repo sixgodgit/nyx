@@ -49,6 +49,7 @@ START = datetime(2026, 9, 1)
 # 写死在代码里、不可能来自故事的内容（故事发生在 2026 年 9–10 月）
 FOREIGN = (r"NeuroBase", r"2026-06")
 _AGENT = "source: agent"
+CHANGED_HEADER = "Changed since"     # 常驻块里「已经改了」那一段的标题开头（v7.22.0）
 
 
 # ══════════════════════════════════════════════════════════
@@ -172,13 +173,17 @@ def run_story(story: dict) -> dict:
             wrong.append(f"{rel}:{obj}")
 
     block_lines = block.splitlines()
+    # 说法改了的（v7.22.0）：常驻块「当前」部分 = 「Changed since」那段之前
+    current = block.split(CHANGED_HEADER, 1)[0]
+    changes = [{"now": bool(re.search(c["now"], current)), "was": bool(re.search(c["was"], current))}
+               for c in story.get("block_changes", [])]
     clock.set_global(None)
     return {"id": story["id"], "lang": story["lang"], "split": story["split"],
             "n_turns": len(turns), "write_ms_per_turn": round(write_s * 1000 / len(turns), 1),
             "block": block, "block_chars": len(block), "block_ms": round(block_ms, 1),
             "block_agent_lines": sum(1 for ln in block_lines if _AGENT in ln),
             "block_foreign": sum(1 for ln in block_lines for f in FOREIGN if re.search(f, ln)),
-            "wrong_beliefs": wrong, "probes": probes}
+            "wrong_beliefs": wrong, "probes": probes, "changes": changes}
 
 
 def _worker(args) -> None:
@@ -235,6 +240,10 @@ def score(results: list) -> dict:
         "block_foreign": sum(r["block_foreign"] for r in ok),
         "wrong_beliefs": sum(len(r["wrong_beliefs"]) for r in ok),
         "stale": sum(len(p["stale"]) for p in probes),
+        # 说法改了以后：常驻块当前部分里有新说法的比例；还留着旧说法（没标成已改）的条数
+        "changes": sum(len(r.get("changes", [])) for r in ok),
+        "changes_now": mean([1.0 if c["now"] else 0.0 for r in ok for c in r.get("changes", [])]),
+        "changes_was": sum(1 for r in ok for c in r.get("changes", []) if c["was"]),
         "recall_ms_mean": mean([p["ms"] for p in probes]),
     }
 
@@ -250,7 +259,7 @@ def report(results: list) -> dict:
 def _print(rep: dict) -> None:
     cols = ("fact_visible", "fact_visible_via_block", "probe_complete", "junk_per_probe", "echo_per_probe",
             "unrelated_clean", "inject_chars", "block_chars", "block_agent_lines", "block_foreign",
-            "wrong_beliefs", "stale")
+            "wrong_beliefs", "stale", "changes_now", "changes_was")
     print(f"{'group':<12}" + "".join(f"{c[:14]:>15}" for c in cols))
     for name, s in rep.items():
         print(f"{name:<12}" + "".join(f"{str(s.get(c)):>15}" for c in cols))

@@ -13,6 +13,7 @@
   probes        q 问题；expect 应该能看到的事实；ok 另外也算相关的正则；
                 stale 不该出现的过时信念；kind = personal / work / unrelated
   not_believed  不该记到用户头上的信念 (relation, object)：比如女儿喜欢的东西
+  block_changes 说法改了的（v7.22.0）：常驻块「当前」那几段里 now 要在、was 不能在
 """
 
 STORIES = [
@@ -49,6 +50,7 @@ STORIES = [
             {"q": "怎么给自行车补胎？", "expect": [], "kind": "unrelated"},
         ],
         "not_believed": [("likes", "恐龙")],
+        "block_changes": [{"now": r"搬到上海", "was": r"住在杭州"}],
     },
     {
         "id": "zh-chengdu", "lang": "zh", "split": "dev", "seed": 12,
@@ -115,6 +117,7 @@ STORIES = [
             {"q": "怎么养多肉植物？", "expect": [], "kind": "unrelated"},
         ],
         "not_believed": [("lives_in", "青岛")],
+        "block_changes": [{"now": r"出版社", "was": r"高中教语文"}],
     },
     {
         "id": "zh-shenzhen", "lang": "zh", "split": "test", "seed": 14,
@@ -179,6 +182,7 @@ STORIES = [
             {"q": "How do I patch a bike tire?", "expect": [], "kind": "unrelated"},
         ],
         "not_believed": [("likes", "Lego"), ("likes", "lego")],
+        "block_changes": [{"now": r"moved to Portland", "was": r"live in Seattle"}],
     },
     {
         "id": "en-london", "lang": "en", "split": "dev", "seed": 22,
@@ -275,6 +279,171 @@ STORIES = [
             {"q": "Why is the sky blue?", "expect": [], "kind": "unrelated"},
         ],
         "not_believed": [("job_title", "chef")],
+    },
+
+    # ───────────────── 改主意（v7.22.0）：说过的要求、饮食、住处、称呼、喜好后来变了 ─────────────────
+    # 每个故事的 block_changes：常驻块「当前」那几段里，now 要在、was 不能在（可以出现在「已经改了」那段里）
+    {
+        "id": "zh-wuhan", "lang": "zh", "split": "dev", "seed": 31,
+        "personal": [
+            (2, "以后回复我都用中文，不要用 emoji。", "好的。"),
+            (4, "我是素食者，不吃肉。", "记住了。"),
+            (6, "我住在武汉，在一家银行上班。", "了解。"),
+            (8, "叫我小周就行。", "好的小周。"),
+            (10, "我特别喜欢喝冰美式。", "冰美式提神。"),
+            (12, "我对芒果过敏。", "记下了，推荐水果会避开芒果。"),
+            (25, "以后回复我用英文吧，我在练英语。", "Sure, I'll reply in English from now on."),
+            (29, "我上个月搬到深圳了，换了家互联网公司。", "新环境加油。"),
+            (32, "我现在不吃素了，开始吃肉了。", "好的，了解。"),
+            (35, "以后叫我阿周吧。", "好的阿周。"),
+            (38, "最近不怎么喝冰美式了，改喝热拿铁。", "热拿铁也不错。"),
+        ],
+        "facts": {
+            "english": r"用英文",
+            "no_emoji": r"不要用 ?emoji",
+            "meat": r"开始吃肉|不吃素了",
+            "mango": r"芒果过敏|对芒果",
+            "shenzhen": r"搬到深圳|lives in 深圳",
+            "azhou": r"阿周",
+            "latte": r"热拿铁",
+        },
+        "probes": [
+            {"q": "用中文还是英文回复我？", "expect": ["english"]},
+            {"q": "帮我写一段生日祝福发给同事", "expect": ["english", "no_emoji"]},
+            {"q": "今晚吃什么？推荐几个菜", "expect": ["meat", "mango"]},
+            {"q": "我现在住在哪个城市？", "expect": ["shenzhen"], "stale": [r"\] user lives in 武汉"]},
+            {"q": "你一般怎么称呼我？", "expect": ["azhou"]},
+            {"q": "下午帮我点杯咖啡", "expect": ["latte"]},
+            {"q": "长城有多长？", "expect": [], "kind": "unrelated"},
+        ],
+        "not_believed": [],
+        "block_changes": [
+            {"now": r"用英文", "was": r"都用中文"},
+            {"now": r"搬到深圳", "was": r"住在武汉"},
+            {"now": r"不吃素了|开始吃肉", "was": r"我是素食者"},
+            {"now": r"阿周", "was": r"小周"},
+            {"now": r"热拿铁", "was": r"喜欢喝冰美式"},
+        ],
+    },
+    {
+        "id": "en-boston", "lang": "en", "split": "dev", "seed": 32,
+        "personal": [
+            (2, "Please always reply in English, and keep your answers short.", "Will do."),
+            (4, "I'm vegan.", "Noted."),
+            (6, "I live in Boston and work as a nurse.", "Got it."),
+            (8, "Call me Sam.", "Sure, Sam."),
+            (10, "I love horror movies.", "Any favourites?"),
+            (12, "I'm allergic to peanuts.", "I'll keep that in mind."),
+            (25, "Actually, from now on answer in Spanish, I'm practicing for a trip.", "Claro."),
+            (29, "We moved to Denver last month, and I'm a nurse at a children's hospital now.", "Congrats on the move."),
+            (32, "I'm not vegan anymore, I eat fish and eggs now.", "Okay, noted."),
+            (35, "Please call me Samantha from now on.", "Of course, Samantha."),
+            (38, "I don't really enjoy horror movies anymore, I prefer comedies.", "Comedies it is."),
+        ],
+        "facts": {
+            "spanish": r"in Spanish",
+            "short": r"answers short",
+            "fish": r"not vegan anymore|eat fish",
+            "peanut": r"allergic to peanuts",
+            "denver": r"moved to Denver|lives in Denver",
+            "samantha": r"Samantha",
+            "comedy": r"prefer comedies",
+        },
+        "probes": [
+            {"q": "Which language should you answer me in?", "expect": ["spanish"]},
+            {"q": "Write a quick note to my landlord about the broken heater", "expect": ["spanish", "short"]},
+            {"q": "What should I cook for dinner tonight?", "expect": ["fish", "peanut"]},
+            {"q": "Which city do I live in now?", "expect": ["denver"], "stale": [r"\] user lives in Boston"]},
+            {"q": "What name should you use for me?", "expect": ["samantha"]},
+            {"q": "Recommend a movie for tonight", "expect": ["comedy"]},
+            {"q": "How tall is Mount Everest?", "expect": [], "kind": "unrelated"},
+        ],
+        "not_believed": [],
+        "block_changes": [
+            {"now": r"in Spanish", "was": r"reply in English"},
+            {"now": r"moved to Denver", "was": r"live in Boston"},
+            {"now": r"not vegan anymore", "was": r"\] I'm vegan"},
+            {"now": r"Samantha", "was": r"Call me Sam\b"},
+            {"now": r"prefer comedies", "was": r"I love horror movies"},
+        ],
+    },
+    {
+        "id": "zh-xiamen", "lang": "zh", "split": "test", "seed": 33,
+        "personal": [
+            (1, "跟我说话请用简体中文。", "好的。"),
+            (3, "我一直吃素，蛋奶也不碰。", "了解。"),
+            (6, "我住在厦门，在一家外贸公司做会计。", "了解。"),
+            (9, "回答别带表情符号。", "好。"),
+            (12, "我最爱吃榴莲。", "口味很独特。"),
+            (14, "我对青霉素过敏。", "记住了。"),
+            (24, "以后就用繁体字跟我说吧，我在给台湾的客户写邮件。", "好的。"),
+            (28, "我已经搬去福州了，还是做会计。", "福州也不错。"),
+            (31, "我最近开始吃肉了，医生让我补充蛋白质。", "注意均衡。"),
+            (36, "我现在不太爱吃榴莲了，太腻。", "口味会变。"),
+        ],
+        "facts": {
+            "traditional": r"繁体",
+            "no_emoji": r"别带表情|表情符号",
+            "meat": r"开始吃肉",
+            "penicillin": r"青霉素",
+            "fuzhou": r"搬去福州|lives in 福州",
+            "durian_now": r"不太爱吃榴莲",
+        },
+        "probes": [
+            {"q": "回复我的时候用简体还是繁体？", "expect": ["traditional"]},
+            {"q": "帮我给客户写封节日问候邮件", "expect": ["traditional", "no_emoji"]},
+            {"q": "晚饭吃什么好？", "expect": ["meat"]},
+            {"q": "感冒了能吃什么药？", "expect": ["penicillin"]},
+            {"q": "我现在住哪个城市？", "expect": ["fuzhou"], "stale": [r"\] user lives in 厦门"]},
+            {"q": "推荐点水果", "expect": ["durian_now"]},
+            {"q": "月球离地球多远？", "expect": [], "kind": "unrelated"},
+        ],
+        "not_believed": [],
+        "block_changes": [
+            {"now": r"繁体", "was": r"请用简体中文"},
+            {"now": r"搬去福州", "was": r"住在厦门"},
+            {"now": r"开始吃肉", "was": r"我一直吃素"},
+            {"now": r"不太爱吃榴莲", "was": r"最爱吃榴莲"},
+        ],
+    },
+    {
+        "id": "en-chicago", "lang": "en", "split": "test", "seed": 34,
+        "personal": [
+            (1, "Answer me in English, please.", "Sure."),
+            (3, "I'm vegetarian.", "Noted."),
+            (6, "I live in Chicago and teach high school math.", "Got it."),
+            (9, "Please don't use bullet points in your replies.", "Okay."),
+            (12, "I hate jazz.", "Fair enough."),
+            (14, "I'm allergic to latex.", "Noted."),
+            (24, "From now on, please reply in French. I'm moving to Paris next year.", "D'accord."),
+            (28, "I moved to Milwaukee in June; still teaching math.", "Hope the move went well."),
+            (31, "I've started eating meat again.", "Okay."),
+            (36, "Honestly I've come around on jazz, I listen to it every evening now.", "Nice."),
+        ],
+        "facts": {
+            "french": r"in French",
+            "no_bullets": r"bullet points",
+            "meat": r"eating meat again",
+            "latex": r"allergic to latex",
+            "milwaukee": r"moved to Milwaukee|lives in Milwaukee",
+            "jazz_now": r"come around on jazz|listen to it every evening",
+        },
+        "probes": [
+            {"q": "Which language do you reply to me in?", "expect": ["french"]},
+            {"q": "Draft a short message to my school's principal", "expect": ["french", "no_bullets"]},
+            {"q": "What should I make for dinner?", "expect": ["meat"]},
+            {"q": "I need to buy gloves for cleaning, any tips?", "expect": ["latex"]},
+            {"q": "Which city do I live in now?", "expect": ["milwaukee"], "stale": [r"\] user lives in Chicago"]},
+            {"q": "Suggest some music for tonight", "expect": ["jazz_now"]},
+            {"q": "What is the boiling point of water?", "expect": [], "kind": "unrelated"},
+        ],
+        "not_believed": [],
+        "block_changes": [
+            {"now": r"in French", "was": r"Answer me in English"},
+            {"now": r"moved to Milwaukee", "was": r"live in Chicago"},
+            {"now": r"eating meat again", "was": r"\] I'm vegetarian"},
+            {"now": r"come around on jazz", "was": r"I hate jazz"},
+        ],
     },
 ]
 
