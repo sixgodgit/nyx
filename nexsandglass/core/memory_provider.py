@@ -300,7 +300,8 @@ def memory_block(items) -> str:
 _PROFILE_SETTINGS = (("semantic", "NYX_EMBED"), ("embedding_model", "NYX_EMBED_MODEL"),
                      ("embedding_api_url", "EMBEDDING_API_URL"), ("rerank", "NYX_RERANK"),
                      ("vault", "NYX_VAULT"), ("vault_reveal", "NYX_VAULT_REVEAL"), ("vault_kinds", "NYX_VAULT_KINDS"),
-                     ("l3_llm", "NYX_L3_LLM"), ("lang", "NYX_LANG"), ("auto_purge", "NYX_AUTO_PURGE"))
+                     ("l3_llm", "NYX_L3_LLM"), ("lang", "NYX_LANG"), ("auto_purge", "NYX_AUTO_PURGE"),
+                     ("follow_ups", "NYX_FOLLOW_UPS"))
 
 
 def _data_dir_in_use() -> Optional[str]:
@@ -495,6 +496,10 @@ class NexSandglassProvider(MemoryProvider):
             n = profile.refresh()
             if n:
                 logger.info("Nyx 画像：新收进 %d 条", n)
+            from nexsandglass.core import followups
+            n = followups.refresh()
+            if n:
+                logger.info("Nyx 待跟进：新收进 %d 件", n)
         except Exception as e:
             logger.warning("Nyx 预热失败（不影响使用，首轮查询会现场加载）: %s", e)
         if auto_purge:
@@ -557,6 +562,15 @@ class NexSandglassProvider(MemoryProvider):
                     blocks.append(prof)
             except Exception:
                 logger.debug("画像渲染失败", exc_info=True)
+
+            # ═══════ 待跟进：快到了的、刚过去还不知道结果的（v7.23.0） ═══════
+            try:
+                from nexsandglass.core import followups
+                fu = followups.render()
+                if fu:
+                    blocks.append(fu)
+            except Exception:
+                logger.debug("待跟进渲染失败", exc_info=True)
 
             # ═══════ 你是谁（persona.md） ═══════
             try:
@@ -1338,6 +1352,13 @@ class NexSandglassProvider(MemoryProvider):
              "description": _t("Once a day, erase forgotten memories whose retention period is over (and their media "
                                "files). Memories still within the period are never touched and can be restored.",
                                "每天一次，把过了保留期的遗忘内容（以及它们的素材文件）真正删掉。还在保留期内的一条都不动，照样能救回。")},
+            {"key": "follow_ups", "type": "text", "default": "on", "choices": ["on", "off"],
+             "description": _t("Follow-ups: at the start of each conversation, show the model what you said is coming up "
+                               "in the next two days, or happened in the last ten without you saying how it went "
+                               "(an interview, a check-up, a trip), so it can wish you luck or ask how it went. "
+                               "/nyx follow-ups off also turns it off.",
+                               "待跟进：每个对话开始时，让模型看到你说过的、两天内要发生的事，以及十天内已经发生、但还没说结果的事"
+                               "（面试、复查、出差），它可以祝你顺利或者问一句结果。也可以在对话里用 /nyx follow-ups off 关掉。")},
             {"key": "lang", "type": "text", "default": "auto", "choices": ["auto", "en", "zh"],
              "description": _t("Language of Nyx's terminal output and these settings: auto = follow the system locale, "
                                "en = English, zh = Chinese. What the model sees is always English.",

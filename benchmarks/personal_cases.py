@@ -14,6 +14,9 @@
                 stale 不该出现的过时信念；kind = personal / work / unrelated
   not_believed  不该记到用户头上的信念 (relation, object)：比如女儿喜欢的东西
   block_changes 说法改了的（v7.22.0）：常驻块「当前」那几段里 now 要在、was 不能在
+  followups     待跟进（v7.23.0）：常驻块「Follow-ups」那一段里 show 要在、hide 不能在、allow 在不在都行。
+                新会话是第 41 天 = 2026-10-12（周一）上午；个人信息在第 d 天晚上说（第 d 天 = 2026-09-01 + d 天）。
+                hide 的几种：早就过去了、说过结果了、取消了、还早（后天以后）、只是假设（如果…）
 """
 
 STORIES = [
@@ -444,6 +447,108 @@ STORIES = [
             {"now": r"eating meat again", "was": r"\] I'm vegetarian"},
             {"now": r"come around on jazz", "was": r"I hate jazz"},
         ],
+    },
+
+    # ───────────────── 待跟进（v7.23.0）：有日子、有结果的事 ─────────────────
+    # 新会话 = 第 41 天（2026-10-12 周一）。第 30 天 = 10-01 周四，第 34 天 = 10-05 周一，第 40 天 = 10-11 周日
+    {
+        "id": "zh-fu-shenzhen", "lang": "zh", "split": "dev", "seed": 41,
+        "personal": [
+            (3, "我住在深圳，在一家做硬件的公司当产品经理。", "了解。"),
+            (8, "我对青霉素过敏。", "记住了。"),
+            (12, "明天要考驾照科目一，有点慌。", "加油，按题库多刷几遍。"),               # 09-14：早就过去了
+            (30, "下周四要去上海出差三天。", "注意休息。"),                             # 10-08，后来取消了
+            (31, "下周三我有个腾讯的二面，有点紧张。", "提前准备一下项目经历，祝顺利。"),   # 10-07：还不知道结果
+            (33, "下个月20号去日本旅行，已经订好机票了。", "日本这个季节很舒服。"),        # 11-20：还早
+            (34, "我女儿这周五学校开运动会，她报了跑步。", "让她加油！"),                 # 10-09：还不知道结果
+            (35, "上海出差取消了，客户那边改成线上会。", "那也省得跑一趟。"),
+            (36, "下周二要去医院体检，前一天晚上八点以后不能吃东西。", "记得提前空腹。"),  # 10-13：明天
+            (37, "这周六要带我妈去医院复查。", "希望一切顺利。"),                        # 10-10，已经说了结果
+            (38, "如果下周有面试的话，穿什么比较好？", "商务休闲就可以。"),               # 假设
+            (40, "我妈复查结果出来了，医生说恢复得不错。", "太好了！"),
+        ],
+        "facts": {"allergy": r"青霉素", "city": r"深圳"},
+        "probes": [
+            {"q": "我感冒了，能吃什么药？", "expect": ["allergy"]},
+            {"q": "地球到太阳有多远？", "expect": [], "kind": "unrelated"},
+        ],
+        "not_believed": [],
+        "followups": {"show": [r"二面", r"体检", r"运动会"],
+                      "hide": [r"科目一", r"上海出差", r"复查", r"日本", r"如果下周有面试"]},
+    },
+    {
+        "id": "en-fu-denver", "lang": "en", "split": "dev", "seed": 42,
+        "personal": [
+            (3, "I live in Denver and work as a nurse at a children's hospital.", "Got it."),
+            (8, "I'm allergic to shellfish.", "Noted."),
+            (12, "I have my driving test tomorrow morning, wish me luck.", "Good luck!"),
+            (30, "I'm flying to Seattle next Thursday for a conference.", "Have a great trip."),
+            (31, "I have a job interview at a clinic next Wednesday, pretty nervous.", "You'll do great, prepare a few stories."),
+            (33, "We're going to Japan on November 20th, flights are booked.", "Japan in late autumn is lovely."),
+            (34, "My son has a swim meet this Friday, he's racing the 50 metres.", "Tell him good luck!"),
+            (35, "The Seattle trip got cancelled, they moved the conference online.", "That saves you the travel."),
+            (36, "I have a dentist appointment next Tuesday.", "Remember to floss."),
+            (37, "Taking my dad to his cardiology checkup this Saturday.", "Hope it goes well."),
+            (38, "If I ever get an interview next week, what should I wear?", "Smart casual works."),
+            (40, "Dad's checkup went fine, the doctor is happy with his heart.", "Great news!"),
+        ],
+        "facts": {"allergy": r"shellfish", "city": r"Denver"},
+        "probes": [
+            {"q": "Any ideas for a quick dinner tonight?", "expect": ["allergy"]},
+            {"q": "What is the capital of Australia?", "expect": [], "kind": "unrelated"},
+        ],
+        "not_believed": [],
+        "followups": {"show": [r"job interview", r"dentist", r"swim meet"],
+                      "hide": [r"driving test", r"Seattle", r"cardiology|checkup", r"Japan", r"If I ever get an interview"]},
+    },
+    {
+        "id": "zh-fu-nanjing", "lang": "zh", "split": "test", "seed": 43,
+        "personal": [
+            (2, "我叫小林，住在南京。", "你好小林。"),
+            (6, "我不吃辣，一点都不行。", "记住了。"),
+            (14, "后天要参加一个婚礼，帮我想想随多少份子钱。", "看关系远近，一般同事两三百就可以。"),  # 09-17：早就过去了
+            (29, "10月8号要参加公司的晋升答辩。", "提前准备好 PPT。"),                  # 10-08：还不知道结果
+            (30, "周日约了朋友去爬紫金山。", "天气不错的话很舒服。"),                     # 10-04：列不列都行
+            (32, "我老公下周一做个小手术，切阑尾。", "希望一切顺利。"),                   # 10-05，已经说了结果
+            (35, "月底要交论文初稿，压力好大。", "可以先列提纲。"),                       # 10-31：还早
+            (36, "老公手术很顺利，已经出院了。", "太好了，让他多休息。"),
+            (37, "我妹妹下周六结婚，我是伴娘。", "恭喜！"),                              # 10-17：还早
+            (38, "13号去拔智齿，有点怕。", "拔完记得冰敷。"),                             # 10-13：明天
+            (39, "后天我要去北京参加一个行业展会。", "路上注意安全。"),                   # 10-12：今天
+        ],
+        "facts": {"spicy": r"不吃辣", "city": r"南京"},
+        "probes": [
+            {"q": "推荐几道家常菜", "expect": ["spicy"]},
+            {"q": "水的沸点是多少度？", "expect": [], "kind": "unrelated"},
+        ],
+        "not_believed": [],
+        "followups": {"show": [r"答辩", r"展会", r"拔智齿"],
+                      "hide": [r"婚礼|份子钱", r"阑尾|手术", r"论文初稿", r"伴娘|结婚"], "allow": [r"紫金山"]},
+    },
+    {
+        "id": "en-fu-portland", "lang": "en", "split": "test", "seed": 44,
+        "personal": [
+            (2, "I'm Priya, I live in Portland.", "Nice to meet you, Priya."),
+            (6, "I'm lactose intolerant.", "Noted."),
+            (15, "My final exam is the day after tomorrow, I'm so stressed.", "You've got this."),
+            (29, "I'm defending my thesis on October 8th.", "Big day! Practise the Q&A."),
+            (30, "Going hiking with friends this Sunday.", "Enjoy!"),
+            (32, "My wife is having knee surgery next Monday.", "Wishing her a smooth recovery."),
+            (35, "My paper draft is due at the end of the month.", "Start with an outline."),
+            (36, "Her surgery went well, she's already home.", "Great to hear."),
+            (37, "My sister is getting married next Saturday, I'm the maid of honor.", "Congratulations!"),
+            (38, "Getting my wisdom teeth out on the 13th, not looking forward to it.", "Ice packs help afterwards."),
+            (39, "Heading to a trade show in Las Vegas in two days.", "Safe travels!"),
+        ],
+        "facts": {"lactose": r"lactose", "city": r"Portland"},
+        "probes": [
+            {"q": "What should I get at the coffee shop?", "expect": ["lactose"]},
+            {"q": "How many moons does Mars have?", "expect": [], "kind": "unrelated"},
+        ],
+        "not_believed": [],
+        "followups": {"show": [r"thesis", r"trade show", r"wisdom teeth"],
+                      "hide": [r"final exam", r"knee surgery|surgery went well", r"paper draft",
+                               r"maid of honor|getting married"], "allow": [r"hiking"]},
     },
 ]
 

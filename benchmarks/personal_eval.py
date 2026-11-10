@@ -50,6 +50,25 @@ START = datetime(2026, 9, 1)
 FOREIGN = (r"NeuroBase", r"2026-06")
 _AGENT = "source: agent"
 CHANGED_HEADER = "Changed since"     # 常驻块里「已经改了」那一段的标题开头（v7.22.0）
+FOLLOWUP_HEADER = "[Follow-ups"      # 常驻块里「待跟进」那一段的标题开头（v7.23.0）
+
+
+def followup_section(block: str) -> list:
+    """常驻块里待跟进那一段的条目行（"- …"）。"""
+    i = block.find(FOLLOWUP_HEADER)
+    if i < 0:
+        return []
+    sec = block[i:].split("\n\n", 1)[0]
+    return [ln for ln in sec.splitlines()[1:] if ln.startswith("- ")]
+
+
+def score_followups(lines: list, spec: dict) -> dict:
+    """show 要在、hide 不能在；三类都不沾的条目算多出来的（比如从工作闲聊里抽出来的）。"""
+    text = "\n".join(lines)
+    pats = list(spec.get("show", [])) + list(spec.get("hide", [])) + list(spec.get("allow", []))
+    return {"show": [bool(re.search(p, text)) for p in spec.get("show", [])],
+            "wrong": [p for p in spec.get("hide", []) if re.search(p, text)],
+            "extra": [ln for ln in lines if not any(re.search(p, ln) for p in pats)]}
 
 
 # ══════════════════════════════════════════════════════════
@@ -177,13 +196,16 @@ def run_story(story: dict) -> dict:
     current = block.split(CHANGED_HEADER, 1)[0]
     changes = [{"now": bool(re.search(c["now"], current)), "was": bool(re.search(c["was"], current))}
                for c in story.get("block_changes", [])]
+    fu_lines = followup_section(block)
+    fu = score_followups(fu_lines, story["followups"]) if "followups" in story else None
     clock.set_global(None)
     return {"id": story["id"], "lang": story["lang"], "split": story["split"],
             "n_turns": len(turns), "write_ms_per_turn": round(write_s * 1000 / len(turns), 1),
             "block": block, "block_chars": len(block), "block_ms": round(block_ms, 1),
             "block_agent_lines": sum(1 for ln in block_lines if _AGENT in ln),
             "block_foreign": sum(1 for ln in block_lines for f in FOREIGN if re.search(f, ln)),
-            "wrong_beliefs": wrong, "probes": probes, "changes": changes}
+            "wrong_beliefs": wrong, "probes": probes, "changes": changes,
+            "followup_lines": fu_lines, "followups": fu}
 
 
 def _worker(args) -> None:
@@ -244,6 +266,12 @@ def score(results: list) -> dict:
         "changes": sum(len(r.get("changes", [])) for r in ok),
         "changes_now": mean([1.0 if c["now"] else 0.0 for r in ok for c in r.get("changes", [])]),
         "changes_was": sum(1 for r in ok for c in r.get("changes", []) if c["was"]),
+        # 待跟进（v7.23.0）：该列的列出来的比例；不该列的（过去太久、说过结果、取消了、还早、假设）列了几件；
+        # 待跟进故事里多出来的条目；别的故事（没有标注）里一共列了几件
+        "fu_show": mean([1.0 if s else 0.0 for r in ok if r.get("followups") for s in r["followups"]["show"]]),
+        "fu_wrong": sum(len(r["followups"]["wrong"]) for r in ok if r.get("followups")),
+        "fu_extra": sum(len(r["followups"]["extra"]) for r in ok if r.get("followups")),
+        "fu_other": sum(len(r.get("followup_lines") or []) for r in ok if not r.get("followups")),
         "recall_ms_mean": mean([p["ms"] for p in probes]),
     }
 
@@ -259,7 +287,7 @@ def report(results: list) -> dict:
 def _print(rep: dict) -> None:
     cols = ("fact_visible", "fact_visible_via_block", "probe_complete", "junk_per_probe", "echo_per_probe",
             "unrelated_clean", "inject_chars", "block_chars", "block_agent_lines", "block_foreign",
-            "wrong_beliefs", "stale", "changes_now", "changes_was")
+            "wrong_beliefs", "stale", "changes_now", "changes_was", "fu_show", "fu_wrong", "fu_extra", "fu_other")
     print(f"{'group':<12}" + "".join(f"{c[:14]:>15}" for c in cols))
     for name, s in rep.items():
         print(f"{name:<12}" + "".join(f"{str(s.get(c)):>15}" for c in cols))
@@ -305,6 +333,9 @@ def main(argv=None) -> int:
                       f"missing={miss or '-'} stale={p['stale'] or '-'}\n{p['injected'] or '(nothing injected)'}")
             if r["wrong_beliefs"]:
                 print(f"\nwrong beliefs: {r['wrong_beliefs']}")
+            if r.get("followups"):
+                f = r["followups"]
+                print(f"\nfollow-ups: show={f['show']} wrong={f['wrong'] or '-'} extra={f['extra'] or '-'}")
     rep = report(results)
     _print(rep)
     if args.json:
