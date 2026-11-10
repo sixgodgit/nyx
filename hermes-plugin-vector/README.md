@@ -20,7 +20,7 @@ hermes gateway restart        # or restart Hermes
 
 Hermes installs the declared dependency `nyx-memory` (PyPI) into its own environment. With the local embedding model, use `sixgodgit/nyx/hermes-plugin-vector` instead; its dependency is `nyx-memory[vector]` (sentence-transformers, about a 470 MB model download on first run).
 
-Options: `hermes memory setup` (set `lang` to `zh` for Chinese output). Terminal commands: `hermes nyx search`, `hermes nyx show`, `hermes nyx forget`, `hermes nyx restore`, `hermes nyx edit`, `hermes nyx import`, `hermes nyx media`, `hermes nyx doctor`, `hermes nyx vault list`, `hermes nyx vault show v3`, `hermes nyx scrub`, `hermes nyx repair`, `hermes nyx status`. In chats, `/nyx status | pause | resume | forget-last` after `hermes plugins enable nyx-commands`.
+Options: `hermes memory setup` (set `lang` to `zh` for Chinese output). Terminal commands: `hermes nyx search`, `hermes nyx show`, `hermes nyx forget`, `hermes nyx restore`, `hermes nyx edit`, `hermes nyx import`, `hermes nyx media`, `hermes nyx doctor`, `hermes nyx vault list`, `hermes nyx vault show v3`, `hermes nyx scrub`, `hermes nyx repair`, `hermes nyx status`. In chats, `/nyx status | pause | resume | forget-last | follow-ups` after `hermes plugins enable nyx-commands`.
 
 ## What it touches (disclosure)
 
@@ -35,7 +35,7 @@ Options: `hermes memory setup` (set `lang` to `zh` for Chinese output). Terminal
 - **Background work.** On start, a short warm-up thread loads indexes. With an embedding backend, a thread backfills vectors. Nothing outlives the process.
 - **Approvals.** Revealing a vault entry asks for human confirmation through Hermes's `request_tool_approval`. When approvals are bypassed (`--yolo`, `approvals.mode: off`), Nyx asks the owner to reply with a one-time confirmation phrase instead; it never treats a bypass as consent. Under cron and subagents a reveal is refused.
 - **Optional companion plugin `nyx-reveal`** (pip entry point, opt-in with `hermes plugins enable nyx-reveal`). It registers one hook, `transform_llm_output`, which swaps a reveal handle for the secret just before the reply is sent, so the model provider never sees the value.
-- **Optional companion plugin `nyx-commands`** (pip entry point, opt-in with `hermes plugins enable nyx-commands`). It registers one slash command, `/nyx` (status / pause / resume / forget-last), which runs without the model. Pausing writes one file in Nyx's data directory; `forget-last` moves memories to Nyx's quarantine. In group chats only the owner (`owner_ids`) can change anything.
+- **Optional companion plugin `nyx-commands`** (pip entry point, opt-in with `hermes plugins enable nyx-commands`). It registers one slash command, `/nyx` (status / pause / resume / forget-last / follow-ups), which runs without the model. Pausing, and turning follow-ups off, each write one file in Nyx's data directory; `forget-last` moves memories to Nyx's quarantine. In group chats only the owner (`owner_ids`) can change anything.
 - **`hermes nyx import`** opens the profile's Hermes session database read-only (SQLite `mode=ro`) and copies the user's own conversations into Nyx's data directory; it writes nothing to Hermes's files.
 
 ## Origins

@@ -320,6 +320,11 @@ def restore(mem_id: str) -> dict:
                 profile.reconsider([mem_id])
             except Exception as e:
                 logger.warning("[facade.restore] 画像补收失败: %s", e)
+            try:                         # 待跟进同理（v7.23.0）
+                from nexsandglass.core import followups
+                followups.reconsider([mem_id])
+            except Exception as e:
+                logger.warning("[facade.restore] 待跟进补收失败: %s", e)
         return {"ok": rep["ok"], "action": "restore", "mem_id": mem_id,
                 "found": rep["found"], "problems": rep["problems"],
                 "notes": rep.get("notes", []),

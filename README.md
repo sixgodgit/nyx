@@ -18,6 +18,7 @@ All data is plain files on your machine.
 |---|---|---|
 | **Finds things** | Full-text, inverted index, TF-IDF, entities and (optional) semantic search, fused; long memories are scored down by length so they don't bury the short message with the answer; questions like "how many times / how long between" get a few more results | LongMemEval-S (470 scored questions): the session holding the answer is in the top 5 **98.7%** of the time; LoCoMo evidence recall 0.573 (BM25 0.498); BEAM, 100K–1M-token conversations: evidence recall@10 **0.454** (BM25 0.333); at 10M tokens 0.326 (BM25 0.218). About 30–140 ms per recall |
 | **Knows who you are** | What you told it about yourself — requests to the agent ("reply in Chinese, no emoji"), allergies and diet, family, home and work, likes — is in every session's system prompt in your own words; when you change your mind ("reply in English from now on", "I eat meat again", "we moved to Denver") the new words replace the old ones there; memories that match a question only through words like *what / 帮我* are not injected; a relative's facts stay theirs | Eight personal stories (v7.19.0): the facts the agent needed and saw went from 25–38% to **100%**, unrelated entries per question from 9 to 1–2, and unrelated questions get nothing injected 88% of the time (was 13–25%). After a change of mind (v7.22.0, 21 changes in 12 stories) the old words were still shown as current 19 times; now once |
+| **Follows up** | Something you said is coming up — an interview, a check-up, a trip, an exam — is shown to the agent at the start of a conversation in the two days before it, and in the ten days after if you haven't said how it went, so it can wish you luck or ask how it went; once you mention the outcome, or it has asked, it is dropped (v7.23.0) | Four personal stories (two held out): all 12 things due were shown, none of the 18 that should not be (long past, already answered, cancelled, still days away, only hypothetical). On conversations not used to write the rules: 90% of what it picks up from people talking to an assistant (LongMemEval) is a real plan with the right date; 78% in Chinese chat between friends (LCCC) |
 | **Keeps time straight** | Bi-temporal facts: "when it was true" and "when it was learned" are stored separately | "I switched to a Geely back in February" is recorded as February, not as the day it was said; answers "what is believed now" and "what did I think in March" |
 | **Can be trusted** | Source and trust are bound at write time: only what the user said themselves can become a rule; hearsay and web content come back labelled "unverified" | Poisoning drill: 0 of 16 attacks reach the agent's prompt unlabelled; 0 of the user's 8 normal messages are hurt |
 | **You stay in charge** | In any chat, `/nyx pause` stops remembering until `/nyx resume` and `/nyx forget-last` takes back the last turn; in the terminal, `hermes nyx search / show / forget / restore / edit` find, read and correct memories without going through the model; `hermes nyx import` brings in what you told Hermes before Nyx was installed (v7.20.0) | Checked with Hermes's own plugin loader and command dispatch, as the terminal and the messaging gateway call it; an imported old "I live in Hangzhou" never overrides a newer "I moved to Shanghai" |
@@ -51,7 +52,7 @@ and set `vault` to `on` in `hermes memory setup`.
 Two optional steps (v7.20.0):
 
 ```bash
-hermes plugins enable nyx-commands    # /nyx status · pause · resume · forget-last in any chat
+hermes plugins enable nyx-commands    # /nyx status · pause · resume · forget-last · follow-ups in any chat
 hermes nyx import                     # bring in your earlier Hermes conversations (lists them first, asks before importing)
 ```
 
@@ -136,6 +137,19 @@ allergy, where they live, their job, liking a particular thing — the new words
 part that changed goes ("reply in Chinese, no emoji" then "reply in English" keeps "no emoji"), and the replaced words
 are listed last under "Changed since" with the date they changed.
 
+**Follow-ups** (v7.23.0). Things the user said are coming up, with a day attached — an interview, an exam, a check-up or
+an operation, a trip, a move, a deadline or a talk, a wedding or a birthday, a race or a concert — are listed after the
+profile while they are due: in the two days before (`Coming up on Tue 2026-10-13: [2026-10-07] I have a dentist
+appointment next Tuesday.`) and in the ten days after if nobody has mentioned it since (`Was on Wed 2026-10-07; nothing
+said about it since: …`), at most three, nearest first. One line tells the model it may ask about one of them, or wish
+the user luck, when it fits: once, briefly, never interrupting a task. The day is worked out from when it was said
+("next Wednesday", "下周三", "13号", "October 8th", "in two days"); hypotheticals ("if I get an interview…"), negations,
+other people's plans and things already past are left out. An item goes once the outcome is mentioned or the assistant
+has asked about it, or when it is cancelled; a reschedule counts with its new day. Same rules as the profile: the
+owner's own words only, no LLM, and forgetting the message removes the item. Without this, a new conversation that
+opens with "hi" has nothing about last week's interview in front of the model: recall looks for what the current message
+is about, and Hermes does not even recall for "hi", "ok" or "thanks".
+
 **Recall** (before every turn, entirely local)
 
 1. Full-text (FTS5), inverted index, TF-IDF, entities and (optional) semantic vectors are searched
@@ -163,7 +177,8 @@ are listed last under "Changed since" with the date they changed.
 | 🩺 **Self-check** | `doctor.py` | Hub vs journal consistency, each index, forgetting integrity, quarantine due dates, rule poisoning — each with the reason |
 | 🧯 **Check and repair** | `repair.py`, `core/forensics.py` | When the hub does not match the journal, checks record by record by content: adds what is missing, moves misplaced rows back, recognises overwritten memories, removes synthetic records and the "facts" derived from them; backs up first, never changes the journal |
 | 🔌 **Hermes memory provider** | `nexsandglass_hermes/`, `core/memory_provider.py` | Implements Hermes's `MemoryProvider` interface; installed with `hermes plugins install sixgodgit/nyx/hermes-plugin --enable` |
-| ⏸️ **`/nyx` in chat** | `nexsandglass_hermes_commands/`, `core/recording.py` | `status`, `pause` / `resume` (stop and restart remembering; recall keeps working), `forget-last [N]` (this chat's last turns to the quarantine, shown so you can check). Runs in Hermes, never through the model; in group chats only the owner can change anything (v7.20.0) |
+| 📅 **Follow-ups** | `core/followups.py` | What the user said is coming up (interview, exam, check-up, trip, wedding, deadline…) in the system prompt in the two days before and, until its outcome is mentioned, the ten days after; dates resolved from when it was said; cancelled / rescheduled / answered items drop out (v7.23.0) |
+| ⏸️ **`/nyx` in chat** | `nexsandglass_hermes_commands/`, `core/recording.py` | `status`, `pause` / `resume` (stop and restart remembering; recall keeps working), `forget-last [N]` (this chat's last turns to the quarantine, shown so you can check), `follow-ups [on|off]` (what the model is shown as coming up or just happened; v7.23.0). Runs in Hermes, never through the model; in group chats only the owner can change anything (v7.20.0) |
 | 🗂️ **Look up and correct** | `memory_cli.py`, `core/lookup.py` | `hermes nyx search` (date range with `--since` / `--until`), `show` (full text and the lines around it), `forget` (`--now` erases for good), `restore`, `edit` (the corrected words replace the old ones, at the original date); the agent's `sandglass_search` / `nyx_read` use the same code (v7.20.0) |
 | 🖼️ **Photos, recordings, videos** (framework) | `media/` | `hermes nyx media add photo.jpg --note "…"`: the file is kept by content hash, your note is kept as your words, and what an understanding backend derives (caption, transcript, description) becomes ordinary, searchable memories dated when it was taken, labelled as inferred. No backend by default — plug in a local program (whisper.cpp, a llama.cpp vision model) or a pip plugin, then `understand --pending` fills in what was registered before. Forgetting takes the records and, at purge, the file (v7.21.0) |
 | 📥 **Import from Hermes** | `history_import.py` | Reads the profile's Hermes session database read-only and brings in your own conversations (local and private chats; not group chats, subagents or scheduled tasks) with their original dates; skips what Nyx already has; can resume (v7.20.0) |
@@ -277,6 +292,7 @@ Chinese with `NYX_LANG=zh` (Hermes: `lang: zh`); with `auto`, a Chinese system l
 | `LLM_EXTRACT_API_URL` / `NYX_UNDERSTAND_MODEL` | empty / `deepseek-v4-flash` | OpenAI-compatible gateway and model for extraction |
 | `NYX_FORGET_RETENTION_DAYS` | `30` | Quarantine retention period |
 | `NYX_AUTO_PURGE` | `on` | The Hermes provider erases quarantined memories past their retention period, at most once a day in the background; `off` = only by hand. Hermes: `auto_purge` |
+| `NYX_FOLLOW_UPS` | `on` | Follow-ups in the system prompt (things coming up, or just happened without a word since); `off` = none. Hermes: `follow_ups`; in a chat `/nyx follow-ups off` |
 | `NYX_BUNDLE_MAX_TOKENS` | `1500` | System-prompt injection budget |
 | `NYX_JOURNAL_MIRROR_MB` | `32` | Size limit (journal file size, MB) for the in-memory journal mirror; above it, falls back to line scans. Uses about 3.5× the journal size in memory |
 | `NYX_WARM_WAIT_SECONDS` | `10` | How long Hermes's first turn waits for background warm-up |
@@ -390,6 +406,11 @@ when the original was said, and the old one goes to the quarantine (facts derive
 `/nyx resume` turns it back on. While paused nothing is written (turns, the end-of-session catch-up, subagent results);
 recall and what you explicitly ask for still work, and the agent is told it is paused. It stays paused across restarts.
 
+**Why did the agent ask how my interview went?** You told it the interview was on Wednesday; at the start of the next
+conversation Nyx showed the model that it had happened and that you had not said how it went (v7.23.0). Once you answer,
+or it has asked, it is not shown again. `/nyx follow-ups` lists what the model sees now; `/nyx follow-ups off` (or
+`follow_ups: off` in `nyx.json`) turns it off.
+
 **Photos and voice notes?** v7.21.0 has the framework: `hermes nyx media add <file> --note "…"` registers an image,
 recording or video with its date and your note. To have Nyx also know what is *in* it, point a backend at a local
 program, e.g. `media_audio_cmd: "whisper-cli -m ggml-base.bin -nt -f {path}"` in `nyx.json` (`{path}` is the file; what
@@ -449,6 +470,9 @@ sure (they go to the quarantine and can be restored for 30 days).
   coriander again") is not in it, and neither is a change of mind said only indirectly ("I've come around on jazz" does
   not replace "I hate jazz"). The gate is lexical: without `[vector]`, a relevant memory that shares no content word
   with the question is not injected (with `[vector]`, semantic hits pass)
+- **Follow-ups are rules too** (v7.23.0): an event needs a recognisable kind and a day in the same clause, so "周三要去见那家公司的
+  HR" is missed; in chat between friends about one in five picks is someone else's plan or a question to the other
+  person. Whether the model then asks, and asks well, has not been measured end to end
 - **Small default embedding model**: the local multilingual MiniLM is small and fast; with a stronger API model the fusion weights may need retuning (`NYX_EMBED_Z` / `NYX_EMBED_WEIGHT`)
 
 ---
@@ -503,6 +527,28 @@ Four stories were used while developing; four were held out until the end. Lexic
   The remaining miss is an indirect change ("Honestly I've come around on jazz"). The first eight stories: every metric
   above unchanged, the block 46 characters longer (the "Changed since" list). PersonaMem: the block is identical on all
   589 questions and the proxy is unchanged (its changes of preference are told as stories, not stated)
+- **Follow-ups** (v7.23.0). Four more stories (zh-fu-shenzhen and en-fu-denver for development, zh-fu-nanjing and
+  en-fu-portland held out, written before the rules): over a month the user mentions things with a day attached, and
+  the new conversation is on day 41. Each has three things that are due (an interview five days ago with no word since,
+  a check-up tomorrow, a trade show today…) and four or five that are not (an exam a month ago, a check-up whose result
+  was already told, a cancelled trip, a wedding next week, "if I get an interview next week…"):
+
+  | | Dev | Held out |
+  |---|---|---|
+  | Things due that were listed | 6 of 6 | **6 of 6** |
+  | Listed though they should not be | 0 of 10 | **0 of 8** |
+  | Other lines in the section | 0 | 0 |
+
+  In the twelve earlier stories one line appears ("my daughter's birthday is next month", some time this month); every
+  other metric above is the same with follow-ups on or off, and the block grows only when something is due (about 600
+  characters with three items). PersonaMem: 26 of 589 questions get one item ("a family road trip … next week") and the
+  proxy is unchanged (0.396).
+
+  Checked on conversations not used to write the rules: of user messages in LongMemEval-S, 0.41% yield an item, and of
+  40 random ones 36 were a real plan of the user's with the right day; in LCCC (Chinese chat between friends) 0.17%, and
+  31 of 40 — most misses are questions to the other person ("周六的马拉松有打算好好跑吗？") or other people's plans. Two earlier
+  rounds of samples were used to fix rules (past tense, "every Saturday", "on a Saturday", "shopping trip"…); these
+  numbers are from fresh samples drawn after that
 
 **PersonaMem** (`benchmarks/personamem_eval.py`; Jiang et al. 2025, "Know Me, Respond to Me", MIT; data not in the
 repository: https://huggingface.co/datasets/bowen-upenn/PersonaMem-v1). 20 simulated users talk with a chatbot over many
@@ -693,7 +739,7 @@ When the semantic backend is on but the index was not built, both harnesses fail
 
 | Evaluation | What it measures | Version |
 |---|---|---|
-| `benchmarks/personal_eval.py` | Personal scenarios: in a new session, does the agent see the user's own statements it needs, how much unrelated text comes along, are family facts attributed to the right person, do changes of mind replace the old words (above) | v7.19.0–v7.22.0 |
+| `benchmarks/personal_eval.py` | Personal scenarios: in a new session, does the agent see the user's own statements it needs, how much unrelated text comes along, are family facts attributed to the right person, do changes of mind replace the old words, are the things that are due listed and nothing else (above) | v7.19.0–v7.23.0 |
 | `benchmarks/personamem_eval.py` | PersonaMem: what the agent sees at each question, then a local model picks the best of four replies, with and without memory (above) | v7.19.0, v7.20.0 |
 | `benchmarks/beam_eval.py` | BEAM retrieval evidence recall from 100K to 10M tokens (above), with a BM25 reference, write speed and disk | v7.18.0 |
 | `benchmarks/beam_format_eval.py` | How recalled memories are written into the prompt: is the answer visible, does a model use it | v7.18.0 |
@@ -715,6 +761,7 @@ When the semantic backend is on but the index was not built, both harnesses fail
 
 ## 📝 Recent updates
 
+- **v7.23.0**: follow-ups — what you said is coming up (an interview, a check-up, a trip) is shown to the agent at the start of a conversation in the two days before it and, until you mention how it went, the ten days after, so it can wish you luck or ask how it went; dropped once answered, asked, cancelled or past; `/nyx follow-ups [on|off]`, `follow_ups` in `nyx.json` (held out: 6 of 6 things due listed, 0 of 8 that should not be)
 - **v7.22.0**: the always-on profile follows changes of mind — a later "reply in English", "I eat meat again" or "we moved to Denver" replaces what was said before, only the part that changed goes, and the old words are listed under "Changed since" (old words still shown as current after a change: 19 of 21 → 1); forgotten memories past their retention period are erased automatically, at most once a day
 - **v7.21.0**: a framework for remembering photos, recordings and videos: `hermes nyx media add / list / show / understand / backends / forget / restore`; pluggable understanding backends (a local command, or a pip plugin), none by default, so writing still calls no model; derived text is ordinary memory, labelled as inferred, dated when the media was taken
 - **v7.20.1**: v7.20.0 as published on PyPI (v7.20.0's release check expected one companion plugin and found two, so it was never published)

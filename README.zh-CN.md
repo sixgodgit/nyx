@@ -16,6 +16,7 @@ Claude Desktop / Claude Code 等任意 MCP 客户端，或者你自己的 Python
 |---|---|---|
 | **找得到** | 全文、倒排、TF-IDF、实体与（可选）语义检索多路融合；长记忆按长度打折，不会把说了答案的短消息挤下去；问「一共几次 / 隔了多久」时多给 agent 几条 | LongMemEval-S（470 道计分题）：答案所在的那次对话进前 5 条 **98.7%**；LoCoMo 证据召回 0.573（BM25 0.498）；BEAM 10 万–100 万 token 的长对话：证据 recall@10 **0.454**（BM25 0.333）；1000 万 token 时 0.326（BM25 0.218）。每轮召回约 30–140 ms |
 | **认得你** | 你说过的关于自己的事 —— 对 agent 的要求（「以后用中文、别用 emoji」）、过敏和饮食、家人、住处工作、喜好 —— 用原话放在每个会话的系统提示里；你改了主意（「以后用英文吧」「我又开始吃肉了」「我们搬到深圳了」），新说法就顶替旧说法；只靠「什么 / 帮我 / what」和问题撞上的记忆不注入；家人的事记在家人名下 | 8 个个人故事（v7.19.0）：agent 该看到的事实从 25–38% 到 **100%**，每个问题的无关注入从 9 条降到 1–2 条，无关问题 88% 一条都不注入（以前 13–25%）。改主意之后（v7.22.0，12 个故事里 21 处）：旧说法仍被当成现状 19 次 → 1 次 |
+| **会跟进** | 你说过快要发生的事 —— 面试、复查、出差、考试 —— 在它之前的两天里、以及之后十天你还没说结果时，新对话一开始就摆在 agent 面前，它可以祝你顺利、或者问一句结果怎么样；你说了结果、或者它已经问过，就不再列（v7.23.0） | 4 个个人故事（2 个留出）：该列的 12 件全部列出，不该列的 18 件（早就过去、已经说了结果、取消了、还要好几天、只是假设）一件都没列。在没用来写规则的对话上抽查：人对助手说的话（LongMemEval）里抽到的，90% 是真的计划、日子也对；中文朋友间闲聊（LCCC）78% |
 | **分得清时间** | 双时态事实：「何时为真」和「何时得知」分开记 | 「我 2 月就换成吉利了」记下的是 2 月，不是说这句话的那天；能回答「现在信什么」「三月时我以为是什么」 |
 | **信得过** | 写入时绑定来源与信任：只有主人亲口说的能成为规则；别人转述的、网页抄来的，召回时带「未经证实」标注 | 投毒演练：16 条攻击 0 条无标注进入 agent 提示，主人的 8 条正常信息 0 误伤 |
 | **你说了算** | 任何聊天里 `/nyx pause` 暂停记录、`/nyx resume` 恢复，`/nyx forget-last` 收回上一轮；终端里 `hermes nyx search / show / forget / restore / edit` 查、看、忘、救回、改，不经过模型；`hermes nyx import` 把装 Nyx 之前在 Hermes 里说过的话导进来（v7.20.0） | 用 Hermes 自己的插件加载器和命令分发验证过，按终端和消息网关两种调用方式；导入的旧话「我住在杭州」不会盖过后来说的「我搬到上海了」 |
@@ -46,7 +47,7 @@ Hermes 把插件放进 `~/.hermes/plugins/nyx/`，再把它声明的依赖 nyx-m
 两个可选步骤（v7.20.0）：
 
 ```bash
-hermes plugins enable nyx-commands    # 任何聊天里都能用 /nyx status · pause · resume · forget-last
+hermes plugins enable nyx-commands    # 任何聊天里都能用 /nyx status · pause · resume · forget-last · follow-ups
 hermes nyx import                     # 把以前在 Hermes 里的对话导进来（先列出来，问过你再导）
 ```
 
@@ -116,6 +117,15 @@ restore(r["preview"][0]["mem_id"])                     # 隔离期内原样还�
 家人伴侣宠物、住在哪做什么、喜欢和讨厌什么。按规则从主人自己的消息里挑（不调大模型），被遗忘的立刻消失。
 问「今晚吃什么」和「我对花生过敏」一个词都对不上，靠的就是这一段。之后对同一件事说了新的 —— 回复语言、emoji、长短、怎么称呼、吃不吃肉、喝酒、咖啡、过敏、住哪、做什么工作、喜不喜欢某样东西 —— 新说法顶替旧说法（v7.22.0）；只去掉改了的那部分（「以后用中文，不要用 emoji」之后说「以后用英文」，「不要用 emoji」还在），被顶替的话列在最后的「Changed since」里，带改口的日期。
 
+**待跟进**（v7.23.0）。用户说过的、有日子的事 —— 面试、考试、体检复查或手术、出差旅行、搬家、截止或汇报、婚礼生日、比赛演出 ——
+在该提的时候列在画像后面：事前两天里（`Coming up on Tue 2026-10-13: [2026-10-07] 下周二要去医院体检…`），以及事后十天里、
+之后没人再提过的（`Was on Wed 2026-10-07; nothing said about it since: …`），最多三件，离今天近的在前。再加一句给模型的分寸：
+合适的时候可以问一件、或者祝一句顺利；一次就好，不打断正事。日子按说这句话的那天换算（「下周三」「13号」「10月8号」
+「next Wednesday」「in two days」）；假设（「如果下周有面试…」）、否定、别人的事、已经过去的不算。说了结果或者助手已经问过、
+取消了，就不再列；改期的按新日子算。和画像一样：只看主人自己的话，不调大模型，忘掉那句话这一项也跟着没了。
+没有这一段时，新对话第一句是「你好」，模型面前就没有上周那场面试：召回是拿当前这句话去找，Hermes 对 hi / ok / thanks
+干脆不召回。
+
 **召回**（每一轮对话之前，本地完成）
 
 1. 全文（FTS5）、倒排、TF-IDF、实体、（可选）语义向量多路检索
@@ -143,7 +153,8 @@ restore(r["preview"][0]["mem_id"])                     # 隔离期内原样还�
 | 🩺 **自检** | `doctor.py` | 中枢与日志一致性、各索引、遗忘完整性、隔离区到期、规则投毒，逐项给出原因 |
 | 🧯 **体检与修复** | `repair.py`、`core/forensics.py` | 中枢对不上日志时按内容逐条核对：补缺失、挪错位、认回被覆盖的记忆、撤下合成记录及其派生「事实」；先备份，不改日志 |
 | 🔌 **Hermes 记忆提供器** | `nexsandglass_hermes/`、`core/memory_provider.py` | 按 Hermes 的 `MemoryProvider` 接口实现；`hermes plugins install sixgodgit/nyx/hermes-plugin --enable` 装进 Hermes |
-| ⏸️ **聊天里的 `/nyx`** | `nexsandglass_hermes_commands/`、`core/recording.py` | `status`、`pause` / `resume`（暂停 / 恢复记录，召回照常）、`forget-last [N]`（把这个聊天最近几轮送进隔离区，回显给你核对）。在 Hermes 里直接执行，不经过模型；群聊里只有主人能改（v7.20.0） |
+| 📅 **待跟进** | `core/followups.py` | 用户说过快要发生的事（面试、考试、复查、出差、婚礼、截止…）在事前两天、以及没说结果的事后十天放进系统提示；日子按说的那天换算；取消、改期、说过结果的自动撤掉（v7.23.0） |
+| ⏸️ **聊天里的 `/nyx`** | `nexsandglass_hermes_commands/`、`core/recording.py` | `status`、`pause` / `resume`（暂停 / 恢复记录，召回照常）、`forget-last [N]`（把这个聊天最近几轮送进隔离区，回显给你核对）、`follow-ups [on|off]`（看模型现在看到的待跟进，打开或关掉；v7.23.0）。在 Hermes 里直接执行，不经过模型；群聊里只有主人能改（v7.20.0） |
 | 🗂️ **查找和改正** | `memory_cli.py`、`core/lookup.py` | `hermes nyx search`（`--since` / `--until` 限定日期）、`show`（全文和前后几句）、`forget`（`--now` 当场擦掉）、`restore`、`edit`（改正后的话替换旧的，日期不变）；agent 的 `sandglass_search` / `nyx_read` 用同一套代码（v7.20.0） |
 | 🖼️ **图片、声音、视频**（框架） | `media/` | `hermes nyx media add 照片.jpg --note "…"`：文件按内容哈希保存，附言算你说的；理解后端得出的文字（看图描述、语音转写、视频描述）变成普通的、搜得到的记忆，日期是拍摄 / 录制时间，标成推断。默认没有后端 —— 接本机程序（whisper.cpp、llama.cpp 视觉模型）或 pip 插件，再用 `understand --pending` 给以前登记的补上。遗忘时记录进隔离区，清理时文件一起删（v7.21.0） |
 | 📥 **从 Hermes 导入** | `history_import.py` | 只读打开当前 profile 的 Hermes 会话库，把你自己的对话（本机和私聊；不含群聊、子 agent、定时任务）按原来的时间导进来；Nyx 已有的跳过；可以断点续导（v7.20.0） |
@@ -246,6 +257,7 @@ dv.hunt("川菜馆")                 # -> [Phantom(token='川菜', refs=['msg-1'
 | `LLM_EXTRACT_API_URL` / `NYX_UNDERSTAND_MODEL` | 空 / `deepseek-v4-flash` | 抽取用的 OpenAI 兼容网关与模型 |
 | `NYX_FORGET_RETENTION_DAYS` | `30` | 遗忘隔离期 |
 | `NYX_AUTO_PURGE` | `on` | Hermes 插件在后台把过了隔离期的真删掉，一天最多一次；`off` = 只能手动。Hermes：`auto_purge` |
+| `NYX_FOLLOW_UPS` | `on` | 系统提示里的待跟进（快到了的、刚过去还没说结果的）；`off` = 不放。Hermes：`follow_ups`；聊天里 `/nyx follow-ups off` |
 | `NYX_BUNDLE_MAX_TOKENS` | `1500` | system prompt 注入预算 |
 | `NYX_JOURNAL_MIRROR_MB` | `32` | 日志内存镜像上限（日志文件大小，MB）；超过则退回逐行扫描。约占日志 3.5 倍内存 |
 | `NYX_WARM_WAIT_SECONDS` | `10` | Hermes 首轮对话最多等后台预热多久 |
@@ -346,6 +358,10 @@ SQLite 删行后原文还留在文件的空闲页里，FTS5 删掉的词元连 V
 
 **想让它暂时别记？** 聊天里 `/nyx pause`（帮别人问事、聊私事），`/nyx resume` 恢复。暂停期间什么都不写（每轮对话、会话结束的补记、子任务结果）；召回和你明确要求的照常，agent 也会知道现在没在记。重启之后仍是暂停的。
 
+**agent 怎么会问我面试怎么样了？** 你说过面试在周三；下一次对话开始时，Nyx 让模型看到这件事已经过去、你还没说结果（v7.23.0）。
+你回答了、或者它已经问过，就不会再出现。`/nyx follow-ups` 看模型现在看到的是什么；`/nyx follow-ups off`（或 `nyx.json` 里
+`follow_ups: off`）关掉。
+
 **照片和语音？** v7.21.0 先有了框架：`hermes nyx media add <文件> --note "…"` 登记一张图、一段录音或视频，带时间和你的附言。想让 Nyx 也知道里面有什么，就把理解后端指向本机程序，比如在 `nyx.json` 里写 `media_audio_cmd: "whisper-cli -m ggml-base.bin -nt -f {path}"`（`{path}` 是文件，程序打印的就是转写），再运行 `hermes nyx media understand --pending`。除非你配的程序自己联网，否则什么都不发出去。Hermes 聊天里收到的照片、语音自动登记，还没接上。
 
 **装 Nyx 之前就在用 Hermes？** `hermes nyx import` 列出以前的对话，导你挑的（`--all` 全导），按原来的时间。只导你说的话和 agent 的回复 —— 不导群聊、子 agent、定时任务，也不导 Hermes 注入的记忆文本；私聊里有好几个人时先配 `owner_ids`。Hermes 的库只读打开，再跑一次只补新的。
@@ -382,6 +398,8 @@ LoCoMo 证据召回 +4.7 个点，代价是每轮召回多 0.3–1.5 秒、偏�
 - **常驻画像和相关门是规则，不是理解**（v7.19.0）：画像只认常见说法（「我对…过敏」「以后…别…」「我女儿…」「I'm allergic to…」
   「from now on…」）；只是流露出来的偏好（「又是香菜，烦死了」）进不去。相关门是词法的：不装 `[vector]` 时，和问题一个实词都
   对不上的相关记忆不会注入（装了的话语义命中照样放行）。改主意也只认直说的：「Honestly I've come around on jazz」顶替不了「I hate jazz」
+- **待跟进也是规则**（v7.23.0）：同一个分句里要有认得出的事和日子，「周三要去见那家公司的 HR」就认不出；在朋友间的闲聊里，
+  大约五件里有一件是别人的事、或者是问对方的话。模型看到以后问不问、问得好不好，还没有做端到端的评测
 - **默认嵌入模型偏小**：本地多语言 MiniLM 胜在小而快；换更强的 API 模型时，融合权重可能需要重新调（`NYX_EMBED_Z` / `NYX_EMBED_WEIGHT`）
 
 ---
@@ -427,6 +445,22 @@ LoCoMo 证据召回 +4.7 个点，代价是每轮召回多 0.3–1.5 秒、偏�
   | 该看到的事实看到了（12 个故事） | 93% | **98%** | 87% | **95%** |
 
   剩下那处是间接的改口（「Honestly I've come around on jazz」）。前 8 个故事上面各项都不变，常驻块多 46 个字（「Changed since」那段）。PersonaMem：589 题的常驻块逐字相同，参照分不变（它的偏好变化是讲故事式流露的，不是直说）
+- **待跟进**（v7.23.0）。新增 4 个故事（zh-fu-shenzhen、en-fu-denver 开发用，zh-fu-nanjing、en-fu-portland 留出，在写规则之前写好）：
+  一个月里用户零散说过一些有日子的事，新对话在第 41 天。每个故事有 3 件该列的（五天前的面试、之后没说结果；明天的体检；
+  今天的展会…）和 4–5 件不该列的（一个月前的考试、已经说了结果的复查、取消了的出差、下周的婚礼、「如果下周有面试…」）：
+
+  | | 开发 | 留出 |
+  |---|---|---|
+  | 该列的列出来了 | 6 / 6 | **6 / 6** |
+  | 不该列却列了 | 0 / 10 | **0 / 8** |
+  | 这一段里别的条目 | 0 | 0 |
+
+  之前的 12 个故事里出现一条（「我女儿下个月过生日」，算这个月的某一天）；上面其它各项开不开待跟进都一样，只有有事要列时
+  常驻块才变长（列三件约多 600 个字）。PersonaMem：589 题里 26 题多了一件（「a family road trip … next week」），参照分不变（0.396）。
+
+  在没用来写规则的对话上抽查：LongMemEval-S 的用户消息里 0.41% 抽出了一件，随机看 40 件，36 件是用户自己的计划、日子也对；
+  LCCC（中文朋友间闲聊）里 0.17%，40 件里 31 件 —— 错的多是问对方的话（「周六的马拉松有打算好好跑吗？」）或别人的事。
+  之前两轮抽样用来改过规则（过去时、「every Saturday」「on a Saturday」「shopping trip」…），上面的数字是改完以后新抽的
 
 **PersonaMem**（`benchmarks/personamem_eval.py`；Jiang et al. 2025, "Know Me, Respond to Me"，MIT；数据不放进仓库：
 https://huggingface.co/datasets/bowen-upenn/PersonaMem-v1）。20 个虚构用户和聊天机器人聊很多段，偏好会变；32K 档 589 题，
@@ -594,7 +628,7 @@ python3 benchmarks/personamem_eval.py questions_32k.csv --answer views.jsonl --l
 
 | 评测 | 测什么 | 版本 |
 |---|---|---|
-| `benchmarks/personal_eval.py` | 个人场景：新会话里 agent 能不能看到它需要的用户原话、带进来多少无关内容、家人的事有没有记到对的人头上、改主意之后新说法有没有顶替旧的（见上） | v7.19.0–v7.22.0 |
+| `benchmarks/personal_eval.py` | 个人场景：新会话里 agent 能不能看到它需要的用户原话、带进来多少无关内容、家人的事有没有记到对的人头上、改主意之后新说法有没有顶替旧的、该跟进的有没有列出来而且只列它们（见上） | v7.19.0–v7.23.0 |
 | `benchmarks/personamem_eval.py` | PersonaMem：每道题 agent 看到的记忆，再让本地模型从四个回答里选，对照不给记忆（见上） | v7.19.0、v7.20.0 |
 | `benchmarks/beam_eval.py` | BEAM 检索证据召回，10 万到 1000 万 token（见上），附 BM25 参照、写入速度与磁盘占用 | v7.18.0 |
 | `benchmarks/beam_format_eval.py` | 召回结果怎么写进提示词：答案看不看得见、模型用不用得上 | v7.18.0 |
@@ -616,6 +650,7 @@ python3 benchmarks/personamem_eval.py questions_32k.csv --answer views.jsonl --l
 
 ## 📝 最近更新
 
+- **v7.23.0**：待跟进 —— 你说过快要发生的事（面试、复查、出差），在事前两天、以及你还没说结果的事后十天，新对话一开始就摆在 agent 面前，它可以祝你顺利或者问一句结果；说了结果、问过、取消了、过去太久的自动撤掉；`/nyx follow-ups [on|off]`，`nyx.json` 的 `follow_ups`（留出故事：该列的 6 件全列出，不该列的 8 件一件没列）
 - **v7.22.0**：常驻画像跟着改口 —— 后来说的「以后用英文」「我又吃肉了」「搬到深圳了」顶替以前的说法，只去掉改了的部分，旧说法列在「Changed since」里（改主意之后旧说法仍被当成现状：21 处里 19 处 → 1 处）；过了隔离期的遗忘内容自动真删，一天最多一次
 - **v7.21.0**：图片、声音、视频记忆的框架：`hermes nyx media add / list / show / understand / backends / forget / restore`；理解后端可插拔（本机命令或 pip 插件），默认一个都没有，写入仍然不调用模型；得出的文字是普通记忆，标成推断，日期是拍摄 / 录制时间
 - **v7.20.1**：就是 PyPI 上的 v7.20.0（v7.20.0 的发布检查只认一个配套插件、实际有两个，没有发布出去）

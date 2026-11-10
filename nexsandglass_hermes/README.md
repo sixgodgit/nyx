@@ -70,6 +70,7 @@ instructions? Run `install` once more and it switches to an installation Hermes 
 | `lang` | `auto` | Language of terminal commands and `hermes memory setup`: `en` / `zh`; `auto` = Chinese when the system locale is Chinese (v7.16.0). Text the model reads is always English |
 | `l3_llm` | `off` | `on` = the L3 analyses (persona / decision drift / phantom decisions) call DeepSeek or OpenRouter (`DEEPSEEK_API_KEY` / `OPENROUTER_API_KEY`, from the current profile) and send them relevant memory snippets, the persona and recent decisions. Before v7.15.2 this happened whenever a key was present |
 | `auto_purge` | `on` | Once a day, erase forgotten memories past their retention period (and their media files); never touches what can still be restored (v7.22.0) |
+| `follow_ups` | `on` | Follow-ups in the system prompt: what you said is coming up in the next two days, or happened in the last ten without you saying how it went (an interview, a check-up, a trip), so the agent can wish you luck or ask how it went (v7.23.0) |
 
 ## Terminal commands: `hermes nyx …` (v7.15.2)
 
@@ -110,6 +111,7 @@ hermes plugins enable nyx-commands
 | `/nyx pause` | Stop remembering: turns, the end-of-session catch-up, subagent results and the built-in memory mirror are not written. Recall and explicit requests ("forget that") keep working, and the agent is told recording is paused. Stays paused across restarts and sessions |
 | `/nyx resume` | Start remembering again |
 | `/nyx forget-last [N]` | This chat's last N turns (default 1, at most 20) to the quarantine; the forgotten lines are shown so you can check, with the command that brings them back |
+| `/nyx follow-ups [on\|off]` | What a new conversation shows the model as coming up or just happened (v7.23.0); `off` / `on` turns it off or back on (`follow_ups: off` in `nyx.json` still wins) |
 
 They run in Hermes and the reply stays in the chat; the model never sees them. Who may use them: anyone on the local
 machine (CLI, TUI, desktop) and in a private chat; in group chats and channels only `status`, because anyone there can
@@ -185,7 +187,7 @@ Threat model and tests: [docs/secret-vault.md](https://github.com/sixgodgit/nyx/
 
 - **system prompt** (once per session): `[About the user]` — what the user has said about themselves, in their own words
   and newest first: standing requests to the agent, health and diet, family / partner / pets, home and work, likes and
-  dislikes (v7.19.0; `core/profile.py`). A later statement about the same thing replaces the earlier one and the replaced words are listed under "Changed since" (v7.22.0). Below it, when there is something to say: the persona the user built, decision
+  dislikes (v7.19.0; `core/profile.py`). A later statement about the same thing replaces the earlier one and the replaced words are listed under "Changed since" (v7.22.0). Then the follow-ups: what the user said is coming up in the next two days, or happened in the last ten days with no word since, with one line on asking about it (v7.23.0; `core/followups.py`). Below it, when there is something to say: the persona the user built, decision
   drift, open to-dos and rules
 - **prefetch**: a fresh local recall for this turn's question (about 30–140 ms per turn), each entry with the date it was said;
   for questions about where the user lives / works / their job, the current bi-temporal belief is added

@@ -122,14 +122,19 @@ jobs:
           # 配套插件 nyx-commands 从装好的 wheel 里注册出 /nyx；终端命令的模块能导入（v7.20.1）
           import importlib
           class CmdCtx:
-              name = None
+              name = hint = None
               def register_command(self, name, handler, description="", args_hint=""):
-                  self.name = name
+                  self.name, self.hint = name, args_hint
           cc = CmdCtx()
           importlib.import_module("nexsandglass_hermes_commands").register(cc)
-          assert cc.name == "nyx", cc.name
+          assert cc.name == "nyx" and "follow-ups" in cc.hint, (cc.name, cc.hint)
           for m in ("nexsandglass.memory_cli", "nexsandglass.history_import", "nexsandglass.core.lookup", "nexsandglass.media.cli"):
               importlib.import_module(m)
+          # 待跟进的规则在装好的包里能用（v7.23.0）
+          from datetime import datetime
+          from nexsandglass.core import followups
+          got = followups.extract("下周三我有个面试", datetime(2026, 10, 2, 20))
+          assert [d.isoformat() for _, d, _, _ in got] == ["2026-10-07"], got
 
           whl = glob.glob(os.path.join(os.environ["GITHUB_WORKSPACE"], "dist", "*.whl"))[0]
           names = zipfile.ZipFile(whl).namelist()
