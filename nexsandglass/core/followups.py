@@ -144,8 +144,9 @@ _PAST_ZH = re.compile(r"了(?![吗吧呢啊呀])|刚(?!好)|做完|考完|面完
 _FUT_ZH = re.compile(r"要|会|将|准备|打算|计划|预约|约了|安排|报了|订了|定了|想去|还有|有个|有一?场|得去")
 _PAST_EN = re.compile(r"\b(?:had|was|were|went|did|got|took|won|lost|finished|passed|failed|attended|played|enjoyed|"
                       r"celebrated|visited|met|saw|watched|ran|completed|came|left|gave|presented|competed|performed|"
-                      r"joined|hosted|returned|caught|learned|learnt|tried|spent|bought|ate|drove|flew|just|already|"
-                      r"earlier today)\b", re.I)
+                      r"joined|hosted|returned|caught|learned|learnt|tried|spent|bought|ate|drove|flew|just|already|been|"
+                      r"managed|didn'?t|wasn'?t|weren'?t|earlier today)\b|\b(?:i|we) (?!(?:need|feed|speed|bleed|proceed|"
+                      r"succeed|exceed|breed|heed|seed|weed)\b)[a-z]+ed\b", re.I)
 _FUT_EN = re.compile(r"\b(?:will|going to|gonna|planning|plan to|hoping|hope to|thinking of|scheduled|booked|need to|"
                      r"want to|would like to|upcoming|coming up)\b|'ll\b|\b(?:have|has) (?:a|an|my|his|her|our|the|to)\b|"
                      r"(?:\b(?:am|is|are)|'m|'re) \w+ing\b", re.I)
@@ -178,7 +179,7 @@ _TIME_RULES = [
     ("nmonth_begin", r"下(?:个)?月初", False),
     ("nmonth", r"下(?:个)?月", False),
     ("month_end", r"(?:这|本)?(?:个)?月(?:底|末)", False),
-    ("md", r"(?P<m>" + _N + r")月(?P<d>" + _N + r")(?:号|日)?", True),
+    ("md", r"(?:(?P<y>\d{4})年)?(?P<m>" + _N + r")月(?P<d>" + _N + r")(?:号|日)?", True),
     ("day", r"(?<![\d月.．])(?:(?P<d>\d{1,2})(?:号|日)|(?P<dz>[一二三四五六七八九十]{1,3})号)"
             r"(?![\d线楼门位房厅车口机台球码仓院窗柜桌床])", True),
     ("in_days", r"(?P<n>\d{1,2}|[两三四五六七八九十])天(?:后|以后|之后)", False),
@@ -204,9 +205,9 @@ _TIME_RULES = [
     ("nmonth_end", r"\b(?:at |by )?the end of next month\b", False),
     ("nmonth", r"\bnext month\b", False),
     ("month_end", r"\b(?:at |by )?(?:the )?end of (?:the|this) month\b|\bmonth-end\b", False),
-    ("md", r"\b" + _MON_EN + r" (?P<d>\d{1,2})(?:st|nd|rd|th)?\b", True),
-    ("md", r"\b(?P<d>\d{1,2})(?:st|nd|rd|th)? (?:of )?" + _MON_EN + r"\b", True),
-    ("day", r"\bon the (?P<d>\d{1,2})(?:st|nd|rd|th)\b", True),
+    ("md", r"\b" + _MON_EN + r" (?P<d>\d{1,2})(?:st|nd|rd|th)?\b(?:,? (?P<y>\d{4})\b)?", True),
+    ("md", r"\b(?P<d>\d{1,2})(?:st|nd|rd|th)? (?:of )?" + _MON_EN + r"\b(?:,? (?P<y>\d{4})\b)?", True),
+    ("day", r"\bon the (?P<d>\d{1,2})(?:st|nd|rd|th)\b(?! of " + _MON_EN.replace("(?P<mon>", "(?:") + ")", True),
     ("in_days", r"\bin (?P<n>\d{1,2}|two|three|four|five|six|seven|ten) days\b", False),
     ("few_days", r"\bin (?P<f>a few|a couple of|a couple|few) days\b", False),
     ("in_weeks", r"\bin (?P<n>a|one|two|three|\d) weeks?\b", False),
@@ -302,6 +303,8 @@ def _resolve(name: str, m: re.Match, d: date) -> Optional[tuple]:
         dd = _num(g.get("d"))
         if not mm or not dd or not 1 <= mm <= 12:
             return None
+        if g.get("y"):                                      # 说了年份：照它（「June 15th, 2022」）
+            return one(_safe(int(g["y"]), mm, dd))
         x = _safe(d.year, mm, dd)
         if x and x < d - timedelta(days=7):                 # 年底说「1月5号」= 明年
             x = _safe(d.year + 1, mm, dd)
@@ -347,7 +350,7 @@ def _times(text: str, d: date) -> list:
 # ══════════════════════════════════════════════════════════
 
 _SPLIT = re.compile(r"(?<=[。！？!?])|(?<=\.)\s+|\n+")
-_CLAUSE = re.compile(r"[，,；;]+\s*")
+_CLAUSE = re.compile(r"[，；;]+\s*|,(?!\s?\d)\s*")          # 10,000 和 April 10, 2023 不拆开
 
 
 def _sentences(text: str) -> list:
@@ -367,13 +370,15 @@ def _event_spans(text: str, kinds) -> list:
     return sorted((m.start(), m.end()) for k in kinds for m in _KIND_RX[k].finditer(text))
 
 
-def _is_past_tense(clause: str) -> bool:
-    if re.search(r"[一-鿿]", clause):
-        return bool(_PAST_ZH.search(clause)) and not _FUT_ZH.search(clause)
-    return bool(_PAST_EN.search(clause)) and not _FUT_EN.search(clause)
+def _is_past_tense(clause: str, sentence: str = "") -> bool:
+    """说的是已经发生的事。分句本身看不出时态（「including the Katy Perry concert today」）时看整句。"""
+    zh = bool(re.search(r"[一-鿿]", clause))
+    past, fut = (_PAST_ZH, _FUT_ZH) if zh else (_PAST_EN, _FUT_EN)
+    text = clause if (past.search(clause) or fut.search(clause) or not sentence) else sentence
+    return bool(past.search(text)) and not fut.search(text)
 
 
-def _future_spans(clause: str, d: date, near: Optional[list] = None) -> list:
+def _future_spans(clause: str, d: date, near: Optional[list] = None, sentence: str = "") -> list:
     """分句里指向今天或以后的日子 [(离「事」多远, 位置, (开始, 结束))]；改期（推迟到…）只看改期之后的。"""
     times = _times(clause, d)
     mv = _MOVE.search(clause)
@@ -383,7 +388,7 @@ def _future_spans(clause: str, d: date, near: Optional[list] = None) -> list:
     for ts, te, name, span, check_tense in times:
         if not span or span[1] < d or span[0] > d + timedelta(days=MAX_AHEAD_DAYS):
             continue
-        if check_tense and _is_past_tense(clause):
+        if check_tense and _is_past_tense(clause, sentence):
             continue
         if name == "today" and _OUTCOME.search(clause):
             continue                                     # 「今天面试过了」：在说结果
@@ -392,9 +397,18 @@ def _future_spans(clause: str, d: date, near: Optional[list] = None) -> list:
     return sorted(ok)
 
 
-def _future_time(clause: str, d: date, near: Optional[list] = None) -> Optional[tuple]:
-    """分句里离「事」最近的、指向今天或以后的日子 (开始, 结束)。"""
-    ok = _future_spans(clause, d, near)
+def _future_time(clause: str, d: date, near: Optional[list] = None, sentence: str = "") -> Optional[tuple]:
+    """分句里离「事」最近的、指向今天或以后的日子 (开始, 结束)。
+    离「事」最近的那个日子本身是过去的（「my Costco trip last weekend … this week」），这件事就是过去的。"""
+    if near:
+        times = _times(clause, d)
+        if times:
+            gap = lambda t: min(max(0, es - t[1], t[0] - ee) for es, ee in near)     # noqa: E731
+            closest = min(times, key=lambda t: (gap(t), t[0]))
+            if closest[3] is None or closest[3][1] < d:
+                if not (_MOVE.search(clause) and closest[0] < _MOVE.search(clause).start()):
+                    return None
+    ok = _future_spans(clause, d, near, sentence)
     return ok[0][2] if ok else None
 
 
@@ -432,15 +446,18 @@ def extract(text: str, said) -> list:
             parts = [cl] if re.search(r"[一-鿿]", cl) else [p for p in _AND.split(cl) if p.strip()]
             only = None
             if len(parts) > 1:
-                whole = _future_spans(cl, d)
-                only = whole[0][2] if len(whole) == 1 else None
+                # 只借给并列的另一件事：「an interview and a dentist appointment tomorrow」；
+                # 没有事的那一段的日子不借（「…Portland, Oregon today and … my next trip」）
+                whole = _future_spans(cl, d, sentence=sent)
+                owned = [s for p in parts if kinds_in(p) for s in _future_spans(p, d, sentence=sent)]
+                only = whole[0][2] if len(whole) == 1 and len(owned) == 1 else None
             for part in parts:
                 kinds = kinds_in(part)
                 spans = _part_spans(part, kinds) if kinds else None
                 if not spans:
                     continue
-                span = _future_time(part, d, near=spans)
-                if span is None and only and not _is_past_tense(part):
+                span = _future_time(part, d, near=spans, sentence=sent)
+                if span is None and only and not _is_past_tense(part, sent) and not _times(part, d):
                     span = only                                  # 「an interview and a dentist appointment tomorrow」
                 if span:
                     out.append((tuple(kinds), span[0], span[1], sent))

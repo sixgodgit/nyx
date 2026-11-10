@@ -5,6 +5,62 @@ Benchmark section of the README and `benchmarks/`. Entries from v7.16.0 on are i
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。v7.16.0 起的条目用英文，之前的是中文。
 
+### v7.23.0 (2026-11-10) — Follow-ups: what you said is coming up, at the start of the next conversation
+
+**Why.** Tell ChatGPT on Monday about an interview on Wednesday and on Friday it may open with "how did the interview
+go?". Nyx could not: a conversation that opens with "hi" or "write my weekly report" recalls nothing, because recall
+looks for what the current message is about (and Hermes does not recall at all for "hi", "ok" or "thanks"), and the
+always-on profile holds only lasting facts. Checked before the change: "下周三我有个字节的面试" said on 11-03, a new
+session on 11-13 — the block held "keep replies short" and "allergic to mango", and "你好" / "帮我写一下这周的周报"
+recalled nothing. The model never had the interview in front of it.
+
+**Changes.**
+- `core/followups.py`: rules (Chinese and English, no LLM) take, from the owner's own trusted messages, a clause with an
+  event — interview, exam, check-up / operation / dentist, trip / flight, move, deadline / talk / launch / conference,
+  wedding / birthday / party, race / concert / sports day — and a day: 今天 / 明天 / 后天 / 下周三 / 这周六 / 周日 / 13号 /
+  10月8号 / 下个月 / 月底 / 过两天 / 三天后; today / tomorrow / next Wednesday / this Saturday / on the 13th / October 8th /
+  next week / in two days / at the end of the month. The day is worked out from when it was said. Left out:
+  hypotheticals, negations, other people's plans, things said to or about the other person, greetings, recurring days
+  ("every Saturday", "on Tuesdays", "on a Saturday") and what is already past (by tense where the day does not say, and
+  by the day phrase nearest to the event).
+- In the system prompt, after the profile, up to three items, nearest first: `Coming up on Tue 2026-10-13: [2026-10-07] …`
+  in the two days before, `Was on Wed 2026-10-07; nothing said about it since: …` in the ten days after, and one line:
+  ask about one of them or wish them luck when it fits, once, never interrupting a task.
+- An item goes when anyone mentions it after the day (the user tells the outcome, or the assistant has asked), when it is
+  cancelled, or when it is rescheduled (the new day is an item of its own). A later message is about it when it names
+  the same kind of event; for a secondary kind it must also share a word ("the Seattle trip got cancelled" cancels
+  "flying to Seattle for a conference"; "Dad's checkup went fine" does not answer "a job interview at a clinic").
+- Stored as references (message id, kind, days) and read through the hub: forgetting the message removes the item,
+  restoring it brings the item back.
+- `/nyx follow-ups` shows what a new conversation shows the model; `/nyx follow-ups off|on`; `follow_ups: off` in
+  `nyx.json` (`NYX_FOLLOW_UPS=off`); `/nyx status` shows the state.
+
+**Measured.**
+- Personal eval, four new stories written before the rules (zh-fu-shenzhen and en-fu-denver for development,
+  zh-fu-nanjing and en-fu-portland held out), new conversation on day 41:
+
+  | | Dev | Held out |
+  |---|---|---|
+  | Things due that were listed | 6 of 6 | **6 of 6** |
+  | Listed though they should not be (long past, answered, cancelled, days away, hypothetical) | 0 of 10 | **0 of 8** |
+  | Other lines in the section | 0 | 0 |
+
+- The twelve earlier stories: one line ("我女儿下个月过生日", some time this month). Follow-ups on and off give the same
+  numbers on everything else (facts seen 0.978, unrelated entries per question 1.15, unrelated questions clean 0.88,
+  changes of mind as in v7.22.0); the block grows only when something is due (about 600 characters with three items).
+- PersonaMem: 26 of 589 questions get one item ("We planned an adventure-filled family road trip … next week"); proxy
+  0.396 either way. Follow-ups do not touch recall; the 7 questions whose injections differ between the two runs are
+  the known tie-order variation.
+- Conversations the rules were not written on: LongMemEval-S user messages, 0.41% yield an item and 36 of a fresh random
+  40 are a real plan with the right day; LCCC (Chinese chat between friends), 0.17% and 31 of 40 — the misses are mostly
+  questions to the other person and other people's plans. Two earlier rounds of samples were used to fix rules (past
+  tense, recurring days, "shopping trip", a comma in "10,000" splitting a sentence…); these numbers come from fresh
+  samples drawn afterwards.
+- Real Hermes (main): an interview mentioned in one session is in the system prompt of a session started after the day
+  (`Was on Wed 2026-10-07; nothing said about it since: [2026-10-02] 下周三我有个腾讯的二面…`), and is gone once the
+  user has said how it went.
+- Not measured: whether the model then asks, and asks well. That needs the end-to-end evaluation with a real model.
+
 ### v7.22.0 (2026-11-07) — The always-on profile follows changes of mind; forgotten memories are erased when due
 
 **Why.** A personal agent's user changes their mind: "reply in English from now on", "I eat meat again", "we moved to

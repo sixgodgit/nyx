@@ -76,6 +76,9 @@ def switch_file(tmp_path, monkeypatch):
     ("We're moving to Austin next month", "2026-10-06", ("2026-11-01", "2026-11-30")),
     ("I have a concert this weekend", "2026-10-01", ("2026-10-03", "2026-10-04")),
     ("The interview was rescheduled to next Friday", "2026-10-06", ("2026-10-16", "2026-10-16")),
+    ("昨天的面试改到下周五了", "2026-10-06", ("2026-10-16", "2026-10-16")),
+    ("I have a marathon on April 17, 2027.", "2027-02-05", ("2027-04-17", "2027-04-17")),     # 说了年份
+    ("2027年1月5号回国", "2026-12-20", ("2027-01-05", "2027-01-05")),
 ])
 def test_dates(text, said, expect):
     got = F.extract(text, datetime.strptime(said, "%Y-%m-%d").replace(hour=20))
@@ -118,6 +121,13 @@ def test_dates(text, said, expect):
     "我今天不去医院",
     "I think I'll try to book a morning flight on a Saturday, since it's usually less busy.",
     "I'm so excited to hear that you're heading to Koenji this weekend!",
+    "I just earned 10,000 miles after taking a round-trip flight from Boston to Atlanta today, by the way.",
+    "I ordered it on the 15th of April for my best friend's birthday.",
+    "I have some frozen veggies from my Costco trip last weekend that I can use this week.",
+    "That was the graduation celebration at the office on June 15th, 2025.",
+    "I've been to three concerts this year, including the Katy Perry concert today.",
+    "I managed a personal best in the drag race at the Turbocharged Tuesday event.",
+    "I just got back from my solo trip to Portland, Oregon today and I'm already thinking about planning my next trip.",
 ])
 def test_not_follow_ups(text):
     assert F.extract(text, datetime(2026, 10, 9, 20)) == []

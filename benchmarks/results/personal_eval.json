@@ -4190,5 +4190,386 @@
     ]
    }
   ]
+ },
+ "v7.23.0": {
+  "note": "Follow-ups. Four new stories written before the rules (zh-fu-shenzhen, en-fu-denver dev; zh-fu-nanjing, en-fu-portland held out), new session on day 41: things due listed dev 6/6, held out 6/6; listed though they should not be 0/10 and 0/8; no other lines. The twelve earlier stories: one line (zh-hangzhou, 'daughter's birthday next month'). follow_ups_off = the same code with NYX_FOLLOW_UPS=off: every other metric identical; only block_chars differs.",
+  "follow_ups_off": {
+   "all": {
+    "stories": 16,
+    "errors": 0,
+    "probes": 98,
+    "fact_visible": 0.978,
+    "fact_visible_via_block": 0.733,
+    "probe_complete": 0.97,
+    "junk_per_probe": 1.15,
+    "echo_per_probe": 0.05,
+    "lines_per_probe": 1.43,
+    "unrelated_clean": 0.88,
+    "inject_chars": 136.28,
+    "block_chars": 651.38,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 21,
+    "changes_now": 0.95,
+    "changes_was": 1,
+    "fu_show": 0.0,
+    "fu_wrong": 0,
+    "fu_extra": 0,
+    "fu_other": 0,
+    "recall_ms_mean": 12.61
+   },
+   "split=dev": {
+    "stories": 8,
+    "errors": 0,
+    "probes": 50,
+    "fact_visible": 1.0,
+    "fact_visible_via_block": 0.72,
+    "probe_complete": 1.0,
+    "junk_per_probe": 0.64,
+    "echo_per_probe": 0.06,
+    "lines_per_probe": 0.98,
+    "unrelated_clean": 0.92,
+    "inject_chars": 75.04,
+    "block_chars": 672.62,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 12,
+    "changes_now": 1.0,
+    "changes_was": 0,
+    "fu_show": 0.0,
+    "fu_wrong": 0,
+    "fu_extra": 0,
+    "fu_other": 0,
+    "recall_ms_mean": 12.71
+   },
+   "split=test": {
+    "stories": 8,
+    "errors": 0,
+    "probes": 48,
+    "fact_visible": 0.95,
+    "fact_visible_via_block": 0.75,
+    "probe_complete": 0.94,
+    "junk_per_probe": 1.69,
+    "echo_per_probe": 0.04,
+    "lines_per_probe": 1.9,
+    "unrelated_clean": 0.83,
+    "inject_chars": 200.06,
+    "block_chars": 630.12,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 9,
+    "changes_now": 0.89,
+    "changes_was": 1,
+    "fu_show": 0.0,
+    "fu_wrong": 0,
+    "fu_extra": 0,
+    "fu_other": 0,
+    "recall_ms_mean": 12.51
+   },
+   "lang=en": {
+    "stories": 8,
+    "errors": 0,
+    "probes": 49,
+    "fact_visible": 0.978,
+    "fact_visible_via_block": 0.711,
+    "probe_complete": 0.97,
+    "junk_per_probe": 1.92,
+    "echo_per_probe": 0.02,
+    "lines_per_probe": 2.18,
+    "unrelated_clean": 0.75,
+    "inject_chars": 225.78,
+    "block_chars": 749.38,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 10,
+    "changes_now": 0.9,
+    "changes_was": 1,
+    "fu_show": 0.0,
+    "fu_wrong": 0,
+    "fu_extra": 0,
+    "fu_other": 0,
+    "recall_ms_mean": 13.87
+   },
+   "lang=zh": {
+    "stories": 8,
+    "errors": 0,
+    "probes": 49,
+    "fact_visible": 0.978,
+    "fact_visible_via_block": 0.756,
+    "probe_complete": 0.97,
+    "junk_per_probe": 0.39,
+    "echo_per_probe": 0.08,
+    "lines_per_probe": 0.67,
+    "unrelated_clean": 1.0,
+    "inject_chars": 46.78,
+    "block_chars": 553.38,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 11,
+    "changes_now": 1.0,
+    "changes_was": 0,
+    "fu_show": 0.0,
+    "fu_wrong": 0,
+    "fu_extra": 0,
+    "fu_other": 0,
+    "recall_ms_mean": 11.35
+   }
+  },
+  "report": {
+   "all": {
+    "stories": 16,
+    "errors": 0,
+    "probes": 98,
+    "fact_visible": 0.978,
+    "fact_visible_via_block": 0.733,
+    "probe_complete": 0.97,
+    "junk_per_probe": 1.15,
+    "echo_per_probe": 0.05,
+    "lines_per_probe": 1.43,
+    "unrelated_clean": 0.88,
+    "inject_chars": 136.28,
+    "block_chars": 837.5,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 21,
+    "changes_now": 0.95,
+    "changes_was": 1,
+    "fu_show": 1.0,
+    "fu_wrong": 0,
+    "fu_extra": 0,
+    "fu_other": 1,
+    "recall_ms_mean": 10.24
+   },
+   "split=dev": {
+    "stories": 8,
+    "errors": 0,
+    "probes": 50,
+    "fact_visible": 1.0,
+    "fact_visible_via_block": 0.72,
+    "probe_complete": 1.0,
+    "junk_per_probe": 0.64,
+    "echo_per_probe": 0.06,
+    "lines_per_probe": 0.98,
+    "unrelated_clean": 0.92,
+    "inject_chars": 75.04,
+    "block_chars": 892.0,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 12,
+    "changes_now": 1.0,
+    "changes_was": 0,
+    "fu_show": 1.0,
+    "fu_wrong": 0,
+    "fu_extra": 0,
+    "fu_other": 1,
+    "recall_ms_mean": 9.81
+   },
+   "split=test": {
+    "stories": 8,
+    "errors": 0,
+    "probes": 48,
+    "fact_visible": 0.95,
+    "fact_visible_via_block": 0.75,
+    "probe_complete": 0.94,
+    "junk_per_probe": 1.69,
+    "echo_per_probe": 0.04,
+    "lines_per_probe": 1.9,
+    "unrelated_clean": 0.83,
+    "inject_chars": 200.06,
+    "block_chars": 783.0,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 9,
+    "changes_now": 0.89,
+    "changes_was": 1,
+    "fu_show": 1.0,
+    "fu_wrong": 0,
+    "fu_extra": 0,
+    "fu_other": 0,
+    "recall_ms_mean": 10.69
+   },
+   "lang=en": {
+    "stories": 8,
+    "errors": 0,
+    "probes": 49,
+    "fact_visible": 0.978,
+    "fact_visible_via_block": 0.711,
+    "probe_complete": 0.97,
+    "junk_per_probe": 1.92,
+    "echo_per_probe": 0.02,
+    "lines_per_probe": 2.18,
+    "unrelated_clean": 0.75,
+    "inject_chars": 225.78,
+    "block_chars": 920.88,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 10,
+    "changes_now": 0.9,
+    "changes_was": 1,
+    "fu_show": 1.0,
+    "fu_wrong": 0,
+    "fu_extra": 0,
+    "fu_other": 0,
+    "recall_ms_mean": 10.51
+   },
+   "lang=zh": {
+    "stories": 8,
+    "errors": 0,
+    "probes": 49,
+    "fact_visible": 0.978,
+    "fact_visible_via_block": 0.756,
+    "probe_complete": 0.97,
+    "junk_per_probe": 0.39,
+    "echo_per_probe": 0.08,
+    "lines_per_probe": 0.67,
+    "unrelated_clean": 1.0,
+    "inject_chars": 46.78,
+    "block_chars": 754.12,
+    "block_agent_lines": 0,
+    "block_foreign": 0,
+    "wrong_beliefs": 0,
+    "stale": 0,
+    "changes": 11,
+    "changes_now": 1.0,
+    "changes_was": 0,
+    "fu_show": 1.0,
+    "fu_wrong": 0,
+    "fu_extra": 0,
+    "fu_other": 1,
+    "recall_ms_mean": 9.97
+   }
+  },
+  "followups_by_story": {
+   "zh-hangzhou": {
+    "split": "dev",
+    "followups": null,
+    "lines": 1
+   },
+   "zh-chengdu": {
+    "split": "dev",
+    "followups": null,
+    "lines": 0
+   },
+   "zh-beijing": {
+    "split": "test",
+    "followups": null,
+    "lines": 0
+   },
+   "zh-shenzhen": {
+    "split": "test",
+    "followups": null,
+    "lines": 0
+   },
+   "en-seattle": {
+    "split": "dev",
+    "followups": null,
+    "lines": 0
+   },
+   "en-london": {
+    "split": "dev",
+    "followups": null,
+    "lines": 0
+   },
+   "en-toronto": {
+    "split": "test",
+    "followups": null,
+    "lines": 0
+   },
+   "en-austin": {
+    "split": "test",
+    "followups": null,
+    "lines": 0
+   },
+   "zh-wuhan": {
+    "split": "dev",
+    "followups": null,
+    "lines": 0
+   },
+   "en-boston": {
+    "split": "dev",
+    "followups": null,
+    "lines": 0
+   },
+   "zh-xiamen": {
+    "split": "test",
+    "followups": null,
+    "lines": 0
+   },
+   "en-chicago": {
+    "split": "test",
+    "followups": null,
+    "lines": 0
+   },
+   "zh-fu-shenzhen": {
+    "split": "dev",
+    "followups": {
+     "show": [
+      true,
+      true,
+      true
+     ],
+     "wrong": [],
+     "extra": []
+    },
+    "lines": 3
+   },
+   "en-fu-denver": {
+    "split": "dev",
+    "followups": {
+     "show": [
+      true,
+      true,
+      true
+     ],
+     "wrong": [],
+     "extra": []
+    },
+    "lines": 3
+   },
+   "zh-fu-nanjing": {
+    "split": "test",
+    "followups": {
+     "show": [
+      true,
+      true,
+      true
+     ],
+     "wrong": [],
+     "extra": []
+    },
+    "lines": 3
+   },
+   "en-fu-portland": {
+    "split": "test",
+    "followups": {
+     "show": [
+      true,
+      true,
+      true
+     ],
+     "wrong": [],
+     "extra": []
+    },
+    "lines": 3
+   }
+  }
  }
 }
