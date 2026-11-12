@@ -39,9 +39,9 @@ core/memid.py — ID 中枢（Identity Hub）
 
 三条铁律：
 
-  A. **原子分配**：allocate() 在 *同一把文件锁* 内完成「INSERT memories」+
-     「append sandglass.txt」。DB 成功而文件失败则回滚 DB 行 —— 两者永远 1:1，
-     `seq == line_num`，不存在猜行号这回事。
+  A. **协调分配**：allocate() 在 *同一把文件锁* 内完成「INSERT memories」+
+     「append sandglass.txt」。普通写入/提交异常会回滚 DB，并撤销本次追加的字节，
+     不保留半条记录。进程中断/掉电仍须通过 verify / repair 检查恢复，文件锁不是跨文件事务。
   B. **确定性 ID**：mem_id 由 (ts, sender, text) 哈希得出，因此迁移脚本可重复
      运行而不产生新 ID（幂等），同一条记忆在任何库里算出来都一样。
   C. **只增不改**：seq 单调递增。删除写 deleted_at，不物理挪动任何既有记录，
@@ -478,13 +478,34 @@ class _FileLock:
 # 分配（唯一写入入口）
 # ══════════════════════════════════════════════════════════
 
+def _invalidate_journal_cache(path: str) -> None:
+    _line_count_cache.pop(path, None)
+    _line_count_cache.pop(os.path.abspath(path), None)
+    from nexsandglass.core import journal_mirror
+    journal_mirror.invalidate(path)
+
+
+def _rollback_journal_append(path: str, offset: int, identity: tuple, payload: bytes) -> None:
+    """持有 journal_lock 时，只撤销本次追加，拒绝截断被外部替换/改写的文件。"""
+    with open(path, "r+b") as f:
+        st = os.fstat(f.fileno())
+        if (st.st_dev, st.st_ino) != identity or not offset <= st.st_size <= offset + len(payload):
+            raise OSError("日志在追加失败后被替换或另行追加，未截断")
+        f.seek(offset)
+        if f.read() != payload[:st.st_size - offset]:
+            raise OSError("日志尾部不属于本次追加，未截断")
+        f.truncate(offset)
+        f.flush()
+        os.fsync(f.fileno())
+
+
 def allocate(text: str, sender: str = "agent", ts: str = None,
              write_journal: bool = True, journal_path: str = None) -> str:
     """分配一个 mem_id 并（可选）追加到 sandglass.txt。
 
-    **原子性保证**：DB 插入与文件追加在同一把文件锁内完成。
-    文件写入失败 → 回滚 DB 行。因此 seq 与 txt 行号永远 1:1，
-    调用方不再需要猜行号。
+    DB 插入与文件追加在同一把文件锁内完成。普通写入/提交异常会回滚
+    DB 并撤销本次追加（包括部分写入），调用方不再需要猜行号。
+    这不是数据库与文件的掉电原子事务；进程中断后仍需 verify / repair。
 
     Args:
         text:   记忆原文
@@ -540,26 +561,59 @@ def allocate(text: str, sender: str = "agent", ts: str = None,
         line_start = int(prev_end) + 1
         line_end = line_start + text.count("\n")
 
-        conn.execute(
-            "INSERT INTO memories (mem_id, seq, ts, sender, text, content_hash, line_start, line_end)"
-            " VALUES (?,?,?,?,?,?,?,?)",
-            (mem_id, seq, ts, sender, text, content_hash(text), line_start, line_end),
-        )
-        # 来源在写入这一刻绑定，与中枢插入同一个事务：文件写失败 → 一起回滚
-        _prov.record(conn, mem_id, prov, bound=True)
-        if write_journal:
-            try:
+        append_offset = None
+        append_identity = None
+        payload = f"{ts} | {sender} | {text}\n".encode("utf-8")
+        committing = False
+        try:
+            conn.execute(
+                "INSERT INTO memories (mem_id, seq, ts, sender, text, content_hash, line_start, line_end)"
+                " VALUES (?,?,?,?,?,?,?,?)",
+                (mem_id, seq, ts, sender, text, content_hash(text), line_start, line_end),
+            )
+            # 来源和中枢插入是同一个事务，绑定失败也不能留下未绑定的记录。
+            _prov.record(conn, mem_id, prov, bound=True)
+            if write_journal:
                 os.makedirs(os.path.dirname(jpath) or ".", exist_ok=True)
-                with open(jpath, "a", encoding="utf-8") as f:
-                    f.write(f"{ts} | {sender} | {text}\n")
-                try:    # 刷新行数缓存，省掉下一次的全文件扫描
-                    _line_count_cache[jpath] = (os.path.getsize(jpath), line_end)
-                except OSError:
-                    _line_count_cache.pop(jpath, None)
+                with open(jpath, "a+b") as f:
+                    st = os.fstat(f.fileno())
+                    append_offset, append_identity = st.st_size, (st.st_dev, st.st_ino)
+                    if f.write(payload) != len(payload):
+                        raise OSError("日志追加未写完")
+                    f.flush()
+                    os.fsync(f.fileno())
+            committing = True
+            conn.commit()
+        except BaseException as error:
+            # 某些连接包装器可能先提交、再抛异常。此时不能删掉已经提交记录的正文。
+            # 若无法确认事务状态，保守地保留文件，避免把可恢复的不一致变成数据丢失。
+            committed = None
+            try:
+                committed = (committing and not conn.in_transaction and conn.execute(
+                    "SELECT 1 FROM memories WHERE mem_id=?", (mem_id,)).fetchone() is not None)
             except Exception:
-                conn.rollback()          # 文件失败 → DB 回滚，绝不留下孤儿 seq
-                raise
-        conn.commit()
+                pass
+            if committed is False:
+                try:
+                    conn.rollback()
+                    if append_offset is not None:
+                        _rollback_journal_append(jpath, append_offset, append_identity, payload)
+                except Exception as rollback_error:
+                    raise RuntimeError(
+                        f"记忆分配失败（{error}），回滚未完成（{rollback_error}）；请检查日志与中枢一致性"
+                    ) from error
+                finally:
+                    if write_journal:
+                        _invalidate_journal_cache(jpath)
+            elif write_journal:
+                _invalidate_journal_cache(jpath)
+            raise
+        if write_journal:
+            # 只在完整提交后缓存新的行号，失败时必须同时失效行数和正文镜像。
+            try:
+                _line_count_cache[jpath] = (os.path.getsize(jpath), line_end)
+            except OSError:
+                _line_count_cache.pop(jpath, None)
     return mem_id
 
 
@@ -574,7 +628,8 @@ def resolve(ref, *, allow_deleted: bool = False) -> Optional[str]:
       - "m_xxxxxxxxxxxxxxxx"      已经是 mem_id
       - 12 / "12"                 裸行号（按 seq 匹配）
       - "shadow:12" / "line:12"   带前缀的行号
-      - "engram:2026-08-27 10:00:00"  engram 旧数据用 ts 作 source
+      - "engram:<derived-id>"       加工记忆的稳定 ID，经来源绑定回到原始记录
+      - "engram:2026-08-27 10:00:00"  旧时间戳别名，仅在能唯一确定来源时接受
       - "sandglass:<ts>"          同上
 
     找不到返回 None（而不是猜一个）。
@@ -603,7 +658,30 @@ def resolve(ref, *, allow_deleted: bool = False) -> Optional[str]:
         return None
     if prefix in ("shadow", "line", "sg", "sandglass_line") and rest.isdigit():
         return _by_seq(conn, int(rest), allow_deleted)
-    if prefix in ("engram", "sandglass", "ts"):
+    if prefix == "engram":
+        # 加工记忆的时间可能与原始事件不同；新 ID 只能沿明确绑定的来源解析。
+        # 只在需要时导入 bridge，避免中枢初始化与 bridge.store_lock 形成导入环。
+        from nexsandglass.engram import bridge
+        derived = bridge.resolve_row(s)
+        if derived is not None:
+            source = derived.get("source_mem_id")
+            if source:
+                # 不递归接受任意加工别名：来源必须是当前中枢的 canonical ID。
+                if not isinstance(source, str) or not source.startswith("m_"):
+                    return None
+                return resolve(source, allow_deleted=allow_deleted)
+            if derived.get("memory_id"):
+                return None            # 新行缺少绑定不能退回猜时间戳
+        if re.fullmatch(r"[0-9a-f]{32}", rest):
+            return None                # 稳定 ID 缺失，不应拿它当原始时间戳
+        # 旧数据没有绑定来源时，保留唯一时间戳的兼容路径。先看所有记录，
+        # 再应用删除过滤，避免原目标被删后别名误指向同秒的另一条在世记录。
+        rows = conn.execute("SELECT mem_id, deleted_at FROM memories WHERE ts=? LIMIT 2",
+                            (rest,)).fetchall()
+        if len(rows) > 1:
+            raise ValueError(f"ambiguous engram reference: {s}")
+        return rows[0][0] if rows and (allow_deleted or not rows[0][1]) else None
+    if prefix in ("sandglass", "ts"):
         row = conn.execute(
             "SELECT mem_id FROM memories WHERE ts=?" +
             ("" if allow_deleted else " AND deleted_at IS NULL") +

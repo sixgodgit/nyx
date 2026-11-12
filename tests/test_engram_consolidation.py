@@ -44,6 +44,7 @@ def check(name, cond, detail=""):
         print(f"  PASS {name}")
     else:
         print(f"  FAIL {name} — {detail}")
+        raise AssertionError(f"{name}: {detail}")
 
 
 def make_mems():
@@ -61,8 +62,8 @@ def test_consolidation():
     print("[consolidation 生产化]")
     eng = ConsolidationEngine()
     result = eng.run(make_mems(), tag="test_engine")
-    check("有抽象提案", "abstract" in result["applied_actions"], str(result["applied_actions"]))
-    check("有冲突提案", "conflict" in result["applied_actions"], str(result["applied_actions"]))
+    check("有抽象提案", "abstract" in result["validated_actions"], str(result["validated_actions"]))
+    check("有冲突提案", "conflict" in result["validated_actions"], str(result["validated_actions"]))
     check("有衰减提案", "decay" in result["applied_actions"], str(result["applied_actions"]))
     check("快照生成", bool(result["snapshot"]) and os.path.exists(result["snapshot"]))
     # 回滚
@@ -93,15 +94,15 @@ def test_no_overwrite():
     eng = ConsolidationEngine()
     result = eng.run(make_mems(), tag="test_conflict")
     # 冲突被识别为 proposal（不静默覆盖）
-    check("冲突不静默覆盖", "conflict" in result["applied_actions"],
-          str(result["applied_actions"]))
+    check("冲突不静默覆盖", "conflict" in result["deferred_actions"] and
+          "conflict" not in result["applied_actions"], str(result["deferred_actions"]))
 
 
 if __name__ == "__main__":
     test_consolidation()
     test_validator()
     test_no_overwrite()
-    print(f"\nRESULT: {PASS}/9 checks passed")
-    if PASS < 9:
+    print(f"\nRESULT: {PASS}/10 checks passed")
+    if PASS != 10:
         raise SystemExit(1)
     print("ALL GREEN ✅ (ad-hoc verification, not suite)")

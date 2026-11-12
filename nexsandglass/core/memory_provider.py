@@ -287,13 +287,44 @@ MEMORY_HEADER = "## Nyx memory (relevant to this turn; [date] = when it was said
 MEMORY_LINE_CHARS = 300
 
 
-def memory_block(items) -> str:
+def _memory_line(text, date) -> str:
+    s = str(text or "")[:MEMORY_LINE_CHARS]
+    return f"- [{date}] {s}" if date else f"- {s}"
+
+
+def _budget_memory_items(items, budget: int):
+    """Fit complete evidence lines, including their dates and header overhead."""
+    from nexsandglass.runtime.bundle import estimate_tokens
+    selected, indices = [], []
+    rendered = MEMORY_HEADER
+    for i, (text, date) in enumerate(items):
+        candidate = rendered + "\n" + _memory_line(text, date)
+        if estimate_tokens(candidate) <= max(0, budget):
+            selected.append((text, date))
+            indices.append(i)
+            rendered = candidate
+    return selected, indices
+
+
+def memory_block(items, *, token_budget: Optional[int] = None) -> str:
     """[(正文, 说这句话的日期)] → 注入给 agent 的那段文字（prefetch 与评测共用）。"""
+    if token_budget is not None:
+        items, _ = _budget_memory_items(items, token_budget)
+        if not items:
+            return ""
     lines = [MEMORY_HEADER]
-    for text, date in items:
-        s = str(text or "")[:MEMORY_LINE_CHARS]
-        lines.append(f"- [{date}] {s}" if date else f"- {s}")
+    lines.extend(_memory_line(text, date) for text, date in items)
     return "\n".join(lines)
+
+
+def _budget_blocks(blocks, budget: int) -> str:
+    """Pack complete blocks without truncating instructions or provenance labels."""
+    from nexsandglass.runtime.bundle import estimate_tokens
+    selected = []
+    for block in blocks:
+        if block and estimate_tokens("\n".join(selected + [block])) <= max(0, budget):
+            selected.append(block)
+    return "\n".join(selected)
 
 
 # nyx.json 的键 → 读设置时用的名字（同名环境变量设了的话优先）
@@ -751,7 +782,18 @@ class NexSandglassProvider(MemoryProvider):
         （实测 10–30ms），直接对本轮问题召回，比用上一轮的问题预取更准。
         """
         self._last_recall = None           # recall_status 只反映最近这一次
+        from nexsandglass.runtime.bundle import estimate_tokens
         parts: List[str] = []
+        notices = []
+        sig = self._signal_line()
+        if sig:
+            notices.append(sig)
+        pz = _recording.paused()
+        if pz:
+            notices.append(f"(Nyx: recording paused by the user since {str(pz.get('since') or '')[:16]}; this conversation "
+                           f"is not being remembered. /nyx resume turns it back on.)")
+        suffix = _budget_blocks(notices, self._prefetch_budget)
+        available = max(0, self._prefetch_budget - estimate_tokens(suffix) - (1 if suffix else 0))
         query = _clean(query)              # 召回链路里可能有外部服务（嵌入 API、LLM 理解）：密钥不出去（v7.14.0）
         if not is_trivial_prompt(query):
             # 预热还没做完就等它：同时现场加载同一份索引只会互相抢 —— 实测首轮从 1.1 秒变成 3 秒
@@ -759,7 +801,8 @@ class NexSandglassProvider(MemoryProvider):
             if warm is not None and warm.is_alive():
                 warm.join(_as_int(os.environ.get("NYX_WARM_WAIT_SECONDS"), 10))
             try:
-                items, _objs, withheld = self._recall_view(query)
+                items, _objs, withheld = self._recall_view(
+                    query, session_id=session_id, token_budget=available)
                 if self._prefetch_budget and items:
                     parts.append(memory_block(items))
                     if withheld:
@@ -767,22 +810,19 @@ class NexSandglassProvider(MemoryProvider):
                     self._last_recall = len(items)
             except Exception as e:
                 logger.debug("prefetch 召回失败: %s", e)
-        sig = self._signal_line()
-        if sig:
-            parts.append(sig)
-        pz = _recording.paused()
-        if pz:
-            parts.append(f"(Nyx: recording paused by the user since {str(pz.get('since') or '')[:16]}; this conversation "
-                         f"is not being remembered. /nyx resume turns it back on.)")
-        return "\n".join(parts)
+        if suffix:
+            parts.append(suffix)
+        return _budget_blocks(parts, self._prefetch_budget)
 
-    def _recall_view(self, query: str):
+    def _recall_view(self, query: str, *, session_id: str = "", token_budget: Optional[int] = None):
         """这一轮注入给 agent 的那几条：([(正文, 说这句话的日期)], 对应的召回对象, 因来源可疑被扣下的条数)。
         评测（benchmarks/beam_eval.py --views）走同一个函数，比较注入写法时用的就是真实会注入的那几条。"""
         from nexsandglass.runtime.orchestrator import get_orchestrator
         from nexsandglass.runtime import intent as _intent
         from nexsandglass.core import relevance
-        mc = get_orchestrator().recall(query, token_budget=self._prefetch_budget or 1)
+        budget = self._prefetch_budget if token_budget is None else max(0, token_budget)
+        mc = get_orchestrator().recall(
+            query, token_budget=budget, candidate_mode=True, session_id=session_id or self._session_id)
         objs = [o for o in (mc.objects or []) if o.content and str(o.content).strip()]
         # 只因为虚词撞上的不注入；一个实词都对不上就一条都不注入（v7.19.0，core/relevance.py）
         objs = relevance.keep(query, objs)
@@ -791,7 +831,8 @@ class NexSandglassProvider(MemoryProvider):
         cap = max(cap, _intent.breadth_lines(query))     # 汇总 / 时长 / 先后：答案分散在几次对话里（v7.13.7）
         dates = _said_on(objs[:cap])
         items = [(s, dates.get(i)) for i, s in enumerate(lines[:cap])]
-        return items, objs[:cap], len(getattr(mc, "withheld", None) or [])
+        items, indices = _budget_memory_items(items, budget)
+        return items, [objs[i] for i in indices], len(getattr(mc, "withheld", None) or [])
 
     def queue_prefetch(self, query: str, *, session_id: str = "") -> None:
         """不预取：召回在 prefetch 里对本轮问题现做（见 prefetch 文档）。"""
@@ -860,6 +901,7 @@ class NexSandglassProvider(MemoryProvider):
             for msg, sender, source in pairs:
                 if not msg:
                     continue
+                mid = ""
                 # 1. raw 落沙（审计日志，始终保留）
                 try:
                     from nexsandglass.core.sandglass_log import log_message
@@ -868,11 +910,16 @@ class NexSandglassProvider(MemoryProvider):
                         written.append(mid)
                 except Exception as e:
                     logger.warning("sync_turn raw 落沙失败: %s", e)
+                if not mid:
+                    # A failed or deliberately filtered raw write cannot acquire
+                    # provenance by matching some older message with the same text.
+                    continue
                 # 2. 候选晋升判断（raw 已在上方落过 → raw_already_logged=True 防双写）
                 try:
                     cand = eng.observe(msg)
                     if cand.disposition == "promote":
-                        orch.observe(msg, source=source, raw_already_logged=True)
+                        orch.observe(msg, source=source, raw_already_logged=True,
+                                     source_mem_id=mid, session_id=sid)
                 except Exception as e:
                     logger.warning("sync_turn 晋升失败: %s", e)
             self._turn_count += 1
@@ -1177,7 +1224,7 @@ class NexSandglassProvider(MemoryProvider):
                     content = _clean(str(msg.get("content", "") or ""))   # 先隐去再截断：截断会切开 token
                     if content and role in ("user", "assistant"):
                         src = self._user_source() if role == "user" else "assistant"
-                        orch.observe(str(content)[:500], source=src, raw_already_logged=True)
+                        orch.observe(str(content)[:500], source=src, session_id=self._session_id)
 
             # 触发偏移检查 + 织造
             from nexsandglass.features.sandglass_think import comprehensive_offset

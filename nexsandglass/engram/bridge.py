@@ -11,7 +11,10 @@ shadow 记录 / engram Memory / MemoryObject 之间建立可逆映射，旧数�
 import json
 import os
 import re
+import uuid
+from contextlib import contextmanager
 from datetime import datetime
+from functools import wraps
 
 try:
     from nexsandglass.core.sandglass_paths import _NB
@@ -22,6 +25,118 @@ from nexsandglass.engram.types import MemoryObject
 
 _STORE = os.path.join(_NB, "engram_store.jsonl")
 _SANDGLASS = os.path.join(_NB, "sandglass.txt")
+
+
+@contextmanager
+def store_lock(path: str | None = None):
+    """Serialize read/modify/replace and append across threads and processes.
+
+    Lock the stable sidecar path, rather than the file inode which atomic replace
+    changes. Callers already holding the journal lock must acquire it first.
+    """
+    from nexsandglass.core.memid import journal_lock
+    target = path or _STORE
+    os.makedirs(os.path.dirname(os.path.abspath(target)), exist_ok=True)
+    with journal_lock(target):
+        yield
+
+
+def _locked_store(fn):
+    @wraps(fn)
+    def locked(*args, **kwargs):
+        with store_lock():
+            return fn(*args, **kwargs)
+    return locked
+
+
+def row_id(row: dict) -> str:
+    """Stable derived ID; legacy timestamp references remain readable aliases."""
+    return row.get("memory_id") or f"engram:{row.get('ts', '')}"
+
+
+def _new_row_id() -> str:
+    return "engram:" + uuid.uuid4().hex
+
+
+def _matching_indexes(rows: list, ref: str) -> list[int]:
+    return [i for i, row in enumerate(rows) if isinstance(row, dict) and (
+        row_id(row) == ref or f"engram:{row.get('ts', '')}" == ref)]
+
+
+@_locked_store
+def resolve_row(ref: str) -> dict | None:
+    """Resolve one row without modifying legacy data; reject ambiguous aliases."""
+    if not os.path.exists(_STORE):
+        return None
+    matches = []
+    with open(_STORE, encoding="utf-8") as f:
+        for line in f:
+            try:
+                row = json.loads(line)
+            except (ValueError, TypeError):
+                continue
+            if isinstance(row, dict) and (
+                row_id(row) == ref or f"engram:{row.get('ts', '')}" == ref
+            ):
+                matches.append(row)
+    if len(matches) > 1:
+        raise ValueError(f"ambiguous engram reference: {ref}")
+    return matches[0] if matches else None
+
+
+@_locked_store
+def mutate_rows(refs, *, weight_delta: float = 0.0, access_delta: int = 0,
+                touch: bool = False) -> dict:
+    """Apply relative updates to uniquely resolved rows, atomically.
+
+    Any ambiguous legacy alias rejects the whole batch. Missing references are
+    reported without fabricating rows. Readers never rewrite legacy identities.
+    """
+    from nexsandglass.core.fsutil import atomic_write
+    refs = list(dict.fromkeys(refs or []))
+    if os.path.exists(_STORE):
+        with open(_STORE, encoding="utf-8") as f:
+            lines = f.readlines()
+    else:
+        lines = []
+    rows = []
+    for line in lines:
+        try:
+            row = json.loads(line)
+        except (ValueError, TypeError):
+            row = None
+        rows.append(row)
+    selected, ambiguous, missing = set(), [], []
+    for ref in refs:
+        matches = _matching_indexes(rows, ref)
+        if len(matches) > 1:
+            ambiguous.append(ref)
+        elif matches:
+            selected.add(matches[0])
+        else:
+            missing.append(ref)
+    report = {"ok": not ambiguous, "matched": len(selected),
+              "persisted_changes": 0, "ambiguous_ids": ambiguous,
+              "missing_ids": missing, "updated_rows": []}
+    if ambiguous or not selected:
+        return report
+    for i in sorted(selected):
+        row = rows[i]
+        row["decay_weight"] = max(0.0, min(1.0, row.get("decay_weight", 1.0) + weight_delta))
+        row["access_count"] = max(0, row.get("access_count", 0) + access_delta)
+        if touch:
+            row["last_accessed"] = datetime.now().isoformat()
+        lines[i] = json.dumps(row, ensure_ascii=False) + ("\n" if lines[i].endswith("\n") else "")
+        report["updated_rows"].append(dict(row))
+    with atomic_write(_STORE) as f:
+        f.writelines(lines)
+    report["persisted_changes"] = len(selected)
+    return report
+
+
+def apply_feedback(refs, *, helpful: bool = True) -> dict:
+    return mutate_rows(refs, weight_delta=0.05 if helpful else -0.2,
+                       access_delta=1 if helpful else 0, touch=helpful)
 
 # 记忆类型分类规则
 _PROCEDURAL = re.compile(r"(怎么|如何|步骤|教程|部署|配置|安装|运行|启动|操作|流程|方法)")
@@ -46,13 +161,11 @@ def ingest(text: str) -> str:
     """分类用户消息并写入 engram 记忆库。返回记忆类型。"""
     try:
         mem_type = classify_memory_type(text)
-        os.makedirs(os.path.dirname(_STORE), exist_ok=True)
-        with open(_STORE, "a", encoding="utf-8") as f:
-            f.write(json.dumps({
-                "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "content": text[:300],
-                "type": mem_type,
-            }, ensure_ascii=False) + "\n")
+        _append_row({
+            "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "content": text[:300],
+            "type": mem_type,
+        })
         return mem_type
     except Exception:
         return "semantic"
@@ -160,10 +273,15 @@ def object_to_sandglass_line(obj: "MemoryObject") -> str:
 def engram_row_to_object(row: dict) -> "MemoryObject":
     """engram_store.jsonl 旧行（{ts, content, type}）→ MemoryObject。旧数据可读。"""
     return MemoryObject(
+        memory_id=row_id(row),
         content=row.get("content", ""),
         type=row.get("type", "semantic"),
         created_at=row.get("ts", ""),
-        source_id=f"engram:{row.get('ts', '')}",
+        source_id=row.get("source_mem_id") or row_id(row),
+        origin=row.get("origin", ""),
+        trust_signal=row.get("trust_signal", ""),
+        access_count=row.get("access_count", 0),
+        decay_weight=row.get("decay_weight", 1.0),
         provenance="engram_store",
         status="observed",
     )
@@ -171,11 +289,16 @@ def engram_row_to_object(row: dict) -> "MemoryObject":
 
 def object_to_engram_row(obj: "MemoryObject") -> dict:
     """MemoryObject → engram_store.jsonl 行（兼容旧格式）。"""
-    return {
+    row = {
         "ts": obj.created_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "content": obj.content,
         "type": obj.type,
     }
+    if obj.memory_id.startswith("engram:") and obj.memory_id != f"engram:{obj.created_at}":
+        row["memory_id"] = obj.memory_id
+        if obj.source_id and obj.source_id != obj.memory_id:
+            row["source_mem_id"] = obj.source_id
+    return row
 
 
 def shadow_row_to_object(line_num: int, text: str, score: float = 0.5) -> "MemoryObject":
@@ -211,6 +334,7 @@ def object_to_memory(obj: "MemoryObject"):
 
 
 # ═══════ B3：差异化写入（Memory 是形成的，不是整轮 dump）═══════
+@_locked_store
 def ingest_classified(
     text: str,
     action: str = "INSERT",
@@ -249,20 +373,23 @@ def ingest_classified(
             r["action"] = action
             r["last_accessed"] = ts
             if _replace_line(start, stop, old, r):
-                return {"status": action.lower(), "matched_id": f"engram:{r.get('ts','')}"}
+                return {"status": action.lower(), "matched_id": row_id(r)}
         # 没找到 → 退化为 INSERT
         action = "INSERT"
 
     if action == "CONFLICT":
+        rid = _new_row_id()
         _append_row({
+            "memory_id": rid,
             "ts": ts, "content": text[:300], "type": "contradiction",
             "status": "conflict_candidate", "action": "conflict",
             **_trust_fields(origin, trust_signal, source_mem_id),
         })
-        return {"status": "conflict", "id": f"engram:{ts}"}
+        return {"status": "conflict", "id": rid}
 
     # INSERT / OVERRIDE(新值)
     row = {
+        "memory_id": _new_row_id(),
         "ts": ts, "content": text[:300], "type": mtype,
         "action": action, "status": "active",
         "decay_weight": 1.0, "access_count": 0, "created_at": ts,
@@ -272,11 +399,14 @@ def ingest_classified(
         _supersede_and_append(supersede_id, ts, row)
     else:
         _append_row(row)
-    return {"status": "insert", "id": f"engram:{ts}"}
+    return {"status": "insert", "id": row_id(row)}
 
 
+@_locked_store
 def _append_row(row: dict) -> None:
     """在 engram_store.jsonl 末尾追加一行。上一次写入要是没写完（结尾没有换行），先补一个换行，不把新行粘上去。"""
+    row = dict(row)
+    row.setdefault("memory_id", _new_row_id())
     line = (json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8")
     with open(_STORE, "a+b") as f:
         f.seek(0, os.SEEK_END)
@@ -327,6 +457,7 @@ def _find_same_content(text: str):
     return best
 
 
+@_locked_store
 def _replace_line(start: int, stop: int, old: bytes, row: dict) -> bool:
     """把 [start, stop) 那一行换成 row，原子替换整份文件（其余行逐字节不动）。
     那一行在这期间被别人改动过（遗忘、整理）就不换，返回 False。"""
@@ -340,10 +471,12 @@ def _replace_line(start: int, stop: int, old: bytes, row: dict) -> bool:
     return True
 
 
+@_locked_store
 def _supersede_and_append(supersede_id: str, ts: str, row: dict) -> None:
     """OVERRIDE 指名了被取代的行：标记它，再追加新行。要改旧行，所以整份替换（正常写入路径不传 supersede_id）。"""
     from nexsandglass.core.fsutil import atomic_write
     out = []
+    rows = []
     if os.path.exists(_STORE):
         with open(_STORE, encoding="utf-8") as f:
             for line in f:
@@ -355,11 +488,17 @@ def _supersede_and_append(supersede_id: str, ts: str, row: dict) -> None:
                 except Exception:
                     out.append(raw)             # 解析不了的行原样保留
                     continue
-                if isinstance(r, dict) and f"engram:{r.get('ts','')}" == supersede_id:
-                    r["superseded_by"] = ts
-                    r["status"] = "historical"
-                    raw = json.dumps(r, ensure_ascii=False)
                 out.append(raw)
+                rows.append((len(out) - 1, r))
+    matches = [(i, r) for i, r in rows if isinstance(r, dict) and (
+        row_id(r) == supersede_id or f"engram:{r.get('ts', '')}" == supersede_id)]
+    if len(matches) > 1:
+        raise ValueError(f"ambiguous engram reference: {supersede_id}")
+    if matches:
+        i, previous = matches[0]
+        previous["superseded_by"] = row_id(row)
+        previous["status"] = "historical"
+        out[i] = json.dumps(previous, ensure_ascii=False)
     out.append(json.dumps(row, ensure_ascii=False))
     with atomic_write(_STORE) as f:
         for raw in out:

@@ -59,6 +59,9 @@ class MemoryContext:
     meta_intent: object = None
     # v7.8：被信任门扣下的召回结果（只有 id / 来源 / 命中规则，不含正文）
     withheld: list = field(default_factory=list)
+    session_id: str | None = None
+    context_used: bool = False
+    candidate_mode: bool = False
 
     def to_text(self, separator: str = "\n") -> str:
         """将上下文拼成纯文本（供 system prompt 注入）。优先用 text。"""
@@ -99,7 +102,8 @@ def observe(event: str, *, source: str = "runtime", session_id: str | None = Non
     try:
         from nexsandglass.runtime.orchestrator import get_orchestrator
         orch = get_orchestrator()
-        fr = orch.observe(event, mem_type, source, raw_already_logged, force_promote)
+        kwargs = {"session_id": session_id} if session_id is not None else {}
+        fr = orch.observe(event, mem_type, source, raw_already_logged, force_promote, **kwargs)
         return ObserveReport(
             ok=fr.ok,
             memory_id=fr.memory_id,
@@ -127,7 +131,12 @@ def recall(
     try:
         from nexsandglass.runtime.orchestrator import get_orchestrator
         orch = get_orchestrator()
-        return orch.recall(query, token_budget)
+        kwargs = {}
+        if context is not None:
+            kwargs["context"] = context
+        if session_id is not None:
+            kwargs["session_id"] = session_id
+        return orch.recall(query, token_budget, **kwargs)
     except Exception as e:
         logger.warning("[facade.recall] 降级为空上下文: %s", e)
         return MemoryContext(
@@ -137,95 +146,24 @@ def recall(
 
 
 def feedback(outcome: dict) -> dict:
-    """反馈一次召回/观察结果，用于强化或弱化记忆。
-
-    从 engram store 加载对应 Memory → recall_feedback 提升/降低权重 → 持久化回写。
-    helpful=false 走 weaken（降低 decay_weight）。返回处理报告。
-    """
+    """Apply feedback to uniquely identified rows using the shared store lock."""
     report = {"ok": False, "action": "noop", "detail": {}}
     try:
-        from nexsandglass.engram.loops.recall_writer import recall_feedback
         from nexsandglass.engram import bridge
-        from nexsandglass.engram.types import Memory
-        import json as _json
-
         recalled_ids = outcome.get("memory_ids") or outcome.get("ids") or []
         helpful = bool(outcome.get("helpful", True))
         if not recalled_ids:
-            report["ok"] = True
-            report["action"] = "noop"
-            report["detail"] = {"reason": "no recalled ids"}
-            return report
-
-        store = bridge._STORE
-        id_set = set(recalled_ids)
-        # 1. 从 engram store 加载匹配行 → Memory（memory_id=engram:{ts}）
-        matched: list[Memory] = []
-        updated_rows = []
-        changed = 0
-        if os.path.exists(store):
-            with open(store, encoding="utf-8") as f:
-                lines = f.readlines()
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = _json.loads(line)
-                except Exception:
-                    continue
-                mid = f"engram:{row.get('ts', '')}"
-                mem = Memory(
-                    memory_id=mid, type=row.get("type", "semantic"),
-                    content=row.get("content", ""),
-                    access_count=row.get("access_count", 0),
-                    decay_weight=row.get("decay_weight", 1.0),
-                    created_at=row.get("ts", ""),
-                )
-                if mid in id_set:
-                    matched.append(mem)
-            # 2. 用 recall_feedback 提升/降低
-            if matched:
-                if helpful:
-                    boosted, _ = recall_feedback(matched, id_set)
-                else:
-                    # weaken：降低 decay_weight + 不升 access
-                    boosted = []
-                    for m in matched:
-                        import dataclasses
-                        nm = Memory(**{f.name: getattr(m, f.name) for f in dataclasses.fields(Memory)})
-                        nm.decay_weight = max(0.0, nm.decay_weight - 0.2)
-                        boosted.append(nm)
-                # 3. 持久化回写（weight 字段）
-                weight_map = {m.memory_id: m.decay_weight for m in boosted}
-                out_lines = []
-                for line in lines:
-                    line_s = line.strip()
-                    if not line_s:
-                        out_lines.append(line)
-                        continue
-                    try:
-                        row = _json.loads(line_s)
-                    except Exception:
-                        out_lines.append(line)
-                        continue
-                    mid = f"engram:{row.get('ts', '')}"
-                    if mid in weight_map:
-                        row["decay_weight"] = weight_map[mid]
-                        row["access_count"] = row.get("access_count", 0) + (1 if helpful else 0)
-                        out_lines.append(_json.dumps(row, ensure_ascii=False))
-                        changed += 1
-                    else:
-                        out_lines.append(line)
-                with open(store, "w", encoding="utf-8") as f:
-                    f.write("\n".join(out_lines) + ("\n" if out_lines else ""))
-
-        report["ok"] = True
-        report["action"] = "reinforce" if helpful else "weaken"
-        report["detail"] = {"recalled_ids": recalled_ids, "helpful": helpful,
-                            "matched": len(matched), "persisted_changes": changed}
+            return {"ok": True, "action": "noop", "detail": {"reason": "no recalled ids"}}
+        result = bridge.apply_feedback(recalled_ids, helpful=helpful)
+        report["ok"] = result["ok"]
+        report["action"] = ("reinforce" if helpful else "weaken") if result["ok"] else "ambiguous_reference"
+        report["detail"] = {
+            "recalled_ids": recalled_ids, "helpful": helpful,
+            "matched": result["matched"], "persisted_changes": result["persisted_changes"],
+            "ambiguous_ids": result["ambiguous_ids"], "missing_ids": result["missing_ids"],
+        }
     except Exception as e:
-        logger.warning("[facade.feedback] 失败: %s", e)
+        logger.warning("[facade.feedback] failed: %s", e)
         report["detail"] = {"error": str(e)}
     return report
 
@@ -359,54 +297,41 @@ def purge_forgotten(*, apply: bool = False, mem_ids: list = None) -> dict:
         return {"ok": False, "action": "error", "purged": 0, "error": str(e)}
 
 def consolidate(*, tag: str = "consolidation") -> dict:
-    """维护/异步入口：运行 Dream 生产化 Consolidation（B0）。
+    """Validate proposals and persist supported updates, with truthful reporting.
 
-    委托 ConsolidationEngine（Proposal→Validator→Apply/Quarantine + 快照）。
-    返回处理报告。
+    Lock order matches erasure: journal, then engram. A concurrent forget cannot
+    finish and subsequently have its text copied into a newly created snapshot.
+    Abstract/conflict proposals stay deferred until a durable implementation exists.
     """
     report = {"ok": False, "action": "noop", "detail": {}}
     try:
         from nexsandglass.runtime.consolidation import ConsolidationEngine
         from nexsandglass.engram import bridge
         from nexsandglass.engram.types import Memory
-
-        # 从 engram store 加载最近记忆（用 recent，避免 load_memories 不存在）
-        try:
-            rows = bridge.recent(n=200)
-        except Exception:
-            rows = []
-        memories = []
-        for r in rows:
-            if isinstance(r, dict) and r.get("content"):
-                try:
-                    memories.append(Memory(
-                        memory_id=f"engram:{r.get('ts', '')}",
-                        type=r.get("type", "semantic"),
-                        content=r["content"],
-                        created_at=r.get("ts", ""),
-                    ))
-                except Exception:
-                    continue
-        if not memories:
-            report["ok"] = True
-            report["detail"] = {"reason": "no memories to consolidate"}
-            return report
-
-        eng = ConsolidationEngine()
-        result = eng.run(memories, tag=tag)
-        report.update({
-            "ok": True,
-            "action": "consolidate",
-            "detail": {
-                "proposals": result["proposals_total"],
-                "applied": result["applied"],
-                "quarantined": result["quarantined"],
-                "actions": result["applied_actions"],
-                "snapshot": result["snapshot"],
-            },
-        })
+        from nexsandglass.core import memid
+        memid.get_conn()  # Initialize the directory before taking its file lock.
+        with memid.journal_lock(memid._journal_path()), bridge.store_lock():
+            memories = [Memory(
+                memory_id=bridge.row_id(r), type=r.get("type", "semantic"),
+                content=r["content"], created_at=r.get("created_at") or r.get("ts", ""),
+                access_count=r.get("access_count", 0), decay_weight=r.get("decay_weight", 1.0),
+                source_id=r.get("source_mem_id"), trust_signal=r.get("trust_signal", ""),
+            ) for r in bridge.recent(n=200) if isinstance(r, dict) and r.get("content")]
+            if not memories:
+                return {"ok": True, "action": "noop", "detail": {"reason": "no memories to consolidate"}}
+            result = ConsolidationEngine().run(memories, tag=tag)
+            refs = [u["memory_id"] for u in result.get("decay_updates", [])]
+            persisted = bridge.mutate_rows(refs, weight_delta=-0.3, access_delta=1)
+            count = persisted["persisted_changes"]
+            report.update({"ok": persisted["ok"], "action": "consolidate", "detail": {
+                "proposals": result["proposals_total"], "validated": result.get("validated", 0),
+                "applied": count, "persisted": count, "actions": ["decay"] * count,
+                "deferred_actions": result.get("deferred_actions", []),
+                "quarantined": result["quarantined"], "snapshot": result["snapshot"],
+                "ambiguous_ids": persisted["ambiguous_ids"], "missing_ids": persisted["missing_ids"],
+            }})
     except Exception as e:
-        logger.warning("[facade.consolidate] 失败: %s", e)
+        logger.warning("[facade.consolidate] failed: %s", e)
         report["detail"] = {"error": str(e)}
     return report
 

@@ -312,9 +312,20 @@ def _purge_shadow(mem_ids: list, line_starts: list) -> dict:
     return stats
 
 
-def _purge_engram(ts_list: list, mem_ids: list = ()) -> int:
+def _purge_engram(ts_list: list, mem_ids: list = (), *, raw_rows=None, retained=None) -> int:
     """按 ts 或来源 mem_id 删（只按 ts 会漏：写日志和写 engram 跨过秒的边界时时间戳对不上）。"""
+    from nexsandglass.engram import bridge
     store = os.path.join(_NB, "engram_store.jsonl")
+    with bridge.store_lock(store):
+        if raw_rows is None:
+            conn = memid.get_conn()
+            raw_rows = [r for mid in mem_ids for r in conn.execute(
+                "SELECT mem_id,line_start,line_end,ts,sender,seq,text FROM memories WHERE mem_id=?",
+                (mid,))]
+        return _purge_engram_locked(store, ts_list, mem_ids, raw_rows, retained)
+
+
+def _purge_engram_locked(store: str, ts_list: list, mem_ids: list, raw_rows: list, retained=None) -> int:
     if not os.path.exists(store) or not (ts_list or mem_ids):
         return 0
     drop, drop_ids = set(ts_list or ()), set(mem_ids or ())
@@ -329,7 +340,9 @@ def _purge_engram(ts_list: list, mem_ids: list = ()) -> int:
             except Exception:
                 kept.append(line)
                 continue
-            if row.get("ts") in drop or (row.get("source_mem_id") and row.get("source_mem_id") in drop_ids):
+            source = row.get("source_mem_id")
+            matches = source in drop_ids if source else _legacy_engram_match(row, raw_rows, retained)
+            if matches:
                 removed += 1
             else:
                 kept.append(line)
@@ -401,6 +414,56 @@ def _purge_vectors(mem_ids: list) -> int:
     except Exception as e:
         logger.warning("[erasure] 向量删除失败: %s", e)
         return 0
+
+
+def _legacy_engram_match(row: dict, rows: list, retained=None) -> bool:
+    """Unbound legacy rows need matching time AND stored content, not time alone."""
+    selected = {r[0] for r in rows}
+    content, ts = row.get("content"), row.get("ts")
+    if not any(r[3] == ts and str(r[6])[:300] == content for r in rows):
+        return False
+    # An identical same-second prefix can identify several raw memories. Do not
+    # silently erase a row that may belong to a live, unselected source.
+    candidates = memid.get_conn().execute(
+        "SELECT mem_id,text FROM memories WHERE ts=? AND deleted_at IS NULL", (ts,))
+    if any(mid not in selected and str(text)[:300] == content for mid, text in candidates):
+        if retained is not None:
+            retained.append(f"ambiguous unbound engram source at {ts}")
+        return False
+    return True
+
+
+def _snapshot_sources(rows: list) -> tuple:
+    """Find stable engram identities before removing their source rows.
+
+    Legacy timestamp aliases can collide and are deliberately left to the
+    snapshot cleaner's timestamp-plus-content fallback.
+    """
+    selected = {r[0] for r in rows}
+    out = set()
+    legacy, errors = {}, []
+    path = os.path.join(_NB, "engram_store.jsonl")
+    if not os.path.exists(path):
+        return out, legacy, errors
+    from nexsandglass.engram import bridge
+    with bridge.store_lock(path):
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                source = row.get("source_mem_id")
+                matches = source in selected if source else _legacy_engram_match(row, rows, errors)
+                if not matches:
+                    continue
+                alias = f"engram:{row.get('ts', '')}"
+                legacy.setdefault(alias, set()).add(str(row.get("content", "")))
+                for key in ("id", "memory_id"):
+                    ref = row.get(key)
+                    if isinstance(ref, str) and ref != f"engram:{row.get('ts', '')}":
+                        out.add(ref)
+    return out, legacy, errors
 
 
 def forget(selector: dict, reason: str = "user_forget", apply: bool = False,
@@ -493,6 +556,14 @@ def _forget_impl(selector: dict, reason: str = "user_forget", apply: bool = Fals
     line_starts = [r[1] for r in rows]
     ids = [r[0] for r in rows]
     ts_list = [r[3] for r in rows]
+    snapshot_errors = []
+    try:
+        snapshot_ids, snapshot_legacy, evidence_errors = _snapshot_sources(rows)
+        snapshot_errors.extend(evidence_errors)
+    except OSError as e:
+        snapshot_ids = set()
+        snapshot_legacy = {}
+        snapshot_errors.append(str(e))
     if mode == "purge":
         from nexsandglass.core import secret_vault
         report["vault_refs"] = secret_vault.refs_in(r[6] for r in rows)
@@ -523,13 +594,22 @@ def _forget_impl(selector: dict, reason: str = "user_forget", apply: bool = Fals
     report["fts"] = _purge_fts(line_starts)
     report["idx"] = _purge_idx(line_starts)
     report["shadow"] = _purge_shadow(ids, line_starts)
-    report["engram"] = _purge_engram(ts_list, ids)
+    retained_engram = []
+    report["engram"] = _purge_engram(ts_list, ids, raw_rows=rows, retained=retained_engram)
+    report["engram_retained"] = retained_engram
     for mid in ids:
         if memid.tombstone(mid, reason=reason):
             report["hub"] += 1
     # 向量放在墓碑**之后**：后台补索引的线程只给在世记忆嵌入，墓碑先落下，
     # 它就不可能在「删向量」与「打墓碑」之间把向量又补回来（v7.13）
     report["vectors"] = _purge_vectors(ids)
+    # Snapshots must not act as an untracked second quarantine. Recoverable
+    # originals are already kept in quarantine.hold; snapshot rows are removed
+    # for both modes so restore_snapshot cannot resurrect a forgotten record.
+    from nexsandglass.core import consolidation_snapshots
+    report["snapshots"] = consolidation_snapshots.scrub(
+        rows, derived_ids=snapshot_ids, legacy_matches=snapshot_legacy, journal_path=journal_path)
+    report["snapshots"]["errors"].extend(snapshot_errors)
 
     # 这个函数之前不返回 ok，也不返回 removed。调用方写 r.get("ok") 拿到 None，
     # 写 r.get("removed") 也拿到 None —— 删成功和删失败返回的东西一模一样。
@@ -542,6 +622,11 @@ def _forget_impl(selector: dict, reason: str = "user_forget", apply: bool = Fals
     # fts / idx / shadow / engram / vectors 返回 0 是**合法**的 ——
     # 那条记录本来就可能没进过这些索引，拿它们判成败会造成假红。
     problems = []
+    if retained_engram:
+        problems.append("ambiguous legacy engram records were retained: " + "; ".join(retained_engram))
+    if report["snapshots"]["errors"]:
+        problems.append("consolidation snapshots were not completely cleaned: "
+                        + "; ".join(report["snapshots"]["errors"]))
     if report["hub"] != report["found"]:
         problems.append(_t("hub tombstones %d/%d", "中枢墓碑 %d/%d") % (report["hub"], report["found"]))
     if report["journal_lines"] < report["found"]:
@@ -661,6 +746,16 @@ def verify_erasure(needles: Iterable[str], journal_path: str = None) -> dict:
     except Exception as e:
         q_hits = {}
         logger.warning("[erasure] 隔离区扫描失败: %s", e)
+        hit("quarantine_error", str(e))
+
+    from nexsandglass.core import consolidation_snapshots
+    snapshot_hits, snapshot_errors = consolidation_snapshots.find_text(
+        needles, journal_path=journal_path)
+    for name, matches in snapshot_hits.items():
+        for sample in matches:
+            hit("snapshots", f"{name}: {sample}")
+    for error in snapshot_errors:
+        hit("snapshots_error", error)
 
     return {"clean": not found, "needles": list(needles), "found_in": found,
             "in_quarantine": q_hits, "fully_purged": (not found) and not q_hits}
@@ -682,7 +777,45 @@ def restore(mem_id: str, journal_path: str = None) -> dict:
 
 def purge(mem_ids: list = None, apply: bool = False, older_than: bool = True) -> dict:
     """隔离区到期擦除。默认只清已过期的；apply=False 只预演。"""
-    return quarantine.purge(mem_ids, older_than=older_than, apply=apply)
+    plan = quarantine.purge(mem_ids, older_than=older_than, apply=False)
+    if not apply or not plan["selected"]:
+        return quarantine.purge(mem_ids, older_than=older_than, apply=apply)
+    conn = quarantine._conn()
+    sql = "SELECT mem_id,line_start,line_end,ts,sender,seq,text,payload FROM quarantine"
+    if mem_ids:
+        marks = ",".join("?" * len(mem_ids))
+        rows = conn.execute(sql + f" WHERE mem_id IN ({marks})", list(mem_ids)).fetchall()
+    elif older_than:
+        rows = conn.execute(sql + " WHERE purge_after <= ?", (plan["cutoff"],)).fetchall()
+    else:
+        rows = conn.execute(sql).fetchall()
+    if not rows:
+        return quarantine.purge(mem_ids, older_than=older_than, apply=True)
+    linked = set()
+    legacy = {}
+    for row in rows:
+        try:
+            payload = json.loads(row[7] or "{}")
+            for line in payload.get("engram", []):
+                item = json.loads(line)
+                ref = item.get("memory_id") or item.get("id")
+                if isinstance(ref, str) and ref != f"engram:{item.get('ts', '')}":
+                    linked.add(ref)
+                legacy.setdefault(f"engram:{item.get('ts', '')}", set()).add(str(item.get("content", "")))
+        except (TypeError, ValueError):
+            # Canonical refs and legacy content matching still work. Quarantine
+            # owns validation of its own payload; snapshots cannot claim it clean.
+            pass
+    from nexsandglass.core import consolidation_snapshots
+    snapshots = consolidation_snapshots.scrub([r[:7] for r in rows], derived_ids=linked, legacy_matches=legacy)
+    if snapshots["errors"]:
+        plan.update({"ok": False, "applied": True, "action": "partial", "snapshots": snapshots})
+        return plan
+    # VACUUM remains outside the journal lock; only the exact preselected IDs
+    # may be purged, so a concurrent restore cannot broaden the deletion scope.
+    result = quarantine.purge([r[0] for r in rows], older_than=False, apply=True)
+    result["snapshots"] = snapshots
+    return result
 
 
 def quarantine_list(limit: int = 200) -> list:

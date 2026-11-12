@@ -17,15 +17,108 @@ import logging
 import os
 import re
 import threading
-import traceback
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
-from dataclasses import dataclass, field
+import time
+from contextlib import nullcontext
+from contextvars import copy_context
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Optional
 
 from nexsandglass.engram.types import MemoryObject, LifecycleState
 from nexsandglass.runtime.facade import MemoryContext
 
 logger = logging.getLogger(__name__)
+
+# A late source may keep running, but must not hold the caller open or create
+# another queued copy on every query. Capacity is shared across planner instances.
+_RECALL_WORKERS = 8
+_recall_executor = ThreadPoolExecutor(max_workers=_RECALL_WORKERS,
+                                      thread_name_prefix="nyx-recall")
+_recall_slots = threading.BoundedSemaphore(_RECALL_WORKERS)
+_recall_jobs: dict = {}
+_recall_jobs_lock = threading.RLock()
+
+
+def _submit_source(name: str, fn: Callable, query: str, deadline: float):
+    from nexsandglass.core import clock, settings
+    from nexsandglass.core.sandglass_paths import _NB
+
+    # Scoped settings can select different backends in the same process. Never
+    # mix their jobs or lose the caller's context in a reused executor thread.
+    key = (os.path.abspath(_NB), tuple(sorted(settings.current().items())), name)
+    ctx = copy_context()
+    simulated = clock.now() if clock.is_simulated() else None
+
+    def invoke():
+        started = time.monotonic()
+        with clock.frozen(simulated) if simulated is not None else nullcontext():
+            items = fn(query)
+        finished = time.monotonic()
+        return items, finished - started, finished
+
+    with _recall_jobs_lock:
+        prior = _recall_jobs.get(key)
+        if prior is not None and not prior[0].done():
+            if time.monotonic() >= prior[1]:
+                return None, "source already running after timeout", []
+            # The active query is still healthy. Wait for its slot, then submit
+            # this query independently; never return the other query's evidence.
+            return None, "", [prior]
+        if not _recall_slots.acquire(blocking=False):
+            now = time.monotonic()
+            active = [(job, end) for job, end in _recall_jobs.values()
+                      if not job.done() and end > now]
+            if active:
+                return None, "", active
+            return None, "recall worker capacity exhausted", []
+        try:
+            future = _recall_executor.submit(ctx.run, invoke)
+        except Exception:
+            _recall_slots.release()
+            raise
+        _recall_jobs[key] = (future, deadline)
+
+        def finished(done):
+            with _recall_jobs_lock:
+                current = _recall_jobs.get(key)
+                if current is not None and current[0] is done:
+                    _recall_jobs.pop(key, None)
+            _recall_slots.release()
+
+        future.add_done_callback(finished)
+    return future, "", []
+
+
+_ANAPHORA = re.compile(
+    r"那[个件次些]|这个|这件|它|上次|之前|照旧|继续|同样|"
+    r"\b(that|those|it|same|previous|last time|continue|again)\b", re.I)
+
+
+def _recall_query(query: str, context: Optional[str]) -> tuple[str, bool]:
+    """Use bounded, scrubbed task context only when the query refers back to it."""
+    from nexsandglass.core import secret_filter
+    clean = secret_filter.clean(str(query or ""))
+    if not isinstance(context, str) or not context.strip() or not _ANAPHORA.search(clean):
+        return clean, False
+    contextual = secret_filter.clean(context)[-1000:].strip()
+    return (f"{contextual}\n{clean}", True) if contextual else (clean, False)
+
+
+def _within_budget(objects: list[MemoryObject], budget: int) -> list[MemoryObject]:
+    """Keep complete evidence; never cut off a correction/negation to make it fit."""
+    from nexsandglass.runtime.bundle import estimate_tokens
+    if budget <= 0:
+        return []
+    picked = []
+    text = ""
+    for obj in objects:
+        if not obj.content:
+            continue
+        candidate = text + ("\n" if text else "") + obj.content
+        if estimate_tokens(candidate) <= budget:
+            picked.append(obj)
+            text = candidate
+    return picked
 
 
 # ══════════════════════════════════════════════════════════
@@ -68,9 +161,10 @@ class PolicyEngine:
     """模块开关 / 超时 / limit 的统一策略引擎。"""
 
     def __init__(self, policies: Optional[dict[str, ModulePolicy]] = None):
-        self._policies: dict[str, ModulePolicy] = dict(_DEFAULT_POLICIES)
+        self._policies: dict[str, ModulePolicy] = {
+            key: replace(value) for key, value in _DEFAULT_POLICIES.items()}
         if policies:
-            self._policies.update(policies)
+            self._policies.update({key: replace(value) for key, value in policies.items()})
         # 环境变量覆盖（NYX_POLICY_<MODULE>_ENABLED=0/1, _TIMEOUT, _LIMIT）
         self._apply_env_overrides()
 
@@ -133,6 +227,9 @@ class RecallResult:
     est_tokens: int = 0
     meta_intent: object = None   # MemoryIntent（v5.0）
     withheld: list = field(default_factory=list)   # v7.8 信任门扣下的（无正文）
+    session_id: Optional[str] = None
+    context_used: bool = False
+    candidate_mode: bool = False
 
     def to_context(self, separator: str = "\n") -> str:
         """拼成纯文本（供 system prompt 注入）。"""
@@ -158,6 +255,7 @@ class FormationResult:
     # v7.8 来源信任：trusted / unverified / tainted，以及命中的特征
     trust_signal: str = ""
     trust_flags: list = field(default_factory=list)
+    session_id: Optional[str] = None
 
 
 class FormationRouter:
@@ -191,6 +289,9 @@ class FormationRouter:
         source: str | None = None,
         raw_already_logged: bool = False,
         force_promote: bool = False,
+        *,
+        session_id: str | None = None,
+        source_mem_id: str | None = None,
     ) -> FormationResult:
         """观察一个事件并写入各底层 store（B3：Memory 是形成的）。
 
@@ -199,7 +300,7 @@ class FormationRouter:
         raw sandglass 始终保留作审计日志。force_promote 是内部逃生口（测试/已决策），
         默认关闭，MCP memory_observe 也走同一门禁。
         """
-        fr = FormationResult()
+        fr = FormationResult(session_id=session_id)
         if not event:
             fr.message = "empty event"
             return fr
@@ -219,24 +320,41 @@ class FormationRouter:
             origin = source or "agent"
 
             # 1. 落沙（原始审计日志）——除非调用方已落
-            raw_mem_id = ""
+            raw_mem_id = (source_mem_id or "") if raw_already_logged else ""
             if not raw_already_logged:
                 try:
                     raw_mem_id = sandglass_log.log_message(event, sender=origin,
                                                            return_id=True) or ""
-                    fr.routes_written.append("sandglass")
                 except Exception as e:
                     fr.errors["sandglass"] = str(e)
                     logger.warning("[Formation] sandglass 写入失败: %s", e)
+                    fr.message = "raw journal write failed"
+                    return fr
+                if not raw_mem_id:
+                    fr.errors["sandglass"] = "raw journal was not recorded"
+                    fr.message = "raw journal write failed"
+                    return fr
+                fr.routes_written.append("sandglass")
 
             # 1.2 调用方已经落过沙（Hermes sync_turn）：按内容到中枢里认回那一条，拿它真实的 mem_id 和首行号。
             #     以前这里拿不到 mem_id，影子沙用「日志现在有几行」当行号 —— 多行消息是末行、换了数据目录是别的日志 ——
             #     遗忘按首行和 mem_id 删，这一份删不到：被遗忘的那句话以实体名留在影子沙里（v7.14.0）
             raw_line = 0
             if not raw_mem_id:
-                raw_mem_id, raw_line = _find_logged(event)
+                raw_mem_id, raw_line = _find_logged(event, origin=origin)
             else:
-                raw_line = (memid_row(raw_mem_id) or {}).get("line_start", 0)
+                row = memid_row(raw_mem_id) or {}
+                raw_line = row.get("line_start", 0)
+                if source_mem_id:
+                    expected, _ = _prov.escape_forged_headers(event.rstrip("\n"))
+                    sender = "agent" if origin == "assistant" else origin
+                    if row.get("text") != expected or row.get("sender") != sender:
+                        raw_mem_id, raw_line = "", 0
+            if not raw_mem_id or not raw_line:
+                fr.errors["sandglass"] = "no matching canonical raw record"
+                fr.message = "raw record missing; derived writes skipped"
+                return fr
+            fr.memory_id = raw_mem_id
 
             # 1.5 来源信任：优先取写入时绑定的那份，没有（调用方已落沙）再现场评估
             prov = (_prov.get(raw_mem_id) if raw_mem_id else None) or _prov.assess(event, origin)
@@ -294,7 +412,7 @@ class FormationRouter:
                 from nexsandglass.engram.types import Memory as _Mem
                 recent_rows = bridge.recent(n=50)
                 existing = [
-                    _Mem(memory_id=f"engram:{r.get('ts','')}",
+                    _Mem(memory_id=bridge.row_id(r),
                          type=r.get("type", "semantic"),
                          content=r.get("content", ""))
                     for r in recent_rows if isinstance(r, dict) and r.get("content")
@@ -319,7 +437,7 @@ class FormationRouter:
                     source_mem_id=raw_mem_id or None,
                 )
                 fr.routes_written.append("engram")
-                fr.memory_id = res.get("id") or f"engram:{event[:20]}"
+                fr.memory_id = res.get("id") or res.get("matched_id") or raw_mem_id
                 if write_action in ("reinforce", "dedup"):
                     fr.message = f"{write_action}:" + cand.mem_type
                 else:
@@ -332,7 +450,7 @@ class FormationRouter:
 
             # shadow 索引（信任/实体）
             try:
-                line_num = raw_line or _last_sandglass_line()
+                line_num = raw_line
                 shadow_index(event, category=mtype, line_num=line_num, mem_id=raw_mem_id or None)
                 fr.routes_written.append("shadow")
             except Exception as e:
@@ -345,7 +463,7 @@ class FormationRouter:
             if prov.origin_class == _prov.PRINCIPAL:
                 try:
                     from nexsandglass.features.weavethread import wthread_store
-                    wthread_store(event, line_num=raw_line or _last_sandglass_line(), subject="user",
+                    wthread_store(event, line_num=raw_line, subject="user",
                                   mem_id=raw_mem_id or None)
                     fr.routes_written.append("wthread")
                 except Exception as e:
@@ -381,7 +499,7 @@ def memid_row(mem_id: str):
         return None
 
 
-def _find_logged(event: str):
+def _find_logged(event: str, origin: str | None = None):
     """调用方刚落过沙的这条在中枢里是哪一条：(mem_id, 首行号)；找不到 → ("", 0)。
 
     按 allocate 存进去的样子比（隐去密钥、转义伪造的记录头、去掉结尾换行），取最新的一条。
@@ -393,9 +511,12 @@ def _find_logged(event: str):
         conn = memid.get_conn()
         # 只认最近几条：这一句要是没写进日志（低价值回复被过滤了），不能认到很久以前一模一样的另一条上
         top = conn.execute("SELECT COALESCE(MAX(seq), 0) FROM memories").fetchone()[0]
+        sender = "agent" if origin == "assistant" else origin
         row = conn.execute(
             "SELECT mem_id, line_start FROM memories WHERE content_hash=? AND deleted_at IS NULL AND seq > ?"
-            " ORDER BY seq DESC LIMIT 1", (memid.content_hash(text), top - 4)).fetchone()
+            + (" AND sender=?" if sender else "") + " ORDER BY seq DESC LIMIT 1",
+            (memid.content_hash(text), top - 4, sender) if sender else
+            (memid.content_hash(text), top - 4)).fetchone()
         return (row[0], row[1] or 0) if row else ("", 0)
     except Exception:
         return "", 0
@@ -546,15 +667,21 @@ class RecallPlanner:
             logger.warning("[RecallPlanner.recent] 失败: %s", e)
         return objs
 
-    def recall(self, query: str, token_budget: int = 1500) -> MemoryContext:
+    def recall(self, query: str, token_budget: int = 1500, *,
+               context: str | None = None, session_id: str | None = None,
+               candidate_mode: bool = False) -> MemoryContext:
         """并行多源召回。返回 MemoryContext；原始 hits 仅记 debug。
 
         先解析 MemoryIntent（v5.0），按策略选源 + 排序。
         Intent 失败 → generic_semantic（全源混合降级）。
         """
-        result = RecallResult(query=query, token_budget=token_budget)
+        token_budget = max(0, int(token_budget))
+        source_query, context_used = _recall_query(query, context)
+        result = RecallResult(query=query, token_budget=token_budget,
+                              session_id=session_id, context_used=context_used,
+                              candidate_mode=candidate_mode)
         im = self._get_intent()
-        intent = im.parse_intent(query)
+        intent = im.parse_intent(source_query)
         strategy = intent.strategy
 
         # 按策略选择源（包住而非替换 SearchRouter）
@@ -578,34 +705,78 @@ class RecallPlanner:
             ]
         result.meta_intent = intent
 
-        def run_source(name: str, fn: Callable) -> RecallTrace:
-            tr = RecallTrace(source=name)
+        traces = {}
+        pending = {}
+        deferred = {}
+        started = time.monotonic()
+        for name, fn in sources:
+            tr = traces[name] = RecallTrace(source=name)
             if not self.policy.enabled(name):
                 tr.error = "disabled by policy"
-                return tr
-            import time
-            t0 = time.time()
-            try:
-                with ThreadPoolExecutor(max_workers=1) as ex:
-                    fut = ex.submit(fn, query)
-                    items = fut.result(timeout=self.policy.timeout(name))
-                cap = self._router_limit(query) if name == "search_router" else self.policy.limit(name)
-                tr.items = items[:cap]
-                tr.ok = True
-            except FutureTimeout:
-                tr.error = f"timeout>{self.policy.timeout(name)}s"
-            except Exception as e:
-                tr.error = str(e)
-            tr.elapsed = round(time.time() - t0, 3)
-            return tr
+                continue
+            deferred[name] = (fn, started, started + max(0.0, self.policy.timeout(name)))
 
-        with ThreadPoolExecutor(max_workers=len(sources)) as pool:
-            futures = {pool.submit(run_source, name, fn): name for name, fn in sources}
-            for fut in futures:
+        # Wait only until the next source deadline. Do not use an executor context
+        # here: its shutdown(wait=True) would undo the timeout by joining late jobs.
+        while pending or deferred:
+            now = time.monotonic()
+            for future, (name, started, deadline) in list(pending.items()):
+                tr = traces[name]
+                if future.done():
+                    try:
+                        items, elapsed, finished = future.result()
+                        if finished > deadline:
+                            tr.error = f"timeout>{self.policy.timeout(name)}s"
+                        else:
+                            cap = (self._router_limit(source_query) if name == "search_router"
+                                   else self.policy.limit(name))
+                            tr.items = items[:max(0, cap)]
+                            tr.ok = True
+                        tr.elapsed = round(finished - started, 3)
+                    except Exception as e:
+                        tr.error = str(e) or type(e).__name__
+                        tr.elapsed = round(now - started, 3)
+                    pending.pop(future)
+                elif now >= deadline:
+                    tr.error = f"timeout>{self.policy.timeout(name)}s"
+                    tr.elapsed = round(now - started, 3)
+                    future.cancel()  # Running work owns its slot until it really ends.
+                    pending.pop(future)
+
+            blockers = {}
+            for name, (fn, began, deadline) in list(deferred.items()):
+                tr = traces[name]
+                if time.monotonic() >= deadline:
+                    tr.error = f"timeout>{self.policy.timeout(name)}s"
+                    tr.elapsed = round(time.monotonic() - began, 3)
+                    deferred.pop(name)
+                    continue
                 try:
-                    result.traces.append(fut.result(timeout=max(self.policy.timeout(n) for n, _ in sources) + 2))
+                    future, error, busy = _submit_source(name, fn, source_query, deadline)
                 except Exception as e:
-                    result.traces.append(RecallTrace(source=futures[fut], error=str(e)))
+                    error, future, busy = str(e) or type(e).__name__, None, []
+                if future is not None:
+                    pending[future] = (name, began, deadline)
+                    deferred.pop(name)
+                elif error:
+                    tr.error = error
+                    tr.elapsed = round(time.monotonic() - began, 3)
+                    deferred.pop(name)
+                else:
+                    blockers.update(busy)
+
+            if pending or deferred:
+                # Healthy concurrent queries temporarily share source/worker
+                # capacity. Retry submission when a slot frees, within this
+                # request's original deadline. No extra executor jobs are queued.
+                deadlines = [entry[2] for entry in pending.values()]
+                deadlines.extend(entry[2] for entry in deferred.values())
+                deadlines.extend(blockers.values())
+                next_deadline = min(deadlines)
+                wait(set(pending) | set(blockers),
+                     timeout=max(0.0, next_deadline - time.monotonic()),
+                     return_when=FIRST_COMPLETED)
+        result.traces = [traces[name] for name, _ in sources]
 
         # 聚合：按 priority 排序 + 去重（memory_id）
         seen: set[str] = set()
@@ -627,12 +798,16 @@ class RecallPlanner:
 
         # v5.0：意图感知排序（包住而非替换——在聚合结果之上重排，再截断）
         if ordered and intent.strategy != "generic_semantic":
-            ordered = im.rank_objects(ordered, intent, query=query)
+            ordered = im.rank_objects(ordered, intent, query=source_query)
         # v7.8 信任门：tainted 不出库，unverified 带来源标注且降为信息（不能当规则）
         ordered, withheld = _apply_trust(ordered)
         result.withheld = withheld
-        result.objects = ordered[: token_budget // 10 if token_budget else 20]
-        result.est_tokens = sum(len(o.content) // 4 for o in result.objects)
+        # Provider needs broad candidates before it accounts for dates, headers,
+        # relevance filtering and display snippets. Other callers get a bounded
+        # plain-text context made of complete evidence records.
+        result.objects = ordered if candidate_mode else _within_budget(ordered, token_budget)
+        from nexsandglass.runtime.bundle import estimate_tokens
+        result.est_tokens = estimate_tokens(result.to_context())
         # hits 仅 debug（不暴露给上层）
         if result.objects:
             logger.debug(
@@ -671,6 +846,11 @@ class RecallPlanner:
         mc.text = "\n".join(strings)
         mc.withheld = list(getattr(result, "withheld", []) or [])
         mc.meta_intent = intent
+        mc.session_id = result.session_id
+        mc.context_used = result.context_used
+        mc.candidate_mode = result.candidate_mode
+        if result.context_used:
+            mc.reasons.append("task_context_used")
         return mc
 
 
@@ -949,13 +1129,18 @@ class NyxOrchestrator:
 
     # ── 写入热路径 ──
     def observe(self, event: str, mem_type: str | None = None, source: str | None = None,
-                raw_already_logged: bool = False, force_promote: bool = False) -> FormationResult:
-        return self.formation.observe(event, mem_type, source, raw_already_logged, force_promote)
+                raw_already_logged: bool = False, force_promote: bool = False, *,
+                session_id: str | None = None, source_mem_id: str | None = None) -> FormationResult:
+        return self.formation.observe(event, mem_type, source, raw_already_logged, force_promote,
+                                      session_id=session_id, source_mem_id=source_mem_id)
 
     # ── 读取热路径 ──
-    def recall(self, query: str, token_budget: int = 1500) -> MemoryContext:
+    def recall(self, query: str, token_budget: int = 1500, *,
+               context: str | None = None, session_id: str | None = None,
+               candidate_mode: bool = False) -> MemoryContext:
         """统一召回：返回 MemoryContext。原始 hits 仅 debug。"""
-        return self.recall_planner.recall(query, token_budget)
+        return self.recall_planner.recall(query, token_budget, context=context,
+                                         session_id=session_id, candidate_mode=candidate_mode)
 
     def recall_bundle(self, query: str, max_tokens: int = 1500, **layers):
         """召回 + 构建 MemoryBundle（合并出口）。"""

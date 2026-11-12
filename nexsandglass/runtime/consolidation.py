@@ -17,10 +17,12 @@ import json
 import logging
 import os
 import threading
+import re
+import uuid
 from dataclasses import dataclass, field
 from typing import Optional
 
-from nexsandglass.engram.types import Memory, MemoryObject
+from nexsandglass.engram.types import Memory, MemoryObject, DECAY_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,7 @@ def _snapshot_base() -> str:
 
 
 _SNAPSHOT_DIR = os.path.join(_snapshot_base(), "consolidation_snapshots")
+_DEFAULT_SNAPSHOT_DIR = _SNAPSHOT_DIR
 
 
 # ══════════════════════════════════════════════════════════
@@ -89,21 +92,47 @@ def _has_internal_conflict(text: str) -> bool:
 
 def _snapshot(memories: list[Memory], tag: str) -> str:
     """保存可回滚快照。"""
-    os.makedirs(_SNAPSHOT_DIR, exist_ok=True)
-    path = os.path.join(_SNAPSHOT_DIR, f"{tag}.json")
+    from nexsandglass.core import memid, consolidation_snapshots
+    from nexsandglass.core.fsutil import atomic_write
+    directory = consolidation_snapshots.directory()
+    os.makedirs(directory, exist_ok=True)
+    # A repeated tag must not overwrite the previous rollback point, and tags
+    # are labels, not paths into arbitrary directories.
+    label = re.sub(r"[^\w.-]+", "_", str(tag))[:80].strip(".") or "consolidation"
+    path = os.path.join(directory, f"{label}-{uuid.uuid4().hex}.json")
     data = []
     for m in memories:
+        provenance = {key: getattr(m, key, None)
+                      for key in ("source_id", "source_mem_id", "source_ids", "source_mem_ids")}
         if hasattr(m, "to_memory"):
             m = m.to_memory()
-        data.append({
+        row = {
             "memory_id": m.memory_id, "type": m.type, "content": m.content,
             "valence": m.valence, "arousal": m.arousal,
             "decay_weight": m.decay_weight, "access_count": m.access_count,
             "created_at": m.created_at, "last_accessed": m.last_accessed,
             "superseded_by": m.superseded_by,
-        })
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=1)
+        }
+        for key, value in provenance.items():
+            if value:
+                row[key] = value
+        data.append(row)
+    with memid.journal_lock():
+        # A snapshot prepared before a concurrent forget must not bring its
+        # content back after the forget has finished.
+        kept = []
+        for row in data:
+            deleted = False
+            for ref in consolidation_snapshots.refs(row):
+                if ref.startswith("m_"):
+                    source = memid.get(ref, allow_deleted=True)
+                    if source and source.get("deleted_at"):
+                        deleted = True
+                        break
+            if not deleted:
+                kept.append(row)
+        with atomic_write(path) as f:
+            json.dump(kept, f, ensure_ascii=False, indent=1)
     return path
 
 
@@ -159,7 +188,7 @@ class ConsolidationEngine:
         # 3. 衰减提案（低 access + 老）
         import time
         for m in memories:
-            if m.access_count == 0 and _is_old(m):
+            if m.type in DECAY_TYPES and m.access_count == 0 and _is_old(m):
                 proposals.append(DreamProposal(
                     action="decay",
                     content=f"[衰减] {m.content[:60]}",
@@ -179,29 +208,42 @@ class ConsolidationEngine:
             proposals = self.generate_proposals(memories)
 
             # 3. Validator + Apply/Quarantine
-            applied: list[DreamProposal] = []
+            validated: list[DreamProposal] = []
             quarantined: list[DreamProposal] = []
             for p in proposals:
                 p = self.validator.validate(p)
                 if p.apply:
-                    applied.append(p)
+                    validated.append(p)
                 else:
                     quarantined.append(p)
                     self._quarantine.append(p)
 
             # 4. 应用衰减（对 decay 提案）
+            applied: list[DreamProposal] = []
+            updates = []
             evolved = list(memories)
-            for p in applied:
+            for p in validated:
                 if p.action == "decay" and p.target_id:
                     for m in evolved:
                         if m.memory_id == p.target_id:
                             m.decay_weight = max(0.0, m.decay_weight - 0.3)
                             m.access_count += 1  # 标记已处理
+                            applied.append(p)
+                            updates.append({"memory_id": m.memory_id,
+                                            "decay_weight": m.decay_weight,
+                                            "access_count": m.access_count})
+                            break
 
             return {
                 "snapshot": snap,
                 "proposals_total": len(proposals),
                 "applied": len(applied),
+                "applied_scope": "in_memory",
+                "persisted": 0,
+                "validated": len(validated),
+                "validated_actions": [p.action for p in validated],
+                "deferred_actions": [p.action for p in validated if p not in applied],
+                "decay_updates": updates,
                 "quarantined": len(quarantined),
                 "applied_actions": [p.action for p in applied],
                 "quarantine_reasons": [p.quarantine_reason for p in quarantined],

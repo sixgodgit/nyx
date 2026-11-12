@@ -288,21 +288,27 @@ def capture(row: tuple, *, journal_path: str, engram_path: str = None) -> dict:
     pay["journal"] = _slice(journal_path, ls, le or ls)
     pay["backup"] = _slice(_backup_path(journal_path), ls, le or ls)
 
-    # engram_store.jsonl：按 ts 或来源 mem_id 匹配（与 _purge_engram 删的是同一批）。
-    # 只按 ts 会漏：记忆写进日志和写进 engram 跨过了秒的边界，时间戳就对不上（机器忙时实测到，v7.14.0）
+    # Prefer bound provenance. Legacy unbound rows also need matching text;
+    # timestamp equality alone can select someone else's same-second record.
     lines = []
-    if engram_path and os.path.exists(engram_path):
-        with open(engram_path, "r", encoding="utf-8", errors="replace") as f:
-            for line in f:
-                s = line.rstrip("\n")
-                if not s.strip():
-                    continue
-                try:
-                    r = json.loads(s)
-                    if r.get("ts") == ts or (mem_id and r.get("source_mem_id") == mem_id):
-                        lines.append(s)
-                except Exception:
-                    continue
+    if engram_path:
+        from nexsandglass.engram.bridge import store_lock
+        with store_lock(engram_path):
+            if os.path.exists(engram_path):
+                with open(engram_path, "r", encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        s = line.rstrip("\n")
+                        if not s.strip():
+                            continue
+                        try:
+                            r = json.loads(s)
+                            bound = r.get("source_mem_id")
+                            legacy_match = (r.get("ts") == ts and r.get("content") == text[:300])
+                            matches = bound == mem_id if bound else legacy_match
+                            if matches:
+                                lines.append(s)
+                        except Exception:
+                            continue
     pay["engram"] = lines
 
     # FTS 主表行（tokens 由正文重算，不抓）
@@ -600,18 +606,36 @@ def _restore_entities(db: sqlite3.Connection, ents: list, line_num: int, mem_id:
 def _restore_engram(path: str, lines: list) -> int:
     if not lines or not path:
         return 0
-    have = set()
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
-            have = {l.rstrip("\n") for l in f}
-    add = [l for l in lines if l not in have]
-    if not add:
-        return 0
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "a", encoding="utf-8") as f:
-        for l in add:
-            f.write(l + "\n")
-    return len(add)
+    from nexsandglass.engram.bridge import store_lock
+    from nexsandglass.core.fsutil import atomic_write
+    def key(line):
+        try:
+            row = json.loads(line)
+            if isinstance(row, dict) and row.get("memory_id"):
+                return ("id", row["memory_id"])
+        except (ValueError, TypeError):
+            pass
+        return ("line", line)
+    with store_lock(path):
+        prior = b""
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                prior = f.read()
+        have = {key(line) for line in prior.decode("utf-8", errors="replace").splitlines()}
+        add = []
+        for line in lines:
+            identity = key(line)
+            if identity not in have:
+                have.add(identity)
+                add.append(line)
+        if not add:
+            return 0
+        with atomic_write(path, mode="wb") as f:
+            f.write(prior)
+            if prior and not prior.endswith(b"\n"):
+                f.write(b"\n")
+            f.write(("\n".join(add) + "\n").encode("utf-8"))
+        return len(add)
 
 
 def _restore_idx(text: str, line_num: int) -> int:

@@ -5,6 +5,37 @@ Benchmark section of the README and `benchmarks/`. Entries from v7.16.0 on are i
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。v7.16.0 起的条目用英文，之前的是中文。
 
+### v7.23.1 (2026-11-12) — Reliable writes, source-aware erasure and bounded recall
+
+**Fixed.**
+- Handled journal allocation failures now roll back uncommitted database rows and only the failed append. Existing
+  bytes and already-committed records are preserved. Formation stops when the canonical raw record is missing;
+  Hermes passes its recorded source ID instead of matching a previous message by content.
+- New engram records receive unique IDs. Ambiguous legacy timestamp aliases reject mutation. Feedback and relative
+  decay updates use shared cross-process locking and atomic replacement; forget and restore preserve unrelated
+  same-second records and stable IDs.
+- Consolidation snapshots participate in forgetting and permanent-erasure verification, including decoded quotes,
+  newlines and backslashes. Unknown or unreadable copies cannot be reported as fully purged. Legacy source ambiguity
+  is retained and reported rather than resolved by deleting someone else's data.
+- Recall forwards task context and session metadata. Source deadlines return without joining late work, execution
+  capacity is bounded, and concurrent healthy queries wait for capacity without sharing another query's result.
+  The plain-text result and Hermes's rendered per-turn injection respect their estimated token budgets.
+- Supported consolidation decay changes are persisted and reported truthfully. Semantic/procedural memories remain
+  static; abstract/conflict proposals are deferred rather than claimed as durably applied.
+- Historical media timestamps are scoped to the current thread and preserve an existing simulation clock.
+
+**Validation.** Before release preparation: 978 tests passed, one fixture-dependent test skipped; real Hermes loader,
+MemoryManager and multi-profile checks passed. The eight held-out personal stories kept fact visibility (0.95),
+probe completeness (0.94) and changes-of-mind handling (0.89); unrelated entries per query fell from 1.69 to 1.58.
+LongMemEval's six-question mini fixture retained its earlier retrieval scores. These are regression checks, not a
+new full-benchmark or embodied-intelligence result. Release validation and Python-version matrix results are recorded
+in the GitHub Release and Actions runs.
+
+**Scope.** Existing journal format and zero-LLM base recording are retained. This is handled-error recovery, not a
+power-loss atomicity guarantee across SQLite and a text file. Token budgets use the existing estimator; a strict
+budget may omit an oversized complete record. Advanced perceptual recall/world-state/skill learning is not included.
+Contracts and compatibility details: [`docs/reliability-hardening.md`](docs/reliability-hardening.md).
+
 ### v7.23.0 (2026-11-10) — Follow-ups: what you said is coming up, at the start of the next conversation
 
 **Why.** Tell ChatGPT on Monday about an interview on Wednesday and on Friday it may open with "how did the interview

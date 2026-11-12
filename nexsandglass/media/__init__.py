@@ -197,11 +197,10 @@ def _path_of(a: dict) -> Optional[str]:
 def _write(text: str, sender: str, when: str) -> str:
     from nexsandglass.core import clock
     from nexsandglass.core.sandglass_log import log_message
-    clock.set_global(datetime.strptime(when, _TS))
-    try:
+    # Historical asset time belongs to this write, not to concurrent requests.
+    # frozen() also restores a caller's existing thread/global simulation clock.
+    with clock.frozen(datetime.strptime(when, _TS)):
         return log_message(text, sender, return_id=True) or ""
-    finally:
-        clock.set_global(None)
 
 
 def _link(c, mem_id: str, asset_id: str, kind: str, by: str, start=None, end=None) -> None:
