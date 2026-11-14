@@ -32,6 +32,7 @@ import os
 import re
 import sqlite3
 import threading
+import time
 from datetime import date, datetime, timedelta
 from typing import Optional
 
@@ -511,6 +512,33 @@ def refresh(conn: Optional[sqlite3.Connection] = None, max_rows: Optional[int] =
         _REFRESH_LOCK.release()
 
 
+def refresh_ready(conn: Optional[sqlite3.Connection] = None, *, deadline: float) -> int:
+    """Readiness variant for one-shot voice context, through an initial watermark.
+
+    Bound lock waiting and check the shared deadline around 64-row batches;
+    never return a partial index as a complete set of plans/cancellations.
+    SQLite I/O keeps its connection timeout and the host's outer deadline.
+    """
+    if not _REFRESH_LOCK.acquire(timeout=max(0.0, deadline - time.monotonic())):
+        raise TimeoutError("Nyx voice follow-ups are still refreshing")
+    try:
+        from nexsandglass.core import memid
+        conn = conn or memid.get_conn()
+        target = int(conn.execute("SELECT COALESCE(MAX(seq), 0) FROM memories").fetchone()[0])
+        added = 0
+        while True:
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Nyx voice follow-ups are still refreshing")
+            added += _refresh(conn, max_rows=64)
+            ready = int(_meta(conn, "seq", "0") or 0) >= target
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Nyx voice follow-ups are still refreshing")
+            if ready:
+                return added
+    finally:
+        _REFRESH_LOCK.release()
+
+
 def _refresh(conn: Optional[sqlite3.Connection], max_rows: Optional[int]) -> int:
     from nexsandglass.core import memid
     conn = conn or memid.get_conn()
@@ -715,14 +743,18 @@ def current(now: Optional[datetime] = None) -> list:
     return due(now)
 
 
-def render(now: Optional[datetime] = None, conn: Optional[sqlite3.Connection] = None) -> str:
+def render(now: Optional[datetime] = None, conn: Optional[sqlite3.Connection] = None,
+           *, deadline: Optional[float] = None) -> str:
     """常驻块里「待跟进」那一段；关着或者没有就返回空串。"""
     if not enabled():
         return ""
+    if deadline is not None:
+        refresh_ready(conn, deadline=deadline)
     try:
         from nexsandglass.core import clock
         now = now or clock.now()
-        refresh(conn, max_rows=BATCH, wait=False)       # 不让会话开始等：老库的历史由后台补
+        if deadline is None:
+            refresh(conn, max_rows=BATCH, wait=False)       # 不让会话开始等：老库的历史由后台补
         got = due(now, conn)
     except Exception as e:
         logger.warning("待跟进读取失败（常驻块里先不放）: %s", e)

@@ -23,6 +23,7 @@ import logging
 import re
 import sqlite3
 import threading
+import time
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -330,6 +331,34 @@ def refresh(conn: Optional[sqlite3.Connection] = None, max_rows: Optional[int] =
         _REFRESH_LOCK.release()
 
 
+def refresh_ready(conn: Optional[sqlite3.Connection] = None, *, deadline: float) -> int:
+    """Index through a fixed initial journal watermark before a one-shot read.
+
+    Unlike best-effort render(), an incomplete first index must not masquerade
+    as an empty/current voice snapshot. The deadline bounds lock waiting and
+    is checked around 64-row batches; SQLite I/O retains its connection timeout
+    and the host request's outer timeout still applies.
+    """
+    if not _REFRESH_LOCK.acquire(timeout=max(0.0, deadline - time.monotonic())):
+        raise TimeoutError("Nyx voice profile is still refreshing")
+    try:
+        from nexsandglass.core import memid
+        conn = conn or memid.get_conn()
+        target = int(conn.execute("SELECT COALESCE(MAX(seq), 0) FROM memories").fetchone()[0])
+        added = 0
+        while True:
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Nyx voice profile is still refreshing")
+            added += _refresh(conn, max_rows=64)
+            ready = int(_meta(conn, "seq", "0") or 0) >= target
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Nyx voice profile is still refreshing")
+            if ready:
+                return added
+    finally:
+        _REFRESH_LOCK.release()
+
+
 def _refresh(conn: Optional[sqlite3.Connection], max_rows: Optional[int]) -> int:
     from nexsandglass.core import memid
     conn = conn or memid.get_conn()
@@ -442,10 +471,13 @@ def _is_zh(text: str) -> bool:
     return bool(re.search(r"[一-鿿]", text or ""))
 
 
-def render(conn: Optional[sqlite3.Connection] = None) -> str:
+def render(conn: Optional[sqlite3.Connection] = None, *, deadline: Optional[float] = None) -> str:
     """常驻块里「关于用户」那一段；没有就返回空串。"""
+    if deadline is not None:
+        refresh_ready(conn, deadline=deadline)
     try:
-        refresh(conn, max_rows=BATCH, wait=False)       # 不让会话开始等：老库的历史由后台补
+        if deadline is None:
+            refresh(conn, max_rows=BATCH, wait=False)       # 不让会话开始等：老库的历史由后台补
         got = items(conn)
     except Exception as e:
         logger.warning("画像读取失败（常驻块里先不放）: %s", e)

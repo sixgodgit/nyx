@@ -100,6 +100,8 @@ def _mood(entropy: float) -> str:
 # agent 一次最多送进隔离区的条数；更大的范围交给主人用 CLI 做
 _FORGET_MAX = 20
 _PREFETCH_TOKENS_DEFAULT = 600
+_VOICE_CONTEXT_MAX_CHARS = 4000
+_VOICE_READY_TIMEOUT_S = 1.0
 _WRITE_CONTEXTS = ("", "primary")
 
 
@@ -555,6 +557,60 @@ class NexSandglassProvider(MemoryProvider):
             t = threading.Thread(target=target, name="nyx-warm", daemon=True)
         t.start()
         self._warm_thread = t
+
+    def voice_prompt_block(self, *, max_chars: int = _VOICE_CONTEXT_MAX_CHARS,
+                           ready_timeout: float = _VOICE_READY_TIMEOUT_S) -> str:
+        """Optional voice-host capability: current personal facts, no tool briefing.
+
+        Conduit can read this block at call startup without invoking recall or
+        replaying a Hermes turn. Keep the existing owner/trust/forgetting gates
+        in profile and followups; neither the journal nor model services are
+        written or called here. Derived local indexes may refresh as on reads.
+
+        The two derived views share a capped one-second readiness deadline. A
+        busy or incomplete cold index raises TimeoutError, not a false empty
+        snapshot. No embedding/model prewarm thread is joined. The deadline is
+        checked at locks/batches; SQLite I/O also has the host's outer timeout.
+
+        max_chars can reduce, but never expand, the 4000-character bound. Drop
+        whole evidence lines at the boundary rather than cutting a negation or
+        losing the heading that identifies earlier words as historical.
+        """
+        limit = min(_VOICE_CONTEXT_MAX_CHARS, max(0, int(max_chars)))
+        if not limit or self.unavailable_reason():
+            return ""
+        deadline = time.monotonic() + min(_VOICE_READY_TIMEOUT_S, max(0.0, float(ready_timeout)))
+        blocks = []
+        try:
+            from nexsandglass.core import profile
+            # Voice startup needs the current view. Earlier, replaced words
+            # stay in the journal and normal prompt, not in this compact block.
+            text = profile.render(deadline=deadline).split("\nChanged since (", 1)[0].strip()
+            if text:
+                blocks.append(text)
+        except TimeoutError:
+            raise
+        except Exception:
+            logger.warning("Nyx voice profile context is unavailable")
+        try:
+            from nexsandglass.core import followups
+            text = followups.render(deadline=deadline).strip().removesuffix("\n" + followups.GUIDANCE).strip()
+            if text:
+                blocks.append(text)
+        except TimeoutError:
+            raise
+        except Exception:
+            logger.warning("Nyx voice follow-up context is unavailable")
+        text = "\n\n".join(blocks)
+        if len(text) <= limit:
+            return text
+        kept = text[:limit]
+        if text[limit] != "\n":
+            kept = kept.rsplit("\n", 1)[0] if "\n" in kept else ""
+        lines = kept.splitlines()
+        while lines and not lines[-1].startswith("- "):
+            lines.pop()  # No orphan section title when its first fact did not fit.
+        return "\n".join(lines).strip()
 
     def system_prompt_block(self) -> str:
         """每个会话常驻的那一段（v7.19.0 重写）。
@@ -1448,7 +1504,7 @@ class NexSandglassProvider(MemoryProvider):
 
 # Hermes 调进来的每个入口都在这个 profile 的设置里运行（core/settings.py）。后台线程用 spawn_context_thread
 # 起，带着同一份上下文；Hermes 的预取 / 同步线程也是。
-_PROFILE_SCOPED = ("is_available", "unavailable_reason", "initialize", "system_prompt_block", "prefetch",
+_PROFILE_SCOPED = ("is_available", "unavailable_reason", "initialize", "system_prompt_block", "voice_prompt_block", "prefetch",
                    "queue_prefetch", "recall_status", "on_turn_start", "sync_turn", "shutdown", "on_session_end",
                    "on_session_switch", "on_delegation", "get_tool_schemas", "handle_tool_call", "on_memory_write",
                    "on_pre_compress", "get_config_schema", "save_config", "backup_paths", "identity_signature")
