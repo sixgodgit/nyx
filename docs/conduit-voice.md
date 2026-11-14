@@ -5,7 +5,7 @@ returns current trusted owner profile facts and due follow-ups without asking a
 model to call a memory tool. The matching Conduit notifier change reads this
 capability through its existing `/api/plugins/conduit_push/memory/context` route.
 
-This integration requires Nyx 7.24.0 or later and the matching Conduit notifier
+This integration requires Nyx 7.24.1 or later and the matching Conduit notifier
 support (sixgodgit fork 0.168.9). Updating only one side leaves older behavior.
 The client must also request and share memory with the voice session.
 

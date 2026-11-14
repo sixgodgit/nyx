@@ -5,7 +5,7 @@ Benchmark section of the README and `benchmarks/`. Entries from v7.16.0 on are i
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。v7.16.0 起的条目用英文，之前的是中文。
 
-### v7.24.0 (2026-11-14) — Voice startup memory
+### v7.24.1 (2026-11-14) — Voice startup memory
 
 - Added optional `voice_prompt_block()` for Conduit and other voice hosts: current trusted profile facts and due follow-ups, without generic tool instructions or empty-query recall.
 - Voice reads respect preference corrections, forgetting/restoration and follow-up settings. Local indexing uses a shared readiness budget and reports incomplete indexing explicitly.
