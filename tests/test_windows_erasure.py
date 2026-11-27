@@ -76,11 +76,14 @@ def test_redaction_closes_readers_before_replace_without_bulk_read(tmp_path, mon
     assert "private 中文".encode() not in result.read_bytes()
 
 
-@pytest.mark.parametrize("style", ["lf", "crlf", "mixed", "unterminated"])
+@pytest.mark.parametrize("style", ["lf", "crlf", "mixed", "unterminated", "unicode_separators"])
 def test_native_forget_restore_keeps_unrelated_bytes_and_line_endings(tmp_path, style):
     with StoreContext(str(tmp_path/"store")).bind():
         first = memid.allocate("Preserve first 中文", sender="user")
-        private = memid.allocate("Private issue39 marker\nsecond private line", sender="user")
+        text = "Private issue39 marker\nsecond private line"
+        if style == "unicode_separators":
+            text += "\u2028paragraph\u0085next"
+        private = memid.allocate(text, sender="user")
         last = memid.allocate("Preserve last café", sender="user")
         journal = Path(memid._journal_path())
         original = journal.read_bytes()

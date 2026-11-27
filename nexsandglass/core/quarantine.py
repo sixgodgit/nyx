@@ -204,13 +204,16 @@ def _replay(db: sqlite3.Connection, table: str, rows: list) -> int:
 
 def _read_lines(path: str) -> tuple:
     """返回 (lines, had_trailing_newline)。lines 不含行尾换行。"""
+    from nexsandglass.core.fsutil import split_line_ending
     if not path or not os.path.exists(path):
         return [], True
-    with open(path, "r", encoding="utf-8", errors="replace") as f:
-        raw = f.read()
-    if raw == "":
+    # Match physical journal lines: str.splitlines() also splits U+2028/NEL
+    # inside a record and would truncate the originals saved for recovery.
+    with open(path, "rb") as f:
+        raw = f.readlines()
+    if not raw:
         return [], True
-    return raw.splitlines(), raw.endswith("\n")
+    return [split_line_ending(line)[0].decode("utf-8", errors="replace") for line in raw], raw[-1].endswith(b"\n")
 
 
 def _slice(path: str, start: int, end: int) -> list:
