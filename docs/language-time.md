@@ -33,7 +33,9 @@ timezone, basis and declared input language in the same transaction as canonical
 allocation and provenance. A failed allocation rolls back its frame too.
 Projection jobs are invalidated transactionally if this metadata changes.
 Workers use each record's stored frame rather than their current clock or
-current profile configuration. Profile processor v6 and follow-up processor v2
+current profile configuration. Committed projection batches continue immediately;
+only stalled checkpoints back off. Voice readiness retains its one-second limit
+and never treats a partial view as complete. Profile processor v6 and follow-up processor v2
 rebuild derived views through M1's durable job protocol.
 
 Records without a frame retain their legacy wall-clock interpretation. Current
@@ -125,7 +127,7 @@ passed 2/9 existing profile/event cases. The
 [LANG-03 report](../benchmarks/results/language_time_v1_lang03.json) passes 9/9;
 the new time API separately passes 8/8 conformance cases, without a pre-change
 API counterpart. Clean evaluation source is
-`3dc824f9e4d82858dbeb8808c1e4440c35813d7b`.
+`e00f471aaba46cdc61b91ee5723f90e3d96393ce`.
 
 The [original 60-case corpus](../benchmarks/results/language_v1_lang03.json)
 retains LANG-02's results: current profile evidence 12/12 in each direction,

@@ -325,7 +325,7 @@
       "passed": true
     }
   ],
-  "source_commit": "3dc824f9e4d82858dbeb8808c1e4440c35813d7b",
+  "source_commit": "e00f471aaba46cdc61b91ee5723f90e3d96393ce",
   "code_dirty": false,
   "python": "3.12.14",
   "backend": "rules-no-model",

@@ -1263,7 +1263,7 @@
   ],
   "schema_version": 1,
   "corpus_sha256": "2c8f9a8f2fd39ac81e7febee3fd0db8595792115c4eeae81e752913b6a4efd49",
-  "source_commit": "3dc824f9e4d82858dbeb8808c1e4440c35813d7b",
+  "source_commit": "e00f471aaba46cdc61b91ee5723f90e3d96393ce",
   "code_dirty": false,
   "python": "3.12.14",
   "backend": "lexical-rules-no-model",
