@@ -1,10 +1,10 @@
 # Source evidence, facts and presentation (LANG-05)
 
-LANG-05 adds an optional display layer on the language branch. Default
+Version 7.26.0 includes LANG-05's optional display layer. Default
 `recall_request()` text, ContextPacket schema version 1 and missing-language
 exports remain compatible. Canonical records, typed concept labels, fact-tool
-fields and source trust are not localized or rewritten. This is not a release
-or an automatic translation engine.
+fields and source trust are not localized or rewritten. This is not an
+automatic translation engine; LANG-06 joint acceptance remains pending.
 
 ## Independent language choices
 

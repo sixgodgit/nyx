@@ -4,7 +4,7 @@
 
 > **给 agent 一份跟着你一辈子的记忆** —— 单用户、本地、写入不调用大模型。记得住，找得到，信得过，忘得掉。
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.25.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.26.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx 是 agent 的长期记忆层：接进 [Hermes](https://github.com/NousResearch/hermes-agent)（作为记忆插件）、
 Claude Desktop / Claude Code 等任意 MCP 客户端，或者你自己的 Python 程序。
@@ -656,6 +656,7 @@ python3 benchmarks/personamem_eval.py questions_32k.csv --answer views.jsonl --l
 
 ## 📝 最近更新
 
+- **v7.26.0**：有界中英文适配、时间与更正规则、跨语言别名召回及可选回答语言框架，保留原文和原 ID；修复 Windows 遗忘及日志/备份的逐字节恢复。LANG-06 共同验收和逐句自动语音检索仍待完成，详见[范围与验证](CHANGELOG.md)。
 - **v7.23.0**：待跟进 —— 你说过快要发生的事（面试、复查、出差），在事前两天、以及你还没说结果的事后十天，新对话一开始就摆在 agent 面前，它可以祝你顺利或者问一句结果；说了结果、问过、取消了、过去太久的自动撤掉；`/nyx follow-ups [on|off]`，`nyx.json` 的 `follow_ups`（留出故事：该列的 6 件全列出，不该列的 8 件一件没列）
 - **v7.22.0**：常驻画像跟着改口 —— 后来说的「以后用英文」「我又吃肉了」「搬到深圳了」顶替以前的说法，只去掉改了的部分，旧说法列在「Changed since」里（改主意之后旧说法仍被当成现状：21 处里 19 处 → 1 处）；过了隔离期的遗忘内容自动真删，一天最多一次
 - **v7.21.0**：图片、声音、视频记忆的框架：`hermes nyx media add / list / show / understand / backends / forget / restore`；理解后端可插拔（本机命令或 pip 插件），默认一个都没有，写入仍然不调用模型；得出的文字是普通记忆，标成推断，日期是拍摄 / 录制时间

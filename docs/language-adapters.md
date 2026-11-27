@@ -1,7 +1,7 @@
 # Language adapter foundation (LANG-00 / LANG-02, with LANG-03 integration)
 
-This branch builds on released M1 / 7.25.0. It is not a new public release and
-has not completed the entire LANG workstream. LANG-01 remains the optional
+Version 7.26.0 builds on released M1 / 7.25.0 and includes LANG-00 through
+LANG-05. LANG-06 joint acceptance remains pending. LANG-01 remains the optional
 input/response/locale/timezone contract; these adapters handle language-specific
 rules without making that metadata an authority or store selector.
 

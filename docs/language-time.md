@@ -1,8 +1,8 @@
 # Time frames and assertion corrections (LANG-03)
 
-LANG-03 adds bounded Chinese/English time and correction rules to the language
-branch. It is not a release, a general temporal NLP system, or completion of
-LANG. Original evidence, canonical IDs, tombstones and source bindings remain
+Version 7.26.0 includes LANG-03's bounded Chinese/English time and correction
+rules. This is not a general temporal NLP system or completion of the LANG
+workstream. Original evidence, canonical IDs, tombstones and source bindings remain
 authoritative. Language metadata does not grant authority or select a store.
 
 ## Observation frame and replay

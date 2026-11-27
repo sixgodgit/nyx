@@ -1,6 +1,6 @@
 **LANG：语言解耦实施方案**
 
-进度以 [PLAN.md](../../PLAN.md) 为准。实际分支 `codex/language-decoupling` 已从 M1 验证基线 `d78016d` 创建。LANG-00/02 首批交付见[语言适配层与基线结果](../language-adapters.md)，LANG-03 已实现并补充[时间与更正政策](../language-time.md)，LANG-04 已交付[跨语言召回融合](../language-recall.md)，LANG-05 增加[呈现分离](../language-presentation.md)；完整语言工作流尚未完成，也未发布新版本。
+进度以 [PLAN.md](../../PLAN.md) 为准。语言分支从 M1 验证基线 `d78016d` 创建，LANG-00 至 LANG-05 已经 PR #41 合入 main，并纳入 7.26.0 发布范围。LANG-00/02 首批交付见[语言适配层与基线结果](../language-adapters.md)，LANG-03 见[时间与更正政策](../language-time.md)，LANG-04 见[跨语言召回融合](../language-recall.md)，LANG-05 见[呈现分离](../language-presentation.md)；LANG-06 共同验收仍待完成，不因发包宣称完整语言工作流已完成。外部发布状态以 PLAN.md 与 GitHub/PyPI 为准。
 
 目标：保持存储、证据、身份、生命周期和协议语义稳定，用语言适配层承接不同表达。第一轮覆盖中英文与混说；不承诺所有语言的理解质量完全一致。
 

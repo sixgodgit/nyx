@@ -1,8 +1,8 @@
 # Cross-language evidence retrieval (LANG-04)
 
-LANG-04 adds bounded Chinese/English lexical equivalence to historical recall
-and fuses it with the existing optional semantic channel. This branch remains
-unreleased. It does not complete LANG-05/06 or introduce M2 voice scheduling.
+Version 7.26.0 includes LANG-04's bounded Chinese/English lexical equivalence
+for historical recall, fused with the existing optional semantic channel.
+LANG-06 joint acceptance and M2 voice scheduling remain pending.
 Original quotes, canonical IDs, source trust and profile selection stay intact.
 
 ## Retrieval and evidence boundaries

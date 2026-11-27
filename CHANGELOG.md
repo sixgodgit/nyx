@@ -5,6 +5,35 @@ Benchmark section of the README and `benchmarks/`. Entries from v7.16.0 on are i
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。v7.16.0 起的条目用英文，之前的是中文。
 
+### v7.26.0 (2026-11-27) — Bilingual memory and Windows forgetting
+
+- Added explicit Chinese/English rule adapters, stable typed concept keys and bounded exact aliases. Original quotes,
+  canonical IDs, source trust and store selection remain separate from language metadata.
+- New records can retain their observation instant, locale and timezone for replayable relative dates. Ambiguous numeric
+  dates and daylight-saving gaps/folds remain explicit; historical imports do not invent an original local timezone.
+- Profile facts and follow-ups preserve negation, uncertainty and supported cross-language corrections. Unique, source-bound
+  cancellation/rescheduling does not silently apply to a different event. Derived views rebuild through the existing
+  persistent projection jobs; old evidence is retained.
+- Historical recall adds bounded Chinese/English alias lookup and fuses it with the existing optional semantic channel.
+  Exact lexical matches, typed conflicts, live canonical bindings, trust, tombstones, deadlines and final context budgets
+  remain enforced. No embedding model is required by the default installation.
+- Added optional response-language framing and explicitly cited host-supplied display translations. Raw typed recall and
+  canonical evidence remain unchanged. Nyx does not call a translation service, and a language hint does not prove that
+  the host model followed it.
+- Fixed Windows `forget()` holding journal/backup readers open during atomic replacement (#39). Redaction remains
+  streaming under the existing journal lock; deletion/restoration preserves LF/CRLF/mixed endings, missing final newlines
+  and Unicode paragraph separators. Direct index writers coordinate through the existing reentrant index lock.
+- Atomic replacement retries only Windows sharing errors 5/32/33, at most six attempts with 0.31 seconds of total backoff.
+  Persistent errors preserve the original file and clean temporary files; no permission bypass or non-atomic fallback.
+- CI now checks erasure/recovery on native Windows Python 3.10 and 3.14 and repeats concurrent append/forget stress twice,
+  alongside the existing Linux Python 3.10–3.13 full suites. Package and all three Hermes manifest versions are synchronized.
+
+This release contains LANG-00 through LANG-05; LANG-06 joint acceptance and M2 realtime scheduling remain pending.
+The rules and alias vocabulary are bounded, and open-ended cross-language paraphrase quality depends on the optional
+backend. Existing voice-startup facts are retained; automatic per-utterance recall and real phone/model use are not
+claimed. See [language adapters](docs/language-adapters.md), [time policy](docs/language-time.md),
+[recall](docs/language-recall.md), [presentation](docs/language-presentation.md) and [validation records](PLAN.md).
+
 ### v7.25.0 (2026-11-27) — M1 runtime foundations
 
 - Added immutable `RecallRequest`, `EvidenceRef` and `ContextPacket` contracts. Existing string/tool entry points remain
