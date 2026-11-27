@@ -1,0 +1,113 @@
+{
+  "source_commit": "5eeb7b8f117e0b33ca20b6a8b69e58bb4e49b5af",
+  "corpus_sha256": "38467996e0cad233c5df4e6920de9fe0b51d7653c303d7087a1953586f46d329",
+  "results": [
+    {
+      "id": "uncertain_preference",
+      "section": "profile",
+      "visible": [
+        1
+      ],
+      "days": [],
+      "expected": [
+        0
+      ],
+      "passed": false
+    },
+    {
+      "id": "conditional_preference",
+      "section": "profile",
+      "visible": [
+        0
+      ],
+      "days": [],
+      "expected": [
+        0
+      ],
+      "passed": true
+    },
+    {
+      "id": "uncertain_instruction",
+      "section": "profile",
+      "visible": [
+        0,
+        1
+      ],
+      "days": [],
+      "expected": [
+        0
+      ],
+      "passed": false
+    },
+    {
+      "id": "partial_language_change",
+      "section": "profile",
+      "visible": [
+        0,
+        1
+      ],
+      "days": [],
+      "expected": [
+        0,
+        1
+      ],
+      "passed": true
+    },
+    {
+      "id": "distinct_companies",
+      "section": "events",
+      "visible": [],
+      "days": [],
+      "expected": [
+        0
+      ],
+      "passed": false
+    },
+    {
+      "id": "ambiguous_cancel",
+      "section": "events",
+      "visible": [],
+      "days": [],
+      "expected": [
+        0,
+        1
+      ],
+      "passed": false
+    },
+    {
+      "id": "uncertain_cancel",
+      "section": "events",
+      "visible": [],
+      "days": [],
+      "expected": [
+        0
+      ],
+      "passed": false
+    },
+    {
+      "id": "negated_cancel",
+      "section": "events",
+      "visible": [],
+      "days": [],
+      "expected": [
+        0
+      ],
+      "passed": false
+    },
+    {
+      "id": "reschedule_from_to",
+      "section": "events",
+      "visible": [
+        0
+      ],
+      "days": [
+        "2026-10-12"
+      ],
+      "expected": [
+        0
+      ],
+      "passed": false
+    }
+  ],
+  "limits": "synthetic regression; pure new time API absent at baseline; no independent language/QA benchmark"
+}
