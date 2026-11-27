@@ -562,6 +562,7 @@ def refresh_ready(conn: Optional[sqlite3.Connection] = None, *, deadline: float)
         conn = conn or memid.get_conn()
         target = int(conn.execute("SELECT COALESCE(MAX(seq), 0) FROM memories").fetchone()[0])
         added = 0
+        previous_progress = None
         while True:
             if time.monotonic() >= deadline:
                 raise TimeoutError("Nyx voice follow-ups are still refreshing")
@@ -571,7 +572,11 @@ def refresh_ready(conn: Optional[sqlite3.Connection] = None, *, deadline: float)
                 raise TimeoutError("Nyx voice follow-ups are still refreshing")
             if ready:
                 return added
-            time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
+            job = projection_jobs.get(conn, "followups")
+            progress = (job.processor_version, job.checkpoint_seq, job.reset_required) if job else None
+            if progress == previous_progress:
+                time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
+            previous_progress = progress
     finally:
         _REFRESH_LOCK.release()
 

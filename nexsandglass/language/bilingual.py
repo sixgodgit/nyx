@@ -123,6 +123,8 @@ def classify(text: str) -> Optional[tuple]:
         if kind == "instruction" and len(text) > _INSTRUCTION_MAX_LEN:
             continue
         for i, s in enumerate(sents):
+            if not any(p.search(s) for p in _COMPILED[kind]):
+                continue
             from .assertions import assertion_state
             state = assertion_state(s)
             if state == "question" or (state in ("conditional", "uncertain", "ambiguous_negation", "historical") and kind != "health"):
@@ -137,10 +139,9 @@ def classify(text: str) -> Optional[tuple]:
                         continue
             if kind == "likes" and _TO_ASSISTANT.search(s):
                 continue
-            if any(p.search(s) for p in _COMPILED[kind]):
-                if kind == "health" and _ABOUT_RELATIVE.search(s):
-                    kind = "people"          # 「我妈有糖尿病」是家人的事，放在「健康」下面像是用户自己的
-                return kind, _excerpt(text, sents, i)
+            if kind == "health" and _ABOUT_RELATIVE.search(s):
+                kind = "people"          # 「我妈有糖尿病」是家人的事，放在「健康」下面像是用户自己的
+            return kind, _excerpt(text, sents, i)
     return None
 
 
