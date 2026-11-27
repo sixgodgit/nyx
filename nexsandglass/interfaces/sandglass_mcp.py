@@ -70,6 +70,15 @@ def _error(request_id, code, message):
 
 def _handle_tool(name, args, request_id):
     try:
+        from nexsandglass.core.store_context import current
+        from nexsandglass.core.sandglass_paths import _NB
+        store = current()
+        scoped_tools = {"sandglass_search", "sandglass_recent", "nyx_read", "sandglass_thread",
+                        "sandglass_thread_graph", "sandglass_thread_weave", "sandglass_thread_add",
+                        "memory_observe", "memory_recall", "memory_feedback", "memory_forget"}
+        if (store is not None and store.data_dir != os.path.realpath(os.path.abspath(_NB))
+                and name not in scoped_tools):
+            return _error(request_id, -32602, "tool is unavailable for a secondary store")
         if name == "sandglass_ping":
             from nexsandglass.features.sandglass_vault import count
             from nexsandglass.features.sandglass_think import _current_stage
@@ -217,14 +226,26 @@ def _handle_tool(name, args, request_id):
             return _result(request_id, {"content": [{"type": "text", "text": json.dumps({"ok": fr.ok, "memory_id": fr.memory_id, "type": fr.memory_type, "lifecycle": fr.lifecycle_state}, ensure_ascii=False)}]})
 
         elif name == "memory_recall":
-            from nexsandglass.runtime.orchestrator import get_orchestrator
-            orch = get_orchestrator()
-            mc = orch.recall(args.get("query", ""), token_budget=args.get("budget", 1500))
-            mi = getattr(mc, "meta_intent", None)
+            from nexsandglass.runtime.contracts import RecallRequest
+            from nexsandglass.runtime.host_context import recall_host_context
+            budget, limit = args.get("budget", 1500), args.get("limit", 10)
+            if type(budget) is not int or type(limit) is not int or budget < 0 or limit < 0:
+                return _error(request_id, -32602, "budget and limit must be nonnegative integers")
+            try:
+                request = RecallRequest(args.get("query", ""), token_budget=budget, channel="mcp")
+            except (TypeError, ValueError):
+                return _error(request_id, -32602, "invalid recall query or budget")
+            try:
+                packet, trace, mc = recall_host_context(request, limit=limit, prefix="")
+            except Exception:
+                return _error(request_id, -32000, "Nyx memory recall is unavailable")
+            mi = getattr(mc, "meta_intent", None) if mc else None
+            selected = {ref.memory_id for ref in packet.evidence}
             return _result(request_id, {"content": [{"type": "text", "text": json.dumps({
-                "results": [{"text": t[:300]} for t in mc.strings[: args.get("limit", 10)]],
+                "results": [{"text": obj.content} for obj in (mc.objects if mc else []) if obj.memory_id in selected],
                 "strategy": getattr(mi, "strategy", None) if mi else None,
                 "reasons": getattr(mi, "reasons", []) if mi else [],
+                "trace": trace.to_dict(),
             }, ensure_ascii=False)}]})
 
         elif name == "memory_feedback":

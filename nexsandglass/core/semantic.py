@@ -86,6 +86,28 @@ _provider = None                   # 已解析的 provider；False = 解析过�
 _provider_key = None               # 解析时的配置指纹，配置变了重新解析
 _matrix_cache = {}                 # db_path → (版本, model, ids, lines, 矩阵/列表)
 _warming = threading.Event()
+_provider_lock = threading.RLock()
+
+_backend_states = {}
+_backend_states_lock = threading.RLock()
+
+
+def _backend_state():
+    """Backend and worker state belongs to a store and its settings snapshot."""
+    from nexsandglass.core.store_context import current
+    context = current()
+    if context is None:
+        import sys
+        return sys.modules[__name__]
+    from types import SimpleNamespace
+    key = (context.store_id, context.profile_id, _config_key(), context._credential_identity)
+    with _backend_states_lock:
+        if key not in _backend_states:
+            _backend_states[key] = SimpleNamespace(
+                _provider=None, _provider_key=None, _resolve_problem=None,
+                _warming=threading.Event(), _sched_running=False, _sched_again=False,
+                _provider_lock=threading.RLock())
+        return _backend_states[key]
 
 
 # ══════════════════════════════════════════════════════════
@@ -157,15 +179,15 @@ def _config_key() -> tuple:
 
 def _problem(msg: str):
     """配置写了要语义检索、实际却用不了 —— 记下来进 health()，而不只是一行 warning。"""
-    global _resolve_problem
-    _resolve_problem = msg
+
+    _backend_state()._resolve_problem = msg
     logger.error("[semantic] %s", msg)
     return None
 
 
 def _resolve():
-    global _resolve_problem
-    _resolve_problem = None
+
+    _backend_state()._resolve_problem = None
     mode = _settings.get("NYX_EMBED", "auto").strip().lower()
     if mode in ("off", "0", "false", "none", "no"):
         return None
@@ -202,25 +224,33 @@ def _resolve():
 
 def provider():
     """当前生效的嵌入后端；没有返回 None。配置（环境变量）变了会重新解析。"""
-    global _provider, _provider_key
-    key = _config_key()
-    if _provider is None or key != _provider_key:
-        try:
-            _provider = _resolve() or False
-        except Exception as e:
-            _problem(_t(f"could not set up the semantic backend ({type(e).__name__}: {e}); semantic search is off",
-                        f"语义后端解析失败（{type(e).__name__}: {e}），语义检索不可用"))
-            _provider = False
-        _provider_key = key
-    return _provider or None
+
+    state = _backend_state()
+    with state._provider_lock:
+        key = _config_key()
+        if state._provider is None or key != state._provider_key:
+            try:
+                state._provider = _resolve() or False
+            except Exception as e:
+                _problem(_t(f"could not set up the semantic backend ({type(e).__name__}: {e}); semantic search is off",
+                            f"语义后端解析失败（{type(e).__name__}: {e}），语义检索不可用"))
+                state._provider = False
+            state._provider_key = key
+        return state._provider or None
 
 
 def set_provider(p) -> None:
     """测试 / 评测注入。None 恢复按环境变量解析。"""
-    global _provider, _provider_key
-    _provider = p if p is not None else None
-    _provider_key = _config_key() if p is not None else None
-    _matrix_cache.clear()
+
+    state = _backend_state()
+    with state._provider_lock:
+        state._provider = p if p is not None else None
+        state._provider_key = _config_key() if p is not None else None
+    from nexsandglass.core.store_context import current
+    if current() is not None:
+        _matrix_cache.pop(_db_path(), None)
+    else:
+        _matrix_cache.clear()
 
 
 def enabled() -> bool:
@@ -469,36 +499,33 @@ def schedule_index() -> None:
     由 sandglass_log.log_message 在每次落沙成功后调用，覆盖所有写入方（Hermes / MCP / CLI）。
     没有后端时是一次环境变量比较，什么都不做。
     """
-    global _sched_running, _sched_again
+
     if provider() is None:
         return
     with _sched_lock:
-        if _sched_running:
-            _sched_again = True
+        if _backend_state()._sched_running:
+            _backend_state()._sched_again = True
             return
-        _sched_running = True
+        _backend_state()._sched_running = True
 
     def _run():
-        global _sched_running, _sched_again
+
         try:
             while True:
                 with _sched_lock:
-                    _sched_again = False
+                    _backend_state()._sched_again = False
                 index_all()
                 with _sched_lock:
-                    if not _sched_again:
-                        _sched_running = False
+                    if not _backend_state()._sched_again:
+                        _backend_state()._sched_running = False
                         return
         except Exception as e:
             _fail("background index", e)
             with _sched_lock:
-                _sched_running = False
+                _backend_state()._sched_running = False
 
-    try:
-        from agent.memory_provider import spawn_context_thread
-        t = spawn_context_thread(_run, name="nyx-semantic-index")
-    except Exception:
-        t = threading.Thread(target=_run, name="nyx-semantic-index", daemon=True)
+    from nexsandglass.core.store_context import spawn_thread
+    t = spawn_thread(_run, name="nyx-semantic-index")
     t.start()
 
 
@@ -508,7 +535,7 @@ def wait_idle(timeout: float = 30.0) -> bool:
     end = time.time() + timeout
     while time.time() < end:
         with _sched_lock:
-            if not _sched_running and not _warming.is_set():
+            if not _backend_state()._sched_running and not _backend_state()._warming.is_set():
                 return True
         time.sleep(0.02)
     return False
@@ -525,9 +552,12 @@ def index_all(batch: int = 64) -> int:
 
 def warm_async() -> None:
     """后台：加载本地模型 + 回填历史。重复调用只跑一次。"""
-    if _warming.is_set() or provider() is None:
+    if provider() is None:
         return
-    _warming.set()
+    with _sched_lock:
+        if _backend_state()._warming.is_set():
+            return
+        _backend_state()._warming.set()
 
     def _run():
         try:
@@ -540,13 +570,10 @@ def warm_async() -> None:
         except Exception as e:
             _fail("backfill", e)
         finally:
-            _warming.clear()
+            _backend_state()._warming.clear()
 
-    try:
-        from agent.memory_provider import spawn_context_thread
-        t = spawn_context_thread(_run, name="nyx-semantic-backfill")
-    except Exception:
-        t = threading.Thread(target=_run, name="nyx-semantic-backfill", daemon=True)
+    from nexsandglass.core.store_context import spawn_thread
+    t = spawn_thread(_run, name="nyx-semantic-backfill")
     t.start()
 
 
@@ -725,8 +752,8 @@ def stats() -> dict:
     st = _status.get(path) or {}
     out.update(last_error=st.get("last_error"), last_error_at=st.get("last_error_at"),
                failures=st.get("failures", 0), last_ok_at=st.get("last_ok_at"))
-    if _resolve_problem:
-        out["config_problem"] = _resolve_problem
+    if _backend_state()._resolve_problem:
+        out["config_problem"] = _backend_state()._resolve_problem
     try:
         live = _live_ids()
     except Exception as e:

@@ -282,30 +282,25 @@ def _said_on(objs: list) -> Dict[int, str]:
     return {i: ts[ln] for i, ln in lines.items() if ln in ts}
 
 
-# 每轮注入给 agent 的那段记忆：每条取开头 300 个字符，带说话日期。
-# v7.18.0 试过「长记忆取与问题相关的那一段」：BEAM 上答案可见度 0.492 → 0.498、本地小模型作答 8 胜 8 负，
-# 没有可测的好处，所以不改（benchmarks/beam_format_eval.py、benchmarks/excerpt_variant.py）
+# Per-turn evidence is now indivisible: a full record fits or is omitted.
+# Prefix slicing can remove a trailing negation/correction even below budget.
 MEMORY_HEADER = "## Nyx memory (relevant to this turn; [date] = when it was said)"
-MEMORY_LINE_CHARS = 300
 
 
 def _memory_line(text, date) -> str:
-    s = str(text or "")[:MEMORY_LINE_CHARS]
+    s = str(text or "")
     return f"- [{date}] {s}" if date else f"- {s}"
 
 
 def _budget_memory_items(items, budget: int):
     """Fit complete evidence lines, including their dates and header overhead."""
-    from nexsandglass.runtime.bundle import estimate_tokens
-    selected, indices = [], []
-    rendered = MEMORY_HEADER
-    for i, (text, date) in enumerate(items):
-        candidate = rendered + "\n" + _memory_line(text, date)
-        if estimate_tokens(candidate) <= max(0, budget):
-            selected.append((text, date))
-            indices.append(i)
-            rendered = candidate
-    return selected, indices
+    from nexsandglass.runtime.composition import ContextItem, ContextSection, compose_context
+    items = list(items)
+    section = ContextSection("memory", MEMORY_HEADER, prefix="", items=tuple(
+        ContextItem(str(i), _memory_line(text, date)) for i, (text, date) in enumerate(items)))
+    result = compose_context((section,), max(0, int(budget)))
+    indices = [int(key) for _, key in result.selected]
+    return [items[i] for i in indices], indices
 
 
 def memory_block(items, *, token_budget: Optional[int] = None) -> str:
@@ -321,12 +316,10 @@ def memory_block(items, *, token_budget: Optional[int] = None) -> str:
 
 def _budget_blocks(blocks, budget: int) -> str:
     """Pack complete blocks without truncating instructions or provenance labels."""
-    from nexsandglass.runtime.bundle import estimate_tokens
-    selected = []
-    for block in blocks:
-        if block and estimate_tokens("\n".join(selected + [block])) <= max(0, budget):
-            selected.append(block)
-    return "\n".join(selected)
+    from nexsandglass.runtime.composition import ContextItem, ContextSection, compose_context
+    section = ContextSection("blocks", prefix="", items=tuple(
+        ContextItem(str(i), block) for i, block in enumerate(blocks) if block))
+    return compose_context((section,), max(0, int(budget))).text
 
 
 # nyx.json 的键 → 读设置时用的名字（同名环境变量设了的话优先）
@@ -334,7 +327,7 @@ _PROFILE_SETTINGS = (("semantic", "NYX_EMBED"), ("embedding_model", "NYX_EMBED_M
                      ("embedding_api_url", "EMBEDDING_API_URL"), ("rerank", "NYX_RERANK"),
                      ("vault", "NYX_VAULT"), ("vault_reveal", "NYX_VAULT_REVEAL"), ("vault_kinds", "NYX_VAULT_KINDS"),
                      ("l3_llm", "NYX_L3_LLM"), ("lang", "NYX_LANG"), ("auto_purge", "NYX_AUTO_PURGE"),
-                     ("follow_ups", "NYX_FOLLOW_UPS"))
+                     ("follow_ups", "NYX_FOLLOW_UPS"), ("context_tokens", "NYX_CONTEXT_TOKENS"))
 
 
 def _data_dir_in_use() -> Optional[str]:
@@ -380,9 +373,19 @@ class NexSandglassProvider(MemoryProvider):
 
     def __init__(self, config: dict = None):
         self._config = config or {}
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
+        self._store_context = None
         self._initialized = False
         self._turn_count = 0
+        self._reset_context_state()
+
+    def _reset_context_state(self):
+        self._context_traces = {}
+        self._system_reserved_tokens = 0
+        self._voice_reserved_tokens = 0
+        self._system_required_missing = False
+        self._voice_required_missing = False
+        self._last_view_references = ()
 
     # ═══════ MemoryProvider 核心接口 ═══════
 
@@ -393,6 +396,9 @@ class NexSandglassProvider(MemoryProvider):
         return "nyx"
 
     def _data_dir(self) -> str:
+        bound = getattr(self, "_store_context", None)
+        if bound is not None:
+            return bound.data_dir
         nh = _hermes_cfg()
         if nh is not None:
             return nh.resolve_data_dir(self._hermes_home)
@@ -401,7 +407,39 @@ class NexSandglassProvider(MemoryProvider):
 
     def is_available(self) -> bool:
         """零 API Key：只看记忆目录能不能写（不碰网络）。"""
+        if getattr(self, "_store_context", None) is None:
+            self._bind_store_context()
         return not self.unavailable_reason()
+
+    def _bind_store_context(self):
+        from contextvars import copy_context
+        from nexsandglass.core.store_context import StoreContext
+        nh = _hermes_cfg()
+        root = nh.resolve_data_dir(self._hermes_home) if nh else (
+            os.environ.get("NEXSANDBASE_HOME") or os.path.expanduser("~/.neurobase"))
+        try:
+            from agent.secret_scope import get_secret
+        except ImportError:
+            values = {k: v for k, v in os.environ.items()
+                      if k.endswith("_API_KEY") or k == "NYX_VAULT_KEY"}
+            getter = lambda name: values.get(name, "")
+        else:
+            host_context = copy_context()
+            getter = lambda name: host_context.copy().run(get_secret, name)
+        previous = getattr(self, "_store_context", None)
+        self._store_context = StoreContext(
+            root, profile_id=str(self._hermes_home or "default"),
+            settings=self._profile_env or {}, credential_getter=getter)
+        if previous is not None and previous.data_dir != self._store_context.data_dir:
+            self._initialized = False
+            self._reset_context_state()
+
+    @staticmethod
+    def _legacy_layers_available():
+        from nexsandglass.core.store_context import current
+        from nexsandglass.core.sandglass_paths import _NB
+        store = current()
+        return store is None or store.data_dir == os.path.realpath(os.path.abspath(_NB))
 
     def unavailable_reason(self) -> str:
         d = self._data_dir()
@@ -415,7 +453,8 @@ class NexSandglassProvider(MemoryProvider):
             return _t(f"Nyx data directory is not writable: {d} (set NEXSANDBASE_HOME, or data_dir in nyx.json)",
                       f"Nyx 记忆目录不可写：{d}（设置 NEXSANDBASE_HOME 或 nyx.json 的 data_dir）")
         in_use = _data_dir_in_use()
-        if in_use and os.path.abspath(in_use) != os.path.abspath(d):
+        if (getattr(self, "_store_context", None) is None
+                and in_use and os.path.abspath(in_use) != os.path.abspath(d)):
             # 一个进程只有一个 nyx 数据目录（模块在 import 时定下路径）。这个 profile 配的是另一个目录：
             # 不用，而不是悄悄写进别的 profile 的记忆里（v7.17.0）
             return _t(f"this Hermes process already serves the Nyx data directory {in_use} for another profile, and "
@@ -435,6 +474,8 @@ class NexSandglassProvider(MemoryProvider):
     @staticmethod
     def _env_from(cfg: dict) -> dict:
         env = {e: str(cfg[k]) for k, e in _PROFILE_SETTINGS if cfg.get(k)}
+        if cfg.get("context_tokens") is not None:
+            env["NYX_CONTEXT_TOKENS"] = str(cfg["context_tokens"])
         env["NYX_VIA_HERMES"] = "1"
         return env
 
@@ -446,10 +487,15 @@ class NexSandglassProvider(MemoryProvider):
         self._owner_ids = frozenset(str(o) for o in (owners or []))
         self._bots_external = _as_bool(cfg.get("bots_are_external"), True)
         self._prefetch_budget = max(0, _as_int(cfg.get("prefetch_tokens"), _PREFETCH_TOKENS_DEFAULT))
+        self._context_limit = cfg.get("context_tokens")
         # nyx.json 里的开关留在这个实例上，Hermes 每次调插件时绑到当前上下文（core/settings.py）。
         # v7.17.0 以前写进 os.environ：一个进程服务多个 profile 时，第一个 profile 的设置粘住所有 profile。
         # 读的时候仍然是环境变量 > nyx.json
         self._profile_env = self._env_from(cfg)
+        bound = getattr(self, "_store_context", None)
+        if bound is not None:
+            from dataclasses import replace
+            self._store_context = replace(bound, settings=self._profile_env)
 
     def _settings_scope(self):
         """这个 profile 的设置。initialize 之前（Hermes 先问 is_available）按当前上下文的 profile 读 nyx.json，
@@ -467,25 +513,33 @@ class NexSandglassProvider(MemoryProvider):
 
         kwargs（Hermes 注入）：hermes_home / platform / agent_context（非 primary 不写）/ ...
         """
-        lock = self.__dict__.get("_lock") or threading.Lock()
+        lock = self.__dict__.get("_lock") or threading.RLock()
         self._lock = lock
         with lock:
+            if (self._session_id, self._hermes_home) != (session_id or "", kwargs.get("hermes_home") or self._hermes_home):
+                self._reset_context_state()
             self._session_id = session_id or ""
             self._hermes_home = kwargs.get("hermes_home") or self._hermes_home
             self._agent_context = str(kwargs.get("agent_context") or "primary")
             self._platform = str(kwargs.get("platform") or "")
             self._load_settings()
-            with _settings.scope(self._profile_env):     # 上面刚按 hermes_home 重读了设置
+            self._bind_store_context()
+            from nexsandglass.core.store_context import scope
+            with scope(self._store_context):
                 self._initialize_once()
 
     def _initialize_once(self) -> None:
         if self._initialized:
             return
         nh = _hermes_cfg()
-        if nh is not None:
+        if nh is not None and getattr(self, "_store_context", None) is None:
             nh.apply_data_dir(self._hermes_home)
         from nexsandglass.core.sandglass_paths import validate
-        validate()
+        if getattr(self, "_store_context", None) is None:
+            validate()
+        else:
+            for relative in ("", "scripts", "persona", "archive"):
+                os.makedirs(os.path.join(self._store_context.data_dir, relative), exist_ok=True)
         if self._can_write():
             # v7.13.2：不再同步全量重建倒排（15 万条记忆时启动卡 2.8 秒）。
             # 索引本来就按日志行数增量补齐；放到后台补，并顺手把索引和日志镜像读进内存，
@@ -510,6 +564,52 @@ class NexSandglassProvider(MemoryProvider):
     def _can_write(self) -> bool:
         return (self._agent_context or "") in _WRITE_CONTEXTS
 
+    def _context_tokens(self) -> int:
+        default = max(0, self._bundle_max_tokens()) + self._prefetch_budget
+        value = _settings.get("NYX_CONTEXT_TOKENS")
+        if value in (None, ""):
+            value = getattr(self, "_context_limit", None)
+        return max(0, _as_int(default if value is None else value, default))
+
+    def _context_request(self, channel, budget, *, query="", session_id="", deadline=None):
+        from hashlib import sha256
+        from nexsandglass.runtime.contracts import RecallRequest
+        sid = str(session_id or self._session_id or "") or None
+        if sid and (not sid.strip() or len(sid) > 128 or any(ord(c) < 32 or ord(c) == 127 for c in sid)):
+            sid = "sha256:" + sha256(sid.encode()).hexdigest()
+        return RecallRequest(query=_clean(query), token_budget=max(0, int(budget)),
+                             session_id=sid, turn_id=str(getattr(self, "_turn_no", 0)),
+                             channel=channel, deadline=deadline)
+
+    def _remember_context(self, packet, trace):
+        traces = dict(getattr(self, "_context_traces", {}))
+        traces[packet.channel] = trace
+        self._context_traces = traces
+
+    def context_trace(self, channel: str = "") -> dict:
+        """Content-free generation diagnostics; sent/applied remain unknown."""
+        if self.unavailable_reason():
+            return {}
+        traces = getattr(self, "_context_traces", {})
+        if channel:
+            return traces[channel].to_dict() if channel in traces else {}
+        return {name: trace.to_dict() for name, trace in traces.items()}
+
+    def _personal_context(self, *, voice=False, deadline=None):
+        from nexsandglass.runtime.host_context import personal_sections
+        sections, errors = [], []
+        for source in ("profile", "followups"):
+            try:
+                sections.extend(personal_sections(voice=voice, deadline=deadline, source=source))
+            except TimeoutError:
+                if voice:
+                    raise
+                errors.append(source + "_unavailable")
+            except Exception:
+                logger.warning("Nyx host context source is unavailable: %s", source)
+                errors.append(source + "_unavailable")
+        return tuple(sections), tuple(errors)
+
     @staticmethod
     def _warm(auto_purge: bool = False) -> None:
         """增量补齐索引 + 把倒排与日志镜像读进内存 + 一次预热召回（连接、Déjà Vu、时序表）；
@@ -520,7 +620,7 @@ class NexSandglassProvider(MemoryProvider):
             from nexsandglass.features import sandglass_vault
             sandglass_sqlite.sync_incremental()
             sandglass_vault._sync_index()
-            journal_mirror.records(sandglass_vault._SANDGLASS)
+            journal_mirror.records(sandglass_vault._journal_path())
             from nexsandglass.runtime.orchestrator import get_orchestrator
             get_orchestrator().recall("记忆预热", token_budget=200)
             logger.info("Nyx 预热完成：%.0f ms", (time.time() - t0) * 1000)
@@ -554,63 +654,67 @@ class NexSandglassProvider(MemoryProvider):
             from agent.memory_provider import spawn_context_thread
             t = spawn_context_thread(target, name="nyx-warm")
         except Exception:
-            t = threading.Thread(target=target, name="nyx-warm", daemon=True)
+            from nexsandglass.core.store_context import spawn_thread
+            t = spawn_thread(target, name="nyx-warm", daemon=True)
         t.start()
         self._warm_thread = t
 
     def voice_prompt_block(self, *, max_chars: int = _VOICE_CONTEXT_MAX_CHARS,
                            ready_timeout: float = _VOICE_READY_TIMEOUT_S) -> str:
-        """Optional voice-host capability: current personal facts, no tool briefing.
-
-        Conduit can read this block at call startup without invoking recall or
-        replaying a Hermes turn. Keep the existing owner/trust/forgetting gates
-        in profile and followups; neither the journal nor model services are
-        written or called here. Derived local indexes may refresh as on reads.
-
-        The two derived views share a capped one-second readiness deadline. A
-        busy or incomplete cold index raises TimeoutError, not a false empty
-        snapshot. No embedding/model prewarm thread is joined. The deadline is
-        checked at locks/batches; SQLite I/O also has the host's outer timeout.
-
-        max_chars can reduce, but never expand, the 4000-character bound. Drop
-        whole evidence lines at the boundary rather than cutting a negation or
-        losing the heading that identifies earlier words as historical.
-        """
+        """Dedicated trusted startup facts under shared token and voice char caps."""
+        from nexsandglass.runtime.host_context import render_host_context
         limit = min(_VOICE_CONTEXT_MAX_CHARS, max(0, int(max_chars)))
-        if not limit or self.unavailable_reason():
-            return ""
+        budget = min(max(0, self._bundle_max_tokens()), self._context_tokens())
         deadline = time.monotonic() + min(_VOICE_READY_TIMEOUT_S, max(0.0, float(ready_timeout)))
-        blocks = []
+        request = self._context_request("conduit_voice", budget, deadline=deadline)
+        sections, errors = (), ()
+        if limit and budget and not self.unavailable_reason():
+            try:
+                sections, errors = self._personal_context(voice=True, deadline=deadline)
+            except TimeoutError:
+                packet, trace = render_host_context(request, (), reason_codes=("context_pending",))
+                self._remember_context(packet, trace)
+                raise
+        packet, trace = render_host_context(request, sections, max_chars=limit, reason_codes=errors)
+        self._remember_context(packet, trace)
+        self._voice_reserved_tokens = max(getattr(self, "_voice_reserved_tokens", 0), packet.est_tokens)
+        self._voice_required_missing = "required_context_unavailable" in packet.reason_codes
+        return packet.text
+
+    def _scoped_system_prompt_block(self) -> str:
+        """Canonical profile views only; legacy L3 globals are not store-aware."""
+        from nexsandglass.core import memid
+        from nexsandglass.runtime.composition import ContextItem, ContextSection
+        from nexsandglass.runtime.host_context import render_host_context
+        budget = min(max(0, self._bundle_max_tokens()), self._context_tokens())
+        request = self._context_request("hermes_system", budget)
+        errors = ("legacy_layers_unavailable",)
         try:
-            from nexsandglass.core import profile
-            # Voice startup needs the current view. Earlier, replaced words
-            # stay in the journal and normal prompt, not in this compact block.
-            text = profile.render(deadline=deadline).split("\nChanged since (", 1)[0].strip()
-            if text:
-                blocks.append(text)
-        except TimeoutError:
-            raise
+            if self.unavailable_reason():
+                sections, errors = (), ("provider_unavailable",)
+            else:
+                personal, source_errors = self._personal_context() if budget else ((), ())
+                sections = list(personal)
+                errors += source_errors
+                tail = (f"Nyx memory: {memid.count()} entries. When the user refers to something from the past "
+                        "that is not shown here, search it with sandglass_search.")
+                vault_on = _vault.level() == "on"
+                if vault_on:
+                    tail += ("\n`#vN` in a memory is a secret-vault entry id. Call nyx_secret_reveal only when "
+                             "the user explicitly asks to see the secret; never guess, reconstruct or repeat it.")
+                sections.append(ContextSection("host.status", prefix="", priority=10,
+                                               items=(ContextItem("status", tail, required=vault_on),)))
+            packet, trace = render_host_context(request, sections, reason_codes=errors)
         except Exception:
-            logger.warning("Nyx voice profile context is unavailable")
-        try:
-            from nexsandglass.core import followups
-            text = followups.render(deadline=deadline).strip().removesuffix("\n" + followups.GUIDANCE).strip()
-            if text:
-                blocks.append(text)
-        except TimeoutError:
-            raise
-        except Exception:
-            logger.warning("Nyx voice follow-up context is unavailable")
-        text = "\n\n".join(blocks)
-        if len(text) <= limit:
-            return text
-        kept = text[:limit]
-        if text[limit] != "\n":
-            kept = kept.rsplit("\n", 1)[0] if "\n" in kept else ""
-        lines = kept.splitlines()
-        while lines and not lines[-1].startswith("- "):
-            lines.pop()  # No orphan section title when its first fact did not fit.
-        return "\n".join(lines).strip()
+            logger.warning("Nyx scoped system context generation failed")
+            self._system_required_missing = True
+            packet, trace = render_host_context(request, (), reason_codes=("context_unavailable",))
+            self._remember_context(packet, trace)
+            return ""
+        self._remember_context(packet, trace)
+        self._system_reserved_tokens = max(getattr(self, "_system_reserved_tokens", 0), packet.est_tokens)
+        self._system_required_missing = "required_context_unavailable" in packet.reason_codes
+        return packet.text
 
     def system_prompt_block(self) -> str:
         """每个会话常驻的那一段（v7.19.0 重写）。
@@ -625,6 +729,8 @@ class NexSandglassProvider(MemoryProvider):
         以前还有 [Core facts]（一次空问题召回 = 日志里最早的十来条，混着助手的客套话）、
         [Contradictions]（含「不要 / 别」就算矛盾）、[Confidence] / [Time]、写死的场景和阶段 —— v7.19.0 去掉。
         """
+        if not self._legacy_layers_available():
+            return self._scoped_system_prompt_block()
         try:
             from nexsandglass.features.sandglass_think import comprehensive_offset, _current_stage
             from nexsandglass.features.sandglass_think import _emotional_entropy, search_filter
@@ -639,34 +745,23 @@ class NexSandglassProvider(MemoryProvider):
             # 阶段只在真的有阶段时间线时才写：没有时间线时 _current_stage 回一个写死的默认值（"2026-06"）
             from nexsandglass.features import sandglass_think as _st
             stage = _current_stage() if os.path.exists(getattr(_st, "_PERSONA_TIMELINE", "") or "") else ""
+            from nexsandglass.runtime.composition import ContextItem, ContextSection
+            from nexsandglass.runtime.host_context import render_host_context
+            budget = min(max(0, self._bundle_max_tokens()), self._context_tokens())
+            request = self._context_request("hermes_system", budget)
+            if self.unavailable_reason():
+                packet, trace = render_host_context(request, (), reason_codes=("provider_unavailable",))
+                self._remember_context(packet, trace)
+                return ""
+            sections, source_errors = self._personal_context() if budget else ((), ())
+            sections = list(sections)
             blocks = []
-
-            # ═══════ 关于用户（画像） ═══════
-            try:
-                from nexsandglass.core import profile
-                prof = profile.render()
-                if prof:
-                    blocks.append(prof)
-            except Exception:
-                logger.debug("画像渲染失败", exc_info=True)
-
-            # ═══════ 待跟进：快到了的、刚过去还不知道结果的（v7.23.0） ═══════
-            try:
-                from nexsandglass.core import followups
-                fu = followups.render()
-                if fu:
-                    blocks.append(fu)
-            except Exception:
-                logger.debug("待跟进渲染失败", exc_info=True)
 
             # ═══════ 你是谁（persona.md） ═══════
             try:
                 sf = search_filter("")
                 if sf.get("persona_context"):
-                    raw = sf["persona_context"][:250]
-                    cut = raw.rfind("\n\n")              # 截到段落边界
-                    if cut > 80:
-                        raw = raw[:cut]
+                    raw = sf["persona_context"]
                     if raw.strip():
                         blocks.append("[Who you are]\n" + raw.strip())
             except Exception:
@@ -699,7 +794,7 @@ class NexSandglassProvider(MemoryProvider):
                         if len(unique_d) >= 2:
                             break
                     unique_d.reverse()
-                    decisions = [d['decision'][:60] for d in unique_d]
+                    decisions = [d['decision'] for d in unique_d]
                     # 子串去重：短的被长的包含→去掉短的
                     if len(decisions) == 2 and decisions[0] in decisions[1]:
                         decisions = [decisions[1]]
@@ -717,7 +812,7 @@ class NexSandglassProvider(MemoryProvider):
                 if contra.get("conflicts"):
                     c0 = contra["conflicts"][0]
                     if c0.get("conflict"):
-                        layer2.append(f"⚠️ {c0['conflict'][:100]}")
+                        layer2.append(f"⚠️ {c0['conflict']}")
             except Exception:
                 logger.debug("矛盾检测失败", exc_info=True)
 
@@ -734,7 +829,7 @@ class NexSandglassProvider(MemoryProvider):
                 if stats["total_triples"] >= 20:
                     thread = wthread_weave(limit=3)
                     if thread and thread != "织线因果:":
-                        thread_layer = thread[:200]
+                        thread_layer = thread
             except Exception:
                 logger.debug("织线失败", exc_info=True)
 
@@ -747,7 +842,7 @@ class NexSandglassProvider(MemoryProvider):
                 from nexsandglass.l3.l3_tasks import task_pending
                 tp = task_pending()
                 if tp:
-                    tasks = [t['task'][:80] for t in tp[:3]]
+                    tasks = [t['task'] for t in tp[:3]]
             except Exception:
                 pass
 
@@ -792,11 +887,27 @@ class NexSandglassProvider(MemoryProvider):
             if _vault.level() == "on":
                 tail += ("\n`#vN` in a memory is a secret-vault entry id. Call nyx_secret_reveal only when the user "
                          "explicitly asks to see the secret; never guess, reconstruct or repeat it.")
-            body = "\n\n".join(blocks)
-            return (body + "\n\n" + tail + (("\n" + warn) if warn else "")).strip()
+            for i, block in enumerate(blocks):
+                sections.append(ContextSection("host." + str(i), prefix="", priority=20,
+                                               items=(ContextItem("value", _clean(block)),)))
+            sections.append(ContextSection("host.status", prefix="", priority=10,
+                                           items=(ContextItem("status", _clean(tail),
+                                                              required=_vault.level() == "on"),)))
+            if warn:
+                sections.append(ContextSection("host.health", prefix="", priority=80,
+                                               items=(ContextItem("warning", _clean(warn)),)))
+            packet, trace = render_host_context(request, sections, reason_codes=source_errors)
+            self._remember_context(packet, trace)
+            self._system_reserved_tokens = max(getattr(self, "_system_reserved_tokens", 0), packet.est_tokens)
+            self._system_required_missing = "required_context_unavailable" in packet.reason_codes
+            return packet.text
         except Exception:
-            logger.warning("system_prompt_block 整体失败", exc_info=True)
-            return "Nyx memory is ready. Use sandglass_search to search it."
+            logger.warning("Nyx system context generation failed")
+            self._system_required_missing = True
+            if "request" in locals():
+                packet, trace = render_host_context(request, (), reason_codes=("context_unavailable",))
+                self._remember_context(packet, trace)
+            return ""
 
     @staticmethod
     def _health_warning() -> str:
@@ -818,6 +929,8 @@ class NexSandglassProvider(MemoryProvider):
 
     def _signal_line(self) -> str:
         """偏移 + 情绪：主注入已有全貌，这里只给最动态的信号。"""
+        if not self._legacy_layers_available():
+            return ""
         try:
             from nexsandglass.features.sandglass_think import comprehensive_offset, _emotional_entropy
             off = comprehensive_offset()
@@ -832,63 +945,74 @@ class NexSandglassProvider(MemoryProvider):
             return ""
 
     def prefetch(self, query: str, *, session_id: str = "") -> str:
-        """按**本轮**问题召回相关记忆 + 当前信号。
-
-        官方建议「后台召回、这里返回缓存」是为远程 provider 设计的；Nyx 的召回是本地的
-        （实测 10–30ms），直接对本轮问题召回，比用上一轮的问题预取更准。
-        """
-        self._last_recall = None           # recall_status 只反映最近这一次
-        from nexsandglass.runtime.bundle import estimate_tokens
-        parts: List[str] = []
-        notices = []
-        sig = self._signal_line()
-        if sig:
-            notices.append(sig)
-        pz = _recording.paused()
-        if pz:
-            notices.append(f"(Nyx: recording paused by the user since {str(pz.get('since') or '')[:16]}; this conversation "
-                           f"is not being remembered. /nyx resume turns it back on.)")
-        suffix = _budget_blocks(notices, self._prefetch_budget)
-        available = max(0, self._prefetch_budget - estimate_tokens(suffix) - (1 if suffix else 0))
-        query = _clean(query)              # 召回链路里可能有外部服务（嵌入 API、LLM 理解）：密钥不出去（v7.14.0）
-        if not is_trivial_prompt(query):
-            # 预热还没做完就等它：同时现场加载同一份索引只会互相抢 —— 实测首轮从 1.1 秒变成 3 秒
-            warm = getattr(self, "_warm_thread", None)
-            if warm is not None and warm.is_alive():
-                warm.join(_as_int(os.environ.get("NYX_WARM_WAIT_SECONDS"), 10))
-            try:
-                items, _objs, withheld = self._recall_view(
-                    query, session_id=session_id, token_budget=available)
-                if self._prefetch_budget and items:
-                    parts.append(memory_block(items))
+        """Render this turn against the shared quota left by returned snapshots."""
+        from nexsandglass.runtime.composition import ContextItem, ContextSection
+        from nexsandglass.runtime.host_context import render_host_context
+        self._last_recall = None
+        reserved = max(getattr(self, "_system_reserved_tokens", 0),
+                       getattr(self, "_voice_reserved_tokens", 0))
+        budget = min(self._prefetch_budget, max(0, self._context_tokens() - reserved))
+        request = self._context_request("hermes_prefetch", budget, query=query, session_id=session_id)
+        sections, errors = [], []
+        blocked = (getattr(self, "_system_required_missing", False)
+                   or getattr(self, "_voice_required_missing", False))
+        if not self.unavailable_reason() and not blocked and budget:
+            if not is_trivial_prompt(query):
+                warm = getattr(self, "_warm_thread", None)
+                if warm is not None and warm.is_alive():
+                    warm.join(_as_int(os.environ.get("NYX_WARM_WAIT_SECONDS"), 10))
+                try:
+                    items, objs, withheld = self._recall_view(
+                        _clean(query), session_id=session_id, token_budget=budget)
+                    refs = getattr(self, "_last_view_references", ())
+                    entries = tuple(ContextItem(str(i), _memory_line(text, date),
+                                                evidence=(refs[i],) if i < len(refs) else ())
+                                    for i, (text, date) in enumerate(items))
+                    sections.append(ContextSection("retrieval", MEMORY_HEADER, entries, priority=50, prefix=""))
                     if withheld:
-                        parts.append(f"({withheld} more withheld: their source looked unsafe)")
-                    self._last_recall = len(items)
-            except Exception as e:
-                logger.debug("prefetch 召回失败: %s", e)
-        if suffix:
-            parts.append(suffix)
-        return _budget_blocks(parts, self._prefetch_budget)
+                        errors.append("unsafe_sources_withheld")
+                except Exception:
+                    logger.warning("Nyx host recall is unavailable")
+                    errors.append("recall_unavailable")
+            notices = []
+            sig = self._signal_line()
+            if sig:
+                notices.append(sig)
+            paused = _recording.paused()
+            if paused:
+                notices.append("(Nyx recording paused by the user; /nyx resume enables recording.)")
+            if notices:
+                sections.append(ContextSection("notices", prefix="", priority=60,
+                                               items=tuple(ContextItem(str(i), text) for i, text in enumerate(notices))))
+        else:
+            if blocked:
+                errors.append("required_context_unavailable")
+            elif self.unavailable_reason():
+                errors.append("provider_unavailable")
+        packet, trace = render_host_context(
+            request, sections, reserved_tokens=reserved, reason_codes=errors,
+            max_chars=4000 if self._platform == "conduit_voice" else None)
+        self._remember_context(packet, trace)
+        if packet.evidence:
+            self._last_recall = len(packet.evidence)
+        return packet.text
 
     def _recall_view(self, query: str, *, session_id: str = "", token_budget: Optional[int] = None):
-        """这一轮注入给 agent 的那几条：([(正文, 说这句话的日期)], 对应的召回对象, 因来源可疑被扣下的条数)。
-        评测（benchmarks/beam_eval.py --views）走同一个函数，比较注入写法时用的就是真实会注入的那几条。"""
-        from nexsandglass.runtime.orchestrator import get_orchestrator
+        """Legacy tuple view backed by the common typed candidate and render path."""
         from nexsandglass.runtime import intent as _intent
-        from nexsandglass.core import relevance
-        budget = self._prefetch_budget if token_budget is None else max(0, token_budget)
-        mc = get_orchestrator().recall(
-            query, token_budget=budget, candidate_mode=True, session_id=session_id or self._session_id)
-        objs = [o for o in (mc.objects or []) if o.content and str(o.content).strip()]
-        # 只因为虚词撞上的不注入；一个实词都对不上就一条都不注入（v7.19.0，core/relevance.py）
-        objs = relevance.keep(query, objs)
-        lines = [str(o.content) for o in objs]
-        cap = max(12, self._prefetch_budget // 100)      # 600 → 12 条；4000 → 40 条
-        cap = max(cap, _intent.breadth_lines(query))     # 汇总 / 时长 / 先后：答案分散在几次对话里（v7.13.7）
-        dates = _said_on(objs[:cap])
-        items = [(s, dates.get(i)) for i, s in enumerate(lines[:cap])]
-        items, indices = _budget_memory_items(items, budget)
-        return items, [objs[i] for i in indices], len(getattr(mc, "withheld", None) or [])
+        from nexsandglass.runtime.host_context import recall_host_context
+        budget = self._prefetch_budget if token_budget is None else max(0, int(token_budget))
+        request = self._context_request("hermes_retrieval", budget, query=query, session_id=session_id)
+        cap = max(12, self._prefetch_budget // 100, _intent.breadth_lines(request.query))
+        packet, trace, mc = recall_host_context(request, limit=cap, heading=MEMORY_HEADER,
+                                               include_dates=True, filter_relevance=True)
+        self._remember_context(packet, trace)
+        selected = {ref.memory_id for ref in packet.evidence}
+        objs = [obj for obj in mc.objects if obj.memory_id in selected] if mc else []
+        dates = _said_on(objs)
+        items = [(obj.content, dates.get(i)) for i, obj in enumerate(objs)]
+        self._last_view_references = packet.evidence
+        return items, objs, len(mc.withheld or []) if mc else 0
 
     def queue_prefetch(self, query: str, *, session_id: str = "") -> None:
         """不预取：召回在 prefetch 里对本轮问题现做（见 prefetch 文档）。"""
@@ -1083,7 +1207,7 @@ class NexSandglassProvider(MemoryProvider):
     def _handle_belief(self, args: dict) -> str:
         from nexsandglass.features import weavethread
         from nexsandglass.engram.loops import temporal_fact as tf
-        db = weavethread._DB
+        db = weavethread._db_path()
         subject = args.get("subject") or "user"
         from nexsandglass.core.understand import relation_key, RELATION_EN
         rel = relation_key(args.get("relation"))            # lives_in / 住在 都认（v7.16.0）
@@ -1226,6 +1350,9 @@ class NexSandglassProvider(MemoryProvider):
         if not ok:
             return deny(why)
         cli = _hints.cmd("vault", f"show v{vid}")
+        if not self._legacy_layers_available():
+            return out("use_cli", command=cli,
+                       note="Secret reveal hooks do not support secondary stores; use the terminal for this store.")
         if mode == "cli" or (mode == "direct" and not _vault.hook_registered()):
             note = ("By configuration, secrets are shown only in the terminal. " if mode == "cli" else
                     "Direct reveal needs the companion plugin: hermes plugins enable nyx-reveal, then restart Hermes. "
@@ -1282,6 +1409,8 @@ class NexSandglassProvider(MemoryProvider):
                         src = self._user_source() if role == "user" else "assistant"
                         orch.observe(str(content)[:500], source=src, session_id=self._session_id)
 
+            if not self._legacy_layers_available():
+                return
             # 触发偏移检查 + 织造
             from nexsandglass.features.sandglass_think import comprehensive_offset
             off = comprehensive_offset()
@@ -1292,6 +1421,14 @@ class NexSandglassProvider(MemoryProvider):
 
     def on_session_switch(self, new_session_id: str, *, parent_session_id: str = "",
                           reset: bool = False, rewound: bool = False, **kwargs) -> None:
+        if reset:
+            self._reset_context_state()
+            self._turn_no = 0
+            self._turn_message = ""
+        elif self._session_id != (new_session_id or "") or rewound:
+            # Branch/resume/compression can retain an already returned prompt.
+            # Keep its reservation, but don't expose traces from the old turn.
+            self._context_traces = {}
         self._session_id = new_session_id or ""
         if reset:
             self._turn_author = None
@@ -1318,6 +1455,8 @@ class NexSandglassProvider(MemoryProvider):
         name = tool_name
         args = args or {}
         try:
+            if not self._legacy_layers_available() and name in ("sandglass_offset", "sandglass_echo"):
+                return tool_error("This optional analysis is unavailable in this store scope")
             if name in _WRITE_TOOLS or (name == "fact_store" and args.get("action") == "add"):
                 if not self._can_write():
                     return tool_error(f"{name}: Nyx is read-only in the {self._agent_context} context")
@@ -1353,7 +1492,7 @@ class NexSandglassProvider(MemoryProvider):
             if name == "nyx_secret_reveal":
                 return self._handle_secret_reveal(args)
             if name == "nyx_health":
-                if _as_bool(args.get("quick"), False):
+                if _as_bool(args.get("quick"), False) or not self._legacy_layers_available():
                     from nexsandglass.core import semantic
                     return json.dumps({"checks": {"semantic_index": semantic.health_check()}},
                                       ensure_ascii=False, default=str)
@@ -1379,18 +1518,33 @@ class NexSandglassProvider(MemoryProvider):
             pass
 
     def on_pre_compress(self, messages: List[Dict[str, Any]]) -> str:
-        """上下文压缩前提取关键记忆。经 orchestrator 统一召回。"""
+        """Complete source-bound memories for the host's summary prompt."""
+        from nexsandglass.runtime.host_context import recall_host_context, render_host_context
+        reserved = max(getattr(self, "_system_reserved_tokens", 0),
+                       getattr(self, "_voice_reserved_tokens", 0))
+        budget = min(600, max(0, self._context_tokens() - reserved))
+        last = str(messages[-1].get("content", "") or "") if messages else ""
+        request = self._context_request("hermes_compress", budget, query=last)
+        errors = ()
         try:
-            from nexsandglass.runtime.orchestrator import get_orchestrator
-            orch = get_orchestrator()
-            if messages:
-                last = str(messages[-1].get("content", "") or "")[:100]
-                if last:
-                    rr = orch.recall(last, token_budget=600)
-                    return "\n".join(t[:200] for t in rr.strings[:3])
+            blocked = (getattr(self, "_system_required_missing", False)
+                       or getattr(self, "_voice_required_missing", False))
+            if self.unavailable_reason():
+                errors = ("provider_unavailable",)
+            elif blocked:
+                errors = ("required_context_unavailable",)
+            elif budget and last:
+                packet, trace, _ = recall_host_context(request, limit=3)
+                from dataclasses import replace
+                trace = replace(trace, reserved_tokens=reserved)
+                self._remember_context(packet, trace)
+                return packet.text
         except Exception:
-            pass
-        return ""
+            logger.warning("Nyx compression recall is unavailable")
+            errors = ("recall_unavailable",)
+        packet, trace = render_host_context(request, (), reserved_tokens=reserved, reason_codes=errors)
+        self._remember_context(packet, trace)
+        return packet.text
 
     # ═══════ 配置 / 备份 / 身份 ═══════
 
@@ -1405,8 +1559,13 @@ class NexSandglassProvider(MemoryProvider):
                                "环境变量 NEXSANDBASE_HOME 优先。改动后重启生效。")},
             {"key": "prefetch_tokens", "type": "integer", "default": _PREFETCH_TOKENS_DEFAULT,
              "minimum": 0, "maximum": 4000, "step": 100,
-             "description": _t("Token budget for the memories recalled into each turn; 0 = only the drift / mood signal.",
-                               "每轮自动召回注入的预算（token）；0 = 只注入偏移/情绪信号。")},
+             "description": _t("Token budget for each turn's Nyx context, within the total envelope; 0 disables per-turn context.",
+                               "每轮 Nyx 上下文预算（token），同时受总配额限制；0 关闭逐轮上下文。")},
+            {"key": "context_tokens", "type": "integer", "default": 1500 + _PREFETCH_TOKENS_DEFAULT,
+             "minimum": 0, "maximum": 16384, "step": 100,
+             "description": _t("Total estimated-token envelope for Nyx's persistent context plus this turn's recall. "
+                               "Returned persistent snapshots reserve capacity until session reinitialization; 0 disables context.",
+                               "Nyx 常驻上下文与本轮召回的共同估算 token 配额。已返回的常驻快照保留配额直到会话重新初始化；0 关闭上下文。")},
             {"key": "semantic", "type": "text", "default": "auto", "choices": ["auto", "local", "api", "off"],
              "description": _t("Semantic search (finds paraphrases too). auto: an embedding API if configured, else a "
                                "local model if sentence-transformers is installed (pip install 'nyx-memory[vector]'), "
@@ -1504,7 +1663,7 @@ class NexSandglassProvider(MemoryProvider):
 
 # Hermes 调进来的每个入口都在这个 profile 的设置里运行（core/settings.py）。后台线程用 spawn_context_thread
 # 起，带着同一份上下文；Hermes 的预取 / 同步线程也是。
-_PROFILE_SCOPED = ("is_available", "unavailable_reason", "initialize", "system_prompt_block", "voice_prompt_block", "prefetch",
+_PROFILE_SCOPED = ("is_available", "unavailable_reason", "initialize", "system_prompt_block", "voice_prompt_block", "prefetch", "context_trace",
                    "queue_prefetch", "recall_status", "on_turn_start", "sync_turn", "shutdown", "on_session_end",
                    "on_session_switch", "on_delegation", "get_tool_schemas", "handle_tool_call", "on_memory_write",
                    "on_pre_compress", "get_config_schema", "save_config", "backup_paths", "identity_signature")
@@ -1513,8 +1672,16 @@ _PROFILE_SCOPED = ("is_available", "unavailable_reason", "initialize", "system_p
 def _in_profile_scope(fn):
     @functools.wraps(fn)
     def wrapper(self, *args, **kwargs):
-        with self._settings_scope():
-            return fn(self, *args, **kwargs)
+        from contextlib import nullcontext
+        from nexsandglass.core.store_context import scope
+        lock = self.__dict__.get("_lock")
+        if lock is None:
+            lock = self._lock = threading.RLock()
+        with lock:
+            bound = getattr(self, "_store_context", None)
+            with scope(bound) if bound is not None else nullcontext():
+                with self._settings_scope():
+                    return fn(self, *args, **kwargs)
     return wrapper
 
 

@@ -85,13 +85,16 @@ class MediaError(ValueError):
 def _conn():
     from nexsandglass.core import memid
     c = memid.get_conn()
-    c.executescript(_SCHEMA)
+    for statement in _SCHEMA.split(";"):
+        if statement.strip():
+            c.execute(statement)
     return c
 
 
 def media_dir() -> str:
     from nexsandglass.core.sandglass_paths import _NB
-    return os.path.join(_NB, "media")
+    from nexsandglass.core.store_context import path
+    return path("media", legacy=os.path.join(_NB, "media"))
 
 
 def _setting(name: str, default: str) -> str:
@@ -381,6 +384,9 @@ def restore(asset_id: str) -> dict:
 
 def _delete_blob(a: dict) -> None:
     b = a.get("blob")
+    from nexsandglass.core.store_context import current
+    if b and current() is not None:
+        b = current().check_path(b)
     if b and os.path.exists(b):
         others = _conn().execute("SELECT COUNT(*) FROM media_assets WHERE blob = ? AND asset_id != ? "
                                  "AND status != 'erased'", (b, a["asset_id"])).fetchone()[0]

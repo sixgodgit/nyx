@@ -26,6 +26,7 @@ from typing import Any, Callable, Optional
 
 from nexsandglass.engram.types import MemoryObject, LifecycleState
 from nexsandglass.runtime.facade import MemoryContext
+from nexsandglass.runtime.contracts import ContextPacket, EvidenceRef, RecallRequest, packet_for
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,11 @@ def _submit_source(name: str, fn: Callable, query: str, deadline: float):
 
     # Scoped settings can select different backends in the same process. Never
     # mix their jobs or lose the caller's context in a reused executor thread.
-    key = (os.path.abspath(_NB), tuple(sorted(settings.current().items())), name)
+    from nexsandglass.core.store_context import current
+    store = current()
+    root = store.data_dir if store is not None else os.path.abspath(_NB)
+    key = (root, store.profile_id if store is not None else "",
+           tuple(sorted(settings.current().items())), name)
     ctx = copy_context()
     simulated = clock.now() if clock.is_simulated() else None
 
@@ -230,6 +235,8 @@ class RecallResult:
     session_id: Optional[str] = None
     context_used: bool = False
     candidate_mode: bool = False
+    request: RecallRequest | None = None
+    deadline_exceeded: bool = False
 
     def to_context(self, separator: str = "\n") -> str:
         """拼成纯文本（供 system prompt 注入）。"""
@@ -525,8 +532,8 @@ def _find_logged(event: str, origin: str | None = None):
 def _last_sandglass_line() -> int:
     """读取 sandglass.txt 当前行数（近似行号，供 shadow/wthread 索引）。"""
     try:
-        from nexsandglass.core.sandglass_paths import _NB
-        path = os.path.join(_NB, "sandglass.txt")
+        from nexsandglass.core.store_context import path as store_path
+        path = store_path("sandglass.txt")
         if os.path.exists(path):
             with open(path, "rb") as f:
                 return sum(1 for _ in f)
@@ -623,6 +630,7 @@ class RecallPlanner:
         return objs
 
     def _adapt_persona(self, query: str) -> list[MemoryObject]:
+        _require_legacy_projection("persona")
         from nexsandglass.l3.persona_l3 import persona_canvas
         persona = persona_canvas()[:500]
         if persona:
@@ -630,6 +638,7 @@ class RecallPlanner:
         return []
 
     def _adapt_nyx(self, query: str) -> list[MemoryObject]:
+        _require_legacy_projection("nyx")
         from nexsandglass.interfaces.nyx import nyx_sense, nyx_hunt
         objs = []
         sense = nyx_sense(query) or {}
@@ -669,17 +678,26 @@ class RecallPlanner:
 
     def recall(self, query: str, token_budget: int = 1500, *,
                context: str | None = None, session_id: str | None = None,
-               candidate_mode: bool = False) -> MemoryContext:
+               candidate_mode: bool = False, request: RecallRequest | None = None) -> MemoryContext:
         """并行多源召回。返回 MemoryContext；原始 hits 仅记 debug。
 
         先解析 MemoryIntent（v5.0），按策略选源 + 排序。
         Intent 失败 → generic_semantic（全源混合降级）。
         """
+        if request is not None:
+            if not isinstance(request, RecallRequest):
+                raise TypeError("request must be a RecallRequest")
+            query, token_budget = request.query, request.token_budget
+            context, session_id = request.context, request.session_id
         token_budget = max(0, int(token_budget))
-        source_query, context_used = _recall_query(query, context)
         result = RecallResult(query=query, token_budget=token_budget,
-                              session_id=session_id, context_used=context_used,
-                              candidate_mode=candidate_mode)
+                              session_id=session_id, candidate_mode=candidate_mode,
+                              request=request)
+        if request is not None and request.deadline is not None and time.monotonic() >= request.deadline:
+            result.deadline_exceeded = True
+            return self._to_memory_context(result)
+        source_query, context_used = _recall_query(query, context)
+        result.context_used = context_used
         im = self._get_intent()
         intent = im.parse_intent(source_query)
         strategy = intent.strategy
@@ -714,7 +732,10 @@ class RecallPlanner:
             if not self.policy.enabled(name):
                 tr.error = "disabled by policy"
                 continue
-            deferred[name] = (fn, started, started + max(0.0, self.policy.timeout(name)))
+            deadline = started + max(0.0, self.policy.timeout(name))
+            if request is not None and request.deadline is not None:
+                deadline = min(deadline, request.deadline)
+            deferred[name] = (fn, started, deadline)
 
         # Wait only until the next source deadline. Do not use an executor context
         # here: its shutdown(wait=True) would undo the timeout by joining late jobs.
@@ -815,6 +836,8 @@ class RecallPlanner:
                 query, len(result.objects),
                 [t.source for t in result.traces if t.ok],
             )
+        if request is not None and request.deadline is not None:
+            result.deadline_exceeded = time.monotonic() >= request.deadline
         return self._to_memory_context(result)
 
     @staticmethod
@@ -851,7 +874,75 @@ class RecallPlanner:
         mc.candidate_mode = result.candidate_mode
         if result.context_used:
             mc.reasons.append("task_context_used")
+        if result.request is not None:
+            mc.packet = _context_packet(mc, result.request, result.deadline_exceeded)
         return mc
+
+
+def _context_packet(mc: MemoryContext, request: RecallRequest, expired: bool) -> ContextPacket:
+    """Export selected objects, never pre-gate trace items or exception text."""
+    objects = [o for o in mc.objects if o.content]
+    lines = {int(o.source_id) for o in objects
+             if o.source_id is not None and str(o.source_id).isdigit() and int(o.source_id) > 0}
+    bindings, deleted = {}, set()
+    if lines:
+        try:
+            from nexsandglass.core import memid
+            # source_id here is a JOURNAL LINE, not memid.resolve's sequence.
+            rows = memid.get_conn().execute(
+                "SELECT line_start, mem_id, deleted_at FROM memories WHERE line_start IN ("
+                + ",".join("?" for _ in lines) + ")", sorted(lines)).fetchall()
+            for line, mid, deleted_at in rows:
+                bindings.setdefault(line, set()).add(mid)
+                if deleted_at:
+                    deleted.add(mid)
+        except Exception:
+            logger.warning("Nyx typed recall evidence binding is unavailable")
+    evidence, selected = [], []
+    unavailable = False
+    for o in objects:
+        line = int(o.source_id) if o.source_id is not None and str(o.source_id).isdigit() else None
+        mids = bindings.get(line, set())
+        if line is not None and (len(mids) != 1 or mids & deleted):
+            # An explicit journal source that disappeared is not an anonymous
+            # generated fact. Fail closed on stale indexes and ambiguous lines.
+            unavailable = True
+            continue
+        selected.append(o)
+        evidence.append(EvidenceRef(
+            memory_id=o.memory_id or "", source_mem_id=next(iter(mids)) if len(mids) == 1 else None,
+            source_line=line, retrieval_source=o.provenance or "", origin=o.origin or "",
+            trust_signal=o.trust_signal or "unknown", valid_from=o.valid_from or "",
+            valid_until=o.valid_until or ""))
+    reasons = []
+    text = "\n".join(o.content for o in selected)
+    active = [t for t in mc.traces if t.error != "disabled by policy"]
+    for tr in mc.traces:
+        code = ("source_disabled" if tr.error == "disabled by policy" else
+                "source_timeout" if "timeout" in tr.error else "source_error" if not tr.ok else None)
+        if code and code not in reasons:
+            reasons.append(code)
+    # Evidence binding can take I/O time after collection has finished.
+    expired = expired or (request.deadline is not None and time.monotonic() >= request.deadline)
+    if expired:
+        reasons.append("deadline_exceeded")
+    if unavailable:
+        reasons.append("source_unavailable")
+    if any(e.source_mem_id is None for e in evidence):
+        reasons.append("unresolved_evidence")
+    if expired:
+        status = "partial" if text else "expired"
+    elif active and not any(t.ok for t in active):
+        status = "error"
+    elif any(not t.ok for t in active) or unavailable:
+        status = "partial"
+    else:
+        status = "ready" if text else "empty"
+    from nexsandglass.runtime.bundle import estimate_tokens
+    return packet_for(request, text=text, evidence=tuple(evidence),
+                      est_tokens=estimate_tokens(text), status=status, degraded=mc.degraded or unavailable,
+                      stage="candidates" if mc.candidate_mode else "context",
+                      deadline_exceeded=expired, reason_codes=tuple(reasons))
 
 
 def _from_search_item(item, source: str) -> MemoryObject:
@@ -981,7 +1072,7 @@ def _cued_beliefs(query: str, limit: int) -> list:
     try:
         from nexsandglass.features import weavethread
         from nexsandglass.engram.loops import temporal_fact as tf
-        db = weavethread._DB
+        db = weavethread._db_path()
         if not os.path.exists(db):
             return []
         rows = tf.get_current(db)
@@ -1042,6 +1133,7 @@ class ConsolidationCoordinator:
         return self._intent_mod
 
     def run_consolidation(self, memories: Optional[list[MemoryObject]] = None) -> ConsolidationReport:
+        _require_legacy_projection("consolidation")
         cr = ConsolidationReport()
         if not self.policy.enabled("consolidation"):
             cr.message = "consolidation disabled by policy"
@@ -1063,7 +1155,7 @@ class ConsolidationCoordinator:
 
 
 # ══════════════════════════════════════════════════════════
-# ContextBuilder (stub)
+# ContextBuilder
 # ══════════════════════════════════════════════════════════
 
 class ContextBuilder:
@@ -1090,10 +1182,14 @@ class ContextBuilder:
         offset_layer: str = "",
         thread_layer: str = "",
         open_loops: str = "",
+        sections=(),
+        counter=None,
     ):
         """从 MemoryContext 候选构建 MemoryBundle。"""
         bm = self._get_bundle()
-        candidates = [
+        # Preserve source, type, trust, validity and IDs from the actual gate.
+        # Reconstruct only for legacy contexts that never provided objects.
+        candidates = list(mc.objects) if mc.objects else [
             MemoryObject(content=s, memory_id=mid if mid else s, type="semantic")
             for s, mid in zip(mc.strings, mc.memory_ids)
         ]
@@ -1105,6 +1201,8 @@ class ContextBuilder:
             offset_layer=offset_layer,
             thread_layer=thread_layer,
             open_loops=open_loops,
+            sections=sections,
+            counter=counter,
         )
 
     def build(self, mc: MemoryContext, max_tokens: int = 1500, **layers) -> str:
@@ -1142,6 +1240,15 @@ class NyxOrchestrator:
         return self.recall_planner.recall(query, token_budget, context=context,
                                          session_id=session_id, candidate_mode=candidate_mode)
 
+    def recall_request(self, request: RecallRequest) -> ContextPacket:
+        """Run typed requests through the same gates/ranking as legacy recall."""
+        if not isinstance(request, RecallRequest):
+            raise TypeError("request must be a RecallRequest")
+        mc = self.recall_planner.recall(request.query, request.token_budget,
+                                        context=request.context, session_id=request.session_id,
+                                        request=request)
+        return mc.packet
+
     def recall_bundle(self, query: str, max_tokens: int = 1500, **layers):
         """召回 + 构建 MemoryBundle（合并出口）。"""
         mc = self.recall_planner.recall(query, max_tokens)
@@ -1166,10 +1273,14 @@ class NyxOrchestrator:
         # 2. 若 history intent，补充演变链（通过模块函数）
         if intent and intent.history:
             try:
+                _require_legacy_projection("history")
                 from nexsandglass.runtime import intent as im
                 hctx = im.history_context(intent)
                 if hctx:
                     mc.strings = list(mc.strings) + ["[history]"] + hctx.split("\n")
+                    mc.objects = list(mc.objects) + [MemoryObject(
+                        memory_id="history", content=hctx, type="temporal",
+                        provenance="history", trust_signal="unverified")]
             except Exception as e:
                 logger.warning("cognitive_recall history_context 失败: %s", e)
         # 3. Bundle 构建 + 渲染
@@ -1194,11 +1305,28 @@ class NyxOrchestrator:
 # 模块级单例（避免每次重建）
 _orchestrator: Optional[NyxOrchestrator] = None
 _orchestrator_lock = threading.Lock()
+_scoped_orchestrators: dict = {}
+
+
+def _require_legacy_projection(name: str):
+    from nexsandglass.core.store_context import current
+    from nexsandglass.core.sandglass_paths import _NB
+    store = current()
+    if store is not None and store.data_dir != os.path.realpath(os.path.abspath(_NB)):
+        raise RuntimeError(name + " projection is unavailable in this store scope")
 
 
 def get_orchestrator() -> NyxOrchestrator:
     """获取全局 NyxOrchestrator 单例。"""
     global _orchestrator
+    from nexsandglass.core.store_context import current
+    store = current()
+    if store is not None:
+        key = (store.store_id, store.profile_id, tuple(sorted(store.settings.items())))
+        with _orchestrator_lock:
+            if key not in _scoped_orchestrators:
+                _scoped_orchestrators[key] = NyxOrchestrator()
+            return _scoped_orchestrators[key]
     if _orchestrator is None:
         with _orchestrator_lock:
             if _orchestrator is None:

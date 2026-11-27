@@ -14,7 +14,8 @@ from typing import Optional
 
 def _path() -> str:
     from nexsandglass.core.sandglass_paths import _NB
-    return os.path.join(_NB, "recording_paused.json")
+    from nexsandglass.core.store_context import path
+    return path("recording_paused.json", legacy=os.path.join(_NB, "recording_paused.json"))
 
 
 def paused() -> Optional[dict]:

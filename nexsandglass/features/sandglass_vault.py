@@ -20,6 +20,16 @@ from nexsandglass.core.sandglass_paths import _NB
 _SANDGLASS = os.path.join(_NB, "sandglass.txt")
 _IDX = os.path.join(_NB, "sandglass.idx")
 
+
+def _journal_path():
+    from nexsandglass.core.store_context import path
+    return path("sandglass.txt", legacy=_SANDGLASS)
+
+
+def _index_path():
+    from nexsandglass.core.store_context import path
+    return path("sandglass.idx", legacy=_IDX)
+
 logger = logging.getLogger(__name__)
 
 # ═══════ B1 直写治理：NYX_ENFORCE_RUNTIME=1 时检测非 orchestrator 直写 ═══════
@@ -79,6 +89,32 @@ _idx_persisted_at = 0.0
 _idx_gen = 0                # 整个索引被替换（重建 / 遗忘 / 还原）时递增：旧快照的后台落盘作废
 _idx_file_sig = None        # 本进程最后一次读 / 写 idx 文件时的 (inode, size, mtime_ns)
 _persisting = False
+
+_scoped_index_states = {}
+
+
+def _index_state():
+    """Keep per-store caches separate; legacy callers retain module overrides."""
+    from nexsandglass.core.store_context import current
+    context = current()
+    if context is None:
+        import sys
+        return sys.modules[__name__]
+    from types import SimpleNamespace
+    key = (context.store_id, _index_path())
+    with _idx_lock:
+        if key not in _scoped_index_states:
+            _scoped_index_states[key] = SimpleNamespace(
+                _idx_cache=None, _idx_mtime=0, _idx_persisted=0,
+                _idx_persisted_at=0.0, _idx_gen=0, _idx_file_sig=None,
+                _persisting=False)
+        return _scoped_index_states[key]
+
+
+def index_covered() -> int:
+    """Current store's in-memory index watermark, for erasure/restore."""
+    with _idx_lock:
+        return _index_state()._idx_mtime
 
 
 # ═══════════════════════════════════════════════
@@ -161,10 +197,10 @@ def _parse_line(line: str) -> tuple:
 def _journal_lines() -> int:
     # 增量计数（v7.13.2）：以前每次调用都把整份日志从头读一遍，而倒排与 TF-IDF
     # 每次召回各调一次 —— 15 万条记忆时光数行就占了召回时间的大头
-    if not os.path.exists(_SANDGLASS):
+    if not os.path.exists(_journal_path()):
         return 0
     from nexsandglass.core import journal_mirror
-    return journal_mirror.line_count(_SANDGLASS)
+    return journal_mirror.line_count(_journal_path())
 
 
 def _write_idx(idx, covered_lines: int = None):
@@ -179,7 +215,7 @@ def _write_idx(idx, covered_lines: int = None):
     from nexsandglass.core.fsutil import atomic_write
     # 唯一临时文件名（v7.13.3）：固定的 sandglass.idx.tmp 在两个写入方同时写时会
     # 互相截断 / 被对方挪走（生产日志：FileNotFoundError sandglass.idx.tmp -> sandglass.idx）
-    with atomic_write(_IDX, fsync=False) as f:
+    with atomic_write(_index_path(), fsync=False) as f:
         _write_idx_body(f, idx, covered_lines)
     _remember_file_sig()
 
@@ -198,15 +234,15 @@ def _write_idx_body(f, idx, covered_lines, lens=None):
 
 def _file_sig():
     try:
-        st = os.stat(_IDX)
+        st = os.stat(_index_path())
         return (st.st_ino, st.st_size, st.st_mtime_ns)
     except OSError:
         return None
 
 
 def _remember_file_sig() -> None:
-    global _idx_file_sig
-    _idx_file_sig = _file_sig()
+
+    _index_state()._idx_file_sig = _file_sig()
 
 
 def _extend(idx: dict, covered: int) -> None:
@@ -215,7 +251,7 @@ def _extend(idx: dict, covered: int) -> None:
     from nexsandglass.core import memid
     conn = memid.get_conn()
     if conn.execute("SELECT 1 FROM memories LIMIT 1").fetchone() is None:
-        items = [(r["line_start"], r["text"]) for r in memid.parse_journal_records(_SANDGLASS, from_line=covered + 1)
+        items = [(r["line_start"], r["text"]) for r in memid.parse_journal_records(_journal_path(), from_line=covered + 1)
                  if not memid.is_redacted(r)]
     else:
         items = conn.execute("SELECT line_start, text FROM memories WHERE deleted_at IS NULL AND line_start > ?"
@@ -227,25 +263,25 @@ def _extend(idx: dict, covered: int) -> None:
 
 def _maybe_persist() -> None:
     import time
-    dirty = _idx_mtime - _idx_persisted
+    dirty = _index_state()._idx_mtime - _index_state()._idx_persisted
     if dirty <= 0:
         return
-    if dirty >= PERSIST_EVERY_LINES or time.time() - _idx_persisted_at >= PERSIST_EVERY_SECONDS:
+    if dirty >= PERSIST_EVERY_LINES or time.time() - _index_state()._idx_persisted_at >= PERSIST_EVERY_SECONDS:
         _persist_async()
 
 
 def _persist_async() -> None:
     """后台把内存索引写回文件（调用方持有 _idx_lock）。写的是快照；写完之前索引若被整体替换
     （遗忘 / 还原 / 重建）就丢弃这次结果 —— 绝不拿旧快照盖掉刚抹掉 posting 的文件。"""
-    global _persisting
-    if _persisting or _idx_cache is None:
+
+    if _index_state()._persisting or _index_state()._idx_cache is None:
         return
-    _persisting = True
-    gen, cache, covered, path = _idx_gen, _idx_cache, _idx_mtime, _IDX
+    _index_state()._persisting = True
+    gen, cache, covered, path = _index_state()._idx_gen, _index_state()._idx_cache, _index_state()._idx_mtime, _index_path()
     lens = {k: len(v) for k, v in cache.items()}
 
     def run():
-        global _persisting, _idx_persisted, _idx_persisted_at
+
         import tempfile, time
         tmp = None
         try:
@@ -254,10 +290,10 @@ def _persist_async() -> None:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 _write_idx_body(f, cache, covered, lens)
             with _idx_lock:
-                if _idx_gen == gen and _IDX == path:
+                if _index_state()._idx_gen == gen and _index_path() == path:
                     os.replace(tmp, path)
                     tmp = None
-                    _idx_persisted, _idx_persisted_at = covered, time.time()
+                    _index_state()._idx_persisted, _index_state()._idx_persisted_at = covered, time.time()
                     _remember_file_sig()
         except Exception:
             logger.warning("sandglass: 倒排索引后台落盘失败（内存索引不受影响，下次再写）", exc_info=True)
@@ -267,38 +303,39 @@ def _persist_async() -> None:
                     os.unlink(tmp)
                 except OSError:
                     pass
-            _persisting = False
+            _index_state()._persisting = False
 
-    threading.Thread(target=run, name="nyx-idx-persist", daemon=True).start()
+    from nexsandglass.core.store_context import spawn_thread
+    spawn_thread(run, name="nyx-idx-persist", daemon=True).start()
 
 
 def flush_index() -> None:
     """把还没落盘的增量同步写回（进程退出时、测试与维护脚本用）。"""
-    global _idx_persisted
+
     with _idx_lock:
-        if _idx_cache is not None and _idx_mtime > _idx_persisted:
-            _write_idx(_idx_cache, _idx_mtime)
-            _idx_persisted = _idx_mtime
+        if _index_state()._idx_cache is not None and _index_state()._idx_mtime > _index_state()._idx_persisted:
+            _write_idx(_index_state()._idx_cache, _index_state()._idx_mtime)
+            _index_state()._idx_persisted = _index_state()._idx_mtime
 
 
 def _set_index(idx: dict, covered: int) -> None:
     """整体替换索引并立即落盘（遗忘 / 还原 / 重建用）。递增代号，让在途的后台落盘作废。"""
-    global _idx_cache, _idx_mtime, _idx_persisted, _idx_gen
+
     import time
     with _idx_lock:
         _write_idx(idx, covered)
-        _idx_cache, _idx_mtime, _idx_persisted, _idx_gen = idx, covered, covered, _idx_gen + 1
-        globals()["_idx_persisted_at"] = time.time()
+        _index_state()._idx_cache, _index_state()._idx_mtime, _index_state()._idx_persisted, _index_state()._idx_gen = idx, covered, covered, _index_state()._idx_gen + 1
+        _index_state()._idx_persisted_at = time.time()
 
 
 def index_for_update() -> dict:
     """遗忘 / 还原要改索引时用：磁盘文件被**别的进程**改过才重读，否则直接用内存索引。
     （以前每次都整份重读 —— 15 万条时还原一条要 1.6 秒。）"""
-    global _idx_cache, _idx_mtime
+
     with _idx_lock:
-        if _idx_cache is not None and _file_sig() not in (None, _idx_file_sig):
+        if _index_state()._idx_cache is not None and _file_sig() not in (None, _index_state()._idx_file_sig):
             # 本进程还没落盘的增量不会丢：重读文件后，会从文件覆盖到的行起按中枢重新补
-            _idx_cache, _idx_mtime = None, 0
+            _index_state()._idx_cache, _index_state()._idx_mtime = None, 0
         return _sync_index_locked()
 
 
@@ -324,7 +361,7 @@ def idx_search(query: str, limit: int = 100) -> list:
             if token in idx:
                 candidate_lines.update(idx[token])
         results = []
-        with open(_SANDGLASS, "r", encoding="utf-8") as f:
+        with open(_journal_path(), "r", encoding="utf-8") as f:
             for n, line in enumerate(f, 1):
                 if n in candidate_lines:
                     ts, sender, text = _parse_line(line)
@@ -349,14 +386,14 @@ def _rebuild_index_locked() -> int:
     于是多行消息只有第一行进了倒排 —— 生产日志 85% 的内容从未被索引。
     token 映射到记录首行号（line_start），与 FTS5 的 id 保持一致。
     """
-    global _idx_cache
-    _idx_cache = None
+
+    _index_state()._idx_cache = None
     try:
-        if not os.path.exists(_SANDGLASS):
+        if not os.path.exists(_journal_path()):
             return 0
         from nexsandglass.core import memid
         idx = {}
-        for rec in memid.parse_journal_records(_SANDGLASS):
+        for rec in memid.parse_journal_records(_journal_path()):
             if memid.is_redacted(rec):
                 continue                          # 已抹除：不进索引
             ln = rec["line_start"]
@@ -388,27 +425,27 @@ def _sync_index_locked() -> dict:
 
     现在：缓存键是日志物理行数（写进 idx 文件头），行数没变就直接返回缓存。
     """
-    global _idx_cache, _idx_mtime
+
 
     try:
-        if not os.path.exists(_SANDGLASS):
-            _idx_cache, _idx_mtime = {}, 0
+        if not os.path.exists(_journal_path()):
+            _index_state()._idx_cache, _index_state()._idx_mtime = {}, 0
             return {}
 
         total = _journal_lines()
         # 缓存命中：日志行数未变 → 索引仍然是最新的
-        if _idx_cache is not None and _idx_mtime == total:
-            return _idx_cache
+        if _index_state()._idx_cache is not None and _index_state()._idx_mtime == total:
+            return _index_state()._idx_cache
         # 日志只是变长了：新记录直接补进内存（v7.13.3），不再整份重读文件
-        if _idx_cache is not None and 0 < _idx_mtime < total:
-            _extend(_idx_cache, _idx_mtime)
-            _idx_mtime = total
+        if _index_state()._idx_cache is not None and 0 < _index_state()._idx_mtime < total:
+            _extend(_index_state()._idx_cache, _index_state()._idx_mtime)
+            _index_state()._idx_mtime = total
             _maybe_persist()
-            return _idx_cache
+            return _index_state()._idx_cache
 
         idx, covered, has_header, nonempty = {}, 0, False, False
-        if os.path.exists(_IDX):
-            with open(_IDX, "r", encoding="utf-8") as f:
+        if os.path.exists(_index_path()):
+            with open(_index_path(), "r", encoding="utf-8") as f:
                 for line in f:
                     if line.startswith("#"):
                         if "covered_lines:" in line:
@@ -433,13 +470,13 @@ def _sync_index_locked() -> dict:
             logger.warning("sandglass: idx 为旧格式（无 covered_lines 头），全量重建")
             idx, covered = {}, 0
             from nexsandglass.core import memid
-            for rec in memid.parse_journal_records(_SANDGLASS):
+            for rec in memid.parse_journal_records(_journal_path()):
                 if memid.is_redacted(rec):
                     continue
                 for token in _tokenize(rec["text"]):
                     idx.setdefault(token, []).append(rec["line_start"])
             _write_idx(idx, total)
-            _idx_cache, _idx_mtime = idx, total
+            _index_state()._idx_cache, _index_state()._idx_mtime = idx, total
             return idx
 
         if covered > total:
@@ -448,20 +485,20 @@ def _sync_index_locked() -> dict:
             _rb()
             return _sync_index()
 
-        global _idx_persisted, _idx_persisted_at
+
         import time as _t
         _remember_file_sig()
-        _idx_persisted, _idx_persisted_at = covered, _t.time()   # 刚从文件读进来：不必马上再写
+        _index_state()._idx_persisted, _index_state()._idx_persisted_at = covered, _t.time()   # 刚从文件读进来：不必马上再写
         if covered < total:
             # 增量：只补新记录（按记录边界，不按物理行）；落盘交给 _maybe_persist
             _extend(idx, covered)
 
-        _idx_cache, _idx_mtime = idx, total
+        _index_state()._idx_cache, _index_state()._idx_mtime = idx, total
         _maybe_persist()
         return idx
     except Exception:
         logger.warning("sandglass: _sync_index() failed", exc_info=True)
-        return _idx_cache or {}
+        return _index_state()._idx_cache or {}
 
 def search(query: str, limit: int = 10, month: str = "") -> list:
     """搜索沙漏。返回 [(行号, 时间, 明文), ...]。
@@ -470,11 +507,11 @@ def search(query: str, limit: int = 10, month: str = "") -> list:
     try:
         from nexsandglass.core.search_router import SearchRouter, ShadowSearch, Fts5Search, IdxSearch, TfidfSearch, MmapFallback
         router = SearchRouter(
-            ShadowSearch(_SANDGLASS),
+            ShadowSearch(_journal_path()),
             Fts5Search(),
-            IdxSearch(_SANDGLASS, _IDX),
+            IdxSearch(_journal_path(), _index_path()),
             TfidfSearch(),
-            MmapFallback(_SANDGLASS)
+            MmapFallback(_journal_path())
         )
         return router.search(query, limit)
     except Exception:
@@ -506,10 +543,10 @@ def recent(n: int = 10) -> list:
     返回物理行号（与 search/FTS5 的 id 一致），从文件尾部取最后 N 条有效消息。
     """
     try:
-        if n <= 0 or not os.path.exists(_SANDGLASS):
+        if n <= 0 or not os.path.exists(_journal_path()):
             return []
         results = []
-        with open(_SANDGLASS, "r", encoding="utf-8", errors="ignore") as f:
+        with open(_journal_path(), "r", encoding="utf-8", errors="ignore") as f:
             for ln, line in enumerate(f, 1):
                 ts, sender, text = _parse_line(line)
                 if ts:
@@ -522,9 +559,9 @@ def recent(n: int = 10) -> list:
 
 def count() -> int:
     try:
-        if not os.path.exists(_SANDGLASS):
+        if not os.path.exists(_journal_path()):
             return 0
-        with open(_SANDGLASS, "r", encoding="utf-8") as f:
+        with open(_journal_path(), "r", encoding="utf-8") as f:
             return sum(1 for _ in f)
     except Exception:
         logger.warning("sandglass: count() failed", exc_info=True)
@@ -546,7 +583,7 @@ def _mmap_search(query: str, limit: int, month: str, stage_filter: bool = False)
                 if len(stages) >= 2:
                     scan_months.append(stages[-2].get("name", current))
             except: pass
-        with open(_SANDGLASS, "rb") as f:
+        with open(_journal_path(), "rb") as f:
             with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
                 line_start = 0; line_num = 0
                 while line_start < len(mm):
@@ -607,12 +644,12 @@ def sandglass_import(source_path: str, source_format: str = "sandglass") -> dict
     - chatgpt: ChatGPT JSON 导出
     - claude: Claude 对话 JSON 导出
     - plain: 纯文本，每行一条
-    
+
     返回 {imported: N, skipped: N, total: N}
     """
     imported = 0
     skipped = 0
-    
+
     try:
         if source_format == "sandglass":
             imported, skipped = _import_sandglass(source_path)
@@ -622,13 +659,13 @@ def sandglass_import(source_path: str, source_format: str = "sandglass") -> dict
             imported, skipped = _import_plain(source_path)
         else:
             return {"error": f"不支持格式: {source_format}"}
-        
+
         # 导入后重建索引
         try:
             from nexsandglass.core.sandglass_sqlite import sync_incremental
             sync_incremental()
         except: pass
-        
+
         return {"imported": imported, "skipped": skipped, "total": imported + skipped}
     except Exception as e:
         logger.error(f"导入失败: {e}")
@@ -643,38 +680,39 @@ def sandglass_export(output_path: str = None, limit: int = None, month: str = ""
     """
     if output_path is None:
         from nexsandglass.core.sandglass_paths import _NB
-        output_path = os.path.join(_NB, "sandglass_export.txt")
-    
+        from nexsandglass.core.store_context import path
+        output_path = path("sandglass_export.txt", legacy=os.path.join(_NB, "sandglass_export.txt"))
+
     lines = []
-    if os.path.exists(_SANDGLASS):
-        with open(_SANDGLASS, "r", encoding="utf-8") as src:
+    if os.path.exists(_journal_path()):
+        with open(_journal_path(), "r", encoding="utf-8") as src:
             for line in src:
                 if month and not line.startswith(month[:7]):
                     continue
                 lines.append(line)
                 if limit and len(lines) >= limit:
                     break
-        
+
         # 取最后 limit 条（从全量读取后截断）
         if limit and len(lines) > limit:
             lines = lines[-limit:]
-    
+
     with open(output_path, "w", encoding="utf-8") as dst:
         dst.writelines(lines)
-    
+
     return output_path
 
 def _import_sandglass(source_path: str) -> tuple:
     """导入同格式沙漏——按行号去重"""
     # 读已有沙漏的时间戳集合
     existing_ts = set()
-    if os.path.exists(_SANDGLASS):
-        with open(_SANDGLASS, "r", encoding="utf-8") as f:
+    if os.path.exists(_journal_path()):
+        with open(_journal_path(), "r", encoding="utf-8") as f:
             for line in f:
                 if " | " in line:
                     ts = line.split(" | ")[0].strip()
                     existing_ts.add(ts)
-    
+
     imported = 0
     skipped = 0
     with open(source_path, "r", encoding="utf-8") as src:
@@ -688,7 +726,7 @@ def _import_sandglass(source_path: str) -> tuple:
             if ts in existing_ts:
                 skipped += 1
                 continue
-            
+
             # 追加到沙漏
             try:
                 from nexsandglass.core.sandglass_log import log_message as _log_message
@@ -701,7 +739,7 @@ def _import_sandglass(source_path: str) -> tuple:
                     imported += 1
             except Exception:
                 skipped += 1
-    
+
     return imported, skipped
 
 
@@ -710,10 +748,10 @@ def _import_json_convo(source_path: str, fmt: str) -> tuple:
     import json
     with open(source_path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    
+
     imported = 0
     skipped = 0
-    
+
     # ChatGPT 格式: [{"mapping": {...}}, ...]
     # Claude 格式: [{"chat_messages": [...]}, ...]
     messages = []
@@ -734,7 +772,7 @@ def _import_json_convo(source_path: str, fmt: str) -> tuple:
                 content = msg.get("text", "")
                 if content:
                     messages.append((role, content))
-    
+
     for role, text in messages:
         try:
             from nexsandglass.core.sandglass_log import log_message as _log_message
@@ -743,7 +781,7 @@ def _import_json_convo(source_path: str, fmt: str) -> tuple:
             imported += 1
         except Exception:
             skipped += 1
-    
+
     return imported, skipped
 
 

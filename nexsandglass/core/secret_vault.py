@@ -103,7 +103,12 @@ def db_path() -> str:
 
 
 def key_path() -> str:
+    from nexsandglass.core.store_context import current
+    from nexsandglass.core.sandglass_paths import _NB
     base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    store = current()
+    if store is not None and store.data_dir != os.path.realpath(os.path.abspath(_NB)):
+        return os.path.join(base, "nyx", "stores", store.store_id, "vault.key")
     return os.path.join(base, "nyx", "vault.key")
 
 
@@ -170,6 +175,13 @@ def unavailable_reason() -> str:
         return t("no encryption backend: pip install 'nyx-memory[vault]' (installs cryptography)",
                  "没有加密后端：pip install 'nyx-memory[vault]'（装 cryptography）")
     if backend() == "file":
+        # A secondary root must not silently select the primary installation's
+        # key or generate a key that a standalone CLI cannot discover. Hosts
+        # supply a stable, independently backed-up key in their secret scope.
+        if _store_key() is not None:
+            from .credentials import get
+            if not get("NYX_VAULT_KEY"):
+                return "secondary-store file vault requires an explicit NYX_VAULT_KEY in its credential scope"
         try:
             _master_key(create=False, missing_ok=True)
         except VaultError as e:
@@ -774,15 +786,29 @@ class _Session:
     locked_until: float = 0.0
 
 
-_sessions: Dict[str, _Session] = {}
-_revealed: Dict[str, Tuple[int, str, float]] = {}            # 原文 → (编号, 类别, 过期)：取回过的值再出现时也隐去
+_sessions: Dict[object, _Session] = {}
+_revealed: Dict[tuple, Tuple[int, str, float]] = {}          # (store, value) → (编号, 类别, 过期)
 _hook = {"registered": False}
 
 
+def _store_key():
+    from .store_context import current
+    from .sandglass_paths import _NB
+    store = current()
+    if store is None or store.data_dir == os.path.realpath(os.path.abspath(_NB)):
+        return None
+    return (store.store_id, store.profile_id)
+
+
+def _session_key(session_id):
+    key = _store_key()
+    return (key, session_id or "") if key is not None else (session_id or "")
+
+
 def _sess(session_id: str) -> _Session:
-    s = _sessions.get(session_id or "")
+    s = _sessions.get(_session_key(session_id))
     if s is None:
-        s = _sessions[session_id or ""] = _Session()
+        s = _sessions[_session_key(session_id)] = _Session()
     return s
 
 
@@ -801,7 +827,7 @@ def handle(vid: int) -> str:
 
 def remember_revealed(vid: int, label: str, value: str) -> None:
     with _lock:
-        _revealed[value] = (vid, label, time.time() + 3600)
+        _revealed[(_store_key(), value)] = (vid, label, time.time() + 3600)
 
 
 def redact_revealed(text: Optional[str]) -> str:
@@ -815,10 +841,11 @@ def redact_revealed(text: Optional[str]) -> str:
     from nexsandglass.core import secret_filter as _secret_filter
     now = time.time()
     with _lock:
-        for v, (vid, label, exp) in list(_revealed.items()):
+        for key, (vid, label, exp) in list(_revealed.items()):
+            store, v = key
             if exp < now:
-                _revealed.pop(v, None)
-            elif v in text:
+                _revealed.pop(key, None)
+            elif store == _store_key() and v in text:
                 text = text.replace(v, f"{_secret_filter.MARK}{label} #v{vid}]")
     return text
 
@@ -837,7 +864,7 @@ def queue_notice(session_id: str, text: str) -> None:
 
 
 def has_pending(session_id: str) -> bool:
-    s = _sessions.get(session_id or "")
+    s = _sessions.get(_session_key(session_id))
     return bool(s and (s.pending or s.notices))
 
 
@@ -853,7 +880,7 @@ def render(session_id: str, text: str) -> Optional[str]:
     只处理这个会话的；用一次就清掉。没有要换的返回 None（Hermes：返回 None = 不改写）。
     """
     with _lock:
-        s = _sessions.get(session_id or "")
+        s = _sessions.get(_session_key(session_id))
         if not s:
             return None
         now = time.time()
@@ -925,19 +952,19 @@ def check_confirm(session_id: str, message: str, turn: int) -> Optional[str]:
 
 def confirmed(session_id: str, vid: int, turn: int) -> bool:
     with _lock:
-        s = _sessions.get(session_id or "")
+        s = _sessions.get(_session_key(session_id))
         return bool(s and s.confirmed.get(vid) == turn)
 
 
 def consume_confirmation(session_id: str, vid: int) -> None:
     with _lock:
-        s = _sessions.get(session_id or "")
+        s = _sessions.get(_session_key(session_id))
         if s:
             s.confirmed.pop(vid, None)
 
 
 def locked(session_id: str) -> bool:
-    s = _sessions.get(session_id or "")
+    s = _sessions.get(_session_key(session_id))
     return bool(s and s.locked_until > time.time())
 
 

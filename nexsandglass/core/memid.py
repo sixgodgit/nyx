@@ -71,6 +71,7 @@ from nexsandglass.core.sandglass_paths import _NB
 from nexsandglass.core import provenance as _prov
 from nexsandglass.core import prodguard as _prodguard
 from nexsandglass.core import sqlite_open as _sqlite_open
+from nexsandglass.core import store_context as _store_context
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,8 @@ def _nb() -> str:
     同进程切换数据目录）时，ID 中枢会继续写旧库，导致行号落到别处、
     /api/memories 读不到刚写入的记忆。
     """
-    nb = os.environ.get("NEXSANDBASE_HOME") or _NB
+    context = _store_context.current()
+    nb = context.data_dir if context is not None else os.environ.get("NEXSANDBASE_HOME") or _NB
     _prodguard.check(nb, "数据目录")           # 测试进程只能用临时目录（v7.13.9）
     return nb
 
@@ -120,18 +122,26 @@ def _belongs(path: Optional[str]) -> bool:
 
 
 def _db_path() -> str:
+    context = _store_context.current()
+    if context is not None:
+        return context.path("nyx.db")
     if _DB is not None and _belongs(_DB):
         return _DB
     return os.path.join(_nb(), "nyx.db")
 
 
 def _journal_path() -> str:
+    context = _store_context.current()
+    if context is not None:
+        return context.path("sandglass.txt")
     if _SANDGLASS is not None and _belongs(_SANDGLASS):
         return _SANDGLASS
     return os.path.join(_nb(), "sandglass.txt")
 
 
 def _lock_path() -> str:
+    if _store_context.current() is not None:
+        return _journal_path() + ".lock"
     if _LOCK is not None and _belongs(_LOCK):
         return _LOCK
     return _journal_path() + ".lock"
@@ -183,6 +193,9 @@ CREATE TABLE IF NOT EXISTS tombstones (
 def set_db_path(path: str) -> None:
     """重定向 ID 中枢库路径（测试/迁移用）。所有线程的旧连接作废（各自下次使用时重开）。"""
     global _DB, _conn_path, _conn_gen
+    if _store_context.current() is not None:
+        _store_context.canonical_path("nyx.db", path)
+        return
     with _conn_lock:
         _close_local()
         _conn_gen += 1
@@ -211,6 +224,8 @@ def _ensure_schema(c: sqlite3.Connection, path: str) -> None:
         return
     c.executescript(_SCHEMA)
     _prov.ensure(c)
+    from . import projection_jobs
+    projection_jobs.ensure(c)
     c.commit()
     if key is not None:
         _schema_ready.add(key)
@@ -226,6 +241,44 @@ def get_conn() -> sqlite3.Connection:
     """
     global _conn_path
     want = _db_path()
+    if _store_context.current() is not None:
+        # Separate connections preserve a caller's pending A transaction when
+        # a nested host operation temporarily binds B on the same thread.
+        connections = getattr(_local, "store_connections", None)
+        if connections is None:
+            connections = _local.store_connections = {}
+        c = connections.get(want)
+        identities = getattr(_local, "store_identities", None)
+        if identities is None:
+            identities = _local.store_identities = {}
+        try:
+            stat = os.stat(want)
+            identity = (stat.st_dev, stat.st_ino)
+        except OSError:
+            identity = None
+        if c is not None and identities.get(want) != identity:
+            try:
+                pending = c.in_transaction
+            except sqlite3.ProgrammingError:
+                pending = False
+            if pending:
+                raise RuntimeError("bound store database was replaced during a transaction")
+            c.close()
+            c = None
+        if c is not None:
+            try:
+                c.total_changes
+            except sqlite3.ProgrammingError:
+                c = None
+        if c is None:
+            c = _sqlite_open.connect(want, timeout=30, check_same_thread=False, synchronous="NORMAL",
+                                     setup=lambda conn: _ensure_schema(conn, want))
+            c.execute("PRAGMA foreign_keys=ON")
+            connections[want] = c
+            stat = os.stat(want)
+            identities[want] = (stat.st_dev, stat.st_ino)
+        _conn_path = want
+        return c
     c = getattr(_local, "conn", None)
     if c is not None and (getattr(_local, "path", None) != want or getattr(_local, "gen", -1) != _conn_gen):
         _close_local()
@@ -238,6 +291,16 @@ def get_conn() -> sqlite3.Connection:
         _local.conn, _local.path, _local.gen = c, want, _conn_gen
     _conn_path = want
     return c
+
+
+def close_store_connections(context=None) -> None:
+    """Close this thread's explicit-store connections, optionally for one root."""
+    connections = getattr(_local, "store_connections", {})
+    target = context.path("nyx.db") if context is not None else None
+    for key, conn in list(connections.items()):
+        if target is None or key == target:
+            conn.close()
+            del connections[key]
 
 
 _jl = threading.local()
@@ -254,7 +317,10 @@ class journal_lock:
     """
 
     def __init__(self, journal_path: str = None):
-        self.path = os.path.abspath(journal_path or _journal_path())
+        candidate = journal_path or _journal_path()
+        if _store_context.current() is not None:
+            candidate = _store_context.current().check_path(candidate)
+        self.path = os.path.abspath(candidate)
         self._inner = None
 
     def __enter__(self):
@@ -541,8 +607,10 @@ def allocate(text: str, sender: str = "agent", ts: str = None,
             prov.signal, prov.may_instruct, prov.trust = _prov.TAINTED, False, min(prov.trust, 0.1)
         else:
             prov.sensitive = True
-    conn = get_conn()
     jpath = journal_path or _journal_path()
+    if _store_context.current() is not None:
+        jpath = _store_context.canonical_path("sandglass.txt", jpath)
+    conn = get_conn()
     if write_journal:
         _prodguard.check(jpath, "记忆日志")     # 测试进程不许写临时目录以外的日志（v7.13.9）；必须在拿锁之前
 

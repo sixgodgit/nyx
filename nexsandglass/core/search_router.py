@@ -10,6 +10,7 @@ V2.8.6: 统一搜索入口 — search_semantic 委托 SearchRouter
        删除重复 _simhash / _simhash_density_decay
 """
 import concurrent.futures
+from contextvars import copy_context
 import math
 import mmap
 import os
@@ -244,6 +245,13 @@ class MmapFallback:
         self.sandfile = sandfile
 
     def _path(self) -> str:
+        from nexsandglass.core.store_context import current
+        store = current()
+        if store is not None:
+            expected = store.path("sandglass.txt")
+            if self.sandfile and os.path.realpath(self.sandfile) != os.path.realpath(expected):
+                raise ValueError("journal does not belong to the bound store")
+            return expected
         if self.sandfile:
             return self.sandfile
         from nexsandglass.features import sandglass_vault
@@ -352,11 +360,11 @@ class SearchRouter:
 
     def search(self, query: str, limit: int = 10) -> list:
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
-            fut_shadow = ex.submit(self.shadow.search, query, limit)
-            fut_fts5 = ex.submit(self.fts5.search, query, max(limit * 2, 30))
-            fut_idx = ex.submit(self.idx.search, query, max(limit * 2, 30))
-            fut_tfidf = ex.submit(self.tfidf.search, query, max(limit * 2, 30))
-            fut_vector = ex.submit(self._vector_search_wrapper, query, limit) if self.vector else None
+            fut_shadow = ex.submit(copy_context().run, self.shadow.search, query, limit)
+            fut_fts5 = ex.submit(copy_context().run, self.fts5.search, query, max(limit * 2, 30))
+            fut_idx = ex.submit(copy_context().run, self.idx.search, query, max(limit * 2, 30))
+            fut_tfidf = ex.submit(copy_context().run, self.tfidf.search, query, max(limit * 2, 30))
+            fut_vector = ex.submit(copy_context().run, self._vector_search_wrapper, query, limit) if self.vector else None
         shadow_hits = fut_shadow.result() or []
         fts5_hits = fut_fts5.result() or []
         idx_hits = fut_idx.result() or []

@@ -53,6 +53,11 @@ from typing import Iterable, Optional
 from nexsandglass.core import memid, quarantine
 from nexsandglass.core.lang import t as _t
 from nexsandglass.core.sandglass_paths import _NB
+from nexsandglass.core import store_context as _store_context
+
+
+def _store_path(relative):
+    return _store_context.path(relative, legacy=os.path.join(_NB, relative))
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +212,8 @@ def _redact_backup(rows: list, reason: str, journal_path: str) -> dict:
     """
     out = {"path": "", "lines": 0, "status": "absent"}
     bak = os.path.join(os.path.dirname(journal_path), "sandglass.backup")
+    if _store_context.current() is not None:
+        bak = _store_context.canonical_path("sandglass.backup", bak)
     out["path"] = bak
     if not rows or not os.path.exists(bak):
         return out
@@ -315,7 +322,7 @@ def _purge_shadow(mem_ids: list, line_starts: list) -> dict:
 def _purge_engram(ts_list: list, mem_ids: list = (), *, raw_rows=None, retained=None) -> int:
     """按 ts 或来源 mem_id 删（只按 ts 会漏：写日志和写 engram 跨过秒的边界时时间戳对不上）。"""
     from nexsandglass.engram import bridge
-    store = os.path.join(_NB, "engram_store.jsonl")
+    store = _store_path("engram_store.jsonl")
     with bridge.store_lock(store):
         if raw_rows is None:
             conn = memid.get_conn()
@@ -368,24 +375,27 @@ def wipe_free_space() -> dict:
     out = {}
     try:
         with sq._lock:
-            if os.path.exists(sq._DB):
+            fts_path = _store_context.path("sandglass.db", legacy=sq._DB)
+            if os.path.exists(fts_path):
                 c = sq._get_db()
                 try:
                     c.execute("INSERT INTO sandglass_fts(sandglass_fts) VALUES('optimize')")
                     c.commit()
                 finally:
                     sq._reset_db()          # 复用的连接（v7.15.4）：VACUUM 之前关掉，下次查询重开
-                out[os.path.basename(sq._DB)] = sqlite_open.vacuum(sq._DB) or "ok"
+                out[os.path.basename(fts_path)] = sqlite_open.vacuum(fts_path) or "ok"
     except Exception as e:
         out["fts"] = str(e)
     with sh._db_lock:
-        if sh._conn is not None:
+        shadow_path = _store_context.path("shadow_sand.db", legacy=sh._SHADOW_DB)
+        connection = sh._get_conn() if _store_context.current() is not None else sh._conn
+        if connection is not None:
             try:
-                sh._conn.commit()
+                connection.commit()
             except Exception:
                 pass
-        if os.path.exists(sh._SHADOW_DB):
-            out[os.path.basename(sh._SHADOW_DB)] = sqlite_open.vacuum(sh._SHADOW_DB) or "ok"
+        if os.path.exists(shadow_path):
+            out[os.path.basename(shadow_path)] = sqlite_open.vacuum(shadow_path) or "ok"
     for path in (memid._db_path(), semantic._db_path()):
         if os.path.exists(path):
             out[os.path.basename(path)] = sqlite_open.vacuum(path) or "ok"
@@ -442,7 +452,7 @@ def _snapshot_sources(rows: list) -> tuple:
     selected = {r[0] for r in rows}
     out = set()
     legacy, errors = {}, []
-    path = os.path.join(_NB, "engram_store.jsonl")
+    path = _store_path("engram_store.jsonl")
     if not os.path.exists(path):
         return out, legacy, errors
     from nexsandglass.engram import bridge
@@ -471,6 +481,8 @@ def forget(selector: dict, reason: str = "user_forget", apply: bool = False,
            retention_days: int = None) -> dict:
     """见 _forget_impl。真正动手时整个过程持有日志锁（v7.13.3）：选中 → 留副本 → 抹正文 → 清索引 → 墓碑
     之间不许有人追加，否则改写日志时会把新追加的那一行替换掉。预演不拿锁。"""
+    if _store_context.current() is not None:
+        journal_path = _store_context.canonical_path("sandglass.txt", journal_path)
     if not apply:
         return _forget_impl(selector, reason, apply, journal_path, mode, retention_days)
     with memid.journal_lock(journal_path or memid._journal_path()):
@@ -573,7 +585,7 @@ def _forget_impl(selector: dict, reason: str = "user_forget", apply: bool = Fals
     if mode == "quarantine":
         held = quarantine.hold(
             rows, reason=reason, journal_path=journal_path,
-            engram_path=os.path.join(_NB, "engram_store.jsonl"),
+            engram_path=_store_path("engram_store.jsonl"),
             days=retention_days)
         report["quarantined"] = held["held"]
         report["purge_after"] = held["purge_after"]
@@ -665,6 +677,8 @@ def verify_erasure(needles: Iterable[str], journal_path: str = None) -> dict:
     返回同一个答案 —— 那正是 Déjà Vu 在讲的那类错误。
     """
     journal_path = journal_path or memid._journal_path()
+    if _store_context.current() is not None:
+        journal_path = _store_context.canonical_path("sandglass.txt", journal_path)
     needles = [n for n in needles if n]
     found = {}
 
@@ -682,6 +696,8 @@ def verify_erasure(needles: Iterable[str], journal_path: str = None) -> dict:
     # 它不在原来的检查清单里，于是 verify_erasure 会在正文仍然躺在
     # backup 里的情况下报 clean=True。而 nightwatch 能把它还原回主沙漏。
     bak = os.path.join(os.path.dirname(journal_path), "sandglass.backup")
+    if _store_context.current() is not None:
+        bak = _store_context.canonical_path("sandglass.backup", bak)
     if os.path.exists(bak):
         with open(bak, "r", encoding="utf-8", errors="replace") as f:
             for n, line in enumerate(f, 1):
@@ -725,7 +741,7 @@ def verify_erasure(needles: Iterable[str], journal_path: str = None) -> dict:
     except Exception:
         pass
 
-    store = os.path.join(_NB, "engram_store.jsonl")
+    store = _store_path("engram_store.jsonl")
     if os.path.exists(store):
         with open(store, "r", encoding="utf-8", errors="replace") as f:
             for line in f:
@@ -772,7 +788,7 @@ def restore(mem_id: str, journal_path: str = None) -> dict:
     """
     return quarantine.restore(
         mem_id, journal_path=journal_path or memid._journal_path(),
-        engram_path=os.path.join(_NB, "engram_store.jsonl"))
+        engram_path=_store_path("engram_store.jsonl"))
 
 
 def purge(mem_ids: list = None, apply: bool = False, older_than: bool = True) -> dict:

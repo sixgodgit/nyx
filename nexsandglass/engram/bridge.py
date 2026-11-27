@@ -27,6 +27,16 @@ _STORE = os.path.join(_NB, "engram_store.jsonl")
 _SANDGLASS = os.path.join(_NB, "sandglass.txt")
 
 
+def _store_path():
+    from nexsandglass.core.store_context import path
+    return path("engram_store.jsonl", legacy=_STORE)
+
+
+def _journal_path():
+    from nexsandglass.core.store_context import path
+    return path("sandglass.txt", legacy=_SANDGLASS)
+
+
 @contextmanager
 def store_lock(path: str | None = None):
     """Serialize read/modify/replace and append across threads and processes.
@@ -35,7 +45,7 @@ def store_lock(path: str | None = None):
     changes. Callers already holding the journal lock must acquire it first.
     """
     from nexsandglass.core.memid import journal_lock
-    target = path or _STORE
+    target = path or _store_path()
     os.makedirs(os.path.dirname(os.path.abspath(target)), exist_ok=True)
     with journal_lock(target):
         yield
@@ -66,10 +76,10 @@ def _matching_indexes(rows: list, ref: str) -> list[int]:
 @_locked_store
 def resolve_row(ref: str) -> dict | None:
     """Resolve one row without modifying legacy data; reject ambiguous aliases."""
-    if not os.path.exists(_STORE):
+    if not os.path.exists(_store_path()):
         return None
     matches = []
-    with open(_STORE, encoding="utf-8") as f:
+    with open(_store_path(), encoding="utf-8") as f:
         for line in f:
             try:
                 row = json.loads(line)
@@ -94,8 +104,8 @@ def mutate_rows(refs, *, weight_delta: float = 0.0, access_delta: int = 0,
     """
     from nexsandglass.core.fsutil import atomic_write
     refs = list(dict.fromkeys(refs or []))
-    if os.path.exists(_STORE):
-        with open(_STORE, encoding="utf-8") as f:
+    if os.path.exists(_store_path()):
+        with open(_store_path(), encoding="utf-8") as f:
             lines = f.readlines()
     else:
         lines = []
@@ -128,7 +138,7 @@ def mutate_rows(refs, *, weight_delta: float = 0.0, access_delta: int = 0,
             row["last_accessed"] = datetime.now().isoformat()
         lines[i] = json.dumps(row, ensure_ascii=False) + ("\n" if lines[i].endswith("\n") else "")
         report["updated_rows"].append(dict(row))
-    with atomic_write(_STORE) as f:
+    with atomic_write(_store_path()) as f:
         f.writelines(lines)
     report["persisted_changes"] = len(selected)
     return report
@@ -175,9 +185,9 @@ def stats() -> dict:
     """记忆类型分布统计。"""
     counts = {"semantic": 0, "episodic": 0, "emotional": 0, "procedural": 0}
     total = 0
-    if os.path.exists(_STORE):
+    if os.path.exists(_store_path()):
         try:
-            for line in open(_STORE, encoding="utf-8"):
+            for line in open(_store_path(), encoding="utf-8"):
                 line = line.strip()
                 if not line:
                     continue
@@ -195,9 +205,9 @@ def stats() -> dict:
 def recent(n: int = 10) -> list:
     """最近 n 条 engram 记忆。只从文件尾部往回读（v7.18.1；以前每次都把整份读进来）。"""
     out = []
-    if os.path.exists(_STORE):
+    if os.path.exists(_store_path()):
         try:
-            for line in _tail_lines(_STORE, n):
+            for line in _tail_lines(_store_path(), n):
                 line = line.strip()
                 if line:
                     try:
@@ -360,7 +370,7 @@ def ingest_classified(
     """
     mtype = mem_type or classify_memory_type(text)
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    os.makedirs(os.path.dirname(_STORE), exist_ok=True)
+    os.makedirs(os.path.dirname(_store_path()), exist_ok=True)
 
     # REINFORCE / DEDUP：找同内容行（最近的那条），原地更新
     if action in ("REINFORCE", "DEDUP"):
@@ -408,7 +418,7 @@ def _append_row(row: dict) -> None:
     row = dict(row)
     row.setdefault("memory_id", _new_row_id())
     line = (json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8")
-    with open(_STORE, "a+b") as f:
+    with open(_store_path(), "a+b") as f:
         f.seek(0, os.SEEK_END)
         if f.tell() > 0:
             f.seek(-1, os.SEEK_END)
@@ -427,9 +437,9 @@ def _find_same_content(text: str):
 
     存进去的内容只有前 300 字（ingest / ingest_classified 都截断），比 300 字长的 text 不可能完全相同，直接返回。
     只读文件尾部（_SAME_CONTENT_TAIL），先按 JSON 编码后的字符串在原始字节里定位，只解析可能命中的行。"""
-    if len(text) > 300 or not os.path.exists(_STORE):
+    if len(text) > 300 or not os.path.exists(_store_path()):
         return None
-    with open(_STORE, "rb") as f:
+    with open(_store_path(), "rb") as f:
         f.seek(0, os.SEEK_END)
         floor = max(0, f.tell() - _SAME_CONTENT_TAIL)
         f.seek(floor)
@@ -462,11 +472,11 @@ def _replace_line(start: int, stop: int, old: bytes, row: dict) -> bool:
     """把 [start, stop) 那一行换成 row，原子替换整份文件（其余行逐字节不动）。
     那一行在这期间被别人改动过（遗忘、整理）就不换，返回 False。"""
     from nexsandglass.core.fsutil import atomic_write
-    with open(_STORE, "rb") as f:
+    with open(_store_path(), "rb") as f:
         data = f.read()
     if data[start:stop] != old:
         return False
-    with atomic_write(_STORE, mode="wb") as f:
+    with atomic_write(_store_path(), mode="wb") as f:
         f.write(data[:start] + json.dumps(row, ensure_ascii=False).encode("utf-8") + data[stop:])
     return True
 
@@ -477,8 +487,8 @@ def _supersede_and_append(supersede_id: str, ts: str, row: dict) -> None:
     from nexsandglass.core.fsutil import atomic_write
     out = []
     rows = []
-    if os.path.exists(_STORE):
-        with open(_STORE, encoding="utf-8") as f:
+    if os.path.exists(_store_path()):
+        with open(_store_path(), encoding="utf-8") as f:
             for line in f:
                 raw = line.rstrip("\n")
                 if not raw.strip():
@@ -500,7 +510,7 @@ def _supersede_and_append(supersede_id: str, ts: str, row: dict) -> None:
         previous["status"] = "historical"
         out[i] = json.dumps(previous, ensure_ascii=False)
     out.append(json.dumps(row, ensure_ascii=False))
-    with atomic_write(_STORE) as f:
+    with atomic_write(_store_path()) as f:
         for raw in out:
             f.write(raw + "\n")
 

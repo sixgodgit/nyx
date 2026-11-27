@@ -50,7 +50,8 @@ python3 -m nexsandglass_hermes install
 | 键 | 默认 | 说明 |
 |---|---|---|
 | `data_dir` | `~/.neurobase` | 记忆目录。默认与 nyx 的 MCP / CLI 共用一份记忆（一个人一份记忆）。`NEXSANDBASE_HOME` 优先。改动后重启 |
-| `prefetch_tokens` | `600` | 每轮自动召回的预算；0 = 不召回（偏移/情绪不平稳时只注入这一行信号） |
+| `prefetch_tokens` | `600` | 总配额内的每轮自动上下文预算；0 关闭逐轮上下文，包括状态提示 |
+| `context_tokens` | 默认 `2100` | Nyx 已返回的常驻快照与当前钩子召回的共同估算 token 配额。默认是常驻上限（未修改时 1500）加 `prefetch_tokens`；`NYX_CONTEXT_TOKENS` 优先。0 关闭这些上下文钩子。此前消息、其他提供方提示及整个模型上下文窗口不在此配额内 |
 | `semantic` | `auto` | 语义检索：`auto`（配了 API 用 API；装了 `nyx-memory[vector]` 用本地模型；都没有则关）/ `local` / `api` / `off` |
 | `embedding_model` | 空 | 嵌入模型名；换模型后旧向量自动作废并后台重建 |
 | `embedding_api_url` / `embedding_api_key` | 空 | OpenAI 兼容 `/embeddings`；密钥只进 `.env` |

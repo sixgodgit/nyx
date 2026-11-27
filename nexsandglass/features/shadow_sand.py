@@ -20,6 +20,11 @@ logger = logging.getLogger(__name__)
 _SHADOW_DB = os.path.join(_NB, "shadow_sand.db")
 
 
+def _db_path():
+    from nexsandglass.core.store_context import path
+    return path("shadow_sand.db", legacy=_SHADOW_DB)
+
+
 def set_shadow_path(path: str):
     """重定向影子沙路径——基准测试用。"""
     global _SHADOW_DB, _conn
@@ -69,18 +74,60 @@ _ENTITY_RE = re.compile(
 
 _conn = None
 _db_lock = threading.Lock()  # 共享连接由 SearchRouter 多线程并发访问——需要外部锁
+_scoped_connections = {}
+_connections_lock = threading.RLock()
 
 
 def _get_conn():
     global _conn
+    from nexsandglass.core.store_context import current
+    if current() is not None:
+        path = _db_path()
+        with _connections_lock:
+            try:
+                info = os.stat(path)
+                signature = (info.st_dev, info.st_ino)
+            except OSError:
+                signature = None
+            cached = _scoped_connections.get(path)
+            if cached is not None and cached[0] == signature:
+                try:
+                    cached[1].total_changes
+                    return cached[1]
+                except sqlite3.ProgrammingError:
+                    pass
+            conn = sqlite_open.connect(path, timeout=10, check_same_thread=False,
+                                       setup=_create_schema)
+            info = os.stat(path)
+            _scoped_connections[path] = ((info.st_dev, info.st_ino), conn)
+            if cached is not None:
+                try:
+                    cached[1].close()
+                except sqlite3.Error:
+                    pass
+            return conn
     if _conn is None:
         # WAL 模式：允许读写并发，显著降低同库多连接时的锁竞争。
         # 开库 + WAL + 建表走 sqlite_open：并发首次开库撞锁时重试，不再吞掉 WAL 失败（v7.13.4）
-        with sqlite_open.path_lock(_SHADOW_DB):
+        with sqlite_open.path_lock(_db_path()):
             if _conn is None:
-                _conn = sqlite_open.connect(_SHADOW_DB, timeout=10, check_same_thread=False,
+                _conn = sqlite_open.connect(_db_path(), timeout=10, check_same_thread=False,
                                             setup=_create_schema)
     return _conn
+
+
+def close_current_connection():
+    """Maintenance closes only the connection owned by the current store."""
+    global _conn
+    from nexsandglass.core.store_context import current
+    with _db_lock, _connections_lock:
+        if current() is not None:
+            cached = _scoped_connections.pop(_db_path(), None)
+            conn = cached[1] if cached else None
+        else:
+            conn, _conn = _conn, None
+        if conn is not None:
+            conn.close()
 
 
 def _create_schema(db) -> None:
@@ -212,6 +259,8 @@ def shadow_index(text: str, category: str = "general", tags: str = "",
     该退路仍保留以兼容老调用，但会打 WARNING —— 它不该再被走到。
     """
     try:
+        from nexsandglass.runtime.orchestrator import _require_legacy_projection
+        _require_legacy_projection("scene")
         from nexsandglass.features.sandglass_think import scene_mode
         if scene_mode() == 'exam':
             category = 'exam_' + category

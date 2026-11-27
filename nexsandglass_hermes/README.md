@@ -59,7 +59,8 @@ instructions? Run `install` once more and it switches to an installation Hermes 
 | Key | Default | Meaning |
 |---|---|---|
 | `data_dir` | `~/.neurobase` | Memory directory. By default shared with nyx's MCP server / CLI (one memory per person). `NEXSANDBASE_HOME` wins. Restart after changing it |
-| `prefetch_tokens` | `600` | Budget for each turn's automatic recall; 0 = no recall (only the drift / mood signal, when it is not steady) |
+| `prefetch_tokens` | `600` | Budget for each turn's automatic context within the total envelope; 0 disables per-turn context, including notices |
+| `context_tokens` | `2100` by default | Estimated-token envelope for Nyx's returned startup snapshot plus the current hook's recall. Defaults to the system limit (1500 unless changed) plus `prefetch_tokens`; `NYX_CONTEXT_TOKENS` overrides it. Zero disables these context hooks. It does not count earlier messages, other providers' prompts or the whole model context window |
 | `semantic` | `auto` | Semantic search: `auto` (an API if configured; the local model if `nyx-memory[vector]` is installed; otherwise off) / `local` / `api` / `off` |
 | `embedding_model` | empty | Embedding model name; after a change, old vectors are dropped and rebuilt in the background |
 | `embedding_api_url` / `embedding_api_key` | empty | OpenAI-compatible `/embeddings`; the key goes only to `.env` |

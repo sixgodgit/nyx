@@ -15,6 +15,10 @@ from nexsandglass.core.fsutil import atomic_write
 
 
 def directory() -> str:
+    from nexsandglass.core.store_context import current
+    store = current()
+    if store is not None:
+        return store.path("consolidation_snapshots")
     # Preserve an explicit legacy runtime override, without importing the
     # runtime module (which itself uses this helper). The unmodified import-time
     # default must not pin later configured-data-dir scopes to the old path.

@@ -274,7 +274,11 @@ CREATE INDEX IF NOT EXISTS idx_prov_signal ON provenance(signal);
 
 
 def ensure(conn: sqlite3.Connection) -> None:
-    conn.executescript(_SCHEMA)
+    # executescript implicitly commits a caller's open transaction. Projection
+    # tasks and provenance lookup must not commit unrelated pending writes.
+    for statement in _SCHEMA.split(";"):
+        if statement.strip():
+            conn.execute(statement)
 
 
 def record(conn: sqlite3.Connection, mem_id: str, prov: Provenance, bound: bool = True) -> None:
@@ -294,10 +298,10 @@ def _from_row(r) -> Provenance:
                       sensitive=bool(r[5]), flags=json.loads(r[6] or "[]"))
 
 
-def get(mem_id: str) -> Optional[Provenance]:
+def get(mem_id: str, *, conn: sqlite3.Connection | None = None) -> Optional[Provenance]:
     """取一条记忆的来源。没有写入时绑定的记录（旧数据）→ 事后评估，且**不给规则权**。"""
     from nexsandglass.core import memid
-    conn = memid.get_conn()
+    conn = conn if conn is not None else memid.get_conn()
     ensure(conn)
     r = conn.execute(
         "SELECT origin, origin_class, trust, signal, may_instruct, sensitive, flags, bound "
@@ -358,17 +362,18 @@ def audit_engram_rules(store_path: str) -> dict:
     return out
 
 
-def for_line(line_num) -> Optional[Provenance]:
+def for_line(line_num, *, conn: sqlite3.Connection | None = None) -> Optional[Provenance]:
     """按日志行号（= 中枢 line_start）取来源。检索结果都带行号，这是召回侧的入口。"""
     try:
         ln = int(line_num)
     except (TypeError, ValueError):
         return None
     from nexsandglass.core import memid
-    r = memid.get_conn().execute(
+    conn = conn if conn is not None else memid.get_conn()
+    r = conn.execute(
         "SELECT mem_id FROM memories WHERE line_start=? AND deleted_at IS NULL",
         (ln,)).fetchone()
-    return get(r[0]) if r else None
+    return get(r[0], conn=conn) if r else None
 
 
 def stats() -> dict:

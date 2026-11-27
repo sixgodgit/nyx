@@ -73,6 +73,8 @@ from typing import Iterable, Optional
 
 from nexsandglass.core import memid
 from nexsandglass.core import sandglass_paths as _paths
+from nexsandglass.core import store_context as _store_context
+from nexsandglass.core import settings as _settings
 from nexsandglass.core.lang import t as _t
 
 logger = logging.getLogger(__name__)
@@ -125,7 +127,7 @@ def retention_days(default: int = DEFAULT_RETENTION_DAYS) -> int:
 
     每次读环境变量而不是 import 时固化 —— v7.4 缺陷1 的同一个教训。
     """
-    raw = os.environ.get("NYX_FORGET_RETENTION_DAYS")
+    raw = _settings.get("NYX_FORGET_RETENTION_DAYS", "")
     if raw is None or str(raw).strip() == "":
         return default
     try:
@@ -142,8 +144,9 @@ def _conn() -> sqlite3.Connection:
     DDL 只写在别人的 `_ensure_table()` 里，第三方直连本模块就 `no such table`。
     """
     conn = memid.get_conn()
-    conn.executescript(_SCHEMA)
-    conn.commit()
+    for statement in _SCHEMA.split(";"):
+        if statement.strip():
+            conn.execute(statement)
     return conn
 
 
@@ -264,7 +267,10 @@ def _write_back_locked(path: str, start: int, original: list, out: dict) -> dict
 
 
 def _backup_path(journal_path: str) -> str:
-    return os.path.join(os.path.dirname(journal_path or ""), "sandglass.backup")
+    candidate = os.path.join(os.path.dirname(journal_path or ""), "sandglass.backup")
+    if _store_context.current() is not None:
+        return _store_context.canonical_path("sandglass.backup", candidate)
+    return candidate
 
 
 # ══════════════════════════════════════════════════════════
@@ -282,6 +288,10 @@ def capture(row: tuple, *, journal_path: str, engram_path: str = None) -> dict:
     倒排索引不抓 —— 它由正文分词得出，还原时重算比回放更可靠。
     向量不抓 —— embedding 可由正文重算，还原后由 writer 补（报告里注明）。
     """
+    if _store_context.current() is not None:
+        journal_path = _store_context.canonical_path("sandglass.txt", journal_path)
+        if engram_path is not None:
+            engram_path = _store_context.canonical_path("engram_store.jsonl", engram_path)
     mem_id, ls, le, ts, sender, seq, text = row
     pay: dict = {"version": PAYLOAD_VERSION}
 
@@ -354,6 +364,10 @@ def hold(rows: list, *, reason: str, journal_path: str, engram_path: str = None,
 
     days=0 → 不留隔离区（返回 held=0），调用方即等价于老的不可逆删除。
     """
+    if _store_context.current() is not None:
+        journal_path = _store_context.canonical_path("sandglass.txt", journal_path)
+        if engram_path is not None:
+            engram_path = _store_context.canonical_path("engram_store.jsonl", engram_path)
     days = retention_days() if days is None else max(0, int(days))
     out = {"held": 0, "days": days, "purge_after": "", "mem_ids": [], "skipped": 0}
     if not rows or days == 0:
@@ -449,6 +463,10 @@ def find_text(needles: Iterable[str]) -> dict:
 def restore(mem_id: str, *, journal_path: str = None, engram_path: str = None) -> dict:
     """见 _restore_impl。整个还原过程持有日志锁（v7.13.3）：写回正文是「读整份 → 替换」，
     期间有人追加的那一行会丢。"""
+    if _store_context.current() is not None:
+        journal_path = _store_context.canonical_path("sandglass.txt", journal_path)
+        if engram_path is not None:
+            engram_path = _store_context.canonical_path("engram_store.jsonl", engram_path)
     with memid.journal_lock(journal_path or memid._journal_path()):
         return _restore_impl(mem_id, journal_path=journal_path, engram_path=engram_path)
 
@@ -476,6 +494,11 @@ def _restore_impl(mem_id: str, *, journal_path: str = None, engram_path: str = N
         return report
 
     jpath = journal_path or rec.get("journal_path") or memid._journal_path()
+    if _store_context.current() is not None:
+        # A quarantine copied from a different installation may contain an old
+        # absolute path. An explicit store always restores its own canonical
+        # journal; persisted payload paths do not confer filesystem authority.
+        jpath = _store_context.canonical_path("sandglass.txt", journal_path)
     try:
         pay = json.loads(rec.get("payload") or "{}")
     except Exception as e:
@@ -531,6 +554,8 @@ def _restore_impl(mem_id: str, *, journal_path: str = None, engram_path: str = N
     # engram jsonl：按 ts 去重后追加，避免重复还原写两份
     epath = engram_path or os.path.join(
         _paths.configured_data_dir() or os.path.dirname(jpath), "engram_store.jsonl")
+    if _store_context.current() is not None:
+        epath = _store_context.canonical_path("engram_store.jsonl", engram_path)
     report["engram"] = _restore_engram(epath, pay.get("engram") or [])
 
     # ── 正文（真相来源）──

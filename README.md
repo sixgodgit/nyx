@@ -5,12 +5,21 @@
 > **Memory that stays with your agent for life** — single-user, local, no LLM on the write path.
 > It remembers, finds, can be trusted, and can forget.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.23.1-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.25.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx is a long-term memory layer for agents. It plugs into [Hermes](https://github.com/NousResearch/hermes-agent)
 (as a memory provider), into Claude Desktop / Claude Code or any other MCP client, or into your own Python program.
 Every message is kept verbatim; on demand Nyx brings back what was said, with dates, and what is believed *now*.
 All data is plain files on your machine.
+
+Version 7.25 adds [typed recall requests and evidence](docs/recall-contracts.md),
+[whole-item context budgets](docs/context-composition.md) and
+[Hermes/MCP generation traces](docs/host-context.md), [scoped core storage](docs/store-context.md) and
+[durable profile/follow-up recovery](docs/projection-readiness.md). [Language metadata](docs/language-context.md)
+keeps input language separate from response preferences. Existing tools and provider hooks remain available.
+Hermes' `context_tokens` setting accounts for Nyx's returned startup context plus the current hook's recall;
+it uses an estimate, with full dates, labels and framing included. Trace generation is distinct from host delivery
+or model use. The [execution plan](PLAN.md) separately records implementation, verification and publication.
 
 ## Why Nyx
 

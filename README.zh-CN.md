@@ -4,11 +4,17 @@
 
 > **给 agent 一份跟着你一辈子的记忆** —— 单用户、本地、写入不调用大模型。记得住，找得到，信得过，忘得掉。
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.23.1-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.25.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx 是 agent 的长期记忆层：接进 [Hermes](https://github.com/NousResearch/hermes-agent)（作为记忆插件）、
 Claude Desktop / Claude Code 等任意 MCP 客户端，或者你自己的 Python 程序。
 每句话原样留档，按需找回带日期的原话与「现在信什么」，数据全部是你机器上的普通文件。
+
+7.25 增加[结构化召回请求与证据](docs/recall-contracts.md)、[完整条目的上下文预算](docs/context-composition.md)
+和 [Hermes/MCP 生成追踪](docs/host-context.md)，并加入[核心存储档案隔离](docs/store-context.md)、
+[画像与待跟进的持久恢复任务](docs/projection-readiness.md)，以及区分输入语言和回复偏好的[语言元数据](docs/language-context.md)。继续保留现有工具和提供方接口。
+Hermes 的 `context_tokens` 用共同估算配额管理 Nyx 已返回的常驻快照与当前钩子的召回，日期、来源标签和标题也计入。
+生成记录、宿主发送与模型应用分别报告；[执行计划](PLAN.md) 分开登记实现、验证及发布进度。
 
 ## 为什么用 Nyx
 

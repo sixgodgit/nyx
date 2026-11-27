@@ -8,6 +8,20 @@ from nexsandglass.engram.types import MemoryObject
 from nexsandglass.runtime.bundle import estimate_tokens
 
 
+def _install_candidates(monkeypatch, objects):
+    from nexsandglass.runtime import orchestrator
+    from nexsandglass.runtime.facade import MemoryContext
+    calls = []
+    def recall(*args, **kwargs):
+        calls.append(kwargs)
+        mc = MemoryContext(objects=objects, candidate_mode=True)
+        mc.packet = orchestrator._context_packet(mc, kwargs["request"], False)
+        return mc
+    monkeypatch.setattr(orchestrator, "get_orchestrator",
+                        lambda: SimpleNamespace(recall_planner=SimpleNamespace(recall=recall)))
+    return calls
+
+
 @pytest.mark.parametrize("budget", [0, 1, 20, 60, 200, 600])
 @pytest.mark.parametrize("text", ["咖啡过敏，不能饮用。" * 50, "Do not serve peanuts. " * 50])
 def test_final_memory_block_fits_whole_lines(budget, text):
@@ -19,16 +33,12 @@ def test_final_memory_block_fits_whole_lines(budget, text):
 
 
 def test_recall_view_keeps_dates_and_objects_aligned(monkeypatch):
-    from nexsandglass.runtime import orchestrator
     from nexsandglass.core import memory_provider as module
     objects = [MemoryObject(memory_id="large", content="cup " * 1000),
                MemoryObject(memory_id="small", content="cup is blue")]
-    calls = []
-    def recall(*args, **kwargs):
-        calls.append(kwargs)
-        return SimpleNamespace(objects=objects, withheld=[])
-    monkeypatch.setattr(orchestrator, "get_orchestrator", lambda: SimpleNamespace(recall=recall))
-    monkeypatch.setattr(module, "_said_on", lambda objs: {0: "first", 1: "second"})
+    calls = _install_candidates(monkeypatch, objects)
+    dates = {"large": "first", "small": "second"}
+    monkeypatch.setattr(module, "_said_on", lambda objs: {i: dates[o.memory_id] for i, o in enumerate(objs)})
     p = NexSandglassProvider()
     p._prefetch_budget = 40
     items, picked, _ = p._recall_view("cup", session_id="s42")
@@ -39,11 +49,9 @@ def test_recall_view_keeps_dates_and_objects_aligned(monkeypatch):
 
 
 def test_prefetch_includes_notices_in_budget(monkeypatch):
-    from nexsandglass.runtime import orchestrator
     from nexsandglass.core import memory_provider as module
     obj = MemoryObject(memory_id="cup", content="cup is in the kitchen. " * 20)
-    monkeypatch.setattr(orchestrator, "get_orchestrator",
-                        lambda: SimpleNamespace(recall=lambda *a, **k: SimpleNamespace(objects=[obj], withheld=[])))
+    _install_candidates(monkeypatch, [obj])
     monkeypatch.setattr(module, "_said_on", lambda objs: {})
     monkeypatch.setattr(module._recording, "paused", lambda: None)
     p = NexSandglassProvider()

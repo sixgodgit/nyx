@@ -5,6 +5,41 @@ Benchmark section of the README and `benchmarks/`. Entries from v7.16.0 on are i
 
 nyx-memory（Nyx 夜神）各版本的改动、实测数字与取舍。最新的在最上面。v7.16.0 起的条目用英文，之前的是中文。
 
+### v7.25.0 (2026-11-27) — M1 runtime foundations
+
+- Added immutable `RecallRequest`, `EvidenceRef` and `ContextPacket` contracts. Existing string/tool entry points remain
+  available; request identifiers correlate results and do not grant access to a memory store.
+- Whole-item composition accounts for the final rendered text, including dates, source labels, headings and notices.
+  Required context is admitted together; an oversized fact is omitted instead of losing its trailing negation or condition.
+- Hermes startup context, per-turn prefetch, pre-compression recall and MCP use the shared host rendering path.
+  `context_tokens` / `NYX_CONTEXT_TOKENS` sets an estimated-token envelope for Nyx's returned startup snapshot plus the
+  current hook, with reservations retained until a genuine session reset. Zero disables these automatic context hooks.
+- Dedicated voice facts keep their original startup purpose. Profile and follow-up sentences are no longer cut at a
+  fixed character prefix; raw search previews are rehydrated from active canonical evidence before final admission.
+- Content-free generation traces expose selected source IDs, text hashes, budget use and omission reasons. Delivery and
+  model application remain explicitly unknown when the host has not acknowledged them. MCP recall errors omit backend
+  exception text and tracebacks.
+- Added host-bound `StoreContext` for the core write/search/forget/restore closure, per-store caches, credentials and
+  background tasks. Parallel initialized Hermes profiles can use separate roots. Legacy L3 projections and reveal hooks
+  remain default-root capabilities; secondary-root adapters report unavailable rather than reading another store.
+- Profile and follow-up views now persist processor versions, target/checkpoint watermarks and fenced worker leases.
+  Batches publish atomically; source/trust changes invalidate progress in the source transaction, including old-record
+  restores interrupted before refresh callbacks. Failed or abandoned batches can be retried after rollback/lease expiry.
+- Added optional `LanguageContext` metadata, separating input detection, response preference, locale and timezone.
+  Old requests/exports remain compatible; metadata does not change trust, store binding or original evidence.
+- Historical imports keep writes, duplicate checks and progress in the provider's store, with a local historical clock.
+  Follow-up switches, automatic purge state, media maintenance and vault session state respect the bound store.
+- Synchronized the package version, packaged Hermes manifest and repository-plugin dependency floors. The packaged
+  manifest is now checked alongside both repository install manifests to prevent an outdated wheel-side version.
+
+Scope and compatibility details: [`docs/recall-contracts.md`](docs/recall-contracts.md),
+[`docs/context-composition.md`](docs/context-composition.md), [`docs/host-context.md`](docs/host-context.md),
+[`docs/store-context.md`](docs/store-context.md) and [`docs/projection-readiness.md`](docs/projection-readiness.md).
+The previously released voice-startup integration is retained. Per-utterance realtime scheduling and broader
+cross-language understanding remain separate workstreams. Final validation is recorded in the GitHub Release and
+Actions runs. The journal/SQLite authority and its existing crash-repair boundary are retained; this release does not
+claim a cross-file transactional ledger.
+
 ### v7.24.1 (2026-11-14) — Voice startup memory
 
 - Added optional `voice_prompt_block()` for Conduit and other voice hosts: current trusted profile facts and due follow-ups, without generic tool instructions or empty-query recall.
