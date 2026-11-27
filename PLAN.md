@@ -7,7 +7,7 @@
 **当前优先顺序**
 
 1. M1 已发布 v7.25.0；继续保留现有接口和用户数据。
-2. 按当前请求优先修复 issue #39 的 Windows 遗忘/恢复；验证通过后再继续 LANG-06。LANG-00 至 LANG-05 已通过 PR #41 合入 main，尚未发布新的包。
+2. issue #39 已通过 PR #42 合入 main，主分支 CI 通过；按用户当前授权准备 7.26.0 发布，包含 LANG-00 至 LANG-05 与 Windows 修复。完成发布后，下一开发项仍为 LANG-06。
 3. M1 与 LANG 均验收后，推进 M2 连续交互。
 4. 随后依次推进 M3 动态世界、M4 经验闭环、M5 多设备与生态。
 
@@ -18,7 +18,7 @@
 | 工作流 | 当前进度 | 下一项 | 进入条件 | 方案 |
 | --- | --- | --- | --- | --- |
 | M1 内核收敛 | M1-01 至 M1-06 已验收并发布 v7.25.0 | LANG-06；实际语音部署另待连通验证 | 保留现有数据与接口，逐路径验收 | [M1 方案](docs/plans/m1-core.md) |
-| LANG 语言解耦 | LANG-00/01/02/03/04/05 已验收并经 PR #41 合入 main；尚未发布新包，完整工作流未完成 | issue #39 修复后继续 LANG-06 | 与 M1 契约协调 | [语言方案](docs/plans/language-decoupling.md) |
+| LANG 语言解耦 | LANG-00/01/02/03/04/05 已验收并经 PR #41 合入 main；纳入 7.26.0 发布准备，完整工作流未完成 | 发布完成后继续 LANG-06 | 与 M1 契约协调 | [语言方案](docs/plans/language-decoupling.md) |
 | M2 连续交互 | 跨厂商语音调查完成；新增自动调度未开发；已有开场事实能力已进入 notifier 0.185.0 | 工作记忆与客户端能力边界 | M1 + LANG 验收 | [M2 方案](docs/plans/m2-continuous-interaction.md)、[语音接入调查](docs/plans/m2-voice-memory.md) |
 | M3 动态世界 | 已规划，未开发 | 固定一个动态找物任务 | M1 + LANG + M2 任务上下文稳定 | [M3 方案](docs/plans/m3-world-state.md) |
 | M4 经验闭环 | 已规划，未开发 | 任务经历、动作与结果契约 | M3 可记录可信状态变化 | [M4 方案](docs/plans/m4-experience.md) |
@@ -189,7 +189,7 @@ M1 实现分支 `codex/m1-core` 已经 PR #40 合并到 `main`，保留并完成
 
 **issue #39：Windows 遗忘与恢复修复（2026-11-27）**
 
-- 按当前请求优先处理 [issue #39](https://github.com/sixgodgit/nyx/issues/39)。独立修复分支基于已合入语言功能的 main `857e3d8`，见 [PR #42](https://github.com/sixgodgit/nyx/pull/42)；未合并该修复、未发布、未访问或修改用户服务器。LANG-06 暂停，M2 门禁保持不变。
+- [issue #39](https://github.com/sixgodgit/nyx/issues/39) 已经 [PR #42](https://github.com/sixgodgit/nyx/pull/42) 合入 main `0efcbb4f27caf50fc9316a500c93dbe3c425102d`，issue 已关闭；[主分支六项 CI #46078436427](https://github.com/sixgodgit/nyx/actions/runs/46078436427) 全部通过。修复纳入 7.26.0 发布准备，未访问或修改用户服务器。LANG-06 尚未实施，M2 门禁保持不变。
 - `_redact_journal` 与 `_redact_backup` 的读取句柄在原子替换之前显式关闭，重写保持流式处理和原有 journal lock。Windows CI 发现直接并发索引写入也会碰到替换冲突，`_write_idx` 改为使用既有可重入索引锁，与重建和后台持久化协调；未修改锁的授权边界。
 - 日志与备份使用字节流保留 LF/CRLF、混合换行及末尾无换行；恢复仅替换已验证的脱敏占位行。保存恢复原文时按物理行处理，避免 U+2028/NEL 被 `str.splitlines()` 错拆并截断原文。保留原 ID、未删除内容及行位置。重复 Windows CI 又发现另一进程的短暂读取也可能阻止替换，因此 `atomic_write` 仅对 Windows WinError 5/32/33 最多重试 6 次，总等待 0.31 秒；只重试替换，不重复写入或删除逻辑。其他平台保持原有行为；持续占用或读取失败仍报错、保留原文件并清理临时文件，无权限绕过或非原子降级。
 - 新增 23 个回归场景，包含可在 POSIX 复现的 Windows 文件共享限制、流式读写约束、主日志/备份完整往返、Unicode 分隔符、重试耗尽/不适用/成功分支、故障清理与原生 Windows 对照。首次回归明确复现旧代码的句柄/EOL 错误；Unicode 截断亦在补修前复现。最终本地删除/恢复/并发/分配故障子集为 **63 通过、1 跳过**，跳过项仅需原生 Windows。
@@ -197,3 +197,10 @@ M1 实现分支 `codex/m1-core` 已经 PR #40 合并到 `main`，保留并完成
 - [源代码 CI #46076733803](https://github.com/sixgodgit/nyx/actions/runs/46076733803) 全部通过：真实 Windows Python **3.10、3.14 各 64 通过、无跳过**，每版本还额外重复两轮并发子集，各轮 **6 通过**；Linux Python 3.10–3.13 各 **1403 通过、4 跳过**。CI 未启用真实 Hermes/Conduit 源码集成；Windows 矩阵覆盖上述高风险子集，并非宣称完整测试集已在 Windows 通过。额外压力轮次保留在后续 PR 的 CI 门禁中，不能与全量结果累加。
 - 官方 Conduit notifier **0.202.2 / `8c157894c95df03b2f4a4306d9eb8e1a27c786c1`** 加真实 Hermes 源码的 HTTP 集成复测 **1 通过**，涵盖删除/恢复后的下一次 context 与跨语言 recall。该版本冷索引会返回 200/空 context，使用已有 `CONDUIT_EXPECT_CONTEXT_FALLBACK=1` 明确验证其实际回退行为，不把 provider 标签或空 context 当作事实可用；未验证真机语音或模型利用率。
 - wheel/sdist 构建及 `twine check --strict` 通过；全新隔离环境离线安装候选 wheel，五种原文/换行场景的主日志与备份均删除后逐字节恢复，且未删除记录与原 ID 保持。包内 **136 个 Python/manifest 文件**与已测源码逐字节一致，不含数据库或模型文件。仍使用 **7.25.0 作为本地候选构建版本**，未覆盖该版本的公开包。
+
+**7.26.0 发布准备（2026-11-27）**
+
+- 用户已明确授权发布。发布分支 `codex/release-7.26.0` 从已验证 main `0efcbb4` 创建，保留此前全部成果；本轮只同步版本、清单及交付文档，不新增运行时功能。
+- 包版本、打包 manifest、两份仓库安装 manifest/依赖下界及中英文 README 统一为 7.26.0。先在发布分支完成全量、安装和实际流水线预演，再推标签发布；确认 PyPI 新包可下载后才把依赖下界合入 main，避免主分支安装指向尚未上架的包。
+- 发行范围为 LANG-00 至 LANG-05 和 issue #39；LANG-06 共同验收、M2 自动逐轮语音调度及用户服务器/真机仍未完成。既有评测限制保留，不把发布当作语言等效、模型利用率或具身任务效果证明。
+- 正式发布、产物哈希、流水线与主分支集成结果在完成后另行补记；当前仅是发布准备状态。

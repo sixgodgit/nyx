@@ -5,7 +5,7 @@
 > **Memory that stays with your agent for life** — single-user, local, no LLM on the write path.
 > It remembers, finds, can be trusted, and can forget.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.25.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/version-7.26.0-blue) ![Deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)
 
 Nyx is a long-term memory layer for agents. It plugs into [Hermes](https://github.com/NousResearch/hermes-agent)
 (as a memory provider), into Claude Desktop / Claude Code or any other MCP client, or into your own Python program.
@@ -770,6 +770,7 @@ When the semantic backend is on but the index was not built, both harnesses fail
 
 ## 📝 Recent updates
 
+- **v7.26.0**: bounded Chinese/English adapters, time/correction rules, cross-language alias recall and optional answer-language framing; original evidence and IDs stay intact. Fixed Windows forgetting and byte-exact journal/backup recovery. LANG-06 joint acceptance and automatic per-utterance voice recall remain pending; see [scope and validation](CHANGELOG.md).
 - **v7.23.0**: follow-ups — what you said is coming up (an interview, a check-up, a trip) is shown to the agent at the start of a conversation in the two days before it and, until you mention how it went, the ten days after, so it can wish you luck or ask how it went; dropped once answered, asked, cancelled or past; `/nyx follow-ups [on|off]`, `follow_ups` in `nyx.json` (held out: 6 of 6 things due listed, 0 of 8 that should not be)
 - **v7.22.0**: the always-on profile follows changes of mind — a later "reply in English", "I eat meat again" or "we moved to Denver" replaces what was said before, only the part that changed goes, and the old words are listed under "Changed since" (old words still shown as current after a change: 19 of 21 → 1); forgotten memories past their retention period are erased automatically, at most once a day
 - **v7.21.0**: a framework for remembering photos, recordings and videos: `hermes nyx media add / list / show / understand / backends / forget / restore`; pluggable understanding backends (a local command, or a pip plugin), none by default, so writing still calls no model; derived text is ordinary memory, labelled as inferred, dated when the media was taken
