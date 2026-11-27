@@ -143,6 +143,6 @@ HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 python benchmarks/language_recall_eval.p
   --json /tmp/recall-local.json
 ```
 
-Next are LANG-05 presentation separation and LANG-06's common gate. Broader
+LANG-05 now adds [presentation separation](language-presentation.md); LANG-06's common gate remains next. Broader
 backend selection, calibration and independently authored language evaluations
 remain necessary before treating open cross-language recall as equivalent.

@@ -87,3 +87,5 @@ canonical binding and unverified tool provenance.
 LANG-03 optionally accepts this same object on `observe(..., language=..., observed_at=...)`. Its input language, locale and timezone can be persisted with a new canonical record for replay; it does not persist the response-language preference as a user fact. Existing records are not reinterpreted using current settings. See [observation frames](language-time.md#observation-frame-and-replay) for import and compatibility boundaries.
 
 [LANG-04 retrieval fusion](language-recall.md) separately uses known aliases and an optional semantic backend; declaring an input language neither enables a model nor guarantees retrieval quality. Original evidence and the input/response-preference boundary remain unchanged.
+
+[LANG-05 presentation](language-presentation.md) now provides explicit `recall_presented()` and host rendering options. Raw typed recall remains compatible. Presentation must match the request's response-language context; original evidence and fact-tool fields are retained. Hermes can separately opt in through `response_language`; `lang` remains a UI setting.

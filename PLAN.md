@@ -17,8 +17,8 @@
 
 | 工作流 | 当前进度 | 下一项 | 进入条件 | 方案 |
 | --- | --- | --- | --- | --- |
-| M1 内核收敛 | M1-01 至 M1-06 已验收并发布 v7.25.0 | LANG-05/06；实际语音部署另待连通验证 | 保留现有数据与接口，逐路径验收 | [M1 方案](docs/plans/m1-core.md) |
-| LANG 语言解耦 | LANG-00/01/02/03/04 已实现并本地验收，LANG-04 四版本 CI 通过；完整工作流未完成 | LANG-05 呈现分离与 LANG-06 共同验收 | 与 M1 契约协调 | [语言方案](docs/plans/language-decoupling.md) |
+| M1 内核收敛 | M1-01 至 M1-06 已验收并发布 v7.25.0 | LANG-06；实际语音部署另待连通验证 | 保留现有数据与接口，逐路径验收 | [M1 方案](docs/plans/m1-core.md) |
+| LANG 语言解耦 | LANG-00/01/02/03/04/05 已实现并本地验收，LANG-05 CI 待确认；完整工作流未完成 | LANG-06 共同验收 | 与 M1 契约协调 | [语言方案](docs/plans/language-decoupling.md) |
 | M2 连续交互 | 跨厂商语音调查完成；新增自动调度未开发；已有开场事实能力已进入 notifier 0.185.0 | 工作记忆与客户端能力边界 | M1 + LANG 验收 | [M2 方案](docs/plans/m2-continuous-interaction.md)、[语音接入调查](docs/plans/m2-voice-memory.md) |
 | M3 动态世界 | 已规划，未开发 | 固定一个动态找物任务 | M1 + LANG + M2 任务上下文稳定 | [M3 方案](docs/plans/m3-world-state.md) |
 | M4 经验闭环 | 已规划，未开发 | 任务经历、动作与结果契约 | M3 可记录可信状态变化 | [M4 方案](docs/plans/m4-experience.md) |
@@ -46,7 +46,7 @@
 | LANG-02 | 语言适配层、稳定语义键及实体别名 | 本地实现与验收完成；尚未合并/发布 | [适配器及边界](docs/language-adapters.md)；41 项新增测试纳入全量；已知精确别名关联、旧标签兼容，保留原话/ID/来源及带条件健康声明 |
 | LANG-03 | 中英文时间、否定、取消及跨语言更正 | 实现、本地与四版本 CI 验收完成；尚未合并/发布 | [时间与更正政策](docs/language-time.md)；原时间框架回放、明确歧义、否定输出、唯一事件关联与导入/删除恢复 |
 | LANG-04 | 词法与可选跨语言语义召回的融合 | 实现、本地及四版本 CI 验收完成；尚未合并/发布 | [召回政策与实测](docs/language-recall.md)；有界精确别名、类型冲突约束、真实本地模型及未测 API 分开记录 |
-| LANG-05 | 原文、结构化事实与呈现语言分离 | 待开发 | LANG-01/02 + M1-02/03；翻译或显示变化不改来源与事实身份 |
+| LANG-05 | 原文、结构化事实与呈现语言分离 | 本地实现与验收完成；四版本 CI 待确认；尚未合并/发布 | [呈现分离与限制](docs/language-presentation.md)；默认兼容、引用绑定、共享预算、来源/事实字段不改、配置独立 |
 | LANG-06 | 中英四向、混说及宿主端到端验收 | 待执行 | 前述任务；通过共同门禁后才放行 M2 |
 
 **M2–M5 子任务**
@@ -100,12 +100,12 @@ M1-03 的已有证据，日期 2026-11-22：
 
 **Git 分支与续接方式**
 
-M1 实现分支 `codex/m1-core` 已经 PR #40 合并到 `main`，保留并完成此前成果，加入 M1-04/05、验收与 LANG-01 元数据。原 `work` 和 M1 分支保留。语言分支 `codex/language-decoupling` 已从已验证的 `main` 提交 `d78016d634e98231cfda31ea4051b39000b5a337` 创建；当前工作树位于该分支，LANG-00/02 首批交付与 LANG-03/04 后续改进尚未合并/发布，见[草稿 PR #41](https://github.com/sixgodgit/nyx/pull/41)。
+M1 实现分支 `codex/m1-core` 已经 PR #40 合并到 `main`，保留并完成此前成果，加入 M1-04/05、验收与 LANG-01 元数据。原 `work` 和 M1 分支保留。语言分支 `codex/language-decoupling` 已从已验证的 `main` 提交 `d78016d634e98231cfda31ea4051b39000b5a337` 创建；当前工作树位于该分支，LANG-00/02 首批交付与 LANG-03/04/05 后续改进尚未合并/发布，见[草稿 PR #41](https://github.com/sixgodgit/nyx/pull/41)。
 
 | 工作流 | 计划分支名 | 创建基线 / 规则 |
 | --- | --- | --- |
 | M1 | `codex/m1-core` | 执行时从保留当前 M1 改动的可审阅基线继续；先记录并保护已有工作 |
-| LANG | `codex/language-decoupling` | 已从 `d78016d` 创建；冻结基线 `134f7c1`，适配器产品代码 `96654ff`；当前累积 LANG-00/02/03/04，完整语言工作流仍在继续 |
+| LANG | `codex/language-decoupling` | 已从 `d78016d` 创建；冻结基线 `134f7c1`，适配器产品代码 `96654ff`；当前累积 LANG-00/02/03/04/05，完整语言工作流仍在继续 |
 | M2 | `codex/m2-continuous-interaction` | M1 与 LANG 集成验收基线 |
 | M3 | `codex/m3-world-state` | 稳定任务/状态协议基线 |
 | M4 | `codex/m4-experience` | M3 验收基线 |
@@ -173,3 +173,16 @@ M1 实现分支 `codex/m1-core` 已经 PR #40 合并到 `main`，保留并完成
 - 官方 Conduit 0.202.2 真实 HTTP 专项 1 通过；在已有路由检查中新增英文查询到达中文花生过敏原话的验证。Provider 预取保留未确认条件，trace 发送/应用仍未知；没有用户服务器、真机音频或模型利用率验证。
 - wheel/sdist 构建、严格 Twine 检查、全新离线安装通过；装好后的真实 Provider 跨语言预取、原始证据/限定词、删除恢复和无向量文件检查通过，134 个 Python/manifest 文件与测试源码一致。版本仍为本地验证用 7.25.0，没有合并、标签、发布或覆盖公开包。
 - [草稿 PR #41](https://github.com/sixgodgit/nyx/pull/41)继续承载语言分支。下一项 LANG-05，随后 LANG-06；M2 仍待共同验收，开放式语义质量需更广的后端与独立语料评估。
+
+
+**LANG-05 实现与本地验收（2026-11-27，语言分支）**
+
+- [呈现分离](docs/language-presentation.md)：新增显式 recall_presented、PresentationOptions/DisplayTranslation 与 FactPresentation；原始 recall_request、缺省 packet/trace 导出及事实工具字段保持兼容。显示框架和回答偏好不改写原话、canonical ID、语义键、来源、时区或回复偏好记忆事实。
+- Hermes 新增可选 response_language / NYX_RESPONSE_LANGUAGE，默认空，区别于输入语言和终端 lang；按档案绑定、持久化前验证。中英文框架及明确的其他语言回退已实现。请求语言须与呈现目标一致，变更继续受 M1 关联校验约束；宿主/模型是否实际遵循提示未知，未加入 M2 调度。
+- 译文由可信宿主显式提供，绑定 section/item、原证据 ID 元组、原渲染单元 SHA256 和目标语言。原文先准入，译文只可作为标记未核验的配对显示数据，不得挤掉任何已选原证据；所有框架/译文计入同一配额，过期后不返回正文/引用，也不报告译文已使用。没有自动翻译、语义等价验证、外部模型调用或写回。FactPresentation 将原始导出与显示标签分开，保留否定、时间状态、暂缓状态和证据原文；不将显示声明晋升为信念。
+- 合规样例在产品修改前冻结于 `8cefebf`：12 例 SHA256 `e8cb1ab48958ce1d4f2f868ace302e3ad445ddb4fbfdb31ec0bb26a9d1c5f617`；产品/评测冻结提交 `9c304b1361b387a2677ccfd4fd9b484194ade6c5`。报告 [language_presentation_v1_lang05](benchmarks/results/language_presentation_v1_lang05.json) 12/12、code_dirty=false；这是新 API 合规检查，没有等价旧 API 基线，不是翻译或模型回答质量证明。
+- 旧基线复测：原 60 例跨语言历史证据各 10/12、同语言/混说 12/12，画像各方向 12/12、过时偏好 0；LANG-03 时间 8/8、画像/事件 9/9；LANG-04 无向量别名 12/12、结构化主题 4/4、开放改写 0/8、指定负例 0 均保持。其余新报告见 benchmarks/results。LANG-04 已记录本地模型开放改写 3/8，本轮未重测或声称改善模型质量。
+- Python 3.12 / 3.13 全量各 1382 通过、2 跳过，均启用真实 Hermes 源码集成；41 项新增呈现测试纳入全量，覆盖默认兼容、来源/摘要/目标绑定、多条译文引用、预算/字符/必需健康、处理中超时、事实协议、配置验证、双档案并发及新读取的删除恢复。保留既有 Starlette/httpx 弃用提醒。四版本 CI 待独立确认。
+- 真实 Hermes 基线保持 `1047b6411692fccadc49dece77a1f24a87639f87`。官方 Conduit 0.202.2 HTTP 专项 1 通过，新增中文回答框架同时到达开场/历史检索接口、原记忆日志不变的检查；trace 发送/应用仍未知，无用户服务器、真实音频、实际回复语言遵循或模型利用率验证。
+- wheel/sdist 构建、严格 Twine、全新离线安装通过；安装后验证回答框架、原文旁的引用译文、canonical 原文不变、清空配置回到旧输出，135 个 Python/manifest 文件与源码一致。版本仍为本地验证用 7.25.0，没有合并/标签/发布或覆盖公开包。
+- [草稿 PR #41](https://github.com/sixgodgit/nyx/pull/41)继续承载分支。下一项为 LANG-06 中英四向、混说及宿主共同验收；M2 继续等待该门禁。
