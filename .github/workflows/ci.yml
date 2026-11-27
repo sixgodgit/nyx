@@ -70,3 +70,8 @@ jobs:
         run: >-
           python -m pytest tests/test_windows_erasure.py tests/test_quarantine.py
           tests/test_concurrency.py tests/test_allocate_failures.py -q -p no:cacheprovider
+      - name: Repeat Windows cross-process concurrency stress
+        run: |
+          python -m pytest tests/test_concurrency.py -q -p no:cacheprovider
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pytest tests/test_concurrency.py -q -p no:cacheprovider

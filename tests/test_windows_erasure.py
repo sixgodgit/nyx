@@ -188,3 +188,81 @@ def test_actual_windows_sharing_violation_is_fail_closed(tmp_path):
                 output.write(b"should not replace the original")
     assert path.read_bytes() == original
     assert not list(tmp_path.glob(".journal.txt.*.tmp"))
+
+
+@pytest.mark.parametrize("winerror", [5, 32, 33])
+def test_short_windows_sharing_conflicts_retry_only_the_replace(tmp_path, monkeypatch, winerror):
+    path = tmp_path / "journal.txt"
+    path.write_bytes(b"original")
+    real_replace = os.replace
+    attempts, delays = [], []
+    error = PermissionError("transient sharing conflict")
+    error.winerror = winerror
+    monkeypatch.setattr(fsutil, "_WINDOWS", True)
+    monkeypatch.setattr(fsutil, "sleep", delays.append)
+    output = None
+
+    def replace(source, destination):
+        assert output.closed, "writer must be closed before attempting replacement"
+        attempts.append(source)
+        assert Path(source).read_bytes() == b"replacement written once"
+        if len(attempts) < 3:
+            raise error
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(fsutil.os, "replace", replace)
+    with fsutil.atomic_write(str(path), mode="wb") as output:
+        output.write(b"replacement written once")
+    assert path.read_bytes() == b"replacement written once"
+    assert len(attempts) == 3 and len(set(attempts)) == 1
+    assert delays == [0.01, 0.02]
+    assert not list(tmp_path.glob(".journal.txt.*.tmp"))
+
+
+@pytest.mark.parametrize("windows,winerror", [(False, 5), (True, None), (True, 13)])
+def test_other_permission_errors_are_not_retried(tmp_path, monkeypatch, windows, winerror):
+    path = tmp_path / "journal.txt"
+    path.write_bytes(b"original")
+    attempts, delays = [], []
+    error = PermissionError("permanent permission denial")
+    if winerror is not None:
+        error.winerror = winerror
+    monkeypatch.setattr(fsutil, "_WINDOWS", windows)
+    monkeypatch.setattr(fsutil, "sleep", delays.append)
+
+    def denied(*args):
+        attempts.append(args)
+        raise error
+
+    monkeypatch.setattr(fsutil.os, "replace", denied)
+    with pytest.raises(PermissionError) as caught:
+        with fsutil.atomic_write(str(path), mode="wb") as output:
+            output.write(b"replacement")
+    assert caught.value is error
+    assert len(attempts) == 1 and not delays
+    assert path.read_bytes() == b"original"
+    assert not list(tmp_path.glob(".journal.txt.*.tmp"))
+
+
+def test_persistent_windows_sharing_error_exhausts_bounded_retry_and_cleans_up(tmp_path, monkeypatch):
+    path = tmp_path / "journal.txt"
+    path.write_bytes(b"original")
+    attempts, delays = [], []
+    error = PermissionError("persistent sharing conflict")
+    error.winerror = 32
+    monkeypatch.setattr(fsutil, "_WINDOWS", True)
+    monkeypatch.setattr(fsutil, "sleep", delays.append)
+
+    def denied(*args):
+        attempts.append(args)
+        raise error
+
+    monkeypatch.setattr(fsutil.os, "replace", denied)
+    with pytest.raises(PermissionError) as caught:
+        with fsutil.atomic_write(str(path), mode="wb") as output:
+            output.write(b"replacement")
+    assert caught.value is error
+    assert len(attempts) == 6
+    assert delays == [0.01, 0.02, 0.04, 0.08, 0.16]
+    assert path.read_bytes() == b"original"
+    assert not list(tmp_path.glob(".journal.txt.*.tmp"))
