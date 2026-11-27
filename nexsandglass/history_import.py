@@ -240,19 +240,22 @@ def session_turns(db: HermesDB, session: dict, after_id: int = 0) -> list:
     return out
 
 
-def write_turns(db: HermesDB, provider, turns: list, *, progress=None) -> dict:
+def write_turns(db: HermesDB, provider, turns: list, *, progress=None, language_context=None) -> dict:
     # The host chooses the destination once, including duplicate detection and
     # import watermarks; session IDs and source paths never choose that store.
     from contextlib import nullcontext
     from nexsandglass.core.store_context import scope
     store = getattr(provider, "_store_context", None)
     with scope(store) if store is not None else nullcontext():
-        return _write_turns(db, provider, turns, progress=progress)
+        return _write_turns(db, provider, turns, progress=progress, language_context=language_context)
 
 
-def _write_turns(db: HermesDB, provider, turns: list, *, progress=None) -> dict:
+def _write_turns(db: HermesDB, provider, turns: list, *, progress=None, language_context=None) -> dict:
     """按时间先后写进 Nyx（几个会话交错时也按全局时间）。返回 {turns, skipped_dupes, by_session}。"""
     from nexsandglass.core import clock, memid
+    from nexsandglass.runtime.contracts import LanguageContext
+    if language_context is not None and not isinstance(language_context, LanguageContext):
+        raise TypeError("language_context must be a LanguageContext or None")
     conn = memid.get_conn()
     _progress(conn)
     turns = sorted(turns, key=lambda x: (x["ts"], x["last_id"]))
@@ -270,10 +273,14 @@ def _write_turns(db: HermesDB, provider, turns: list, *, progress=None) -> dict:
             if u or a:
                 from datetime import timezone
                 from nexsandglass.language import observation
-                from nexsandglass.core import settings
-                loc, zone = settings.get("NYX_LOCALE") or None, settings.get("NYX_TIMEZONE") or None
-                context = observation.TemporalContext(datetime.fromtimestamp(tr["ts"], timezone.utc), loc, zone,
-                                                      "historical_import") if loc or zone else None
+                # An epoch does not reveal the speaker's historical timezone.
+                # Today's profile settings must not invent that missing frame.
+                lang = language_context
+                context = observation.TemporalContext(
+                    datetime.fromtimestamp(tr["ts"], timezone.utc),
+                    lang.locale if lang else None, lang.timezone if lang else None,
+                    "historical_import_explicit" if lang else "historical_import_unknown_frame",
+                    lang.input_language if lang else "unknown")
                 with observation.bind(context), clock.frozen(datetime.fromtimestamp(tr["ts"])):
                     provider.sync_turn(u, a, session_id=f"hermes:{tr['session']}")
                 written += 1

@@ -290,3 +290,23 @@ def test_optional_llm_does_not_bypass_negative_or_uncertain_policy(monkeypatch):
         understand.Fact("user", "偏好", "black tea", evidence=text, backend="llm")])
     assert understand.extract("I don't like black tea.")[0].polarity == -1
     assert understand.extract("Maybe I like black tea.")[0].deferred
+
+
+def test_import_does_not_apply_current_profile_zone_to_unknown_history(tmp_path):
+    from types import SimpleNamespace
+    from nexsandglass import history_import
+    from nexsandglass.core.memory_provider import NexSandglassProvider
+    when = datetime.fromisoformat("2026-03-01T23:30:00+00:00").timestamp()
+    turn = {"ts": when, "last_id": 1, "session": "old-session",
+            "user": {"text": "My interview is tomorrow.", "ts": when}, "assistant": None}
+    with StoreContext(str(tmp_path / "store"), settings={"NYX_TIMEZONE": "Asia/Shanghai"}).bind():
+        # CLI import's provider stays under the already bound destination.
+        provider = NexSandglassProvider()
+        provider._profile_env = {"NYX_TIMEZONE": "Asia/Shanghai"}
+        assert history_import.write_turns(SimpleNamespace(path="source.db"), provider, [turn])["turns"] == 1
+        mid = next(r["mem_id"] for r in memid.iter_all())
+        context = observation.for_record(memid.get_conn(), mid)
+        assert context.reference.timestamp() == when and context.timezone is None
+        assert context.basis == "historical_import_unknown_frame"
+        followups.refresh()
+        assert not memid.get_conn().execute("SELECT * FROM followup_items").fetchall()
