@@ -1,4 +1,4 @@
-# Language adapter foundation (LANG-00 / LANG-02)
+# Language adapter foundation (LANG-00 / LANG-02, with LANG-03 integration)
 
 This branch builds on released M1 / 7.25.0. It is not a new public release and
 has not completed the entire LANG workstream. LANG-01 remains the optional
@@ -12,7 +12,7 @@ existing Chinese/English rule backend. Profile classification and topic slots
 now live in `language/bilingual.py`; segmentation has explicit profile/fact
 policies preserving previous evidence units. `understand.extract_rules()` goes
 through the adapter boundary and reuses the established parser, temporal policy
-and optional upstream LLM precedence. This is not a parallel retrieval engine.
+and optional upstream LLM integration. LANG-03 applies source assertion/time guards to both rule and LLM candidates. This is not a parallel retrieval engine.
 
 ```python
 from nexsandglass.language import analyze, entity_key
@@ -42,7 +42,7 @@ The ontology defines stable predicate labels and exact, typed entity aliases.
 For example `住在` and `lives_in` share a predicate key; the legacy vehicle label
 `使用` / `uses` maps to the narrower semantic name `uses_vehicle`. Unknown custom
 relations remain custom. `Fact.semantic_key` is an additive property; existing
-Fact values and `to_dict()` exports retain their shape.
+positive Fact values and `to_dict()` exports retain their shape. LANG-03 adds explicit `not:` relations and polarity for denials; see [time and assertion policy](language-time.md).
 
 Concept keys are comparison hints, not canonical memory IDs, global entity IDs
 or authority to merge records. Subject identity stays separate. The same word
@@ -61,9 +61,7 @@ Unknown literals remain typed literals; unsupported aliases can be missed.
 
 Graph predicate filters accept stable, English tool and legacy Chinese labels
 at read time, without rewriting historical rows or IDs. New explicit graph
-writes use the existing Chinese storage spelling. Historical contradictions
-already stored under different relation spellings are not silently merged or
-resolved; historical reconciliation belongs to the temporal/conflict work.
+writes use the existing Chinese storage spelling. Historical contradictions already stored under different relation spellings are not silently merged. LANG-03 adds source-bound preference/denial selection; it does not perform universal historical reconciliation.
 
 ## Profile comparison policy
 
@@ -76,10 +74,9 @@ negation, cancellation, conditional preference or temporal correction.
 Topic identity alone is insufficient to discard a health constraint. Qualified,
 uncertain or compound allergy statements are retained in full rather than
 partially superseded by a matching alias. Family-member and untrusted statements
-cannot replace the owner's preference. Full polarity, time, locale and condition
-interpretation remains LANG-03.
+cannot replace the owner's preference. The bounded LANG-03 polarity, time, locale and condition policy is now documented in [language-time.md](language-time.md).
 
-The profile processor version changes from 4 to 5. M1's durable job protocol
+LANG-02 changed the profile processor from version 4 to 5; LANG-03 advances it to 6 for the additional assertion/time policy. M1's durable job protocol
 rebuilds only that derived view and checkpoints it atomically. It does not
 rewrite raw records, IDs or source bindings. Future rule/alias/normalization
 changes affecting the view must bump its processor version again.
@@ -138,5 +135,4 @@ write/recall/forget/restore path. Python 3.12 and 3.13 full suites each passed
 1,244 tests with 2 configured skips, including actual Hermes source integration.
 Separate Conduit HTTP and package-install checks are recorded in PLAN.md.
 
-Next: LANG-03 temporal/negation policy, LANG-04 retrieval fusion, LANG-05
-presentation, then LANG-06's shared gate. M2 remains behind that gate.
+LANG-03 now adds [temporal/negation policy](language-time.md), preserving the original corpus results in a [separate report](../benchmarks/results/language_v1_lang03.json). Next: LANG-04 retrieval fusion, LANG-05 presentation, then LANG-06's shared gate. M2 remains behind that gate.
