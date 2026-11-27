@@ -17,7 +17,7 @@
 
 | 工作流 | 当前进度 | 下一项 | 进入条件 | 方案 |
 | --- | --- | --- | --- | --- |
-| M1 内核收敛 | M1-01 至 M1-06 本地验收通过；7.25.0 待发布流水线 | 发布门禁；实际语音部署另待连通验证 | 保留现有数据与接口，逐路径验收 | [M1 方案](docs/plans/m1-core.md) |
+| M1 内核收敛 | M1-01 至 M1-06 已验收并发布 v7.25.0 | LANG-00/02；实际语音部署另待连通验证 | 保留现有数据与接口，逐路径验收 | [M1 方案](docs/plans/m1-core.md) |
 | LANG 语言解耦 | LANG-01 契约已实现与验证；其他语言功能未完成 | LANG-00 冻结基线、LANG-02 语言适配层 | 与 M1 契约协调 | [语言方案](docs/plans/language-decoupling.md) |
 | M2 连续交互 | 跨厂商语音调查完成；新增自动调度未开发；已有开场事实能力已进入 notifier 0.185.0 | 工作记忆与客户端能力边界 | M1 + LANG 验收 | [M2 方案](docs/plans/m2-continuous-interaction.md)、[语音接入调查](docs/plans/m2-voice-memory.md) |
 | M3 动态世界 | 已规划，未开发 | 固定一个动态找物任务 | M1 + LANG + M2 任务上下文稳定 | [M3 方案](docs/plans/m3-world-state.md) |
@@ -30,19 +30,19 @@
 
 | ID | 交付 | 状态 | 依赖 / 验收证据 |
 | --- | --- | --- | --- |
-| M1-01 | RecallRequest / EvidenceRef / ContextPacket、结构化入口及安全导出 | 本地验证完成；发布状态见下方 7.25.0 记录 | [接口与边界](docs/recall-contracts.md)；43 项契约测试、真实写入/遗忘/恢复流程；全量结果见下方证据说明 |
-| M1-02 | 统一最终上下文预算与证据完整性 | 本地验证完成；发布状态见下方 7.25.0 记录 | [共享编排说明](docs/context-composition.md)；MemoryBundle 与逐轮打包助手已采用；宿主配额收敛见 M1-03 |
-| M1-03 | Nyx 可控的 Hermes / MCP 适配器接入契约与真实 trace | 本地实现与真实宿主模块集成验证完成；实际服务器/真机未验证；发布状态见下方记录 | [适配器与边界](docs/host-context.md)；共同预算、完整证据、无正文 trace；真实 Hermes 与官方/分叉 Conduit HTTP 检查通过，发送/应用状态仍未知 |
-| M1-04 | 显式 StoreContext 与档案隔离 | 核心闭环本地验收完成 | [实现范围与降级边界](docs/store-context.md)；真实双档案并发、线程池、历史导入、配置/凭证、删除恢复已验证 |
-| M1-05 | 持久投影任务、就绪水位与事务账本迁移决策 | 画像/待跟进本地验收完成 | [权威及恢复决策](docs/projection-readiness.md)；批次/水位同事务、租约隔离、真实进程中断、旧记录恢复与来源变更失效已验证；权威未迁移 |
-| M1-06 | 兼容性、故障注入与交付门禁 | 本地验收通过；外部发布门禁待执行 | Python 3.12/3.13 各 1203 通过、2 跳过；真实 Hermes 与官方 Conduit HTTP 集成另行通过；构建/CI/发布独立记录 |
+| M1-01 | RecallRequest / EvidenceRef / ContextPacket、结构化入口及安全导出 | 验证完成；已随 7.25.0 发布 | [接口与边界](docs/recall-contracts.md)；43 项契约测试、真实写入/遗忘/恢复流程；全量结果见下方证据说明 |
+| M1-02 | 统一最终上下文预算与证据完整性 | 验证完成；已随 7.25.0 发布 | [共享编排说明](docs/context-composition.md)；MemoryBundle 与逐轮打包助手已采用；宿主配额收敛见 M1-03 |
+| M1-03 | Nyx 可控的 Hermes / MCP 适配器接入契约与真实 trace | 本地实现与真实宿主模块集成验证完成；实际服务器/真机未验证；已随 7.25.0 发布 | [适配器与边界](docs/host-context.md)；共同预算、完整证据、无正文 trace；真实 Hermes 与官方/分叉 Conduit HTTP 检查通过，发送/应用状态仍未知 |
+| M1-04 | 显式 StoreContext 与档案隔离 | 核心闭环验收完成；已发布 | [实现范围与降级边界](docs/store-context.md)；真实双档案并发、线程池、历史导入、配置/凭证、删除恢复已验证 |
+| M1-05 | 持久投影任务、就绪水位与事务账本迁移决策 | 画像/待跟进验收完成；已发布 | [权威及恢复决策](docs/projection-readiness.md)；批次/水位同事务、租约隔离、真实进程中断、旧记录恢复与来源变更失效已验证；权威未迁移 |
+| M1-06 | 兼容性、故障注入与交付门禁 | 本地与四版本 CI、构建/发布门禁通过 | Python 3.12/3.13 各 1203 通过、2 跳过；真实 Hermes 与官方 Conduit HTTP 集成另行通过；构建/CI/发布独立记录 |
 
 **LANG 子任务**
 
 | ID | 交付 | 状态 | 依赖 / 验收要求 |
 | --- | --- | --- | --- |
 | LANG-00 | 中英文及混合输入的冻结基线与留出数据 | 待执行 | 在改规则前记录当前实际表现，分清画像携带与历史检索 |
-| LANG-01 | 输入语言、回复偏好、locale、timezone 的独立契约 | 本地实现与验证完成，随 M1 兼容交付 | [LanguageContext](docs/language-context.md)；53 项专项测试纳入全量；缺省导出兼容，输入/回复偏好独立，元数据不充当授权 |
+| LANG-01 | 输入语言、回复偏好、locale、timezone 的独立契约 | 实现与验证完成，已随 M1 兼容发布 | [LanguageContext](docs/language-context.md)；53 项专项测试纳入全量；缺省导出兼容，输入/回复偏好独立，元数据不充当授权 |
 | LANG-02 | 语言适配层、稳定语义键及实体别名 | 待开发 | LANG-01；原话、mem_id、来源保留；避免花生/peanuts 分成无法关联的槽位 |
 | LANG-03 | 中英文时间、否定、取消及跨语言更正 | 待开发 | LANG-01/02；测试时区、夏令时、历史导入和模糊日期 |
 | LANG-04 | 词法与可选跨语言语义召回的融合 | 待开发 | LANG-00/02；分别报告无向量、真实本地模型及可选 API 配置 |
@@ -100,7 +100,7 @@ M1-03 的已有证据，日期 2026-11-22：
 
 **Git 分支与续接方式**
 
-当前实际分支为 `codex/m1-core`，保留并完成此前 M1-01 至 M1-03 成果，加入 M1-04/05、验收与 LANG-01 元数据。发布状态见下方记录；完整语言功能分支尚未创建。
+M1 实现分支 `codex/m1-core` 已经 PR #40 合并到 `main`，保留并完成此前成果，加入 M1-04/05、验收与 LANG-01 元数据。当前工作树位于 `main`；原 `work` 和 M1 分支保留。完整语言功能分支尚未创建。
 
 | 工作流 | 计划分支名 | 创建基线 / 规则 |
 | --- | --- | --- |
@@ -127,5 +127,9 @@ M1-03 的已有证据，日期 2026-11-22：
 - Python 3.12 全量：1203 通过、2 跳过；Python 3.13 全量：1203 通过、2 跳过。各自启用真实 Hermes 源码，跳过项为独立启用的 Conduit HTTP 集成和既有三元组样例的“未抽出三元组”分支。保留既有 Starlette/httpx 弃用提醒。
 - 真实 Hermes + 官方 Conduit 0.202.2 的集成专项：2 通过，包含真实 HTTP 路由的开场事实及历史检索；无真实音频、模型调用或用户服务器访问。Hermes 基线 `1047b6411692fccadc49dece77a1f24a87639f87`。
 - 本轮完成 StoreContext 核心闭环及画像/待跟进持久任务；LANG-01 仅交付元数据，LANG 其他项与 M2–M5 保持待开发。
-- 发布候选：7.25.0；包、三份 Hermes manifest 与依赖下界已同步。最终 wheel、四版本 CI 和公开发布结果待以下链接提供独立证据。
-- [发布页面](https://github.com/sixgodgit/nyx/releases/tag/v7.25.0)、[Release 工作流](https://github.com/sixgodgit/nyx/actions/workflows/release.yml)、[CI 工作流](https://github.com/sixgodgit/nyx/actions/workflows/ci.yml)。本地测试通过不代表公开发布已成功。
+- v7.25.0 已发布；包、三份 Hermes manifest 与依赖下界同步。严格 Twine 检查、全新离线环境安装、实际 Release smoke 脚本、安装后双档案核心流程及 MCP stdio 验证通过。发布 wheel 的 Python/manifest 内容与测试提交逐文件一致，CI 两份产物 SHA256 与 PyPI 一致。
+- [PR #40](https://github.com/sixgodgit/nyx/pull/40) 已合并。实现/标签提交 `67dc1a602d7793593444ef792b329f3d3ed43eae`；主分支合并提交 `abbebd1249aebacb214bd52c7aed230b245ddcc1`，合并时与标签树完全相同。
+- [四版本 CI #46024999959](https://github.com/sixgodgit/nyx/actions/runs/46024999959)：Python 3.10–3.13 各 1202 通过、3 跳过；真实 Hermes/Conduit 为独立可选集成，另有既有三元组样例跳过分支。
+- [Release #46025280727](https://github.com/sixgodgit/nyx/actions/runs/46025280727)：四版本测试、构建、干净 wheel smoke 和 OIDC PyPI 发布全部成功。先确认 PyPI 7.25.0 可下载，再合并主分支安装清单，避免新依赖下界早于包上架。
+- [GitHub Release](https://github.com/sixgodgit/nyx/releases/tag/v7.25.0) 于 2026-11-27 发布，非草稿、非预发布；[PyPI 7.25.0](https://pypi.org/project/nyx-memory/7.25.0/) 已实测可读。GitHub 附件上传端点返回 401，Release 提供相同已校验 PyPI 产物的直接下载链接和 SHA256，源码归档由标签提供。
+- [发布页面](https://github.com/sixgodgit/nyx/releases/tag/v7.25.0)、[Release 工作流](https://github.com/sixgodgit/nyx/actions/workflows/release.yml)、[CI 工作流](https://github.com/sixgodgit/nyx/actions/workflows/ci.yml)。外部发布已按上述 Release、Actions 与 PyPI 独立核验。
