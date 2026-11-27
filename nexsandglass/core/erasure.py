@@ -175,6 +175,21 @@ def find_duplicate_runs(min_run: int = 3) -> list:
 # 级联删除
 # ══════════════════════════════════════════════════════════
 
+def _rewrite_redacted_lines(path: str, mark: dict) -> None:
+    from nexsandglass.core.fsutil import atomic_write, split_line_ending
+    # Exit the reader before atomic_write commits os.replace: Windows refuses
+    # replacing an open destination. Binary streaming also preserves untouched
+    # bytes and each line's LF/CRLF ending across platforms.
+    with atomic_write(path, mode="wb") as dst:
+        with open(path, "rb") as src:
+            for n, line in enumerate(src, 1):
+                if n in mark:
+                    _, ending = split_line_ending(line)
+                    dst.write(mark[n].encode("utf-8") + ending)
+                else:
+                    dst.write(line)
+
+
 def _redact_journal(rows: list, reason: str, journal_path: str) -> int:
     """就地抹除日志正文，**保持物理行数不变**。rows = [(mem_id, line_start, line_end, ts, sender)]"""
     if not rows or not os.path.exists(journal_path):
@@ -185,16 +200,10 @@ def _redact_journal(rows: list, reason: str, journal_path: str) -> int:
         for n in range(ls + 1, (le or ls) + 1):
             mark[n] = REDACTED_CONT
 
-    from nexsandglass.core.fsutil import atomic_write
-    n_lines = 0
     # 必须和追加写入用同一把锁（v7.13.3）：读整份 → 写临时文件 → 替换，中间有人追加的那一行会被替换掉，
     # 中枢里有它、日志里没了（压测实测每轮丢 1–5 条）。锁是可重入的：forget 外层已经持有
     with memid.journal_lock(journal_path):
-        with open(journal_path, "r", encoding="utf-8", errors="replace") as src, \
-                atomic_write(journal_path) as dst:
-            for n, line in enumerate(src, 1):
-                dst.write(mark[n] + "\n" if n in mark else line)
-                n_lines += 1
+        _rewrite_redacted_lines(journal_path, mark)
     memid._line_count_cache.pop(journal_path, None)
     return len(mark)
 
@@ -218,8 +227,10 @@ def _redact_backup(rows: list, reason: str, journal_path: str) -> dict:
     if not rows or not os.path.exists(bak):
         return out
 
-    n_journal = sum(1 for _ in open(journal_path, "r", encoding="utf-8", errors="replace"))
-    n_bak = sum(1 for _ in open(bak, "r", encoding="utf-8", errors="replace"))
+    with open(journal_path, "rb") as src:
+        n_journal = sum(1 for _ in src)
+    with open(bak, "rb") as src:
+        n_bak = sum(1 for _ in src)
     mark = {}
     for mem_id, ls, le, ts, sender in rows:
         mark[ls] = f"{ts} | {sender} | {REDACTED_PREFIX} {_now()} reason={reason} mem={mem_id}]"
@@ -234,10 +245,7 @@ def _redact_backup(rows: list, reason: str, journal_path: str) -> dict:
         out["journal_lines"] = n_journal
         return out
 
-    from nexsandglass.core.fsutil import atomic_write
-    with open(bak, "r", encoding="utf-8", errors="replace") as src, atomic_write(bak) as dst:
-        for n, line in enumerate(src, 1):
-            dst.write(mark[n] + "\n" if n in mark else line)
+    _rewrite_redacted_lines(bak, mark)
     out["lines"] = len(mark)
     out["status"] = "redacted"
     return out

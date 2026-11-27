@@ -20,6 +20,15 @@ import tempfile
 from typing import Iterator, TextIO
 
 
+def split_line_ending(line: bytes) -> tuple[bytes, bytes]:
+    """Split one physical journal line without normalizing its bytes."""
+    if line.endswith(b"\r\n"):
+        return line[:-2], b"\r\n"
+    if line.endswith(b"\n"):
+        return line[:-1], b"\n"
+    return line, b""
+
+
 @contextlib.contextmanager
 def atomic_write(path: str, mode: str = "w", encoding: str = "utf-8", fsync: bool = True) -> Iterator[TextIO]:
     """``with atomic_write(p) as f: f.write(...)`` —— 成功才替换，异常时原文件不动、临时文件清掉。"""
