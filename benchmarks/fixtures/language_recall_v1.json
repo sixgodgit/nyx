@@ -1,0 +1,726 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "peanut-zh-en",
+      "group": "peanut",
+      "split": "dev",
+      "kind": "alias",
+      "direction": "zh-en",
+      "records": [
+        "我对花生过敏。",
+        "我女儿喜欢花生。",
+        "I am allergic to milk.",
+        "我使用花生油做饭。",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "Am I allergic to peanuts?",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "peanut-en-zh",
+      "group": "peanut",
+      "split": "dev",
+      "kind": "alias",
+      "direction": "en-zh",
+      "records": [
+        "I am allergic to peanuts.",
+        "我女儿喜欢花生。",
+        "I am allergic to milk.",
+        "我使用花生油做饭。",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "我对花生过敏吗？",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "tea-zh-en",
+      "group": "tea",
+      "split": "heldout",
+      "kind": "alias",
+      "direction": "zh-en",
+      "records": [
+        "我喜欢红茶。",
+        "I like green tea.",
+        "我女儿喜欢红茶。",
+        "Steam rises from the kettle.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "Do I like black tea?",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "tea-en-zh",
+      "group": "tea",
+      "split": "heldout",
+      "kind": "alias",
+      "direction": "en-zh",
+      "records": [
+        "I like black tea.",
+        "I like green tea.",
+        "我女儿喜欢红茶。",
+        "Steam rises from the kettle.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "我喜欢红茶吗？",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "lactose-zh-en",
+      "group": "lactose",
+      "split": "dev",
+      "kind": "alias",
+      "direction": "zh-en",
+      "records": [
+        "我不能喝含乳糖的饮料。",
+        "我对牛奶过敏。",
+        "I enjoy milk.",
+        "我对虾过敏。",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "What did I say about lactose?",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "lactose-en-zh",
+      "group": "lactose",
+      "split": "dev",
+      "kind": "alias",
+      "direction": "en-zh",
+      "records": [
+        "I cannot drink beverages containing lactose.",
+        "我对牛奶过敏。",
+        "I enjoy milk.",
+        "我对虾过敏。",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "我提过乳糖吗？",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "shellfish-zh-en",
+      "group": "shellfish",
+      "split": "heldout",
+      "kind": "alias",
+      "direction": "zh-en",
+      "records": [
+        "我对贝类过敏。",
+        "I am allergic to fish.",
+        "我喜欢虾。",
+        "我的同事喜欢贝类。",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "Am I allergic to shellfish?",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "shellfish-en-zh",
+      "group": "shellfish",
+      "split": "heldout",
+      "kind": "alias",
+      "direction": "en-zh",
+      "records": [
+        "I am allergic to shellfish.",
+        "I am allergic to fish.",
+        "我喜欢虾。",
+        "我的同事喜欢贝类。",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "我对贝类过敏吗？",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "vehicle-zh-en",
+      "group": "vehicle",
+      "split": "dev",
+      "kind": "alias",
+      "direction": "zh-en",
+      "records": [
+        "我使用特斯拉。",
+        "I use a BMW.",
+        "我喜欢红茶。",
+        "宝马汽车停在路边。",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "Which Tesla do I use?",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "vehicle-en-zh",
+      "group": "vehicle",
+      "split": "dev",
+      "kind": "alias",
+      "direction": "en-zh",
+      "records": [
+        "I use a Tesla.",
+        "I use a BMW.",
+        "我喜欢红茶。",
+        "宝马汽车停在路边。",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "我使用特斯拉吗？",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "residence-zh-en",
+      "group": "residence",
+      "split": "heldout",
+      "kind": "structure",
+      "direction": "zh-en",
+      "records": [
+        "我住在克洛托普。",
+        "I work at Pavo Labs.",
+        "我的朋友住在阿尔托。",
+        "The meeting is at the town hall.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "Where do I live?",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "residence-en-zh",
+      "group": "residence",
+      "split": "heldout",
+      "kind": "structure",
+      "direction": "en-zh",
+      "records": [
+        "I live in Klottorp.",
+        "I work at Pavo Labs.",
+        "我的朋友住在阿尔托。",
+        "The meeting is at the town hall.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "我住在哪里？",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "allergy-zh-en",
+      "group": "allergy",
+      "split": "dev",
+      "kind": "structure",
+      "direction": "zh-en",
+      "records": [
+        "我对腰果过敏。",
+        "I like black tea.",
+        "我喜欢杏仁。",
+        "My daughter likes cashews.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "What am I allergic to?",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "allergy-en-zh",
+      "group": "allergy",
+      "split": "dev",
+      "kind": "structure",
+      "direction": "en-zh",
+      "records": [
+        "I am allergic to cashews.",
+        "I like black tea.",
+        "我喜欢杏仁。",
+        "My daughter likes cashews.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "我对什么过敏？",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "coffee-zh-en",
+      "group": "coffee",
+      "split": "heldout",
+      "kind": "alias",
+      "direction": "zh-en",
+      "records": [
+        "我不喜欢咖啡。",
+        "I like black tea.",
+        "我使用宝马汽车。",
+        "The café opens at nine.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "What did I say about coffee?",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "coffee-en-zh",
+      "group": "coffee",
+      "split": "heldout",
+      "kind": "alias",
+      "direction": "en-zh",
+      "records": [
+        "I do not like coffee.",
+        "I like black tea.",
+        "我使用宝马汽车。",
+        "The café opens at nine.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "我提过咖啡吗？",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "key-zh-en",
+      "group": "key",
+      "split": "dev",
+      "kind": "open",
+      "direction": "zh-en",
+      "records": [
+        "备用门钥匙藏在雨伞架旁的陶瓷碗里。",
+        "The bicycle lock is in the garage.",
+        "钱包在书桌抽屉里。",
+        "The spare blanket is on the bed.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "Where can I find the backup key for the front door?",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "key-en-zh",
+      "group": "key",
+      "split": "dev",
+      "kind": "open",
+      "direction": "en-zh",
+      "records": [
+        "The spare door key is tucked into the ceramic bowl beside the umbrella stand.",
+        "The bicycle lock is in the garage.",
+        "钱包在书桌抽屉里。",
+        "The spare blanket is on the bed.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "开门的备用钥匙放在哪儿？",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "pet-zh-en",
+      "group": "pet",
+      "split": "heldout",
+      "kind": "open",
+      "direction": "zh-en",
+      "records": [
+        "周末收养了一只橘猫，给它取名叫团子。",
+        "The neighbour has a dog named Maple.",
+        "我新买的杯子是橙色的。",
+        "I went to the zoo on Friday.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "What is the name of the pet I brought home?",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "pet-en-zh",
+      "group": "pet",
+      "split": "heldout",
+      "kind": "open",
+      "direction": "en-zh",
+      "records": [
+        "I adopted an orange kitten over the weekend and named it Dumpling.",
+        "The neighbour has a dog named Maple.",
+        "我新买的杯子是橙色的。",
+        "I went to the zoo on Friday.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "我领养的宠物叫什么名字？",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "injury-zh-en",
+      "group": "injury",
+      "split": "dev",
+      "kind": "open",
+      "direction": "zh-en",
+      "records": [
+        "攀岩时扭伤了手腕，所以暂时停止弹钢琴。",
+        "我每周跑步。",
+        "The piano was delivered last month.",
+        "My ankle recovered after the hike.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "Why did I stop practicing music?",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "injury-en-zh",
+      "group": "injury",
+      "split": "dev",
+      "kind": "open",
+      "direction": "en-zh",
+      "records": [
+        "I sprained my wrist while climbing, so I have paused piano practice.",
+        "我每周跑步。",
+        "The piano was delivered last month.",
+        "My ankle recovered after the hike.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "我为什么暂停练习乐器？",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "gift-zh-en",
+      "group": "gift",
+      "split": "heldout",
+      "kind": "open",
+      "direction": "zh-en",
+      "records": [
+        "送给姐姐的生日礼物是一本装满旧照片的相册。",
+        "I bought a notebook for work.",
+        "我给同事送了一张贺卡。",
+        "My brother gave me a scarf.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "What present did I choose for my sibling’s birthday?",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "gift-en-zh",
+      "group": "gift",
+      "split": "heldout",
+      "kind": "open",
+      "direction": "en-zh",
+      "records": [
+        "For my sister’s birthday I gave her an album filled with old photographs.",
+        "I bought a notebook for work.",
+        "我给同事送了一张贺卡。",
+        "My brother gave me a scarf.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "我送了什么给姐姐庆生？",
+      "expected": [
+        0
+      ],
+      "excluded": []
+    },
+    {
+      "id": "no-match",
+      "group": "no-match",
+      "split": "heldout",
+      "kind": "negative",
+      "direction": "mixed",
+      "records": [
+        "我喜欢红茶。",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "quantum zeppelin checksum",
+      "expected": [],
+      "excluded": [
+        0
+      ]
+    },
+    {
+      "id": "boundary",
+      "group": "boundary",
+      "split": "heldout",
+      "kind": "negative",
+      "direction": "mixed",
+      "records": [
+        "The steam engine broke yesterday.",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "我提过茶吗？",
+      "expected": [],
+      "excluded": [
+        0
+      ]
+    },
+    {
+      "id": "parent",
+      "group": "parent",
+      "split": "heldout",
+      "kind": "negative",
+      "direction": "mixed",
+      "records": [
+        "我对乳糖不耐受。",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "Am I allergic to milk?",
+      "expected": [],
+      "excluded": [
+        0
+      ]
+    },
+    {
+      "id": "modifier",
+      "group": "modifier",
+      "split": "heldout",
+      "kind": "negative",
+      "direction": "mixed",
+      "records": [
+        "我只对花生油过敏。",
+        "我昨天整理了书架。",
+        "The garden gate was painted on Saturday.",
+        "我买了一支蓝色圆珠笔。",
+        "The train to the airport leaves at noon.",
+        "周末的天气晴朗。",
+        "The printer needs more paper.",
+        "我把旧报纸放进回收箱。",
+        "The library closes at six."
+      ],
+      "query": "Am I allergic to peanuts?",
+      "expected": [],
+      "excluded": [
+        0
+      ]
+    }
+  ],
+  "limits": [
+    "Implementer-authored synthetic grouped regression, not independent blind quality.",
+    "Open cases are measured separately from explicit aliases and structure.",
+    "Evidence visibility is not model answer utilization."
+  ]
+}
