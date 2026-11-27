@@ -131,6 +131,7 @@ def test_denial_is_not_stored_as_a_positive_fact(text):
     facts = understand.extract_rules(text, now=datetime(2026, 1, 1))
     assert facts and all(f.polarity == -1 for f in facts)
     assert all(not f.deferred for f in facts)
+    assert all(f.to_dict()["relation"].startswith("not:") and f.to_dict()["polarity"] == -1 for f in facts)
 
 
 @pytest.mark.parametrize("text", [

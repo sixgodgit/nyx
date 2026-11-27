@@ -101,6 +101,9 @@ class Fact:
     def to_dict(self) -> dict:
         d = {k: v for k, v in self.__dict__.items() if k not in ("polarity", "assertion", "time_resolution")}
         d["valid_from"] = self.valid_from.strftime("%Y-%m-%dT%H:%M:%S") if self.valid_from else None
+        if self.polarity < 0:
+            d["relation"] = "not:" + self.relation
+            d["polarity"] = -1
         return d
 
 
