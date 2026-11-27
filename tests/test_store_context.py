@@ -234,6 +234,9 @@ with stores[0].bind():
     assert forget({'mem_id': ids[0]})['ok']
     assert texts[0] not in recall_request(RecallRequest('cobalt mug', token_budget=800)).text
     assert restore(ids[0])['ok']
+    # Restore schedules vector rebuilding in the background. Complete that
+    # documented step before asserting the derived index is already current.
+    semantic.index_pending()
 read(0)
 read(1)
 print('SCOPED REAL PIPELINE: PASS')
