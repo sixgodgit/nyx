@@ -663,11 +663,10 @@ def belief_timeline(db_path: str, subject: str, predicate: str = None) -> list:
     单时态系统里这个问题没有数据可以回答。
     """
     ensure_temporal_columns(db_path)
-    sql = "SELECT * FROM wthread_triples WHERE subject=?"
-    p: list = [subject]
+    sql = "SELECT * FROM wthread_triples WHERE subject=:s"
+    p = {"s": subject}
     if predicate:
-        sql += " AND relation=?"
-        p.append(predicate)
+        sql += _predicate_filter(p, predicate)
     conn = _connect(db_path)
     try:
         rows = [dict(r) for r in conn.execute(sql, p).fetchall()]
@@ -678,6 +677,8 @@ def belief_timeline(db_path: str, subject: str, predicate: str = None) -> list:
         base = {"id": r["id"], "subject": r["subject"], "relation": r["relation"],
                 "object": r["object"], "valid_from": r["valid_from"],
                 "valid_until": r["valid_until"], "valid_basis": r.get("valid_basis")}
+        if r.get("polarity", 1) < 0:
+            base.update(polarity=-1, base_relation=r["relation"][4:])
         ev.append({**base, "at": r["recorded_at"], "event": "learned"})
         if r.get("closed_at"):
             ev.append({**base, "at": r["closed_at"], "event": "closed"})

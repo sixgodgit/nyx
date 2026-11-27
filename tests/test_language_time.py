@@ -327,3 +327,7 @@ def test_provider_tool_and_graph_renderers_preserve_denial(tmp_path):
     result = json.loads(provider.handle_tool_call("nyx_belief", {"relation": "likes"}))
     assert result["facts"][0]["relation"] == "not:likes"
     assert result["facts"][0]["polarity"] == -1
+    history = json.loads(provider.handle_tool_call("nyx_belief", {"relation": "likes", "history": True}))
+    assert history["facts"][0]["polarity"] == -1
+    assert history["timeline"][0]["polarity"] == -1
+    assert history["timeline"][0]["relation"].startswith("not:")
