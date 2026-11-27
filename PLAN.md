@@ -6,7 +6,7 @@
 
 **当前优先顺序**
 
-1. 完成 M1 内核收敛，保留现有接口和用户数据。
+1. M1 已发布 v7.25.0；继续保留现有接口和用户数据。
 2. 完成语言解耦工作流 LANG；契约设计和基线评测可与 M1 并行，语言功能在稳定契约上开发。
 3. M1 与 LANG 均验收后，推进 M2 连续交互。
 4. 随后依次推进 M3 动态世界、M4 经验闭环、M5 多设备与生态。
@@ -17,8 +17,8 @@
 
 | 工作流 | 当前进度 | 下一项 | 进入条件 | 方案 |
 | --- | --- | --- | --- | --- |
-| M1 内核收敛 | M1-01 至 M1-06 已验收并发布 v7.25.0 | LANG-00/02；实际语音部署另待连通验证 | 保留现有数据与接口，逐路径验收 | [M1 方案](docs/plans/m1-core.md) |
-| LANG 语言解耦 | LANG-01 契约已实现与验证；其他语言功能未完成 | LANG-00 冻结基线、LANG-02 语言适配层 | 与 M1 契约协调 | [语言方案](docs/plans/language-decoupling.md) |
+| M1 内核收敛 | M1-01 至 M1-06 已验收并发布 v7.25.0 | LANG-03/04；实际语音部署另待连通验证 | 保留现有数据与接口，逐路径验收 | [M1 方案](docs/plans/m1-core.md) |
+| LANG 语言解耦 | LANG-00/01/02 已实现并本地验收；完整工作流未完成 | LANG-03 时间/否定与 LANG-04 检索融合 | 与 M1 契约协调 | [语言方案](docs/plans/language-decoupling.md) |
 | M2 连续交互 | 跨厂商语音调查完成；新增自动调度未开发；已有开场事实能力已进入 notifier 0.185.0 | 工作记忆与客户端能力边界 | M1 + LANG 验收 | [M2 方案](docs/plans/m2-continuous-interaction.md)、[语音接入调查](docs/plans/m2-voice-memory.md) |
 | M3 动态世界 | 已规划，未开发 | 固定一个动态找物任务 | M1 + LANG + M2 任务上下文稳定 | [M3 方案](docs/plans/m3-world-state.md) |
 | M4 经验闭环 | 已规划，未开发 | 任务经历、动作与结果契约 | M3 可记录可信状态变化 | [M4 方案](docs/plans/m4-experience.md) |
@@ -41,9 +41,9 @@
 
 | ID | 交付 | 状态 | 依赖 / 验收要求 |
 | --- | --- | --- | --- |
-| LANG-00 | 中英文及混合输入的冻结基线与留出数据 | 待执行 | 在改规则前记录当前实际表现，分清画像携带与历史检索 |
+| LANG-00 | 中英文及混合输入的冻结基线与留出数据 | 已冻结并完成前后对照 | [60 个合成样例](docs/language-adapters.md)，按人物/事件分组；冻结提交 `134f7c1`，画像与历史检索单独计量；不是独立盲测质量证明 |
 | LANG-01 | 输入语言、回复偏好、locale、timezone 的独立契约 | 实现与验证完成，已随 M1 兼容发布 | [LanguageContext](docs/language-context.md)；53 项专项测试纳入全量；缺省导出兼容，输入/回复偏好独立，元数据不充当授权 |
-| LANG-02 | 语言适配层、稳定语义键及实体别名 | 待开发 | LANG-01；原话、mem_id、来源保留；避免花生/peanuts 分成无法关联的槽位 |
+| LANG-02 | 语言适配层、稳定语义键及实体别名 | 本地实现与验收完成；尚未合并/发布 | [适配器及边界](docs/language-adapters.md)；41 项新增测试纳入全量；已知精确别名关联、旧标签兼容，保留原话/ID/来源及带条件健康声明 |
 | LANG-03 | 中英文时间、否定、取消及跨语言更正 | 待开发 | LANG-01/02；测试时区、夏令时、历史导入和模糊日期 |
 | LANG-04 | 词法与可选跨语言语义召回的融合 | 待开发 | LANG-00/02；分别报告无向量、真实本地模型及可选 API 配置 |
 | LANG-05 | 原文、结构化事实与呈现语言分离 | 待开发 | LANG-01/02 + M1-02/03；翻译或显示变化不改来源与事实身份 |
@@ -100,12 +100,12 @@ M1-03 的已有证据，日期 2026-11-22：
 
 **Git 分支与续接方式**
 
-M1 实现分支 `codex/m1-core` 已经 PR #40 合并到 `main`，保留并完成此前成果，加入 M1-04/05、验收与 LANG-01 元数据。当前工作树位于 `main`；原 `work` 和 M1 分支保留。完整语言功能分支尚未创建。
+M1 实现分支 `codex/m1-core` 已经 PR #40 合并到 `main`，保留并完成此前成果，加入 M1-04/05、验收与 LANG-01 元数据。原 `work` 和 M1 分支保留。语言分支 `codex/language-decoupling` 已从已验证的 `main` 提交 `d78016d634e98231cfda31ea4051b39000b5a337` 创建；当前工作树位于该分支，LANG-00/02 首批交付尚未合并/发布。
 
 | 工作流 | 计划分支名 | 创建基线 / 规则 |
 | --- | --- | --- |
 | M1 | `codex/m1-core` | 执行时从保留当前 M1 改动的可审阅基线继续；先记录并保护已有工作 |
-| LANG | `codex/language-decoupling` | 从已验证并记录 SHA 的 M1 契约基线创建；本轮尚未创建，不伪装为已开发 |
+| LANG | `codex/language-decoupling` | 已从 `d78016d` 创建；冻结基线 `134f7c1`，适配器产品代码 `96654ff`；本轮交付 LANG-00/02，完整语言工作流仍在继续 |
 | M2 | `codex/m2-continuous-interaction` | M1 与 LANG 集成验收基线 |
 | M3 | `codex/m3-world-state` | 稳定任务/状态协议基线 |
 | M4 | `codex/m4-experience` | M3 验收基线 |
@@ -133,3 +133,15 @@ M1 实现分支 `codex/m1-core` 已经 PR #40 合并到 `main`，保留并完成
 - [Release #46025280727](https://github.com/sixgodgit/nyx/actions/runs/46025280727)：四版本测试、构建、干净 wheel smoke 和 OIDC PyPI 发布全部成功。先确认 PyPI 7.25.0 可下载，再合并主分支安装清单，避免新依赖下界早于包上架。
 - [GitHub Release](https://github.com/sixgodgit/nyx/releases/tag/v7.25.0) 于 2026-11-27 发布，非草稿、非预发布；[PyPI 7.25.0](https://pypi.org/project/nyx-memory/7.25.0/) 已实测可读。GitHub 附件上传端点返回 401，Release 提供相同已校验 PyPI 产物的直接下载链接和 SHA256，源码归档由标签提供。
 - [发布页面](https://github.com/sixgodgit/nyx/releases/tag/v7.25.0)、[Release 工作流](https://github.com/sixgodgit/nyx/actions/workflows/release.yml)、[CI 工作流](https://github.com/sixgodgit/nyx/actions/workflows/ci.yml)。外部发布已按上述 Release、Actions 与 PyPI 独立核验。
+
+
+**LANG-00/02 首批交付（2026-11-27，语言分支）**
+
+- 当前交付与公开 7.25.0 分开：分支 `codex/language-decoupling`，未合并主分支、未发布新包、未修改用户服务器。语言分支保留现有包版本作为本地构建基线，不覆盖同版本公开包。
+- 冻结基线 `134f7c1` 早于任何本轮产品规则修改；60 个合成样例、12 个人物/事件组，四向中英文及混说。语料 SHA256 为 `2c8f9a8f2fd39ac81e7febee3fd0db8595792115c4eeae81e752913b6a4efd49`。这不是独立作者的盲测或开放域质量评估。
+- 产品冻结提交 `96654ffb05d1057f83b11a571c79fb14166c5612`；相同冻结语料的两个报告见 [M1 基线](benchmarks/results/language_v1_m1_baseline.json) 与 [LANG-02](benchmarks/results/language_v1_lang02.json)。已知别名槽位匹配 0/4 → 4/4；各方向当前视图中过时偏好 2 → 0；历史证据召回保持原值，跨语言两个方向均为 2/12，不宣称检索质量已改善。
+- `nexsandglass.language` 提供明确规则适配器、稳定 predicate 与带类型的精确实体别名；沿用原抽取器及其时间政策，不另建检索引擎。旧中文图谱关系在读取时兼容映射，原文/ID/来源不重写，历史冲突不自动合并。
+- 画像处理器从版本 4 升至 5，只经 M1 持久任务重建派生视图。条件或不确定过敏声明完整保留，人物和信任边界独立于语义键。完整否定、时区、模糊日期、事件关联仍由 LANG-03 实施。
+- Python 3.12 / 3.13 全量各 1244 通过、2 跳过，均启用真实 Hermes 源码集成；新增适配器测试 41 项已包含在全量中。既有 Starlette/httpx 弃用提醒保留。
+- [语言分支](https://github.com/sixgodgit/nyx/tree/codex/language-decoupling) 的草稿 PR 单独展示四版本 CI 和审阅状态；本地验证、外部 CI、合并及发布分开记录。
+- 官方 Conduit 0.202.2 的真实 HTTP 集成专项：1 通过（Hermes 已纳入两轮全量）。wheel/sdist 构建、严格 Twine 校验、全新离线安装及安装后 Provider 语音事实验证通过；实际渲染保留最新英文更正、原始中文记录仍在，trace 的发送/应用状态仍为未知。未进行真实音频或用户服务器检查。

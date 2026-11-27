@@ -74,7 +74,9 @@ trust or rewrites canonical IDs. The host must bind storage and permissions
 through its independent store context and must validate any persistent preference
 through the normal source/trust path.
 
-The contract adds no cross-language aliases or semantic retrieval guarantees.
+The LANG-01 contract itself adds no cross-language aliases or semantic retrieval guarantees.
+The language branch adds a separate [LANG-02 adapter foundation](language-adapters.md) with explicit typed aliases;
+it does not turn those metadata fields into retrieval or authorization rules.
 Chinese/English negation, corrections, time interpretation and open-ended
 cross-language recall still require LANG-02–06 implementation and evaluation.
 
