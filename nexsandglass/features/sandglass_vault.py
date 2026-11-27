@@ -215,9 +215,12 @@ def _write_idx(idx, covered_lines: int = None):
     from nexsandglass.core.fsutil import atomic_write
     # 唯一临时文件名（v7.13.3）：固定的 sandglass.idx.tmp 在两个写入方同时写时会
     # 互相截断 / 被对方挪走（生产日志：FileNotFoundError sandglass.idx.tmp -> sandglass.idx）
-    with atomic_write(_index_path(), fsync=False) as f:
-        _write_idx_body(f, idx, covered_lines)
-    _remember_file_sig()
+    # Coordinate direct writers with rebuilds and background persistence too.
+    # On Windows even a concurrent stat/chmod handle can block replacement.
+    with _idx_lock:
+        with atomic_write(_index_path(), fsync=False) as f:
+            _write_idx_body(f, idx, covered_lines)
+        _remember_file_sig()
 
 
 def _write_idx_body(f, idx, covered_lines, lens=None):

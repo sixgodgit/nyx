@@ -204,13 +204,16 @@ def _replay(db: sqlite3.Connection, table: str, rows: list) -> int:
 
 def _read_lines(path: str) -> tuple:
     """返回 (lines, had_trailing_newline)。lines 不含行尾换行。"""
+    from nexsandglass.core.fsutil import split_line_ending
     if not path or not os.path.exists(path):
         return [], True
-    with open(path, "r", encoding="utf-8", errors="replace") as f:
-        raw = f.read()
-    if raw == "":
+    # Match physical journal lines: str.splitlines() also splits U+2028/NEL
+    # inside a record and would truncate the originals saved for recovery.
+    with open(path, "rb") as f:
+        raw = f.readlines()
+    if not raw:
         return [], True
-    return raw.splitlines(), raw.endswith("\n")
+    return [split_line_ending(line)[0].decode("utf-8", errors="replace") for line in raw], raw[-1].endswith(b"\n")
 
 
 def _slice(path: str, start: int, end: int) -> list:
@@ -242,7 +245,9 @@ def _write_back(path: str, start: int, original: list) -> dict:
 
 
 def _write_back_locked(path: str, start: int, original: list, out: dict) -> dict:
-    lines, trailing = _read_lines(path)
+    from nexsandglass.core.fsutil import atomic_write, split_line_ending
+    with open(path, "rb") as source:
+        lines = source.readlines()
     end = start + len(original) - 1
     if start < 1 or end > len(lines):
         out["status"] = "out_of_range"
@@ -250,16 +255,18 @@ def _write_back_locked(path: str, start: int, original: list, out: dict) -> dict
         out["need"] = end
         return out
     for i in range(start, end + 1):
-        if not _is_redacted_line(lines[i - 1], first=(i == start)):
+        body, _ = split_line_ending(lines[i - 1])
+        text = body.decode("utf-8", errors="replace")
+        if not _is_redacted_line(text, first=(i == start)):
             out["status"] = "not_redacted"
             out["at_line"] = i
-            out["found"] = lines[i - 1][:60]
+            out["found"] = text[:60]
             return out
     for off, text in enumerate(original):
-        lines[start - 1 + off] = text
-    from nexsandglass.core.fsutil import atomic_write
-    with atomic_write(path) as f:
-        f.write("\n".join(lines) + ("\n" if trailing else ""))
+        _, ending = split_line_ending(lines[start - 1 + off])
+        lines[start - 1 + off] = text.encode("utf-8") + ending
+    with atomic_write(path, mode="wb") as f:
+        f.writelines(lines)
     memid._line_count_cache.pop(path, None)
     out["lines"] = len(original)
     out["status"] = "restored"

@@ -17,7 +17,31 @@ from __future__ import annotations
 import contextlib
 import os
 import tempfile
+from time import sleep
 from typing import Iterator, TextIO
+
+_WINDOWS = os.name == "nt"
+
+
+def _replace_with_retry(source: str, destination: str) -> None:
+    """Allow short Windows sharing conflicts; never delete the destination."""
+    for delay in (0.01, 0.02, 0.04, 0.08, 0.16, 0):
+        try:
+            os.replace(source, destination)
+            return
+        except PermissionError as error:
+            if not (_WINDOWS and getattr(error, "winerror", None) in (5, 32, 33) and delay):
+                raise
+            sleep(delay)
+
+
+def split_line_ending(line: bytes) -> tuple[bytes, bytes]:
+    """Split one physical journal line without normalizing its bytes."""
+    if line.endswith(b"\r\n"):
+        return line[:-2], b"\r\n"
+    if line.endswith(b"\n"):
+        return line[:-1], b"\n"
+    return line, b""
 
 
 @contextlib.contextmanager
@@ -37,7 +61,7 @@ def atomic_write(path: str, mode: str = "w", encoding: str = "utf-8", fsync: boo
             os.chmod(tmp, os.stat(path).st_mode & 0o7777)
         except OSError:
             pass
-        os.replace(tmp, path)
+        _replace_with_retry(tmp, path)
     except BaseException:
         with contextlib.suppress(OSError):
             os.unlink(tmp)

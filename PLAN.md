@@ -7,7 +7,7 @@
 **当前优先顺序**
 
 1. M1 已发布 v7.25.0；继续保留现有接口和用户数据。
-2. 完成语言解耦工作流 LANG；契约设计和基线评测可与 M1 并行，语言功能在稳定契约上开发。
+2. 按当前请求优先修复 issue #39 的 Windows 遗忘/恢复；验证通过后再继续 LANG-06。LANG-00 至 LANG-05 已通过 PR #41 合入 main，尚未发布新的包。
 3. M1 与 LANG 均验收后，推进 M2 连续交互。
 4. 随后依次推进 M3 动态世界、M4 经验闭环、M5 多设备与生态。
 
@@ -18,7 +18,7 @@
 | 工作流 | 当前进度 | 下一项 | 进入条件 | 方案 |
 | --- | --- | --- | --- | --- |
 | M1 内核收敛 | M1-01 至 M1-06 已验收并发布 v7.25.0 | LANG-06；实际语音部署另待连通验证 | 保留现有数据与接口，逐路径验收 | [M1 方案](docs/plans/m1-core.md) |
-| LANG 语言解耦 | LANG-00/01/02/03/04/05 已实现并本地验收，LANG-05 四版本 CI 通过；完整工作流未完成 | LANG-06 共同验收 | 与 M1 契约协调 | [语言方案](docs/plans/language-decoupling.md) |
+| LANG 语言解耦 | LANG-00/01/02/03/04/05 已验收并经 PR #41 合入 main；尚未发布新包，完整工作流未完成 | issue #39 修复后继续 LANG-06 | 与 M1 契约协调 | [语言方案](docs/plans/language-decoupling.md) |
 | M2 连续交互 | 跨厂商语音调查完成；新增自动调度未开发；已有开场事实能力已进入 notifier 0.185.0 | 工作记忆与客户端能力边界 | M1 + LANG 验收 | [M2 方案](docs/plans/m2-continuous-interaction.md)、[语音接入调查](docs/plans/m2-voice-memory.md) |
 | M3 动态世界 | 已规划，未开发 | 固定一个动态找物任务 | M1 + LANG + M2 任务上下文稳定 | [M3 方案](docs/plans/m3-world-state.md) |
 | M4 经验闭环 | 已规划，未开发 | 任务经历、动作与结果契约 | M3 可记录可信状态变化 | [M4 方案](docs/plans/m4-experience.md) |
@@ -43,10 +43,10 @@
 | --- | --- | --- | --- |
 | LANG-00 | 中英文及混合输入的冻结基线与留出数据 | 已冻结并完成前后对照 | [60 个合成样例](docs/language-adapters.md)，按人物/事件分组；冻结提交 `134f7c1`，画像与历史检索单独计量；不是独立盲测质量证明 |
 | LANG-01 | 输入语言、回复偏好、locale、timezone 的独立契约 | 实现与验证完成，已随 M1 兼容发布 | [LanguageContext](docs/language-context.md)；53 项专项测试纳入全量；缺省导出兼容，输入/回复偏好独立，元数据不充当授权 |
-| LANG-02 | 语言适配层、稳定语义键及实体别名 | 本地实现与验收完成；尚未合并/发布 | [适配器及边界](docs/language-adapters.md)；41 项新增测试纳入全量；已知精确别名关联、旧标签兼容，保留原话/ID/来源及带条件健康声明 |
-| LANG-03 | 中英文时间、否定、取消及跨语言更正 | 实现、本地与四版本 CI 验收完成；尚未合并/发布 | [时间与更正政策](docs/language-time.md)；原时间框架回放、明确歧义、否定输出、唯一事件关联与导入/删除恢复 |
-| LANG-04 | 词法与可选跨语言语义召回的融合 | 实现、本地及四版本 CI 验收完成；尚未合并/发布 | [召回政策与实测](docs/language-recall.md)；有界精确别名、类型冲突约束、真实本地模型及未测 API 分开记录 |
-| LANG-05 | 原文、结构化事实与呈现语言分离 | 实现、本地及四版本 CI 验收完成；尚未合并/发布 | [呈现分离与限制](docs/language-presentation.md)；默认兼容、引用绑定、共享预算、来源/事实字段不改、配置独立 |
+| LANG-02 | 语言适配层、稳定语义键及实体别名 | 验收完成并经 PR #41 合入 main；尚未发布新包 | [适配器及边界](docs/language-adapters.md)；41 项新增测试纳入全量；已知精确别名关联、旧标签兼容，保留原话/ID/来源及带条件健康声明 |
+| LANG-03 | 中英文时间、否定、取消及跨语言更正 | 本地与四版本 CI 验收完成并经 PR #41 合入 main；尚未发布新包 | [时间与更正政策](docs/language-time.md)；原时间框架回放、明确歧义、否定输出、唯一事件关联与导入/删除恢复 |
+| LANG-04 | 词法与可选跨语言语义召回的融合 | 本地及四版本 CI 验收完成并经 PR #41 合入 main；尚未发布新包 | [召回政策与实测](docs/language-recall.md)；有界精确别名、类型冲突约束、真实本地模型及未测 API 分开记录 |
+| LANG-05 | 原文、结构化事实与呈现语言分离 | 本地及四版本 CI 验收完成并经 PR #41 合入 main；尚未发布新包 | [呈现分离与限制](docs/language-presentation.md)；默认兼容、引用绑定、共享预算、来源/事实字段不改、配置独立 |
 | LANG-06 | 中英四向、混说及宿主端到端验收 | 待执行 | 前述任务；通过共同门禁后才放行 M2 |
 
 **M2–M5 子任务**
@@ -100,7 +100,7 @@ M1-03 的已有证据，日期 2026-11-22：
 
 **Git 分支与续接方式**
 
-M1 实现分支 `codex/m1-core` 已经 PR #40 合并到 `main`，保留并完成此前成果，加入 M1-04/05、验收与 LANG-01 元数据。原 `work` 和 M1 分支保留。语言分支 `codex/language-decoupling` 已从已验证的 `main` 提交 `d78016d634e98231cfda31ea4051b39000b5a337` 创建；当前工作树位于该分支，LANG-00/02 首批交付与 LANG-03/04/05 后续改进尚未合并/发布，见[草稿 PR #41](https://github.com/sixgodgit/nyx/pull/41)。
+M1 实现分支 `codex/m1-core` 已经 PR #40 合并到 `main`，保留并完成此前成果，加入 M1-04/05、验收与 LANG-01 元数据。原 `work` 和 M1 分支保留。语言分支 `codex/language-decoupling` 从 `d78016d634e98231cfda31ea4051b39000b5a337` 创建，LANG-00/02/03/04/05 已经 [PR #41](https://github.com/sixgodgit/nyx/pull/41) 合入主分支，合并提交 `857e3d8fe7d228e4b1519828c66572dc597446c6`；尚未发布新包。以下各批交付记录保留当时的验证与发布状态，当前状态以本段及上方任务表为准。本轮 issue #39 使用从该主分支基线创建的独立工作树 `/workspace/nyx-issue39`、分支 `codex/fix-39-windows-forget`，见 [PR #42](https://github.com/sixgodgit/nyx/pull/42)；未重做或撤销既有语言功能。
 
 | 工作流 | 计划分支名 | 创建基线 / 规则 |
 | --- | --- | --- |
@@ -186,3 +186,14 @@ M1 实现分支 `codex/m1-core` 已经 PR #40 合并到 `main`，保留并完成
 - 真实 Hermes 基线保持 `1047b6411692fccadc49dece77a1f24a87639f87`。官方 Conduit 0.202.2 HTTP 专项 1 通过，新增中文回答框架同时到达开场/历史检索接口、原记忆日志不变的检查；trace 发送/应用仍未知，无用户服务器、真实音频、实际回复语言遵循或模型利用率验证。
 - wheel/sdist 构建、严格 Twine、全新离线安装通过；安装后验证回答框架、原文旁的引用译文、canonical 原文不变、清空配置回到旧输出，135 个 Python/manifest 文件与源码一致。版本仍为本地验证用 7.25.0，没有合并/标签/发布或覆盖公开包。
 - [草稿 PR #41](https://github.com/sixgodgit/nyx/pull/41)继续承载分支。下一项为 LANG-06 中英四向、混说及宿主共同验收；M2 继续等待该门禁。
+
+**issue #39：Windows 遗忘与恢复修复（2026-11-27）**
+
+- 按当前请求优先处理 [issue #39](https://github.com/sixgodgit/nyx/issues/39)。独立修复分支基于已合入语言功能的 main `857e3d8`，见 [PR #42](https://github.com/sixgodgit/nyx/pull/42)；未合并该修复、未发布、未访问或修改用户服务器。LANG-06 暂停，M2 门禁保持不变。
+- `_redact_journal` 与 `_redact_backup` 的读取句柄在原子替换之前显式关闭，重写保持流式处理和原有 journal lock。Windows CI 发现直接并发索引写入也会碰到替换冲突，`_write_idx` 改为使用既有可重入索引锁，与重建和后台持久化协调；未修改锁的授权边界。
+- 日志与备份使用字节流保留 LF/CRLF、混合换行及末尾无换行；恢复仅替换已验证的脱敏占位行。保存恢复原文时按物理行处理，避免 U+2028/NEL 被 `str.splitlines()` 错拆并截断原文。保留原 ID、未删除内容及行位置。重复 Windows CI 又发现另一进程的短暂读取也可能阻止替换，因此 `atomic_write` 仅对 Windows WinError 5/32/33 最多重试 6 次，总等待 0.31 秒；只重试替换，不重复写入或删除逻辑。其他平台保持原有行为；持续占用或读取失败仍报错、保留原文件并清理临时文件，无权限绕过或非原子降级。
+- 新增 23 个回归场景，包含可在 POSIX 复现的 Windows 文件共享限制、流式读写约束、主日志/备份完整往返、Unicode 分隔符、重试耗尽/不适用/成功分支、故障清理与原生 Windows 对照。首次回归明确复现旧代码的句柄/EOL 错误；Unicode 截断亦在补修前复现。最终本地删除/恢复/并发/分配故障子集为 **63 通过、1 跳过**，跳过项仅需原生 Windows。
+- 最终产品提交 `3e461ead21fe5b938ba9fd0cdb62bf3c64d2eb30`：Python 3.12 与 3.13 启用真实 Hermes 源码的全量测试分别 **1404 通过、3 跳过**。与下列子集及集成存在重叠，不相加为新的通过总数。保留既有 Starlette/httpx 弃用提醒。
+- [源代码 CI #46076733803](https://github.com/sixgodgit/nyx/actions/runs/46076733803) 全部通过：真实 Windows Python **3.10、3.14 各 64 通过、无跳过**，每版本还额外重复两轮并发子集，各轮 **6 通过**；Linux Python 3.10–3.13 各 **1403 通过、4 跳过**。CI 未启用真实 Hermes/Conduit 源码集成；Windows 矩阵覆盖上述高风险子集，并非宣称完整测试集已在 Windows 通过。额外压力轮次保留在后续 PR 的 CI 门禁中，不能与全量结果累加。
+- 官方 Conduit notifier **0.202.2 / `8c157894c95df03b2f4a4306d9eb8e1a27c786c1`** 加真实 Hermes 源码的 HTTP 集成复测 **1 通过**，涵盖删除/恢复后的下一次 context 与跨语言 recall。该版本冷索引会返回 200/空 context，使用已有 `CONDUIT_EXPECT_CONTEXT_FALLBACK=1` 明确验证其实际回退行为，不把 provider 标签或空 context 当作事实可用；未验证真机语音或模型利用率。
+- wheel/sdist 构建及 `twine check --strict` 通过；全新隔离环境离线安装候选 wheel，五种原文/换行场景的主日志与备份均删除后逐字节恢复，且未删除记录与原 ID 保持。包内 **136 个 Python/manifest 文件**与已测源码逐字节一致，不含数据库或模型文件。仍使用 **7.25.0 作为本地候选构建版本**，未覆盖该版本的公开包。
