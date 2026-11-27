@@ -5,12 +5,13 @@ generation, not transport delivery or proof that the model used the memory.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from hashlib import sha256
 import time
 
 from .composition import ContextItem, ContextSection, compose_context, estimate_tokens
 from .contracts import ContextPacket, EvidenceRef, RecallRequest, packet_for
+from .presentation import PresentationAudit, PresentationOptions, compose_presented
 
 
 @dataclass(frozen=True)
@@ -34,17 +35,26 @@ class HostTrace:
     stage: str = "generated"
     sent: bool | None = None
     applied: bool | None = None
+    presentation: PresentationAudit | None = None
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        value = asdict(self)
+        if self.presentation is None:
+            value.pop("presentation")
+        return value
 
 
 def render_host_context(request: RecallRequest, sections, *, reserved_tokens: int = 0,
                         max_chars: int | None = None, reason_codes=(),
-                        deadline_exceeded: bool = False) -> tuple[ContextPacket, HostTrace]:
+                        deadline_exceeded: bool = False, presentation=None) -> tuple[ContextPacket, HostTrace]:
     """Use the common token budget, optionally also enforcing a voice char cap."""
     if max_chars is not None and (type(max_chars) is not int or max_chars < 0):
         raise ValueError("max_chars must be a nonnegative integer")
+    if presentation is not None:
+        if not isinstance(presentation, PresentationOptions):
+            raise TypeError("presentation must be PresentationOptions")
+        if request.language is None or request.language.response_language != presentation.language:
+            raise ValueError("presentation language must match request.language.response_language")
 
     def bounded_estimate(text):
         if max_chars is not None and len(text) > max_chars:
@@ -52,11 +62,19 @@ def render_host_context(request: RecallRequest, sections, *, reserved_tokens: in
         return estimate_tokens(text)
 
     expired = deadline_exceeded or (request.deadline is not None and time.monotonic() >= request.deadline)
-    result = compose_context(sections, 0 if expired else request.token_budget,
-                             counter=bounded_estimate if max_chars is not None else None,
-                             separator="\n\n")
+    audit, presentation_codes = None, ()
+    if presentation is None:
+        result = compose_context(sections, 0 if expired else request.token_budget,
+                                 counter=bounded_estimate if max_chars is not None else None, separator="\n\n")
+    else:
+        result, audit, presentation_codes = compose_presented(
+            sections, 0 if expired else request.token_budget, presentation,
+            counter=bounded_estimate if max_chars is not None else None)
     expired = expired or (request.deadline is not None and time.monotonic() >= request.deadline)
-    codes = list(reason_codes)
+    if expired and audit is not None:
+        audit = replace(audit, translations_used=0,
+                        translations_omitted=audit.translations_used + audit.translations_omitted)
+    codes = list(reason_codes) + list(presentation_codes)
     if result.omitted:
         codes.append("context_omitted")
     if result.required_omitted:
@@ -64,7 +82,7 @@ def render_host_context(request: RecallRequest, sections, *, reserved_tokens: in
     if expired:
         codes.append("deadline_exceeded")
     status = ("expired" if expired else "error" if result.required_omitted else
-              "partial" if result.omitted or reason_codes else "ready" if result.text else "empty")
+              "partial" if result.omitted or reason_codes or presentation_codes else "ready" if result.text else "empty")
     packet = packet_for(request, text="" if expired else result.text,
                         evidence=() if expired else result.evidence,
                         est_tokens=0 if expired else estimate_tokens(result.text),
@@ -77,7 +95,8 @@ def render_host_context(request: RecallRequest, sections, *, reserved_tokens: in
         reserved_tokens=reserved_tokens, selected_count=0 if expired else len(result.selected),
         omitted_count=len(result.omitted), required_omitted=result.required_omitted,
         evidence_ids=tuple(dict.fromkeys(e.source_mem_id or e.memory_id for e in packet.evidence)),
-        text_sha256=sha256(packet.text.encode()).hexdigest(), reason_codes=packet.reason_codes)
+        text_sha256=sha256(packet.text.encode()).hexdigest(), reason_codes=packet.reason_codes,
+        presentation=audit)
     return packet, trace
 
 
@@ -171,11 +190,11 @@ def retrieval_sections(objects, references, *, dates=None, heading="", limit=Non
 
 
 def recall_host_context(request: RecallRequest, *, limit=None, heading="", include_dates=False,
-                        filter_relevance=False, prefix="- "):
+                        filter_relevance=False, prefix="- ", presentation=None):
     """One candidate/gate/render path; internal debug context is never exported."""
     from .orchestrator import get_orchestrator, _context_packet
     if request.token_budget == 0 or limit == 0:
-        packet, trace = render_host_context(request, ())
+        packet, trace = render_host_context(request, (), presentation=presentation)
         return packet, trace, None
     mc = get_orchestrator().recall_planner.recall(
         request.query, request.token_budget, context=request.context,
@@ -224,5 +243,5 @@ def recall_host_context(request: RecallRequest, *, limit=None, heading="", inclu
                 dates[i] = str(row.get("ts", ""))[:10]
     sections = retrieval_sections(objects, refs, dates=dates, heading=heading, limit=limit, prefix=prefix)
     packet, trace = render_host_context(request, sections, reason_codes=mc.packet.reason_codes,
-                                        deadline_exceeded=mc.packet.deadline_exceeded)
+                                        deadline_exceeded=mc.packet.deadline_exceeded, presentation=presentation)
     return packet, trace, mc

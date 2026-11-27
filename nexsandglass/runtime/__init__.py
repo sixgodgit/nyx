@@ -39,6 +39,9 @@ from nexsandglass.core.store_context import StoreContext, scope as store_scope  
 from .composition import (  # noqa: E402
     ContextItem, ContextSection, CompositionResult, compose_context,
 )
+from .presentation import (  # noqa: E402
+    PresentationOptions, DisplayTranslation, FactPresentation, present_fact, recall_presented,
+)
 
 __all__ = [
     "observe", "recall", "recall_request", "feedback", "forget", "restore", "purge_forgotten",
@@ -47,5 +50,6 @@ __all__ = [
     "MemoryContext", "ObserveReport", "MemoryBundle", "MemoryObject",
     "RecallRequest", "EvidenceRef", "ContextPacket", "LanguageContext", "StoreContext", "store_scope",
     "ContextItem", "ContextSection", "CompositionResult", "compose_context",
+    "PresentationOptions", "DisplayTranslation", "FactPresentation", "present_fact", "recall_presented",
     "NYX_RUNTIME",
 ]

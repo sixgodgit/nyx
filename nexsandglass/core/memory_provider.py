@@ -324,6 +324,7 @@ def _budget_blocks(blocks, budget: int) -> str:
 
 # nyx.json 的键 → 读设置时用的名字（同名环境变量设了的话优先）
 _PROFILE_SETTINGS = (("locale", "NYX_LOCALE"), ("timezone", "NYX_TIMEZONE"),
+                     ("response_language", "NYX_RESPONSE_LANGUAGE"),
                      ("semantic", "NYX_EMBED"), ("embedding_model", "NYX_EMBED_MODEL"),
                      ("embedding_api_url", "EMBEDDING_API_URL"), ("rerank", "NYX_RERANK"),
                      ("vault", "NYX_VAULT"), ("vault_reveal", "NYX_VAULT_REVEAL"), ("vault_kinds", "NYX_VAULT_KINDS"),
@@ -574,13 +575,21 @@ class NexSandglassProvider(MemoryProvider):
 
     def _context_request(self, channel, budget, *, query="", session_id="", deadline=None):
         from hashlib import sha256
-        from nexsandglass.runtime.contracts import RecallRequest
+        from nexsandglass.runtime.contracts import RecallRequest, LanguageContext
         sid = str(session_id or self._session_id or "") or None
         if sid and (not sid.strip() or len(sid) > 128 or any(ord(c) < 32 or ord(c) == 127 for c in sid)):
             sid = "sha256:" + sha256(sid.encode()).hexdigest()
+        preferred = _settings.get("NYX_RESPONSE_LANGUAGE").strip()
+        language = LanguageContext(response_language=preferred, response_basis="configuration") if preferred else None
         return RecallRequest(query=_clean(query), token_budget=max(0, int(budget)),
                              session_id=sid, turn_id=str(getattr(self, "_turn_no", 0)),
-                             channel=channel, deadline=deadline)
+                             channel=channel, deadline=deadline, language=language)
+
+    @staticmethod
+    def _render_context(request, sections, **kwargs):
+        from nexsandglass.runtime.host_context import render_host_context
+        from nexsandglass.runtime.presentation import presentation_for
+        return render_host_context(request, sections, presentation=presentation_for(request.language), **kwargs)
 
     def _remember_context(self, packet, trace):
         traces = dict(getattr(self, "_context_traces", {}))
@@ -663,7 +672,6 @@ class NexSandglassProvider(MemoryProvider):
     def voice_prompt_block(self, *, max_chars: int = _VOICE_CONTEXT_MAX_CHARS,
                            ready_timeout: float = _VOICE_READY_TIMEOUT_S) -> str:
         """Dedicated trusted startup facts under shared token and voice char caps."""
-        from nexsandglass.runtime.host_context import render_host_context
         limit = min(_VOICE_CONTEXT_MAX_CHARS, max(0, int(max_chars)))
         budget = min(max(0, self._bundle_max_tokens()), self._context_tokens())
         deadline = time.monotonic() + min(_VOICE_READY_TIMEOUT_S, max(0.0, float(ready_timeout)))
@@ -673,10 +681,10 @@ class NexSandglassProvider(MemoryProvider):
             try:
                 sections, errors = self._personal_context(voice=True, deadline=deadline)
             except TimeoutError:
-                packet, trace = render_host_context(request, (), reason_codes=("context_pending",))
+                packet, trace = self._render_context(request, (), reason_codes=("context_pending",))
                 self._remember_context(packet, trace)
                 raise
-        packet, trace = render_host_context(request, sections, max_chars=limit, reason_codes=errors)
+        packet, trace = self._render_context(request, sections, max_chars=limit, reason_codes=errors)
         self._remember_context(packet, trace)
         self._voice_reserved_tokens = max(getattr(self, "_voice_reserved_tokens", 0), packet.est_tokens)
         self._voice_required_missing = "required_context_unavailable" in packet.reason_codes
@@ -686,7 +694,6 @@ class NexSandglassProvider(MemoryProvider):
         """Canonical profile views only; legacy L3 globals are not store-aware."""
         from nexsandglass.core import memid
         from nexsandglass.runtime.composition import ContextItem, ContextSection
-        from nexsandglass.runtime.host_context import render_host_context
         budget = min(max(0, self._bundle_max_tokens()), self._context_tokens())
         request = self._context_request("hermes_system", budget)
         errors = ("legacy_layers_unavailable",)
@@ -705,11 +712,11 @@ class NexSandglassProvider(MemoryProvider):
                              "the user explicitly asks to see the secret; never guess, reconstruct or repeat it.")
                 sections.append(ContextSection("host.status", prefix="", priority=10,
                                                items=(ContextItem("status", tail, required=vault_on),)))
-            packet, trace = render_host_context(request, sections, reason_codes=errors)
+            packet, trace = self._render_context(request, sections, reason_codes=errors)
         except Exception:
             logger.warning("Nyx scoped system context generation failed")
             self._system_required_missing = True
-            packet, trace = render_host_context(request, (), reason_codes=("context_unavailable",))
+            packet, trace = self._render_context(request, (), reason_codes=("context_unavailable",))
             self._remember_context(packet, trace)
             return ""
         self._remember_context(packet, trace)
@@ -747,11 +754,10 @@ class NexSandglassProvider(MemoryProvider):
             from nexsandglass.features import sandglass_think as _st
             stage = _current_stage() if os.path.exists(getattr(_st, "_PERSONA_TIMELINE", "") or "") else ""
             from nexsandglass.runtime.composition import ContextItem, ContextSection
-            from nexsandglass.runtime.host_context import render_host_context
             budget = min(max(0, self._bundle_max_tokens()), self._context_tokens())
             request = self._context_request("hermes_system", budget)
             if self.unavailable_reason():
-                packet, trace = render_host_context(request, (), reason_codes=("provider_unavailable",))
+                packet, trace = self._render_context(request, (), reason_codes=("provider_unavailable",))
                 self._remember_context(packet, trace)
                 return ""
             sections, source_errors = self._personal_context() if budget else ((), ())
@@ -897,7 +903,7 @@ class NexSandglassProvider(MemoryProvider):
             if warn:
                 sections.append(ContextSection("host.health", prefix="", priority=80,
                                                items=(ContextItem("warning", _clean(warn)),)))
-            packet, trace = render_host_context(request, sections, reason_codes=source_errors)
+            packet, trace = self._render_context(request, sections, reason_codes=source_errors)
             self._remember_context(packet, trace)
             self._system_reserved_tokens = max(getattr(self, "_system_reserved_tokens", 0), packet.est_tokens)
             self._system_required_missing = "required_context_unavailable" in packet.reason_codes
@@ -906,7 +912,7 @@ class NexSandglassProvider(MemoryProvider):
             logger.warning("Nyx system context generation failed")
             self._system_required_missing = True
             if "request" in locals():
-                packet, trace = render_host_context(request, (), reason_codes=("context_unavailable",))
+                packet, trace = self._render_context(request, (), reason_codes=("context_unavailable",))
                 self._remember_context(packet, trace)
             return ""
 
@@ -948,7 +954,6 @@ class NexSandglassProvider(MemoryProvider):
     def prefetch(self, query: str, *, session_id: str = "") -> str:
         """Render this turn against the shared quota left by returned snapshots."""
         from nexsandglass.runtime.composition import ContextItem, ContextSection
-        from nexsandglass.runtime.host_context import render_host_context
         self._last_recall = None
         reserved = max(getattr(self, "_system_reserved_tokens", 0),
                        getattr(self, "_voice_reserved_tokens", 0))
@@ -990,7 +995,7 @@ class NexSandglassProvider(MemoryProvider):
                 errors.append("required_context_unavailable")
             elif self.unavailable_reason():
                 errors.append("provider_unavailable")
-        packet, trace = render_host_context(
+        packet, trace = self._render_context(
             request, sections, reserved_tokens=reserved, reason_codes=errors,
             max_chars=4000 if self._platform == "conduit_voice" else None)
         self._remember_context(packet, trace)
@@ -1531,7 +1536,7 @@ class NexSandglassProvider(MemoryProvider):
 
     def on_pre_compress(self, messages: List[Dict[str, Any]]) -> str:
         """Complete source-bound memories for the host's summary prompt."""
-        from nexsandglass.runtime.host_context import recall_host_context, render_host_context
+        from nexsandglass.runtime.host_context import recall_host_context
         reserved = max(getattr(self, "_system_reserved_tokens", 0),
                        getattr(self, "_voice_reserved_tokens", 0))
         budget = min(600, max(0, self._context_tokens() - reserved))
@@ -1554,7 +1559,7 @@ class NexSandglassProvider(MemoryProvider):
         except Exception:
             logger.warning("Nyx compression recall is unavailable")
             errors = ("recall_unavailable",)
-        packet, trace = render_host_context(request, (), reserved_tokens=reserved, reason_codes=errors)
+        packet, trace = self._render_context(request, (), reserved_tokens=reserved, reason_codes=errors)
         self._remember_context(packet, trace)
         return packet.text
 
@@ -1641,18 +1646,23 @@ class NexSandglassProvider(MemoryProvider):
                                "新记忆和相对日期使用的 IANA 时区，例如 Europe/Berlin 或 Asia/Shanghai。旧记录保留原时间语境；两项均留空时保留原墙上时钟行为。")},
             {"key": "lang", "type": "text", "default": "auto", "choices": ["auto", "en", "zh"],
              "description": _t("Language of Nyx's terminal output and these settings: auto = follow the system locale, "
-                               "en = English, zh = Chinese. What the model sees is always English.",
+                               "en = English, zh = Chinese. Independent of the answer-language hint.",
                                "Nyx 终端输出与这些设置说明的语言：auto = 跟随系统语言，en = 英文，zh = 中文。"
-                               "给模型看的始终是英文。")},
+                               "与首选回答语言分开设置。")},
+            {"key": "response_language", "type": "text", "default": "",
+             "description": _t("Optional preferred answer-language tag, such as en or zh. Adds a host language hint and supported framing; original evidence is unchanged. Empty preserves legacy output. The host/model decides the actual answer language.",
+                               "可选的首选回答语言标签，例如 en 或 zh；添加宿主语言提示与支持的呈现框架，原始证据保持不变。留空保留原输出；实际回答语言由宿主和模型决定。")},
         ]
 
     def save_config(self, values: Dict[str, Any], hermes_home: str) -> None:
         nh = _hermes_cfg()
         if nh is None:
             raise RuntimeError("nexsandglass_hermes is not available; cannot save the config")
-        if values and ("locale" in values or "timezone" in values):
+        if values and any(k in values for k in ("locale", "timezone", "response_language")):
             from nexsandglass.runtime.contracts import LanguageContext
-            LanguageContext(locale=values.get("locale") or None, timezone=values.get("timezone") or None)
+            preferred = values.get("response_language") or None
+            LanguageContext(locale=values.get("locale") or None, timezone=values.get("timezone") or None,
+                            response_language=preferred, response_basis="configuration" if preferred else "unspecified")
         known = {f["key"] for f in self.get_config_schema() if not f.get("secret")}   # 密钥只进 .env
         nh.save_config({k: v for k, v in (values or {}).items() if k in known}, hermes_home)
         if hermes_home and hermes_home == self._hermes_home:

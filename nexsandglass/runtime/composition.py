@@ -124,6 +124,7 @@ def compose_context(
     *,
     counter: Callable[[str], int] | None = None,
     separator: str = "\n",
+    preamble: str = "",
 ) -> CompositionResult:
     """Select whole evidence with all final framing charged to one budget.
 
@@ -139,6 +140,8 @@ def compose_context(
     _integer(token_budget, "token budget", nonnegative=True)
     if not isinstance(separator, str):
         raise TypeError("separator must be text")
+    if not isinstance(preamble, str):
+        raise TypeError("preamble must be text")
     if isinstance(sections, (str, bytes)):
         raise TypeError("sections must contain ContextSection values")
     sections = tuple(sections)
@@ -179,6 +182,8 @@ def compose_context(
             if section.suffix:
                 lines.append(section.suffix)
             blocks.append("\n".join(lines))
+        if blocks and preamble:
+            blocks.insert(0, preamble)
         return separator.join(blocks)
 
     def result(picked: set[tuple[int, int]], text: str, cost: int) -> CompositionResult:
