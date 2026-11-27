@@ -20,6 +20,16 @@ _lock = threading.Lock()
 _last_sync_mtime = 0  # 记录上次同步时的 sandglass.txt 修改时间
 
 
+def _db_path():
+    from nexsandglass.core.store_context import path
+    return path("sandglass.db", legacy=_DB)
+
+
+def _journal_path():
+    from nexsandglass.features import sandglass_vault
+    return sandglass_vault._journal_path()
+
+
 def _tokenize(text: str) -> str:
     """FTS5专用分词：英文全词 + 中文2-gram。不用滑动窗口（滑动窗口用于mmap OR匹配）。"""
     tokens = set()
@@ -47,12 +57,14 @@ class _SharedConnection(sqlite3.Connection):
 _conn_lock = threading.Lock()
 _conn = None          # (库文件身份, 连接)：一个进程复用一个连接（v7.15.4）
 _count_cache = None   # (连接, data_version, schema_version, total_changes, 行数)
+_scoped_connections = {}
+_scoped_sync_signatures = {}
 
 
 def _db_ident():
     try:
-        st = os.stat(_DB)
-        return (_DB, st.st_ino, st.st_dev)
+        st = os.stat(_db_path())
+        return (_db_path(), st.st_ino, st.st_dev)
     except OSError:
         return None
 
@@ -65,18 +77,26 @@ def _get_db():
     WAL（支持多进程并发）+ synchronous=NORMAL；开库与建表走 sqlite_open，撞锁会重试（v7.13.4）
     """
     global _conn
+    from nexsandglass.core.store_context import current
+    scoped = current() is not None
+    path = _db_path()
     with _conn_lock:
         ident = _db_ident()
-        if _conn is not None and ident is not None and _conn[0] == ident:
+        cached = _scoped_connections.get(path) if scoped else _conn
+        if cached is not None and ident is not None and cached[0] == ident:
             try:
-                _conn[1].total_changes          # 已关闭的连接在这里抛 ProgrammingError
-                return _conn[1]
+                cached[1].total_changes          # 已关闭的连接在这里抛 ProgrammingError
+                return cached[1]
             except sqlite3.ProgrammingError:
                 pass
-        old = _conn[1] if _conn is not None else None
-        c = sqlite_open.connect(_DB, timeout=10, synchronous="NORMAL", setup=_setup,
+        old = cached[1] if cached is not None else None
+        c = sqlite_open.connect(path, timeout=10, synchronous="NORMAL", setup=_setup,
                                 check_same_thread=False, factory=_SharedConnection)
-        _conn = (_db_ident(), c)
+        entry = (_db_ident(), c)
+        if scoped:
+            _scoped_connections[path] = entry
+        else:
+            _conn = entry
         if old is not None:
             try:
                 old._close()
@@ -88,13 +108,18 @@ def _get_db():
 def _reset_db() -> None:
     """关掉复用的连接：删库重建、VACUUM 之前调用。下一次 _get_db() 重新打开。"""
     global _conn
+    from nexsandglass.core.store_context import current
     with _conn_lock:
-        if _conn is not None:
+        if current() is not None:
+            cached = _scoped_connections.pop(_db_path(), None)
+            _scoped_sync_signatures.pop(_db_path(), None)
+        else:
+            cached, _conn = _conn, None
+        if cached is not None:
             try:
-                _conn[1]._close()
+                cached[1]._close()
             except sqlite3.Error:
                 pass
-            _conn = None
 
 
 def _setup(conn) -> None:
@@ -130,7 +155,7 @@ def sync_all() -> int:
             conn.execute("DELETE FROM sandglass")
             conn.execute("DELETE FROM sandglass_fts")
             rows = []; fts = []
-            for rec in memid.parse_journal_records(_SANDGLASS):
+            for rec in memid.parse_journal_records(_journal_path()):
                 if memid.is_redacted(rec):
                     continue                      # 已抹除：不进索引
                 rows.append((rec["line_start"], rec["ts"], rec["sender"],
@@ -154,14 +179,20 @@ def sync_incremental() -> int:
     global _last_sync_mtime
     try:
         from nexsandglass.core import memid
-        from nexsandglass.features.sandglass_vault import _SANDGLASS
+        from nexsandglass.core.store_context import current
         with _lock:
             # mtime检查在锁内——防止 TOCTOU 竞态
-            if os.path.exists(_SANDGLASS):
-                mtime = os.path.getmtime(_SANDGLASS)
-                if mtime == _last_sync_mtime and _last_sync_mtime > 0:
+            signature = None
+            mtime = 0
+            if os.path.exists(_journal_path()):
+                info = os.stat(_journal_path())
+                mtime = info.st_mtime
+                signature = (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
+                cached = _scoped_sync_signatures.get(_db_path()) if current() is not None else None
+                if current() is not None and cached == signature:
                     return 0
-                _last_sync_mtime = mtime
+                if current() is None and mtime == _last_sync_mtime and _last_sync_mtime > 0:
+                    return 0
             conn = _get_db()
             row = conn.execute(
                 "SELECT COALESCE(MAX(line_end), 0), COUNT(*) FROM sandglass").fetchone()
@@ -176,7 +207,7 @@ def sync_incremental() -> int:
                             "SELECT line_start, ts, sender, text, line_end FROM memories"
                             " WHERE deleted_at IS NULL AND line_start > ? ORDER BY line_start", (last_end,))]
             else:
-                recs = memid.parse_journal_records(_SANDGLASS, from_line=last_end + 1, seq_start=indexed + 1)
+                recs = memid.parse_journal_records(_journal_path(), from_line=last_end + 1, seq_start=indexed + 1)
             for rec in recs:
                 if memid.is_redacted(rec):
                     continue
@@ -188,6 +219,11 @@ def sync_incremental() -> int:
                 conn.executemany(
                     "INSERT OR REPLACE INTO sandglass_fts(rowid, tokens) VALUES(?,?)", fts)
                 conn.commit()
+            # A failed commit must not advance this source's sync watermark.
+            if current() is not None:
+                _scoped_sync_signatures[_db_path()] = signature
+            else:
+                _last_sync_mtime = mtime
             return len(rows)
     except Exception:
         logger.warning("[sandglass_sqlite] sync_incremental 失败", exc_info=True)

@@ -28,7 +28,8 @@ _OFF = ("off", "0", "false", "no")
 
 def _path() -> str:
     from nexsandglass.core.sandglass_paths import _NB
-    return os.path.join(_NB, "auto_purge.json")
+    from nexsandglass.core.store_context import path
+    return path("auto_purge.json", legacy=os.path.join(_NB, "auto_purge.json"))
 
 
 def enabled() -> bool:

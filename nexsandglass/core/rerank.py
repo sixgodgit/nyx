@@ -119,7 +119,9 @@ def warm_async() -> None:
             _load()
         finally:
             _loading.clear()
-    threading.Thread(target=run, name="nyx-rerank-warm", daemon=True).start()
+    from contextvars import copy_context
+    context = copy_context()
+    threading.Thread(target=context.run, args=(run,), name="nyx-rerank-warm", daemon=True).start()
 
 
 def ready() -> bool:

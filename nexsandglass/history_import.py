@@ -184,7 +184,9 @@ def importable(s: dict, owners: set = frozenset()) -> Optional[str]:
 # ══════════════════════════════════════════════════════════
 
 def _progress(conn) -> None:
-    conn.executescript(_PROGRESS)
+    for statement in _PROGRESS.split(";"):
+        if statement.strip():
+            conn.execute(statement)
 
 
 def done_upto(conn, db: str, session_id: str) -> int:
@@ -239,9 +241,20 @@ def session_turns(db: HermesDB, session: dict, after_id: int = 0) -> list:
 
 
 def write_turns(db: HermesDB, provider, turns: list, *, progress=None) -> dict:
+    # The host chooses the destination once, including duplicate detection and
+    # import watermarks; session IDs and source paths never choose that store.
+    from contextlib import nullcontext
+    from nexsandglass.core.store_context import scope
+    store = getattr(provider, "_store_context", None)
+    with scope(store) if store is not None else nullcontext():
+        return _write_turns(db, provider, turns, progress=progress)
+
+
+def _write_turns(db: HermesDB, provider, turns: list, *, progress=None) -> dict:
     """按时间先后写进 Nyx（几个会话交错时也按全局时间）。返回 {turns, skipped_dupes, by_session}。"""
     from nexsandglass.core import clock, memid
     conn = memid.get_conn()
+    _progress(conn)
     turns = sorted(turns, key=lambda x: (x["ts"], x["last_id"]))
     written = dupes = 0
     last = {}                                        # 会话 → 最后写到的消息 id
@@ -255,11 +268,8 @@ def write_turns(db: HermesDB, provider, turns: list, *, progress=None) -> dict:
             if a and already_in_nyx(conn, "agent", a, datetime.fromtimestamp(tr["assistant"]["ts"])):
                 a, dupes = "", dupes + 1
             if u or a:
-                clock.set_global(datetime.fromtimestamp(tr["ts"]))
-                try:
+                with clock.frozen(datetime.fromtimestamp(tr["ts"])):
                     provider.sync_turn(u, a, session_id=f"hermes:{tr['session']}")
-                finally:
-                    clock.set_global(None)
                 written += 1
                 count[tr["session"]] = count.get(tr["session"], 0) + 1
             last[tr["session"]] = tr["last_id"]

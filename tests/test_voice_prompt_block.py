@@ -6,6 +6,7 @@ import pytest
 
 from tests.test_hermes_provider import env, _provider  # noqa: F401
 from nexsandglass.core import clock, followups, profile
+from nexsandglass.runtime.composition import ContextItem, ContextSection
 
 
 def _say(p, when, text, *, source="user"):
@@ -114,9 +115,10 @@ def test_empty_context_has_no_ready_or_tool_boilerplate(env):
 def test_voice_context_uses_only_complete_lines(env, monkeypatch):
     lines = ["[About the user]", "Health and diet:", "- [2026-10-01] Avoid peanuts.",
              "- [2026-10-02] This is important: do not serve shrimp."]
-    monkeypatch.setattr(profile, "render", lambda **kwargs: "\n".join(lines))
-    monkeypatch.setattr(followups, "render", lambda **kwargs: "")
     p = _provider()
+    section = ContextSection("test", "\n".join(lines[:2]),
+                             tuple(ContextItem(str(i), line[2:]) for i, line in enumerate(lines[2:])))
+    monkeypatch.setattr(p, "_personal_context", lambda **kwargs: ((section,), ()))
     limit = len("\n".join(lines[:3])) + 10
     assert p.voice_prompt_block(max_chars=limit) == "\n".join(lines[:3])
     assert p.voice_prompt_block(max_chars=20) == ""
@@ -124,9 +126,11 @@ def test_voice_context_uses_only_complete_lines(env, monkeypatch):
 
 
 def test_default_bound_cannot_be_expanded(env, monkeypatch):
-    monkeypatch.setattr(profile, "render", lambda **kwargs: "[About the user]\n" + "\n".join("- " + "x" * 100 for _ in range(80)))
-    monkeypatch.setattr(followups, "render", lambda **kwargs: "")
-    result = _provider().voice_prompt_block(max_chars=100000)
+    section = ContextSection("test", "[About the user]",
+                             tuple(ContextItem(str(i), "x" * 100) for i in range(80)))
+    p = _provider()
+    monkeypatch.setattr(p, "_personal_context", lambda **kwargs: ((section,), ()))
+    result = p.voice_prompt_block(max_chars=100000)
     assert len(result) <= 4000
     assert result.splitlines()[-1] == "- " + "x" * 100
 
@@ -134,10 +138,14 @@ def test_default_bound_cannot_be_expanded(env, monkeypatch):
 @pytest.mark.parametrize("source", ["profile", "followups"])
 def test_one_failed_source_does_not_hide_the_other_or_log_details(env, monkeypatch, caplog, source):
     marker = "private-marker-in-error"
-    def failure(**kwargs):
-        raise RuntimeError(marker)
-    monkeypatch.setattr(profile, "render", failure if source == "profile" else lambda **kwargs: "[Profile]\n- owner fact")
-    monkeypatch.setattr(followups, "render", failure if source == "followups" else lambda **kwargs: "[Followups]\n- due event")
+    from nexsandglass.runtime import host_context
+    def read(*, source: str, **kwargs):
+        if source == failed_source:
+            raise RuntimeError(marker)
+        return (ContextSection(source, "[" + source + "]",
+                               (ContextItem("fact", "owner fact or due event"),)),)
+    failed_source = source
+    monkeypatch.setattr(host_context, "personal_sections", read)
     assert _provider().voice_prompt_block()
     assert marker not in caplog.text
 
@@ -145,7 +153,7 @@ def test_one_failed_source_does_not_hide_the_other_or_log_details(env, monkeypat
 def test_mismatched_profile_directory_cannot_read_voice_context(env, monkeypatch):
     p = _provider()
     monkeypatch.setattr(p, "unavailable_reason", lambda **kwargs: "different data directory")
-    monkeypatch.setattr(profile, "render", Mock(side_effect=AssertionError("must not read")))
+    monkeypatch.setattr(p, "_personal_context", Mock(side_effect=AssertionError("must not read")))
     assert p.voice_prompt_block() == ""
 
 

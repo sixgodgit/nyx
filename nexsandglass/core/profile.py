@@ -180,7 +180,7 @@ def classify(text: str) -> Optional[tuple]:
 
 
 def _excerpt(text: str, sents: list, i: int) -> str:
-    """短消息给整句；长消息给命中的那句（不够长时带上下一句），截到 LINE_CHARS。"""
+    """Keep a complete matched sentence; final host budgets admit it atomically."""
     flat = " ".join(text.split())
     if len(flat) <= LINE_CHARS:
         return flat
@@ -188,7 +188,7 @@ def _excerpt(text: str, sents: list, i: int) -> str:
     if len(out) < 60 and i + 1 < len(sents):
         out = out + " " + sents[i + 1]
     out = " ".join(out.split())
-    return out if len(out) <= LINE_CHARS else out[: LINE_CHARS - 1].rstrip() + "…"
+    return out
 
 
 # ══════════════════════════════════════════════════════════
@@ -295,7 +295,9 @@ def _clauses(text: str) -> list:
 # ══════════════════════════════════════════════════════════
 
 def _ensure(conn: sqlite3.Connection) -> None:
-    conn.executescript(_SCHEMA)
+    for statement in _SCHEMA.split(";"):
+        if statement.strip():
+            conn.execute(statement)
 
 
 def _meta(conn, key: str, default: str = "") -> str:
@@ -303,15 +305,16 @@ def _meta(conn, key: str, default: str = "") -> str:
     return row[0] if row else default
 
 
-def _trusted(line_start) -> bool:
+def _trusted(line_start, conn: Optional[sqlite3.Connection] = None) -> bool:
     try:
         from nexsandglass.core import provenance as _prov
         if line_start is None:
             return True
-        prov = _prov.for_line(int(line_start))
+        prov = _prov.for_line(int(line_start), conn=conn)
         return prov is None or prov.signal == _prov.TRUSTED
     except Exception:
-        return True
+        # Failure to read the bound source must not admit it as a trusted fact.
+        return False
 
 
 _REFRESH_LOCK = threading.Lock()
@@ -342,7 +345,7 @@ def refresh_ready(conn: Optional[sqlite3.Connection] = None, *, deadline: float)
     if not _REFRESH_LOCK.acquire(timeout=max(0.0, deadline - time.monotonic())):
         raise TimeoutError("Nyx voice profile is still refreshing")
     try:
-        from nexsandglass.core import memid
+        from nexsandglass.core import memid, projection_jobs
         conn = conn or memid.get_conn()
         target = int(conn.execute("SELECT COALESCE(MAX(seq), 0) FROM memories").fetchone()[0])
         added = 0
@@ -350,41 +353,49 @@ def refresh_ready(conn: Optional[sqlite3.Connection] = None, *, deadline: float)
             if time.monotonic() >= deadline:
                 raise TimeoutError("Nyx voice profile is still refreshing")
             added += _refresh(conn, max_rows=64)
-            ready = int(_meta(conn, "seq", "0") or 0) >= target
+            ready = projection_jobs.ready_through(conn, "profile", RULES_VERSION, target)
             if time.monotonic() >= deadline:
                 raise TimeoutError("Nyx voice profile is still refreshing")
             if ready:
                 return added
+            time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
     finally:
         _REFRESH_LOCK.release()
 
 
 def _refresh(conn: Optional[sqlite3.Connection], max_rows: Optional[int]) -> int:
-    from nexsandglass.core import memid
+    from nexsandglass.core import memid, projection_jobs
     conn = conn or memid.get_conn()
     _ensure(conn)
-    if _meta(conn, "rules") != RULES_VERSION:
-        conn.execute("DELETE FROM profile_items")
-        conn.execute("INSERT OR REPLACE INTO profile_meta(key, value) VALUES ('rules', ?)", (RULES_VERSION,))
-        conn.execute("INSERT OR REPLACE INTO profile_meta(key, value) VALUES ('seq', '0')")
-        conn.commit()
-    mark = int(_meta(conn, "seq", "0") or 0)
+    version = RULES_VERSION
+    legacy_matches = _meta(conn, "rules") == version
+    legacy_mark = int(_meta(conn, "seq", "0") or 0) if legacy_matches else 0
     top = int(conn.execute("SELECT COALESCE(MAX(seq), 0) FROM memories").fetchone()[0] or 0)
-    sql = ("SELECT mem_id, seq, text, line_start FROM memories WHERE seq > ? AND sender = 'user' "
-           "AND deleted_at IS NULL ORDER BY seq")
-    rows = conn.execute(sql + (" LIMIT ?" if max_rows else ""), (mark, max_rows) if max_rows else (mark,)).fetchall()
-    added = 0
-    for mem_id, seq, text, line_start in rows:
-        hit = classify(text)
-        if hit and _trusted(line_start):
-            conn.execute("INSERT OR REPLACE INTO profile_items(mem_id, seq, kind) VALUES (?, ?, ?)",
-                         (mem_id, seq, hit[0]))
-            added += 1
-    # 没看完（max_rows 截住了）：水位线只推到看过的最后一条；看完了：推到最新（中间助手说的话不用再看）
-    last = rows[-1][1] if (max_rows and len(rows) >= max_rows) else top
-    conn.execute("INSERT OR REPLACE INTO profile_meta(key, value) VALUES ('seq', ?)", (str(max(mark, last)),))
-    conn.commit()
-    return added
+
+    def batch(bound, lease):
+        if lease.reset_required:
+            bound.execute("DELETE FROM profile_items")
+        mark = lease.checkpoint_seq
+        sql = ("SELECT mem_id, seq, text, line_start FROM memories WHERE seq > ? AND seq <= ? "
+               "AND sender = 'user' AND deleted_at IS NULL ORDER BY seq")
+        params = (mark, lease.target_seq, max_rows) if max_rows else (mark, lease.target_seq)
+        rows = bound.execute(sql + (" LIMIT ?" if max_rows else ""), params).fetchall()
+        last = rows[-1][1] if max_rows and len(rows) >= max_rows else lease.target_seq
+        bound.execute("DELETE FROM profile_items WHERE seq > ? AND seq <= ?", (mark, last))
+        added = 0
+        for mid, seq, text, line_start in rows:
+            hit = classify(text)
+            if hit and _trusted(line_start, conn=bound):
+                bound.execute("INSERT OR REPLACE INTO profile_items(mem_id, seq, kind) VALUES (?, ?, ?)",
+                              (mid, seq, hit[0]))
+                added += 1
+        last = rows[-1][1] if max_rows and len(rows) >= max_rows else lease.target_seq
+        bound.execute("INSERT OR REPLACE INTO profile_meta(key,value) VALUES ('rules',?)", (version,))
+        bound.execute("INSERT OR REPLACE INTO profile_meta(key,value) VALUES ('seq',?)", (str(last),))
+        return last, added
+
+    return projection_jobs.run(conn, "profile", version, top, batch,
+                               initial_checkpoint=legacy_mark, initial_reset=not legacy_matches)
 
 
 def reconsider(mem_ids) -> int:
@@ -404,7 +415,7 @@ def reconsider(mem_ids) -> int:
             if not r:
                 continue
             hit = classify(r[1])
-            if hit and _trusted(r[2]):
+            if hit and _trusted(r[2], conn=conn):
                 conn.execute("INSERT OR REPLACE INTO profile_items(mem_id, seq, kind) VALUES (?, ?, ?)",
                              (mid, r[0], hit[0]))
                 added += 1
@@ -422,20 +433,26 @@ CHANGED_KEEP = 3                 # 「Changed since」里最多列几条
 def items(conn: Optional[sqlite3.Connection] = None) -> dict:
     """{类别: [(日期, 摘句, mem_id)]}，新的在前，每类有上限，内容相同的只留最新一条；
     同一件事后来说法改了的，旧的分句不在类别里，列在 out["changed"]：[(日期, 被改的话, mem_id, 改口的日期)]。"""
-    from nexsandglass.core import memid
+    from nexsandglass.core import memid, projection_jobs
     conn = conn or memid.get_conn()
     _ensure(conn)
     out = {k: [] for k in KINDS}
     out["changed"] = []
+    job = projection_jobs.get(conn, "profile")
+    if job and (job.processor_version != RULES_VERSION or job.reset_required):
+        return out
     seen = set()
     claimed = {}                                     # 话题槽 → 最新说它的那句的日期
     # 按说话的时间排，不按写入先后：导入的旧对话（hermes nyx import）写得晚，但不能排到最新
-    rows = conn.execute("SELECT p.kind, m.mem_id, m.ts, m.text FROM profile_items p JOIN memories m "
-                        "ON m.mem_id = p.mem_id WHERE m.deleted_at IS NULL ORDER BY m.ts DESC, m.seq DESC")
-    for kind, mem_id, ts, text in rows:
+    rows = conn.execute("SELECT p.kind, m.mem_id, m.ts, m.text, m.line_start FROM profile_items p JOIN memories m "
+                        "ON m.mem_id = p.mem_id WHERE m.deleted_at IS NULL AND m.sender='user' "
+                        "ORDER BY m.ts DESC, m.seq DESC")
+    for kind, mem_id, ts, text, line_start in rows:
         if all(len(out[k]) >= PER_KIND[k] for k in KINDS) and len(out["changed"]) >= CHANGED_KEEP:
             break                                    # 每类都满了：更早的不用再看
         if kind not in PER_KIND:
+            continue
+        if not _trusted(line_start, conn=conn):
             continue
         hit = classify(text)                         # 正文可能已被隐去密钥 / 改写：按现在的正文重新摘
         if not hit:

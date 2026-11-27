@@ -14,6 +14,11 @@ from nexsandglass.core.sandglass_paths import _NB
 
 _DB = os.path.join(_NB, "shadow_sand.db")
 
+
+def _db_path():
+    from nexsandglass.core.store_context import path
+    return path("shadow_sand.db", legacy=_DB)
+
 # ── 关系提取模式（正则）──
 _EXTRACT_PATTERNS = [
     # 决策类
@@ -36,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 def _ensure_table():
     """确保 wthread_triples 表存在（开库 + WAL + 建表走 sqlite_open，并发撞锁时重试）"""
-    sqlite_open.connect(_DB, timeout=10, setup=_create_table).close()
+    sqlite_open.connect(_db_path(), timeout=10, setup=_create_table).close()
 
 
 def _create_table(conn) -> None:
@@ -106,10 +111,10 @@ def wthread_extract(text: str, line_num: int = 0) -> list:
 def wthread_extract_llm(text: str, existing_regex: list = None) -> list:
     """
     可选 LLM 抽取层：抓正则漏掉的三元组，做实体归一化。
-    
+
     返回 [(subject, relation, object, confidence), ...]
     source 标记为 'llm'。
-    
+
     需要配置 WTHREAD_LLM_EXTRACTION=1 且可用的 LLM 后端。
     失败时返回空列表（fail-safe，退回纯正则）。
     """
@@ -181,8 +186,8 @@ def wthread_store(text: str, line_num: int = 0, subject: str = "user",
     # v7.6 以前这里直接插行：不写 valid_from（as_of 永远查不到）、不做冲突处理
     # （「最终用特斯拉」「后来改用吉利」之后 get_current 同时返回两者）。
     from nexsandglass.engram.loops.temporal_fact import ensure_temporal_columns, record_fact
-    ensure_temporal_columns(_DB)
-    conn = sqlite3.connect(_DB, timeout=10)
+    ensure_temporal_columns(_db_path())
+    conn = sqlite3.connect(_db_path(), timeout=10)
     count = 0
     try:
         for f in facts:
@@ -216,9 +221,9 @@ def wthread_query(entity: str = None, relation: str = None, limit: int = 20) -> 
     返回 [{subject, relation, object, source_line, confidence}, ...]
     """
     _ensure_table()
-    conn = sqlite3.connect(_DB, timeout=10)
+    conn = sqlite3.connect(_db_path(), timeout=10)
     conn.row_factory = sqlite3.Row
-    
+
     if entity and relation:
         rows = conn.execute(
             "SELECT * FROM wthread_triples WHERE (subject=? OR object=?) AND relation=? ORDER BY id DESC LIMIT ?",
@@ -239,7 +244,7 @@ def wthread_query(entity: str = None, relation: str = None, limit: int = 20) -> 
             "SELECT * FROM wthread_triples ORDER BY id DESC LIMIT ?",
             (limit,)
         ).fetchall()
-    
+
     conn.close()
     return [dict(r) for r in rows]
 
@@ -249,13 +254,13 @@ def wthread_graph(entity: str, depth: int = 1) -> dict:
     返回 {entity, relations: [{relation, target}], subgraph: {...}}
     """
     direct = wthread_query(entity=entity)
-    
+
     result = {
         "entity": entity,
         "relations": [],
         "subgraph": {}
     }
-    
+
     seen = set()
     for r in direct:
         target = r["object"] if r["subject"] == entity else r["subject"]
@@ -264,7 +269,7 @@ def wthread_graph(entity: str, depth: int = 1) -> dict:
             "target": target,
             "direction": "→" if r["subject"] == entity else "←"
         })
-    
+
     if depth >= 2:
         for rel in result["relations"]:
             target = rel["target"]
@@ -275,14 +280,14 @@ def wthread_graph(entity: str, depth: int = 1) -> dict:
                     {"relation": s["relation"], "target": s["object"] if s["subject"] == target else s["subject"]}
                     for s in sub[:5]
                 ]
-    
+
     return result
 
 
 def wthread_stats() -> dict:
     """图谱统计"""
     _ensure_table()
-    conn = sqlite3.connect(_DB, timeout=10)
+    conn = sqlite3.connect(_db_path(), timeout=10)
     total = conn.execute("SELECT COUNT(*) FROM wthread_triples").fetchone()[0]
     entities = conn.execute(
         "SELECT COUNT(*) FROM (SELECT subject AS e FROM wthread_triples "
@@ -299,7 +304,7 @@ def wthread_stats() -> dict:
 def wthread_to_weave(entity: str = "user") -> list:
     """织线→织布机桥接：将结构化三元组转为因果链线索。
     织布机可用此替代原始沙子扫描，获得更精准的因果关系。
-    
+
     返回 [{from, relation, to, direction}, ...]
     """
     triples = wthread_query(entity=entity)
@@ -312,7 +317,7 @@ def wthread_to_weave(entity: str = "user") -> list:
             "direction": "→" if t["subject"] == entity else "←",
             "source_line": t["source_line"]
         })
-    
+
     # 按关系类型分组
     grouped = {}
     for c in chains:
@@ -320,7 +325,7 @@ def wthread_to_weave(entity: str = "user") -> list:
         if rel not in grouped:
             grouped[rel] = []
         grouped[rel].append(c["to"])
-    
+
     return {
         "chains": chains,
         "grouped": grouped,
@@ -466,8 +471,8 @@ def wthread_add(subject: str, relation: str, object: str, source_line: int = 0,
     """
     _ensure_table()
     from nexsandglass.engram.loops.temporal_fact import ensure_temporal_columns, record_fact
-    ensure_temporal_columns(_DB)
-    conn = sqlite3.connect(_DB, timeout=10)
+    ensure_temporal_columns(_db_path())
+    conn = sqlite3.connect(_db_path(), timeout=10)
     try:
         record_fact(conn, subject, relation, object, valid_from=valid_from,
                     source_line=source_line, source=source or "regex",

@@ -241,7 +241,7 @@ def test_config_roundtrip_backup_and_identity(tmp_path, monkeypatch):
     keys = {f["key"] for f in p.get_config_schema()}
     # v7.15.2：owner_ids / bots_are_external 不再出现在 hermes memory setup 里 —— Hermes 不向记忆提供器传发言人，
     # 这两项在那里从来不起作用（docs/secret-vault.md §2）。手写进 nyx.json 的仍然读（给会传 turn_author 的宿主）
-    assert keys == {"data_dir", "prefetch_tokens",
+    assert keys == {"data_dir", "prefetch_tokens", "context_tokens",
                     "semantic", "embedding_model", "embedding_api_url", "embedding_api_key",
                     "rerank",                                                   # v7.14.0
                     "vault", "vault_reveal", "vault_kinds",                     # v7.15.0
@@ -408,7 +408,8 @@ def test_initialize_does_not_block_and_warms_in_background(env):
     p = _provider()
     p.initialize("s1", agent_context="primary", platform="cli")
     p._warm_thread.join(30)
-    assert sandglass_vault._idx_cache, "预热没有把倒排读进内存"
+    with p._store_context.bind():
+        assert sandglass_vault._index_state()._idx_cache, "预热没有把倒排读进内存"
     assert journal_mirror._state, "预热没有建日志镜像"
     from nexsandglass.runtime.orchestrator import get_orchestrator
     assert get_orchestrator().recall("老周 预算表", 600).strings == cold
@@ -436,11 +437,11 @@ def test_prefetch_recalls_for_this_turn(env):
 
 
 def test_memory_block_format():
-    """注入写法（prefetch 与 benchmarks/beam_format_eval.py 共用）：每条取开头 300 字、带说话日期"""
+    """Date framing preserves the complete record, including a trailing negation."""
     from nexsandglass.core.memory_provider import MEMORY_HEADER, memory_block
-    long = "x" * 500
+    long = "x" * 500 + " but NOT peanuts."
     assert memory_block([(long, "2024-03-15"), ("short", None)]) == \
-        f"{MEMORY_HEADER}\n- [2024-03-15] {'x' * 300}\n- short"
+        f"{MEMORY_HEADER}\n- [2024-03-15] {long}\n- short"
 
 
 def test_belief_tool_answers_current_and_history(env):
@@ -542,9 +543,8 @@ def test_data_dir_is_not_written_to_the_environment(tmp_path):
     assert target == nb == memid_nb == str(data) and env_nb is None
 
 
-def test_profile_with_another_data_dir_is_refused(env, tmp_path, monkeypatch):
-    """一个进程只有一个 nyx 数据目录。另一个 profile 配了别的 data_dir：插件报不可用（Hermes 会告诉用户），
-    而不是悄悄写进第一个 profile 的记忆（v7.17.0）。"""
+def test_profile_with_another_data_dir_is_bound(env, tmp_path, monkeypatch):
+    """The host binds a secondary root; changing ambient settings cannot redirect it."""
     import nexsandglass_hermes as nh
     from nexsandglass.core import sandglass_paths
     from nexsandglass.core.memory_provider import NexSandglassProvider
@@ -557,8 +557,17 @@ def test_profile_with_another_data_dir_is_refused(env, tmp_path, monkeypatch):
     assert NexSandglassProvider().is_available()
     monkeypatch.setenv("HERMES_HOME", str(other))
     p = NexSandglassProvider()
-    assert not p.is_available()
-    assert "one data directory per process" in p.unavailable_reason()
+    assert p.is_available()
+    assert p._store_context.data_dir == str(tmp_path / "elsewhere")
+    p.initialize("same-session", hermes_home=str(other), platform="cli")
+    p.sync_turn("I live in the secondary city.", "")
+    p._warm_thread.join(30)
+    from nexsandglass.core import memid
+    with p._store_context.bind():
+        assert any("secondary city" in row[0] for row in memid.get_conn().execute("SELECT text FROM memories"))
+    assert not any("secondary city" in row[0] for row in memid.get_conn().execute("SELECT text FROM memories"))
+    monkeypatch.setenv("HERMES_HOME", str(same))
+    assert p._data_dir() == str(tmp_path / "elsewhere")
 
 
 def test_reveal_plugin_loaded_first_uses_the_profile_data_dir(tmp_path):

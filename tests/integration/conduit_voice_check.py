@@ -23,7 +23,8 @@ def main():
                       XDG_CONFIG_HOME=str(root / "config"),
                       NYX_EMBED="off", NYX_AUTO_PURGE="off", NYX_LANG="en")
     for name in ("NYX_UNDERSTAND_LLM", "NYX_OWNER_IDS", "NYX_NOW", "NYX_FOLLOW_UPS",
-                 "NYX_ALLOW_PROD_DB", "NYX_EMBED_PROVIDER", "NYX_EMBED_MODEL",
+                 "NYX_ALLOW_PROD_DB", "NYX_CONTEXT_TOKENS", "NYX_BUNDLE_MAX_TOKENS",
+                 "NYX_EMBED_PROVIDER", "NYX_EMBED_MODEL",
                  "EMBEDDING_API_URL", "EMBEDDING_API_KEY", "NYX_RERANK", "NYX_SECRET_FILTER",
                  "WTHREAD_LLM_EXTRACTION", "LLM_EXTRACT_API_URL", "DEEPSEEK_API_KEY",
                  "OPENROUTER_API_KEY", "NYX_EVAL_API_URL", "NYX_EVAL_API_KEY",
@@ -51,6 +52,7 @@ def main():
         writer.sync_turn("我对花生过敏。", "知道了。", session_id="fixture")
         writer.sync_turn("以后用中文回复，简短一点。", "好的。", session_id="fixture")
         writer.sync_turn("明天我有个面试。", "祝你顺利。", session_id="fixture")
+        writer.sync_turn("我的备用蓝色钥匙放在书房的第二个抽屉。", "知道了。", session_id="fixture")
 
     spec = importlib.util.spec_from_file_location("nyx_real_conduit_api", notifier / "dashboard/plugin_api.py")
     api = importlib.util.module_from_spec(spec)
@@ -84,7 +86,12 @@ def main():
             profile._REFRESH_LOCK.acquire()
             try:
                 busy = client.get("/api/plugins/conduit_push/memory/context")
-                assert busy.status_code == 502, busy.text
+                if os.environ.get("CONDUIT_EXPECT_CONTEXT_FALLBACK") == "1":
+                    assert busy.status_code == 200, busy.text
+                    assert busy.json()["context"] == "" and busy.json()["provider"] == "nyx"
+                    results["provider_label_alone_is_not_evidence_of_nyx_facts"] = True
+                else:
+                    assert busy.status_code == 502, busy.text
                 assert "花生" not in busy.text
             finally:
                 profile._REFRESH_LOCK.release()
@@ -97,6 +104,13 @@ def main():
             assert "中文" in payload["context"] and "sandglass_search" not in payload["context"]
             assert response.headers["cache-control"] == "no-store"
             assert journal.read_bytes() == before
+            entry = next(iter(api.memory._memory_providers._entries.values()))
+            trace = entry.provider.context_trace("conduit_voice")
+            from hashlib import sha256
+            assert trace["evidence_ids"] and trace["stage"] == "generated"
+            assert trace["text_sha256"] == sha256(payload["context"].encode()).hexdigest()
+            assert trace["sent"] is None and trace["applied"] is None
+            results["source_bound_nyx_output_reached_http"] = True
             results["automatic_startup_facts"] = True
             results["no_recall_tool_or_turn_write"] = True
             allergy = next(r for r in memid.iter_all() if "花生" in r["text"] and r["sender"] == "user")
@@ -113,6 +127,13 @@ def main():
             without = client.get("/api/plugins/conduit_push/memory/context").json()["context"]
             assert "面试" not in without
             results["followups_off_respected"] = True
+        recalled = client.post("/api/plugins/conduit_push/memory/recall", json={"query": "备用蓝色钥匙"})
+        assert recalled.status_code == 200, recalled.text
+        assert recalled.json()["available"] is True
+        assert "书房" in recalled.json()["results"] and "第二个抽屉" in recalled.json()["results"]
+        query_trace = entry.provider.context_trace("hermes_prefetch")
+        assert query_trace["evidence_ids"] and query_trace["applied"] is None
+        results["explicit_historical_memory_http_lookup"] = True
     finally:
         api.memory._memory_providers.clear()
         writer.shutdown()

@@ -470,7 +470,9 @@ def extract(text: str, said) -> list:
 # ══════════════════════════════════════════════════════════
 
 def _ensure(conn: sqlite3.Connection) -> None:
-    conn.executescript(_SCHEMA)
+    for statement in _SCHEMA.split(";"):
+        if statement.strip():
+            conn.execute(statement)
 
 
 def _meta(conn, key: str, default: str = "") -> str:
@@ -491,7 +493,7 @@ def _said(ts) -> datetime:
 def _store(conn, mem_id: str, seq: int, ts, text: str, line_start) -> int:
     from nexsandglass.core.profile import _trusted
     found = extract(text, _said(ts))
-    if not found or not _trusted(line_start):
+    if not found or not _trusted(line_start, conn=conn):
         return 0
     for kinds, a, b, _ in found:
         conn.execute("INSERT OR REPLACE INTO followup_items(mem_id, seq, kinds, day_from, day_to) VALUES (?, ?, ?, ?, ?)",
@@ -522,7 +524,7 @@ def refresh_ready(conn: Optional[sqlite3.Connection] = None, *, deadline: float)
     if not _REFRESH_LOCK.acquire(timeout=max(0.0, deadline - time.monotonic())):
         raise TimeoutError("Nyx voice follow-ups are still refreshing")
     try:
-        from nexsandglass.core import memid
+        from nexsandglass.core import memid, projection_jobs
         conn = conn or memid.get_conn()
         target = int(conn.execute("SELECT COALESCE(MAX(seq), 0) FROM memories").fetchone()[0])
         added = 0
@@ -530,36 +532,45 @@ def refresh_ready(conn: Optional[sqlite3.Connection] = None, *, deadline: float)
             if time.monotonic() >= deadline:
                 raise TimeoutError("Nyx voice follow-ups are still refreshing")
             added += _refresh(conn, max_rows=64)
-            ready = int(_meta(conn, "seq", "0") or 0) >= target
+            ready = projection_jobs.ready_through(conn, "followups", RULES_VERSION, target)
             if time.monotonic() >= deadline:
                 raise TimeoutError("Nyx voice follow-ups are still refreshing")
             if ready:
                 return added
+            time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
     finally:
         _REFRESH_LOCK.release()
 
 
 def _refresh(conn: Optional[sqlite3.Connection], max_rows: Optional[int]) -> int:
-    from nexsandglass.core import memid
+    from nexsandglass.core import memid, projection_jobs
     conn = conn or memid.get_conn()
     _ensure(conn)
-    if _meta(conn, "rules") != RULES_VERSION:
-        conn.execute("DELETE FROM followup_items")
-        conn.execute("INSERT OR REPLACE INTO followup_meta(key, value) VALUES ('rules', ?)", (RULES_VERSION,))
-        conn.execute("INSERT OR REPLACE INTO followup_meta(key, value) VALUES ('seq', '0')")
-        conn.commit()
-    mark = int(_meta(conn, "seq", "0") or 0)
+    version = RULES_VERSION
+    legacy_matches = _meta(conn, "rules") == version
+    legacy_mark = int(_meta(conn, "seq", "0") or 0) if legacy_matches else 0
     top = int(conn.execute("SELECT COALESCE(MAX(seq), 0) FROM memories").fetchone()[0] or 0)
-    sql = ("SELECT mem_id, seq, ts, text, line_start FROM memories WHERE seq > ? AND sender = 'user' "
-           "AND deleted_at IS NULL ORDER BY seq")
-    rows = conn.execute(sql + (" LIMIT ?" if max_rows else ""), (mark, max_rows) if max_rows else (mark,)).fetchall()
-    added = 0
-    for mem_id, seq, ts, text, line_start in rows:
-        added += _store(conn, mem_id, seq, ts, text, line_start)
-    last = rows[-1][1] if (max_rows and len(rows) >= max_rows) else top
-    conn.execute("INSERT OR REPLACE INTO followup_meta(key, value) VALUES ('seq', ?)", (str(max(mark, last)),))
-    conn.commit()
-    return added
+
+    def batch(bound, lease):
+        if lease.reset_required:
+            bound.execute("DELETE FROM followup_items")
+        mark = lease.checkpoint_seq
+        sql = ("SELECT mem_id, seq, ts, text, line_start FROM memories WHERE seq > ? AND seq <= ? "
+               "AND sender = 'user' AND deleted_at IS NULL ORDER BY seq")
+        params = (mark, lease.target_seq, max_rows) if max_rows else (mark, lease.target_seq)
+        rows = bound.execute(sql + (" LIMIT ?" if max_rows else ""), params).fetchall()
+        last = rows[-1][1] if max_rows and len(rows) >= max_rows else lease.target_seq
+        bound.execute("DELETE FROM followup_items WHERE seq > ? AND seq <= ?", (mark, last))
+        added = 0
+        for mid, seq, ts, text, line_start in rows:
+            added += _store(bound, mid, seq, ts, text, line_start)
+        last = rows[-1][1] if max_rows and len(rows) >= max_rows else lease.target_seq
+        bound.execute("INSERT OR REPLACE INTO followup_meta(key,value) VALUES ('rules',?)", (version,))
+        bound.execute("INSERT OR REPLACE INTO followup_meta(key,value) VALUES ('seq',?)", (str(last),))
+        return last, added
+
+    return projection_jobs.run(conn, "followups", version, top, batch,
+                               initial_checkpoint=legacy_mark, initial_reset=not legacy_matches)
 
 
 def reconsider(mem_ids) -> int:
@@ -631,19 +642,25 @@ def _mentions(text: str, kinds: tuple, tokens: set, when: datetime) -> str:
 def due(now: Optional[datetime] = None, conn: Optional[sqlite3.Connection] = None) -> list:
     """现在该列的待跟进，排好序、最多 MAX_SHOWN 件：
     [{state: upcoming|awaiting, start, end, said, text, mem_id, kinds}]"""
-    from nexsandglass.core import clock, memid
+    from nexsandglass.core import clock, memid, projection_jobs
+    from nexsandglass.core.profile import _trusted
     conn = conn or memid.get_conn()
     _ensure(conn)
+    job = projection_jobs.get(conn, "followups")
+    if job and (job.processor_version != RULES_VERSION or job.reset_required):
+        return []
     now = now or clock.now()
     today = now.date()
     lo = (today - timedelta(days=AWAITING_DAYS)).isoformat()
     hi = (today + timedelta(days=UPCOMING_DAYS)).isoformat()
     rows = conn.execute(
-        "SELECT f.mem_id, f.kinds, f.day_from, f.day_to, m.ts, m.text FROM followup_items f JOIN memories m "
+        "SELECT f.mem_id, f.kinds, f.day_from, f.day_to, m.ts, m.text, m.line_start FROM followup_items f JOIN memories m "
         "ON m.mem_id = f.mem_id WHERE m.deleted_at IS NULL AND m.sender = 'user' AND f.day_to >= ? "
         "AND f.day_from <= ? AND m.ts <= ? ORDER BY m.ts", (lo, hi, now.strftime("%Y-%m-%d %H:%M:%S"))).fetchall()
     cands = []
-    for mem_id, kinds, a, b, ts, text in rows:
+    for mem_id, kinds, a, b, ts, text, line_start in rows:
+        if not _trusted(line_start, conn=conn):
+            continue
         said = _said(ts)
         start, end = date.fromisoformat(a), date.fromisoformat(b)
         ks = tuple(kinds.split(","))
@@ -717,7 +734,7 @@ def _excerpt(c: dict) -> str:
     if len(flat) <= LINE_CHARS:
         return flat
     s = " ".join(c["sentence"].split())
-    return s if len(s) <= LINE_CHARS else s[: LINE_CHARS - 1].rstrip() + "…"
+    return s
 
 
 def lines(items: list, today: Optional[date] = None) -> list:
@@ -770,7 +787,8 @@ def render(now: Optional[datetime] = None, conn: Optional[sqlite3.Connection] = 
 
 def _path() -> str:
     from nexsandglass.core.sandglass_paths import _NB
-    return os.path.join(_NB, "follow_ups.json")
+    from nexsandglass.core.store_context import path
+    return path("follow_ups.json", legacy=os.path.join(_NB, "follow_ups.json"))
 
 
 def switched_off() -> Optional[dict]:

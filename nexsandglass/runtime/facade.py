@@ -28,6 +28,7 @@ NYX_RUNTIME = os.environ.get("NYX_RUNTIME", "1") == "1"
 from typing import Optional
 
 from nexsandglass.engram.types import MemoryObject
+from nexsandglass.runtime.contracts import ContextPacket, RecallRequest, packet_for
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,7 @@ class MemoryContext:
     session_id: str | None = None
     context_used: bool = False
     candidate_mode: bool = False
+    packet: ContextPacket | None = None
 
     def to_text(self, separator: str = "\n") -> str:
         """将上下文拼成纯文本（供 system prompt 注入）。优先用 text。"""
@@ -143,6 +145,27 @@ def recall(
             query=query, token_budget=token_budget, degraded=True,
             text="", strings=[],
         )
+
+
+def recall_request(request: RecallRequest) -> ContextPacket:
+    """Typed recall over the existing planner; legacy recall(str) is unchanged.
+
+    IDs are correlation metadata, not authorization or persistent filters.
+    Hosts must compare the packet with their current turn/revision before use.
+    """
+    if not isinstance(request, RecallRequest):
+        raise TypeError("request must be a RecallRequest")
+    try:
+        from nexsandglass.runtime.orchestrator import get_orchestrator
+        packet = get_orchestrator().recall_request(request)
+        if not isinstance(packet, ContextPacket):
+            raise TypeError("typed recall did not return a ContextPacket")
+        return packet
+    except Exception:
+        # Do not export source exception strings, queries or task context.
+        logger.warning("Nyx typed recall failed; returning an error packet")
+        return packet_for(request, status="error", degraded=True,
+                          reason_codes=("recall_error",))
 
 
 def feedback(outcome: dict) -> dict:
@@ -305,6 +328,8 @@ def consolidate(*, tag: str = "consolidation") -> dict:
     """
     report = {"ok": False, "action": "noop", "detail": {}}
     try:
+        from nexsandglass.runtime.orchestrator import _require_legacy_projection
+        _require_legacy_projection("consolidation")
         from nexsandglass.runtime.consolidation import ConsolidationEngine
         from nexsandglass.engram import bridge
         from nexsandglass.engram.types import Memory

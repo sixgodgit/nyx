@@ -17,6 +17,17 @@ logger = logging.getLogger(__name__)
 
 
 def get(name: str, default: str = "") -> str:
+    from nexsandglass.core.store_context import current
+    store = current()
+    if store is not None:
+        getter = store.credential_getter
+        if getter is None:
+            return default
+        try:
+            return getter(name) or default
+        except Exception:
+            logger.debug("[credentials] bound credential unavailable: %s", name)
+            return default
     try:
         from agent.secret_scope import get_secret
     except Exception:

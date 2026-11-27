@@ -49,6 +49,11 @@ from nexsandglass.core.sandglass_paths import _NB
 _SANDGLASS = os.path.join(_NB, "sandglass.txt")
 
 
+def _journal_path():
+    from nexsandglass.core.store_context import path
+    return path("sandglass.txt", legacy=_SANDGLASS)
+
+
 def log_message(text: str, sender: str = "agent", return_id: bool = False):
     """写入一条消息到沙漏。
 
@@ -81,7 +86,7 @@ def log_message(text: str, sender: str = "agent", return_id: bool = False):
         try:
             # 必须把本模块的 _SANDGLASS 传下去 —— 它可能被重定向（测试/多实例），
             # 不传的话中枢写自己的路径，调用方读另一个，等于又开了第二个真相来源。
-            mem_id = memid.allocate(text, sender=sender, journal_path=_SANDGLASS)
+            mem_id = memid.allocate(text, sender=sender, journal_path=_journal_path())
         except TimeoutError as e:
             # 旧实现在锁超时后"强制裸写"，那会写出一条中枢不知道的记忆。
             # 宁可这一条写失败并让调用方知道，也不制造中枢与日志的分叉。
