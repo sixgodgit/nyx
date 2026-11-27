@@ -111,6 +111,10 @@ _TO_ASSISTANT = re.compile(r"\byou(r|'ve|'re|'d|'ll)?\b|你(的|这|写|说|改|
 
 def classify(text: str) -> Optional[tuple]:
     """(类别, 摘句) 或 None。按 instruction > health > people > identity > likes 的先后，取第一句命中的。"""
+    from . import observation
+    context = observation.current()
+    if context and context.input_language.split("-", 1)[0] not in ("zh", "en", "mixed", "unknown"):
+        return None
     text = str(text or "").strip()
     if not text or len(text) > _MAX_LEN:
         return None
@@ -119,6 +123,18 @@ def classify(text: str) -> Optional[tuple]:
         if kind == "instruction" and len(text) > _INSTRUCTION_MAX_LEN:
             continue
         for i, s in enumerate(sents):
+            from .assertions import assertion_state
+            state = assertion_state(s)
+            if state == "question" or (state in ("conditional", "uncertain", "ambiguous_negation", "historical") and kind != "health"):
+                continue
+            if kind in ("identity", "instruction", "likes"):
+                from . import observation
+                from .time import scan_times
+                ctx = observation.current()
+                if ctx:
+                    times = scan_times(s, ctx)
+                    if any(t.status != "resolved" or (t.start and t.start > ctx.local.date()) for t in times):
+                        continue
             if kind == "likes" and _TO_ASSISTANT.search(s):
                 continue
             if any(p.search(s) for p in _COMPILED[kind]):
@@ -242,7 +258,8 @@ def comparison_slots(kind: str, clauses: list[str]) -> list[set]:
     policy. Preserve compound/uncertain allergy statements in full until the
     richer polarity/condition policy in LANG-03 can interpret them.
     """
-    keys = [slots(kind, clause) for clause in clauses]
+    from .assertions import assertion_state
+    keys = [slots(kind, clause) if assertion_state(clause) == "affirmed" else set() for clause in clauses]
     if kind == "health" and any(k.startswith("allergy:") for row in keys for k in row):
         simple = len(clauses) == 1 and bool(re.fullmatch(
             r"(?:我)?(?:不再|不)?对[^，。！？\s]{1,8}过敏(?:了)?[。.!！]?"

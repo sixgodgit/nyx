@@ -95,7 +95,7 @@ def main():
         os.environ.update(NEXSANDBASE_HOME=root + "/legacy", HERMES_HOME=root + "/hermes",
                           XDG_CONFIG_HOME=root + "/config", NYX_EMBED="off", NYX_AUTO_PURGE="off",
                           NYX_UNDERSTAND_LLM="off", NYX_L3_LLM="off", NYX_RERANK="off")
-        for name in ("WTHREAD_LLM_EXTRACTION", "NYX_UNDERSTAND_LLM", "EMBEDDING_API_URL", "NYX_EMBED_PROVIDER"):
+        for name in ("NYX_TIMEZONE", "NYX_LOCALE", "WTHREAD_LLM_EXTRACTION", "NYX_UNDERSTAND_LLM", "EMBEDDING_API_URL", "NYX_EMBED_PROVIDER"):
             os.environ.pop(name, None)
         raw = args.corpus.read_bytes()
         report = evaluate(json.loads(raw), args.split, Path(root))

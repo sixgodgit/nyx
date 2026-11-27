@@ -165,7 +165,19 @@ def wthread_store(text: str, line_num: int = 0, subject: str = "user",
     from nexsandglass.core import understand, clock
     now = clock.utcnow()
     try:
-        facts = understand.extract(text, now=clock.now(), subject=subject)
+        from nexsandglass.language import observation
+        from nexsandglass.core import memid as canonical
+        if mem_id:
+            from nexsandglass.core import provenance
+            raw = canonical.get(mem_id)
+            prov = provenance.get(mem_id)
+            if raw and (raw.get("sender") != "user" or (prov and prov.signal != provenance.TRUSTED)):
+                return 0
+        ctx = observation.for_record(canonical.get_conn(), mem_id) if mem_id else observation.current()
+        if ctx and ctx.reference.tzinfo is not None:
+            now = ctx.reference
+        with observation.bind(ctx):
+            facts = understand.extract(text, now=clock.now(), subject=subject)
     except Exception as e:
         # 理解层出错不能让这条消息的图谱写入整个丢掉 —— 退回旧正则
         logger.warning("[wthread_store] understand 失败，退回正则: %s", e)
@@ -199,7 +211,8 @@ def wthread_store(text: str, line_num: int = 0, subject: str = "user",
                               valid_from=f.valid_from, ongoing=f.ongoing,
                               source_line=line_num, source=f"understand:{f.backend}",
                               source_mem_id=mem_id, confidence=f.confidence,
-                              dedup_non_temporal=True)
+                              dedup_non_temporal=True, polarity=f.polarity,
+                              time_basis=f.time_resolution)
             if rep.inserted:
                 count += 1
         for subj, rel, obj, src_tag in legacy:
@@ -226,6 +239,7 @@ def wthread_query(entity: str = None, relation: str = None, limit: int = 20) -> 
 
     from nexsandglass.language.ontology import predicate_aliases
     aliases = predicate_aliases(relation) if relation else ()
+    aliases = tuple(dict.fromkeys((*aliases, *("not:" + a for a in aliases))))
     predicate_sql = "relation IN (" + ",".join("?" for _ in aliases) + ")"
     if entity and relation:
         rows = conn.execute(
@@ -249,7 +263,8 @@ def wthread_query(entity: str = None, relation: str = None, limit: int = 20) -> 
         ).fetchall()
 
     conn.close()
-    return [dict(r) for r in rows]
+    from nexsandglass.engram.loops.temporal_fact import _out
+    return _out(rows)
 
 
 def wthread_graph(entity: str, depth: int = 1) -> dict:

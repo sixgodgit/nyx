@@ -28,7 +28,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-RULES_VERSION = "5"
+RULES_VERSION = "6"
 KINDS = ("instruction", "health", "people", "identity", "likes")
 HEADERS = {
     "instruction": "Standing requests to you",
@@ -62,6 +62,12 @@ CREATE TABLE IF NOT EXISTS profile_meta (
 def classify(text: str, *, adapter=None) -> Optional[tuple]:
     from nexsandglass.language import DEFAULT_ADAPTER
     return (adapter or DEFAULT_ADAPTER).classify_profile(text)
+
+
+def _classify_record(text, mid, conn, ts=None):
+    from nexsandglass.language import observation
+    with observation.bind(observation.for_record(conn, mid, ts)):
+        return classify(text)
 
 
 def slots(kind: str, clause: str, *, adapter=None) -> set:
@@ -167,7 +173,7 @@ def _refresh(conn: Optional[sqlite3.Connection], max_rows: Optional[int]) -> int
         bound.execute("DELETE FROM profile_items WHERE seq > ? AND seq <= ?", (mark, last))
         added = 0
         for mid, seq, text, line_start in rows:
-            hit = classify(text)
+            hit = _classify_record(text, mid, bound)
             if hit and _trusted(line_start, conn=bound):
                 bound.execute("INSERT OR REPLACE INTO profile_items(mem_id, seq, kind) VALUES (?, ?, ?)",
                               (mid, seq, hit[0]))
@@ -197,7 +203,7 @@ def reconsider(mem_ids) -> int:
                              "AND deleted_at IS NULL", (mid,)).fetchone()
             if not r:
                 continue
-            hit = classify(r[1])
+            hit = _classify_record(r[1], mid, conn)
             if hit and _trusted(r[2], conn=conn):
                 conn.execute("INSERT OR REPLACE INTO profile_items(mem_id, seq, kind) VALUES (?, ?, ?)",
                              (mid, r[0], hit[0]))
@@ -237,7 +243,7 @@ def items(conn: Optional[sqlite3.Connection] = None) -> dict:
             continue
         if not _trusted(line_start, conn=conn):
             continue
-        hit = classify(text)                         # 正文可能已被隐去密钥 / 改写：按现在的正文重新摘
+        hit = _classify_record(text, mem_id, conn, ts)                         # 正文可能已被隐去密钥 / 改写：按现在的正文重新摘
         if not hit:
             continue
         date, excerpt = str(ts or "")[:10], hit[1]

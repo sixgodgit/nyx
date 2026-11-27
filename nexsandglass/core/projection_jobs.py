@@ -75,6 +75,12 @@ def ensure(conn: sqlite3.Connection) -> None:
             conn.execute("CREATE TRIGGER IF NOT EXISTS projection_trust_" + event.lower() +
                          " AFTER " + event + " ON provenance WHEN EXISTS(" + seq + ") BEGIN " +
                          invalidate("(" + seq + ")") + "END")
+    if "observation_context" in tables:
+        for event, ref in (("INSERT", "NEW.mem_id"), ("UPDATE", "NEW.mem_id"), ("DELETE", "OLD.mem_id")):
+            seq = "SELECT seq FROM memories WHERE mem_id=" + ref
+            conn.execute("CREATE TRIGGER IF NOT EXISTS projection_context_" + event.lower() +
+                         " AFTER " + event + " ON observation_context WHEN EXISTS(" + seq + ") BEGIN " +
+                         invalidate("(" + seq + ")") + "END")
 
 
 @contextmanager

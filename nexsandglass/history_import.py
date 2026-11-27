@@ -268,7 +268,13 @@ def _write_turns(db: HermesDB, provider, turns: list, *, progress=None) -> dict:
             if a and already_in_nyx(conn, "agent", a, datetime.fromtimestamp(tr["assistant"]["ts"])):
                 a, dupes = "", dupes + 1
             if u or a:
-                with clock.frozen(datetime.fromtimestamp(tr["ts"])):
+                from datetime import timezone
+                from nexsandglass.language import observation
+                from nexsandglass.core import settings
+                loc, zone = settings.get("NYX_LOCALE") or None, settings.get("NYX_TIMEZONE") or None
+                context = observation.TemporalContext(datetime.fromtimestamp(tr["ts"], timezone.utc), loc, zone,
+                                                      "historical_import") if loc or zone else None
+                with observation.bind(context), clock.frozen(datetime.fromtimestamp(tr["ts"])):
                     provider.sync_turn(u, a, session_id=f"hermes:{tr['session']}")
                 written += 1
                 count[tr["session"]] = count.get(tr["session"], 0) + 1

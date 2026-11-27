@@ -1098,6 +1098,9 @@ def _triple_text(t) -> str:
         if s and p and o:
             from nexsandglass.core.understand import relation_phrase
             p = relation_phrase(p)           # 给模型看英文（住在 → lives in）；库里存的关系名不变（v7.16.0）
+            if t.get("polarity", 1) < 0:
+                p = {"likes": "does not like", "dislikes": "does not dislike", "lives in": "does not live in",
+                     "uses": "does not use", "works at": "does not work at", "works as": "does not work as"}.get(p, "denies " + p)
             vf = str(t.get("valid_from") or "")[:10]
             # 只有「说过从什么时候起」的才标时间；推定起点（记录时刻）标出来反而误导
             if vf and t.get("valid_basis") == "stated" and not t.get("valid_until"):

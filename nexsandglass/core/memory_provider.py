@@ -323,7 +323,8 @@ def _budget_blocks(blocks, budget: int) -> str:
 
 
 # nyx.json 的键 → 读设置时用的名字（同名环境变量设了的话优先）
-_PROFILE_SETTINGS = (("semantic", "NYX_EMBED"), ("embedding_model", "NYX_EMBED_MODEL"),
+_PROFILE_SETTINGS = (("locale", "NYX_LOCALE"), ("timezone", "NYX_TIMEZONE"),
+                     ("semantic", "NYX_EMBED"), ("embedding_model", "NYX_EMBED_MODEL"),
                      ("embedding_api_url", "EMBEDDING_API_URL"), ("rerank", "NYX_RERANK"),
                      ("vault", "NYX_VAULT"), ("vault_reveal", "NYX_VAULT_REVEAL"), ("vault_kinds", "NYX_VAULT_KINDS"),
                      ("l3_llm", "NYX_L3_LLM"), ("lang", "NYX_LANG"), ("auto_purge", "NYX_AUTO_PURGE"),
@@ -1621,6 +1622,12 @@ class NexSandglassProvider(MemoryProvider):
                                "/nyx follow-ups off also turns it off.",
                                "待跟进：每个对话开始时，让模型看到你说过的、两天内要发生的事，以及十天内已经发生、但还没说结果的事"
                                "（面试、复查、出差），它可以祝你顺利或者问一句结果。也可以在对话里用 /nyx follow-ups off 关掉。")},
+            {"key": "locale", "type": "text", "default": "",
+             "description": _t("Date convention for new observations (for example en-US or en-GB). Ambiguous dates stay unresolved without a supported convention.",
+                               "新记忆的日期格式，例如 en-US 或 en-GB；缺少明确格式时保留日期歧义。")},
+            {"key": "timezone", "type": "text", "default": "",
+             "description": _t("IANA timezone for new observations and relative dates, for example Europe/Berlin or Asia/Shanghai. Existing records retain their original frame. Leave both locale and timezone blank for legacy wall-clock behavior.",
+                               "新记忆和相对日期使用的 IANA 时区，例如 Europe/Berlin 或 Asia/Shanghai。旧记录保留原时间语境；两项均留空时保留原墙上时钟行为。")},
             {"key": "lang", "type": "text", "default": "auto", "choices": ["auto", "en", "zh"],
              "description": _t("Language of Nyx's terminal output and these settings: auto = follow the system locale, "
                                "en = English, zh = Chinese. What the model sees is always English.",
@@ -1632,6 +1639,9 @@ class NexSandglassProvider(MemoryProvider):
         nh = _hermes_cfg()
         if nh is None:
             raise RuntimeError("nexsandglass_hermes is not available; cannot save the config")
+        if values and ("locale" in values or "timezone" in values):
+            from nexsandglass.runtime.contracts import LanguageContext
+            LanguageContext(locale=values.get("locale") or None, timezone=values.get("timezone") or None)
         known = {f["key"] for f in self.get_config_schema() if not f.get("secret")}   # 密钥只进 .env
         nh.save_config({k: v for k, v in (values or {}).items() if k in known}, hermes_home)
         if hermes_home and hermes_home == self._hermes_home:

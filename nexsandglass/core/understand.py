@@ -88,6 +88,9 @@ class Fact:
     evidence: str = ""                        # 原文里支撑这条事实的片段
     backend: str = "rules"
     deferred: bool = False                    # 往事但没给时间 → 不写成现任
+    polarity: int = 1
+    assertion: str = "affirmed"
+    time_resolution: Optional[dict] = field(default=None, repr=False)
 
     @property
     def semantic_key(self):
@@ -96,7 +99,7 @@ class Fact:
         return fact_key(self.subject, self.relation, self.object)
 
     def to_dict(self) -> dict:
-        d = dict(self.__dict__)
+        d = {k: v for k, v in self.__dict__.items() if k not in ("polarity", "assertion", "time_resolution")}
         d["valid_from"] = self.valid_from.strftime("%Y-%m-%dT%H:%M:%S") if self.valid_from else None
         return d
 
@@ -459,26 +462,67 @@ def _who(clause: str, pos: int, sentence: str) -> Optional[str]:
 def extract_rules(text: str, now: Optional[datetime] = None, subject: str = "user", *,
                   language: Optional[str] = None, adapter=None) -> list:
     from nexsandglass.language import analyze
+    from nexsandglass.language.observation import current
+    if language is None and current() is not None:
+        language = current().input_language
     return list(analyze(text, now=now, subject=subject, language=language, adapter=adapter).facts)
 
 
 def _extract_rules_impl(text: str, now: Optional[datetime] = None, subject: str = "user") -> list:
+    from nexsandglass.language import observation
+    from nexsandglass.language.time import scan_times
+    from nexsandglass.language.assertions import assertion_state, polarity_before, preference_hits
+    from datetime import timezone
     now = now or _clock_now()
-    out: list = []
+    ctx = observation.current() or observation.TemporalContext(now)
+    out = []
     for sent in _sentences(text):
-        sent_time = parse_when(sent, now)
-        for cl in _clauses(sent):
+        local_now = ctx.local.replace(tzinfo=None) if ctx.timezone else now
+        sent_time = parse_when(sent, local_now)
+        clauses = _clauses(sent)
+        clauses = [part for cl in clauses for part in re.split(r"\s+but\s+|\s+and\s+(?=(?:i|my|we|now|currently)\b)", cl, flags=re.I) if part.strip()]
+        for cl in clauses:
+            state = assertion_state(cl)
+            if assertion_state(text) == "question":
+                state = "question"
             asp = aspect(cl)
-            when = parse_when(cl, now) or (sent_time if len(_clauses(sent)) == 1 else None)
-            for rel, obj, ev, pos in _find(cl):
+            when = parse_when(cl, local_now) or (sent_time if len(clauses) == 1 else None)
+            times = scan_times(cl, ctx)
+            resolution = times[0] if len(times) == 1 else None
+            unresolved = bool(times and (len(times) > 1 or resolution.status != "resolved"))
+            if resolution and resolution.status == "resolved":
+                if resolution.instant:
+                    when = resolution.instant
+                elif resolution.start:
+                    when = datetime.combine(resolution.start, datetime.min.time())
+                    if ctx.timezone:
+                        from zoneinfo import ZoneInfo
+                        when = when.replace(tzinfo=ZoneInfo(ctx.timezone)).astimezone(timezone.utc)
+            if when and when.tzinfo is None and ctx.timezone:
+                from zoneinfo import ZoneInfo
+                when = when.replace(tzinfo=ZoneInfo(ctx.timezone)).astimezone(timezone.utc)
+            hits = [(rel, obj, ev, pos, polarity_before(cl, pos))
+                    for rel, obj, ev, pos in _find(cl) if rel not in ("偏好", "反感")]
+            hits += preference_hits(cl)
+            for rel, obj, ev, pos, polarity in hits:
                 who = _who(cl, pos, sent) if subject == "user" else None
                 if who == "":
-                    continue                # 说的是别人（「她」），又不知道是谁：不记到用户头上
+                    continue
                 f = Fact(subject=who or subject, relation=rel, object=obj, evidence=ev,
                          valid_from=when if rel in SINGLE_VALUED else None,
-                         ongoing=asp if rel in SINGLE_VALUED else None)
+                         ongoing=asp if rel in SINGLE_VALUED else None,
+                         polarity=polarity, assertion=state,
+                         time_resolution=resolution.to_dict() if resolution else None)
+                if state not in ("affirmed", "historical") or unresolved:
+                    f.deferred = True
+                if when and ctx.reference.tzinfo is not None and not ctx.timezone:
+                    f.deferred = True  # A calendar date alone is not a UTC validity boundary.
+                if state == "historical" and (when is None or rel in MULTI_VALUED or polarity < 0):
+                    f.deferred = True
                 if rel in SINGLE_VALUED and asp is False and when is None:
-                    f.deferred = True       # 往事、没给时间：不写成现任
+                    f.deferred = True
+                if when and when.date() > ctx.local.date():
+                    f.deferred = True
                 out.append(f)
     return _dedup(out)
 
@@ -647,8 +691,28 @@ def extract(text: str, now: Optional[datetime] = None, subject: str = "user") ->
     全部保留 —— 由体与时间决定谁是往事、谁是现任，存储层按 ongoing / valid_from 处理。
     """
     now = now or _clock_now()
+    from nexsandglass.language import observation
+    ctx = observation.current()
+    language = ctx.input_language if ctx else None
+    if language and language.split("-", 1)[0] not in ("zh", "en", "mixed", "unknown"):
+        return []
     if llm_enabled():
         llm = extract_llm(text, now, subject)
         if llm:
+            from nexsandglass.language.assertions import assertion_state
+            from nexsandglass.language.time import scan_times
+            rule = extract_rules(text, now, subject)
+            times = scan_times(text, ctx or observation.TemporalContext(now))
+            for fact in llm:
+                matched = next((r for r in rule if (r.subject,r.relation,r.object) ==
+                                (fact.subject,fact.relation,fact.object)), None)
+                if matched:
+                    fact.polarity, fact.assertion = matched.polarity, matched.assertion
+                    fact.deferred = fact.deferred or matched.deferred
+                    fact.time_resolution = matched.time_resolution
+                elif assertion_state(text) != "affirmed" or re.search(r"不|没|\b(?:not|no|don'?t|never)\b", text, re.I):
+                    fact.deferred = True
+                if any(t.status != "resolved" for t in times):
+                    fact.deferred = True
             return llm
-    return extract_rules(text, now, subject)
+    return extract_rules(text, now, subject, language=language)
