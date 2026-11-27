@@ -1214,8 +1214,19 @@ class NexSandglassProvider(MemoryProvider):
         rel = relation_key(args.get("relation"))            # lives_in / 住在 都认（v7.16.0）
         keep = ("subject", "relation", "object", "valid_from", "valid_until", "valid_basis",
                 "recorded_at", "closed_at", "source_mem_id")
-        slim = lambda rows: [{**{k: r.get(k) for k in keep},
-                              "relation": RELATION_EN.get(r.get("relation"), r.get("relation"))} for r in rows]
+        def slim(rows):
+            result = []
+            for row in rows:
+                entry = {k: row.get(k) for k in keep}
+                base = row.get("base_relation") or row.get("relation")
+                display = RELATION_EN.get(base, base)
+                entry["relation"] = display
+                if row.get("polarity", 1) < 0:
+                    entry.update(relation="not:" + display, base_relation=display, polarity=-1)
+                if row.get("claim_conflict"):
+                    entry["claim_conflict"] = True
+                result.append(entry)
+            return result
         if _as_bool(args.get("history"), False):
             return json.dumps({"mode": "history", "facts": slim(tf.history_of(db, subject, rel)),
                                "timeline": tf.belief_timeline(db, subject, rel)},

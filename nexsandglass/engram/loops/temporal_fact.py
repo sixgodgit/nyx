@@ -505,8 +505,7 @@ def _out(rows) -> list:
     for r in rows:
         d = dict(r)
         if d.get("polarity", 1) < 0 and d.get("relation", "").startswith("not:"):
-            d["stored_relation"] = d["relation"]
-            d["relation"] = d["relation"][4:]
+            d["base_relation"] = d["relation"][4:]
         d["valid_until"] = d.pop("eff_until", d.get("valid_until"))
         out.append(d)
     return out
@@ -530,12 +529,12 @@ def _resolve_assertions(rows):
             return sources[mid]
         rows = [r for r in rows if eligible(r)]
     selected, claimed, denied, objects = [], set(), set(), set()
-    denial_groups = {(r.get("subject"), canonical_predicate(r.get("relation"))) for r in rows if r.get("polarity", 1) < 0}
+    denial_groups = {(r.get("subject"), canonical_predicate(r.get("base_relation") or r.get("relation"))) for r in rows if r.get("polarity", 1) < 0}
     scalar_claimed = set()
     current_preferences = {}
     ordered = sorted(rows, key=lambda r: (str(r.get("valid_from") or ""), str(r.get("recorded_at") or ""), r.get("id", 0)), reverse=True)
     for row in ordered:
-        predicate = canonical_predicate(row.get("relation"))
+        predicate = canonical_predicate(row.get("base_relation") or row.get("relation"))
         subject, obj = row.get("subject"), row.get("object", "")
         if predicate in ("likes", "dislikes"):
             key = (subject, entity_key(obj, "preference"))
@@ -587,7 +586,7 @@ def get_current(db_path: str, subject: str = None, predicate: str = None,
         rows = _resolve_assertions(_out(conn.execute(sql, p).fetchall()))
         if predicate:
             from nexsandglass.language.ontology import predicate_aliases
-            rows = [r for r in rows if r.get("relation") in predicate_aliases(predicate)]
+            rows = [r for r in rows if (r.get("base_relation") or r.get("relation")) in predicate_aliases(predicate)]
         return rows
     finally:
         conn.close()
@@ -613,7 +612,7 @@ def as_of(db_path: str, timestamp, known_at=None, subject: str = None,
         rows = _resolve_assertions(_out(conn.execute(sql, p).fetchall()))
         if predicate:
             from nexsandglass.language.ontology import predicate_aliases
-            rows = [r for r in rows if r.get("relation") in predicate_aliases(predicate)]
+            rows = [r for r in rows if (r.get("base_relation") or r.get("relation")) in predicate_aliases(predicate)]
         return rows
     finally:
         conn.close()

@@ -149,7 +149,7 @@ def test_graph_preference_denial_reassertion_forget_restore_and_order(tmp_path):
         old = _write("我喜欢红茶。", "2026-01-01")
         neg = _write("I no longer like black tea.", "2026-03-01")
         def rows():
-            return [r for r in tf.get_current(weavethread._db_path(), "user") if r["relation"] in ("偏好", "反感")]
+            return [r for r in tf.get_current(weavethread._db_path(), "user") if (r.get("base_relation") or r["relation"]) in ("偏好", "反感")]
         assert [(r["polarity"], r["source_mem_id"]) for r in rows()] == [(-1, neg)]
         _write("我喜欢红茶。记于二月。", "2026-02-01")  # imported later, older utterance
         assert rows()[0]["source_mem_id"] == neg
@@ -264,8 +264,8 @@ def test_denial_storage_is_not_a_positive_statement_for_legacy_readers(tmp_path)
         assert c.execute("SELECT relation,polarity FROM wthread_triples WHERE source_mem_id=?", (mid,)).fetchall() == [("not:偏好", -1)]
         c.close()
         rows = tf.get_current(weavethread._db_path(), "user", "likes")
-        assert rows[0]["relation"] == "偏好" and rows[0]["polarity"] == -1
-        assert rows[0]["stored_relation"] == "not:偏好"
+        assert rows[0]["relation"] == "not:偏好" and rows[0]["polarity"] == -1
+        assert rows[0]["base_relation"] == "偏好"
 
 
 def test_frozen_correction_fixture_identity():
@@ -311,3 +311,19 @@ def test_import_does_not_apply_current_profile_zone_to_unknown_history(tmp_path)
         assert context.basis == "historical_import_unknown_frame"
         followups.refresh()
         assert not memid.get_conn().execute("SELECT * FROM followup_items").fetchall()
+
+
+def test_provider_tool_and_graph_renderers_preserve_denial(tmp_path):
+    from nexsandglass.core.memory_provider import NexSandglassProvider
+    from nexsandglass.runtime.orchestrator import _triple_text
+    store = StoreContext(str(tmp_path / "store"))
+    with store.bind():
+        _write("I don't like black tea.", "2026-03-01")
+        row = tf.get_current(weavethread._db_path(), "user", "likes")[0]
+        assert "does not like" in _triple_text(row)
+    provider = NexSandglassProvider()
+    provider._store_context = store
+    provider._profile_env = {}
+    result = json.loads(provider.handle_tool_call("nyx_belief", {"relation": "likes"}))
+    assert result["facts"][0]["relation"] == "not:likes"
+    assert result["facts"][0]["polarity"] == -1
