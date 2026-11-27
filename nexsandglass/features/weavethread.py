@@ -224,10 +224,13 @@ def wthread_query(entity: str = None, relation: str = None, limit: int = 20) -> 
     conn = sqlite3.connect(_db_path(), timeout=10)
     conn.row_factory = sqlite3.Row
 
+    from nexsandglass.language.ontology import predicate_aliases
+    aliases = predicate_aliases(relation) if relation else ()
+    predicate_sql = "relation IN (" + ",".join("?" for _ in aliases) + ")"
     if entity and relation:
         rows = conn.execute(
-            "SELECT * FROM wthread_triples WHERE (subject=? OR object=?) AND relation=? ORDER BY id DESC LIMIT ?",
-            (entity, entity, relation, limit)
+            "SELECT * FROM wthread_triples WHERE (subject=? OR object=?) AND " + predicate_sql + " ORDER BY id DESC LIMIT ?",
+            (entity, entity, *aliases, limit)
         ).fetchall()
     elif entity:
         rows = conn.execute(
@@ -236,8 +239,8 @@ def wthread_query(entity: str = None, relation: str = None, limit: int = 20) -> 
         ).fetchall()
     elif relation:
         rows = conn.execute(
-            "SELECT * FROM wthread_triples WHERE relation=? ORDER BY id DESC LIMIT ?",
-            (relation, limit)
+            "SELECT * FROM wthread_triples WHERE " + predicate_sql + " ORDER BY id DESC LIMIT ?",
+            (*aliases, limit)
         ).fetchall()
     else:
         rows = conn.execute(
@@ -469,6 +472,8 @@ def wthread_add(subject: str, relation: str, object: str, source_line: int = 0,
     ongoing：这句话说的事实**至今仍真**吗。「2 月 25 号就换成吉利了」→ True；
     「很早以前开过吉利」→ False。陈述的起点早于现任时，只有它能区分"换了"和"往事"。
     """
+    from nexsandglass.language.ontology import legacy_predicate
+    relation = legacy_predicate(relation)
     _ensure_table()
     from nexsandglass.engram.loops.temporal_fact import ensure_temporal_columns, record_fact
     ensure_temporal_columns(_db_path())

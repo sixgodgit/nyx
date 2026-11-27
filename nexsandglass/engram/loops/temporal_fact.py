@@ -473,6 +473,14 @@ def _out(rows) -> list:
     return out
 
 
+def _predicate_filter(params: dict, predicate: str) -> str:
+    from nexsandglass.language.ontology import predicate_aliases
+    aliases = predicate_aliases(predicate)
+    names = ["relation_alias_" + str(i) for i in range(len(aliases))]
+    params.update(zip(names, aliases))
+    return " AND relation IN (" + ",".join(":" + name for name in names) + ")"
+
+
 def get_current(db_path: str, subject: str = None, predicate: str = None,
                 known_at=None) -> list:
     """当前有效事实。known_at 给定时 = "那个时刻我以为当前是什么"。"""
@@ -483,8 +491,7 @@ def get_current(db_path: str, subject: str = None, predicate: str = None,
         sql += " AND (subject=:s OR object=:s)"
         p["s"] = subject
     if predicate:
-        sql += " AND relation=:r"
-        p["r"] = predicate
+        sql += _predicate_filter(p, predicate)
     sql += " ORDER BY valid_from DESC, id DESC"
     conn = _connect(db_path)
     try:
@@ -508,8 +515,7 @@ def as_of(db_path: str, timestamp, known_at=None, subject: str = None,
         sql += " AND (subject=:s OR object=:s)"
         p["s"] = subject
     if predicate:
-        sql += " AND relation=:r"
-        p["r"] = predicate
+        sql += _predicate_filter(p, predicate)
     sql += " ORDER BY id DESC"
     conn = _connect(db_path)
     try:
@@ -527,8 +533,7 @@ def known_at(db_path: str, timestamp, subject: str = None, predicate: str = None
         sql += " AND (subject=:s OR object=:s)"
         p["s"] = subject
     if predicate:
-        sql += " AND relation=:r"
-        p["r"] = predicate
+        sql += _predicate_filter(p, predicate)
     sql += " ORDER BY valid_from DESC, id DESC"
     conn = _connect(db_path)
     try:
@@ -548,8 +553,7 @@ def history_of(db_path: str, subject: str, predicate: str = None, known_at=None,
     sql = f"SELECT * FROM ({inner}) WHERE subject=:s"
     p["s"] = subject
     if predicate:
-        sql += " AND relation=:r"
-        p["r"] = predicate
+        sql += _predicate_filter(p, predicate)
     sql += " ORDER BY valid_from DESC, id DESC"
     conn = _connect(db_path)
     try:

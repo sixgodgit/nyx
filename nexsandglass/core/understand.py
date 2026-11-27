@@ -73,8 +73,8 @@ def relation_key(relation: Optional[str]) -> Optional[str]:
     """工具参数：英文名（lives_in）或原来的中文名都认，返回库里存的那个。"""
     if not relation:
         return None
-    r = str(relation).strip()
-    return RELATION_FROM_EN.get(r.lower(), r)
+    from nexsandglass.language.ontology import legacy_predicate
+    return legacy_predicate(relation)
 
 
 @dataclass
@@ -88,6 +88,12 @@ class Fact:
     evidence: str = ""                        # 原文里支撑这条事实的片段
     backend: str = "rules"
     deferred: bool = False                    # 往事但没给时间 → 不写成现任
+
+    @property
+    def semantic_key(self):
+        """Comparison label only; original object, evidence and ID stay intact."""
+        from nexsandglass.language.ontology import fact_key
+        return fact_key(self.subject, self.relation, self.object)
 
     def to_dict(self) -> dict:
         d = dict(self.__dict__)
@@ -362,7 +368,8 @@ def _clauses(sentence: str) -> list:
 
 
 def _sentences(text: str) -> list:
-    return [s for s in re.split(r"[。！？!?\n]+", text or "") if s.strip()]
+    from nexsandglass.language.segmentation import sentences
+    return sentences(text, policy="facts")
 
 
 # ══════════════════════════════════════════════════════════
@@ -449,7 +456,13 @@ def _who(clause: str, pos: int, sentence: str) -> Optional[str]:
     return ""
 
 
-def extract_rules(text: str, now: Optional[datetime] = None, subject: str = "user") -> list:
+def extract_rules(text: str, now: Optional[datetime] = None, subject: str = "user", *,
+                  language: Optional[str] = None, adapter=None) -> list:
+    from nexsandglass.language import analyze
+    return list(analyze(text, now=now, subject=subject, language=language, adapter=adapter).facts)
+
+
+def _extract_rules_impl(text: str, now: Optional[datetime] = None, subject: str = "user") -> list:
     now = now or _clock_now()
     out: list = []
     for sent in _sentences(text):
