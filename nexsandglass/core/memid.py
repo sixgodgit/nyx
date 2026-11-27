@@ -224,6 +224,8 @@ def _ensure_schema(c: sqlite3.Connection, path: str) -> None:
         return
     c.executescript(_SCHEMA)
     _prov.ensure(c)
+    from nexsandglass.language import observation
+    observation.ensure(c)
     from . import projection_jobs
     projection_jobs.ensure(c)
     c.commit()
@@ -641,6 +643,8 @@ def allocate(text: str, sender: str = "agent", ts: str = None,
             )
             # 来源和中枢插入是同一个事务，绑定失败也不能留下未绑定的记录。
             _prov.record(conn, mem_id, prov, bound=True)
+            from nexsandglass.language import observation
+            observation.capture(conn, mem_id)
             if write_journal:
                 os.makedirs(os.path.dirname(jpath) or ".", exist_ok=True)
                 with open(jpath, "a+b") as f:

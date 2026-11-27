@@ -165,7 +165,19 @@ def wthread_store(text: str, line_num: int = 0, subject: str = "user",
     from nexsandglass.core import understand, clock
     now = clock.utcnow()
     try:
-        facts = understand.extract(text, now=clock.now(), subject=subject)
+        from nexsandglass.language import observation
+        from nexsandglass.core import memid as canonical
+        if mem_id:
+            from nexsandglass.core import provenance
+            raw = canonical.get(mem_id)
+            prov = provenance.get(mem_id)
+            if raw and (raw.get("sender") != "user" or (prov and prov.signal != provenance.TRUSTED)):
+                return 0
+        ctx = observation.for_record(canonical.get_conn(), mem_id) if mem_id else observation.current()
+        if ctx and ctx.reference.tzinfo is not None:
+            now = ctx.reference
+        with observation.bind(ctx):
+            facts = understand.extract(text, now=clock.now(), subject=subject)
     except Exception as e:
         # 理解层出错不能让这条消息的图谱写入整个丢掉 —— 退回旧正则
         logger.warning("[wthread_store] understand 失败，退回正则: %s", e)
@@ -199,7 +211,8 @@ def wthread_store(text: str, line_num: int = 0, subject: str = "user",
                               valid_from=f.valid_from, ongoing=f.ongoing,
                               source_line=line_num, source=f"understand:{f.backend}",
                               source_mem_id=mem_id, confidence=f.confidence,
-                              dedup_non_temporal=True)
+                              dedup_non_temporal=True, polarity=f.polarity,
+                              time_basis=f.time_resolution)
             if rep.inserted:
                 count += 1
         for subj, rel, obj, src_tag in legacy:
@@ -224,10 +237,14 @@ def wthread_query(entity: str = None, relation: str = None, limit: int = 20) -> 
     conn = sqlite3.connect(_db_path(), timeout=10)
     conn.row_factory = sqlite3.Row
 
+    from nexsandglass.language.ontology import predicate_aliases
+    aliases = predicate_aliases(relation) if relation else ()
+    aliases = tuple(dict.fromkeys((*aliases, *("not:" + a for a in aliases))))
+    predicate_sql = "relation IN (" + ",".join("?" for _ in aliases) + ")"
     if entity and relation:
         rows = conn.execute(
-            "SELECT * FROM wthread_triples WHERE (subject=? OR object=?) AND relation=? ORDER BY id DESC LIMIT ?",
-            (entity, entity, relation, limit)
+            "SELECT * FROM wthread_triples WHERE (subject=? OR object=?) AND " + predicate_sql + " ORDER BY id DESC LIMIT ?",
+            (entity, entity, *aliases, limit)
         ).fetchall()
     elif entity:
         rows = conn.execute(
@@ -236,8 +253,8 @@ def wthread_query(entity: str = None, relation: str = None, limit: int = 20) -> 
         ).fetchall()
     elif relation:
         rows = conn.execute(
-            "SELECT * FROM wthread_triples WHERE relation=? ORDER BY id DESC LIMIT ?",
-            (relation, limit)
+            "SELECT * FROM wthread_triples WHERE " + predicate_sql + " ORDER BY id DESC LIMIT ?",
+            (*aliases, limit)
         ).fetchall()
     else:
         rows = conn.execute(
@@ -246,7 +263,8 @@ def wthread_query(entity: str = None, relation: str = None, limit: int = 20) -> 
         ).fetchall()
 
     conn.close()
-    return [dict(r) for r in rows]
+    from nexsandglass.engram.loops.temporal_fact import _out
+    return _out(rows)
 
 
 def wthread_graph(entity: str, depth: int = 1) -> dict:
@@ -469,6 +487,8 @@ def wthread_add(subject: str, relation: str, object: str, source_line: int = 0,
     ongoing：这句话说的事实**至今仍真**吗。「2 月 25 号就换成吉利了」→ True；
     「很早以前开过吉利」→ False。陈述的起点早于现任时，只有它能区分"换了"和"往事"。
     """
+    from nexsandglass.language.ontology import legacy_predicate
+    relation = legacy_predicate(relation)
     _ensure_table()
     from nexsandglass.engram.loops.temporal_fact import ensure_temporal_columns, record_fact
     ensure_temporal_columns(_db_path())

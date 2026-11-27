@@ -81,6 +81,7 @@ _BITEMPORAL_COLS = (
     ("valid_from", "TEXT"), ("valid_until", "TEXT"),
     ("recorded_at", "TEXT"), ("closed_at", "TEXT"), ("retracted_at", "TEXT"),
     ("valid_basis", "TEXT"), ("source_mem_id", "TEXT"),
+    ("polarity", "INTEGER NOT NULL DEFAULT 1"), ("time_basis", "TEXT"),
 )
 
 
@@ -266,7 +267,7 @@ def _retract_and_copy(conn, row_id: int, now_s: str, **override) -> int:
 def record_fact(conn: sqlite3.Connection, subject: str, relation: str, obj: str, *,
                 valid_from=None, now=None, source_line: int = 0, source: str = "regex",
                 source_mem_id: str = None, confidence: float = None,
-                dedup_non_temporal: bool = True,
+                dedup_non_temporal: bool = True, polarity: int = 1, time_basis=None,
                 ongoing: Optional[bool] = None) -> TemporalFactReport:
     """在一个**已迁移**的连接上写入一条事实（不 commit，由调用方提交）。
 
@@ -280,6 +281,8 @@ def record_fact(conn: sqlite3.Connection, subject: str, relation: str, obj: str,
                 区别只在话语本身，所以由调用方（抽取器）传进来，存储层不猜。
                 None = 未知，按"往事"处理（v7.7 行为）。
     """
+    if polarity not in (-1, 1):
+        raise ValueError("polarity must be -1 or 1")
     rep = TemporalFactReport()
     from nexsandglass.core import clock
     now_s = normalize_ts(now or clock.utcnow())
@@ -288,13 +291,46 @@ def record_fact(conn: sqlite3.Connection, subject: str, relation: str, obj: str,
     basis = "stated" if stated else "assumed"
     rep.recorded_at, rep.valid_from, rep.valid_basis = now_s, vf, basis
 
-    base = {"subject": subject, "relation": relation, "object": obj,
+    stored_relation = "not:" + relation if polarity < 0 else relation
+    base = {"subject": subject, "relation": stored_relation, "object": obj,
             "source_line": source_line, "source": source, "source_mem_id": source_mem_id,
             "valid_from": vf, "valid_until": None, "recorded_at": now_s,
             "closed_at": None, "retracted_at": None, "valid_basis": basis,
-            "created_at": now_s}
+            "created_at": now_s, "polarity": polarity}
+    if time_basis is not None:
+        import json
+        base["time_basis"] = json.dumps(time_basis, separators=(",", ":"))
+    from nexsandglass.language.ontology import canonical_predicate
     if confidence is not None:
         base["confidence"] = confidence
+    if source_mem_id and dedup_non_temporal and conn.execute(
+            "SELECT 1 FROM wthread_triples WHERE subject=? AND relation=? AND object=? AND source_mem_id=? "
+            "AND polarity=? AND retracted_at IS NULL LIMIT 1",
+            (subject, stored_relation, obj, source_mem_id, polarity)).fetchone():
+        return rep
+    if polarity < 0 or canonical_predicate(relation) in ("likes", "dislikes"):
+        if dedup_non_temporal:
+            from nexsandglass.language.ontology import entity_key
+            previous = conn.execute("SELECT relation,object,polarity,source_mem_id FROM wthread_triples "
+                                    "WHERE subject=? AND retracted_at IS NULL ORDER BY valid_from DESC,recorded_at DESC,id DESC",
+                                    (subject,)).fetchall()
+            previous = [(r[0][4:] if r[2] < 0 and r[0].startswith("not:") else r[0], *r[1:]) for r in previous]
+            peers = [r for r in previous if canonical_predicate(r[0]) in ("likes", "dislikes")
+                     and entity_key(r[1], "preference") == entity_key(obj, "preference")]
+            same_source = [r for r in peers if source_mem_id and r[3] == source_mem_id]
+            repeat = same_source if source_mem_id else peers[:1]
+            if any(r[0] == relation and r[2] == polarity for r in repeat):
+                return rep
+        # An explicit denial is evidence, not an inferred replacement value.
+        # Resolve it at read time so forgetting/restoring it is reversible.
+        rep.inserted_id = _insert(conn, base)
+        rep.inserted = True
+        return rep
+    if conn.execute("SELECT 1 FROM wthread_triples WHERE subject=? AND relation=? AND polarity=-1 LIMIT 1",
+                    (subject, "not:" + relation)).fetchone():
+        rep.inserted_id = _insert(conn, base)
+        rep.inserted = True
+        return rep
 
     believed = conn.execute(
         "SELECT id, object, valid_from, valid_until, valid_basis FROM wthread_triples "
@@ -468,9 +504,71 @@ def _out(rows) -> list:
     out = []
     for r in rows:
         d = dict(r)
+        if d.get("polarity", 1) < 0 and d.get("relation", "").startswith("not:"):
+            d["base_relation"] = d["relation"][4:]
         d["valid_until"] = d.pop("eff_until", d.get("valid_until"))
         out.append(d)
     return out
+
+
+def _resolve_assertions(rows):
+    from nexsandglass.language.ontology import canonical_predicate, entity_key
+    from nexsandglass.core.store_context import current
+    if current() is not None:
+        from nexsandglass.core import memid, provenance
+        sources = {}
+        def eligible(row):
+            mid = row.get("source_mem_id")
+            if not mid:
+                return True  # explicit/manual legacy graph assertion
+            if mid not in sources:
+                record = memid.get(mid)
+                prov = provenance.get(mid)
+                sources[mid] = bool(record and not record.get("deleted_at") and record.get("sender") == "user"
+                                    and (prov is None or prov.signal == provenance.TRUSTED))
+            return sources[mid]
+        rows = [r for r in rows if eligible(r)]
+    selected, claimed, denied, objects = [], set(), set(), set()
+    denial_groups = {(r.get("subject"), canonical_predicate(r.get("base_relation") or r.get("relation"))) for r in rows if r.get("polarity", 1) < 0}
+    scalar_claimed = set()
+    current_preferences = {}
+    ordered = sorted(rows, key=lambda r: (str(r.get("valid_from") or ""), str(r.get("recorded_at") or ""), r.get("id", 0)), reverse=True)
+    for row in ordered:
+        predicate = canonical_predicate(row.get("base_relation") or row.get("relation"))
+        subject, obj = row.get("subject"), row.get("object", "")
+        if predicate in ("likes", "dislikes"):
+            key = (subject, entity_key(obj, "preference"))
+            if key in claimed:
+                first = current_preferences[key]
+                if (row.get("source_mem_id") and row.get("source_mem_id") == first.get("source_mem_id")
+                        and (row.get("relation"), row.get("polarity", 1)) != (first.get("relation"), first.get("polarity", 1))):
+                    first["claim_conflict"] = row["claim_conflict"] = True
+                    selected.append(row)
+                continue
+            current_preferences[key] = row
+            claimed.add(key)
+        else:
+            key = (subject, predicate or row.get("relation"), entity_key(obj, "vehicle" if predicate == "uses_vehicle" else "value"))
+            if key in objects:
+                continue
+            objects.add(key)
+            if row.get("polarity", 1) < 0:
+                denied.add(key)
+            elif (subject, predicate) in denial_groups:
+                if (subject, predicate) in scalar_claimed:
+                    continue
+                scalar_claimed.add((subject, predicate))
+        selected.append(row)
+    return selected
+
+
+def _predicate_filter(params: dict, predicate: str) -> str:
+    from nexsandglass.language.ontology import predicate_aliases
+    aliases = predicate_aliases(predicate)
+    aliases = tuple(dict.fromkeys((*aliases, *("not:" + a for a in aliases))))
+    names = ["relation_alias_" + str(i) for i in range(len(aliases))]
+    params.update(zip(names, aliases))
+    return " AND relation IN (" + ",".join(":" + name for name in names) + ")"
 
 
 def get_current(db_path: str, subject: str = None, predicate: str = None,
@@ -482,13 +580,14 @@ def get_current(db_path: str, subject: str = None, predicate: str = None,
     if subject:
         sql += " AND (subject=:s OR object=:s)"
         p["s"] = subject
-    if predicate:
-        sql += " AND relation=:r"
-        p["r"] = predicate
     sql += " ORDER BY valid_from DESC, id DESC"
     conn = _connect(db_path)
     try:
-        return _out(conn.execute(sql, p).fetchall())
+        rows = _resolve_assertions(_out(conn.execute(sql, p).fetchall()))
+        if predicate:
+            from nexsandglass.language.ontology import predicate_aliases
+            rows = [r for r in rows if (r.get("base_relation") or r.get("relation")) in predicate_aliases(predicate)]
+        return rows
     finally:
         conn.close()
 
@@ -507,13 +606,14 @@ def as_of(db_path: str, timestamp, known_at=None, subject: str = None,
     if subject:
         sql += " AND (subject=:s OR object=:s)"
         p["s"] = subject
-    if predicate:
-        sql += " AND relation=:r"
-        p["r"] = predicate
     sql += " ORDER BY id DESC"
     conn = _connect(db_path)
     try:
-        return _out(conn.execute(sql, p).fetchall())
+        rows = _resolve_assertions(_out(conn.execute(sql, p).fetchall()))
+        if predicate:
+            from nexsandglass.language.ontology import predicate_aliases
+            rows = [r for r in rows if (r.get("base_relation") or r.get("relation")) in predicate_aliases(predicate)]
+        return rows
     finally:
         conn.close()
 
@@ -527,8 +627,7 @@ def known_at(db_path: str, timestamp, subject: str = None, predicate: str = None
         sql += " AND (subject=:s OR object=:s)"
         p["s"] = subject
     if predicate:
-        sql += " AND relation=:r"
-        p["r"] = predicate
+        sql += _predicate_filter(p, predicate)
     sql += " ORDER BY valid_from DESC, id DESC"
     conn = _connect(db_path)
     try:
@@ -548,8 +647,7 @@ def history_of(db_path: str, subject: str, predicate: str = None, known_at=None,
     sql = f"SELECT * FROM ({inner}) WHERE subject=:s"
     p["s"] = subject
     if predicate:
-        sql += " AND relation=:r"
-        p["r"] = predicate
+        sql += _predicate_filter(p, predicate)
     sql += " ORDER BY valid_from DESC, id DESC"
     conn = _connect(db_path)
     try:
@@ -565,11 +663,10 @@ def belief_timeline(db_path: str, subject: str, predicate: str = None) -> list:
     单时态系统里这个问题没有数据可以回答。
     """
     ensure_temporal_columns(db_path)
-    sql = "SELECT * FROM wthread_triples WHERE subject=?"
-    p: list = [subject]
+    sql = "SELECT * FROM wthread_triples WHERE subject=:s"
+    p = {"s": subject}
     if predicate:
-        sql += " AND relation=?"
-        p.append(predicate)
+        sql += _predicate_filter(p, predicate)
     conn = _connect(db_path)
     try:
         rows = [dict(r) for r in conn.execute(sql, p).fetchall()]
@@ -580,6 +677,8 @@ def belief_timeline(db_path: str, subject: str, predicate: str = None) -> list:
         base = {"id": r["id"], "subject": r["subject"], "relation": r["relation"],
                 "object": r["object"], "valid_from": r["valid_from"],
                 "valid_until": r["valid_until"], "valid_basis": r.get("valid_basis")}
+        if r.get("polarity", 1) < 0:
+            base.update(polarity=-1, base_relation=r["relation"][4:])
         ev.append({**base, "at": r["recorded_at"], "event": "learned"})
         if r.get("closed_at"):
             ev.append({**base, "at": r["closed_at"], "event": "closed"})

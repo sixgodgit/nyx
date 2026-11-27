@@ -1083,7 +1083,7 @@ def _cued_beliefs(query: str, limit: int) -> list:
         return []
     rels = {r for r, cues in _RELATION_CUES.items() if any(_cue_in(c, q) for c in cues)}
     hit = [r for r in rows
-           if r.get("relation") in rels
+           if (r.get("base_relation") or r.get("relation")) in rels
            or (len(str(r.get("object", ""))) >= 2 and str(r.get("object", "")).lower() in q)]
     return hit[:limit]
 
@@ -1093,11 +1093,14 @@ def _triple_text(t) -> str:
         s = t.get("subject", "")
         # 库里的列叫 relation。以前只读 predicate —— 每条三元组都渲染成空串被丢掉，
         # 知识图谱这一路召回从来没有返回过任何东西。
-        p = t.get("predicate") or t.get("relation", "")
+        p = t.get("predicate") or t.get("base_relation") or t.get("relation", "")
         o = t.get("object", "")
         if s and p and o:
             from nexsandglass.core.understand import relation_phrase
             p = relation_phrase(p)           # 给模型看英文（住在 → lives in）；库里存的关系名不变（v7.16.0）
+            if t.get("polarity", 1) < 0:
+                p = {"likes": "does not like", "dislikes": "does not dislike", "lives in": "does not live in",
+                     "uses": "does not use", "works at": "does not work at", "works as": "does not work as"}.get(p, "denies " + p)
             vf = str(t.get("valid_from") or "")[:10]
             # 只有「说过从什么时候起」的才标时间；推定起点（记录时刻）标出来反而误导
             if vf and t.get("valid_basis") == "stated" and not t.get("valid_until"):

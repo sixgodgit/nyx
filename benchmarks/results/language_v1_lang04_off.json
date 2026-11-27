@@ -1,0 +1,1271 @@
+{
+  "summary": {
+    "en->en": {
+      "cases": 12,
+      "classification_correct": 16,
+      "classification_total": 16,
+      "recall_visible": 12,
+      "recall_expected": 12,
+      "profile_visible": 12,
+      "profile_expected": 12,
+      "stale_profile": 0
+    },
+    "en->zh": {
+      "cases": 12,
+      "classification_correct": 16,
+      "classification_total": 16,
+      "recall_visible": 10,
+      "recall_expected": 12,
+      "profile_visible": 12,
+      "profile_expected": 12,
+      "stale_profile": 0
+    },
+    "mixed->mixed": {
+      "cases": 12,
+      "classification_correct": 16,
+      "classification_total": 16,
+      "recall_visible": 12,
+      "recall_expected": 12,
+      "profile_visible": 12,
+      "profile_expected": 12,
+      "stale_profile": 0
+    },
+    "zh->en": {
+      "cases": 12,
+      "classification_correct": 16,
+      "classification_total": 16,
+      "recall_visible": 10,
+      "recall_expected": 12,
+      "profile_visible": 12,
+      "profile_expected": 12,
+      "stale_profile": 0
+    },
+    "zh->zh": {
+      "cases": 12,
+      "classification_correct": 16,
+      "classification_total": 16,
+      "recall_visible": 12,
+      "recall_expected": 12,
+      "profile_visible": 12,
+      "profile_expected": 12,
+      "stale_profile": 0
+    }
+  },
+  "results": [
+    {
+      "id": "lin-allergy-zh-zh",
+      "group_id": "lin-allergy",
+      "split": "dev",
+      "scenario": "allergy",
+      "direction": "zh->zh",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 7,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-allergy-zh-en",
+      "group_id": "lin-allergy",
+      "split": "dev",
+      "scenario": "allergy",
+      "direction": "zh->en",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 7,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-allergy-en-zh",
+      "group_id": "lin-allergy",
+      "split": "dev",
+      "scenario": "allergy",
+      "direction": "en->zh",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 25,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-allergy-en-en",
+      "group_id": "lin-allergy",
+      "split": "dev",
+      "scenario": "allergy",
+      "direction": "en->en",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 25,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-allergy-mixed",
+      "group_id": "lin-allergy",
+      "split": "dev",
+      "scenario": "allergy",
+      "direction": "mixed->mixed",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 33,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-preference-zh-zh",
+      "group_id": "lin-preference",
+      "split": "dev",
+      "scenario": "preference",
+      "direction": "zh->zh",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        1
+      ],
+      "injected_characters": 21,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-preference-zh-en",
+      "group_id": "lin-preference",
+      "split": "dev",
+      "scenario": "preference",
+      "direction": "zh->en",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        1
+      ],
+      "injected_characters": 21,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-preference-en-zh",
+      "group_id": "lin-preference",
+      "split": "dev",
+      "scenario": "preference",
+      "direction": "en->zh",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        1
+      ],
+      "injected_characters": 38,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-preference-en-en",
+      "group_id": "lin-preference",
+      "split": "dev",
+      "scenario": "preference",
+      "direction": "en->en",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        1
+      ],
+      "injected_characters": 38,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-preference-mixed",
+      "group_id": "lin-preference",
+      "split": "dev",
+      "scenario": "preference",
+      "direction": "mixed->mixed",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        2
+      ],
+      "injected_characters": 39,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-correction-zh-zh",
+      "group_id": "lin-correction",
+      "split": "dev",
+      "scenario": "correction",
+      "direction": "zh->zh",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        1,
+        1
+      ],
+      "injected_characters": 64,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-correction-zh-en",
+      "group_id": "lin-correction",
+      "split": "dev",
+      "scenario": "correction",
+      "direction": "zh->en",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        1,
+        1
+      ],
+      "injected_characters": 64,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-correction-en-zh",
+      "group_id": "lin-correction",
+      "split": "dev",
+      "scenario": "correction",
+      "direction": "en->zh",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        1,
+        1
+      ],
+      "injected_characters": 49,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-correction-en-en",
+      "group_id": "lin-correction",
+      "split": "dev",
+      "scenario": "correction",
+      "direction": "en->en",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        1,
+        1
+      ],
+      "injected_characters": 49,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-correction-mixed",
+      "group_id": "lin-correction",
+      "split": "dev",
+      "scenario": "correction",
+      "direction": "mixed->mixed",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        2,
+        2
+      ],
+      "injected_characters": 92,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-subject-zh-zh",
+      "group_id": "lin-subject",
+      "split": "dev",
+      "scenario": "subject",
+      "direction": "zh->zh",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 2,
+      "profile_expected": 2,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0,
+        1
+      ],
+      "injected_characters": 41,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-subject-zh-en",
+      "group_id": "lin-subject",
+      "split": "dev",
+      "scenario": "subject",
+      "direction": "zh->en",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 2,
+      "profile_expected": 2,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0,
+        1
+      ],
+      "injected_characters": 16,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-subject-en-zh",
+      "group_id": "lin-subject",
+      "split": "dev",
+      "scenario": "subject",
+      "direction": "en->zh",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 2,
+      "profile_expected": 2,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0,
+        0
+      ],
+      "injected_characters": 52,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-subject-en-en",
+      "group_id": "lin-subject",
+      "split": "dev",
+      "scenario": "subject",
+      "direction": "en->en",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 2,
+      "profile_expected": 2,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0,
+        0
+      ],
+      "injected_characters": 52,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-subject-mixed",
+      "group_id": "lin-subject",
+      "split": "dev",
+      "scenario": "subject",
+      "direction": "mixed->mixed",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 2,
+      "profile_expected": 2,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0,
+        1
+      ],
+      "injected_characters": 94,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-negation-zh-zh",
+      "group_id": "lin-negation",
+      "split": "dev",
+      "scenario": "negation",
+      "direction": "zh->zh",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 22,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-negation-zh-en",
+      "group_id": "lin-negation",
+      "split": "dev",
+      "scenario": "negation",
+      "direction": "zh->en",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 22,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-negation-en-zh",
+      "group_id": "lin-negation",
+      "split": "dev",
+      "scenario": "negation",
+      "direction": "en->zh",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 68,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-negation-en-en",
+      "group_id": "lin-negation",
+      "split": "dev",
+      "scenario": "negation",
+      "direction": "en->en",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 68,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-negation-mixed",
+      "group_id": "lin-negation",
+      "split": "dev",
+      "scenario": "negation",
+      "direction": "mixed->mixed",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 91,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-unknown-zh-zh",
+      "group_id": "lin-unknown",
+      "split": "dev",
+      "scenario": "unknown",
+      "direction": "zh->zh",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 0,
+      "profile_expected": 0,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 14,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-unknown-zh-en",
+      "group_id": "lin-unknown",
+      "split": "dev",
+      "scenario": "unknown",
+      "direction": "zh->en",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 0,
+      "recall_expected": 1,
+      "profile_visible": 0,
+      "profile_expected": 0,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 0,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-unknown-en-zh",
+      "group_id": "lin-unknown",
+      "split": "dev",
+      "scenario": "unknown",
+      "direction": "en->zh",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 0,
+      "recall_expected": 1,
+      "profile_visible": 0,
+      "profile_expected": 0,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 0,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-unknown-en-en",
+      "group_id": "lin-unknown",
+      "split": "dev",
+      "scenario": "unknown",
+      "direction": "en->en",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 0,
+      "profile_expected": 0,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 39,
+      "packet_status": "partial"
+    },
+    {
+      "id": "lin-unknown-mixed",
+      "group_id": "lin-unknown",
+      "split": "dev",
+      "scenario": "unknown",
+      "direction": "mixed->mixed",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 0,
+      "profile_expected": 0,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 54,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-allergy-zh-zh",
+      "group_id": "morgan-allergy",
+      "split": "heldout",
+      "scenario": "allergy",
+      "direction": "zh->zh",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 6,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-allergy-zh-en",
+      "group_id": "morgan-allergy",
+      "split": "heldout",
+      "scenario": "allergy",
+      "direction": "zh->en",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 6,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-allergy-en-zh",
+      "group_id": "morgan-allergy",
+      "split": "heldout",
+      "scenario": "allergy",
+      "direction": "en->zh",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 24,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-allergy-en-en",
+      "group_id": "morgan-allergy",
+      "split": "heldout",
+      "scenario": "allergy",
+      "direction": "en->en",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 24,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-allergy-mixed",
+      "group_id": "morgan-allergy",
+      "split": "heldout",
+      "scenario": "allergy",
+      "direction": "mixed->mixed",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 31,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-preference-zh-zh",
+      "group_id": "morgan-preference",
+      "split": "heldout",
+      "scenario": "preference",
+      "direction": "zh->zh",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        1
+      ],
+      "injected_characters": 21,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-preference-zh-en",
+      "group_id": "morgan-preference",
+      "split": "heldout",
+      "scenario": "preference",
+      "direction": "zh->en",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        1
+      ],
+      "injected_characters": 21,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-preference-en-zh",
+      "group_id": "morgan-preference",
+      "split": "heldout",
+      "scenario": "preference",
+      "direction": "en->zh",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        1
+      ],
+      "injected_characters": 38,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-preference-en-en",
+      "group_id": "morgan-preference",
+      "split": "heldout",
+      "scenario": "preference",
+      "direction": "en->en",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        1
+      ],
+      "injected_characters": 38,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-preference-mixed",
+      "group_id": "morgan-preference",
+      "split": "heldout",
+      "scenario": "preference",
+      "direction": "mixed->mixed",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        2
+      ],
+      "injected_characters": 39,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-correction-zh-zh",
+      "group_id": "morgan-correction",
+      "split": "heldout",
+      "scenario": "correction",
+      "direction": "zh->zh",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        1,
+        1
+      ],
+      "injected_characters": 64,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-correction-zh-en",
+      "group_id": "morgan-correction",
+      "split": "heldout",
+      "scenario": "correction",
+      "direction": "zh->en",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        1,
+        1
+      ],
+      "injected_characters": 64,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-correction-en-zh",
+      "group_id": "morgan-correction",
+      "split": "heldout",
+      "scenario": "correction",
+      "direction": "en->zh",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        1,
+        1
+      ],
+      "injected_characters": 49,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-correction-en-en",
+      "group_id": "morgan-correction",
+      "split": "heldout",
+      "scenario": "correction",
+      "direction": "en->en",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        1,
+        1
+      ],
+      "injected_characters": 49,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-correction-mixed",
+      "group_id": "morgan-correction",
+      "split": "heldout",
+      "scenario": "correction",
+      "direction": "mixed->mixed",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        2,
+        2
+      ],
+      "injected_characters": 92,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-subject-zh-zh",
+      "group_id": "morgan-subject",
+      "split": "heldout",
+      "scenario": "subject",
+      "direction": "zh->zh",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 2,
+      "profile_expected": 2,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0,
+        1
+      ],
+      "injected_characters": 14,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-subject-zh-en",
+      "group_id": "morgan-subject",
+      "split": "heldout",
+      "scenario": "subject",
+      "direction": "zh->en",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 2,
+      "profile_expected": 2,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0,
+        1
+      ],
+      "injected_characters": 14,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-subject-en-zh",
+      "group_id": "morgan-subject",
+      "split": "heldout",
+      "scenario": "subject",
+      "direction": "en->zh",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 2,
+      "profile_expected": 2,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0,
+        0
+      ],
+      "injected_characters": 50,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-subject-en-en",
+      "group_id": "morgan-subject",
+      "split": "heldout",
+      "scenario": "subject",
+      "direction": "en->en",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 2,
+      "profile_expected": 2,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0,
+        0
+      ],
+      "injected_characters": 50,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-subject-mixed",
+      "group_id": "morgan-subject",
+      "split": "heldout",
+      "scenario": "subject",
+      "direction": "mixed->mixed",
+      "classification_correct": 2,
+      "classification_total": 2,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 2,
+      "profile_expected": 2,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0,
+        1
+      ],
+      "injected_characters": 65,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-negation-zh-zh",
+      "group_id": "morgan-negation",
+      "split": "heldout",
+      "scenario": "negation",
+      "direction": "zh->zh",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 21,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-negation-zh-en",
+      "group_id": "morgan-negation",
+      "split": "heldout",
+      "scenario": "negation",
+      "direction": "zh->en",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 21,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-negation-en-zh",
+      "group_id": "morgan-negation",
+      "split": "heldout",
+      "scenario": "negation",
+      "direction": "en->zh",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 67,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-negation-en-en",
+      "group_id": "morgan-negation",
+      "split": "heldout",
+      "scenario": "negation",
+      "direction": "en->en",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 67,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-negation-mixed",
+      "group_id": "morgan-negation",
+      "split": "heldout",
+      "scenario": "negation",
+      "direction": "mixed->mixed",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 1,
+      "profile_expected": 1,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 89,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-unknown-zh-zh",
+      "group_id": "morgan-unknown",
+      "split": "heldout",
+      "scenario": "unknown",
+      "direction": "zh->zh",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 0,
+      "profile_expected": 0,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 14,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-unknown-zh-en",
+      "group_id": "morgan-unknown",
+      "split": "heldout",
+      "scenario": "unknown",
+      "direction": "zh->en",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 0,
+      "recall_expected": 1,
+      "profile_visible": 0,
+      "profile_expected": 0,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 0,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-unknown-en-zh",
+      "group_id": "morgan-unknown",
+      "split": "heldout",
+      "scenario": "unknown",
+      "direction": "en->zh",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 0,
+      "recall_expected": 1,
+      "profile_visible": 0,
+      "profile_expected": 0,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 0,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-unknown-en-en",
+      "group_id": "morgan-unknown",
+      "split": "heldout",
+      "scenario": "unknown",
+      "direction": "en->en",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 0,
+      "profile_expected": 0,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 39,
+      "packet_status": "partial"
+    },
+    {
+      "id": "morgan-unknown-mixed",
+      "group_id": "morgan-unknown",
+      "split": "heldout",
+      "scenario": "unknown",
+      "direction": "mixed->mixed",
+      "classification_correct": 1,
+      "classification_total": 1,
+      "recall_visible": 1,
+      "recall_expected": 1,
+      "profile_visible": 0,
+      "profile_expected": 0,
+      "stale_profile": 0,
+      "extracted_facts": [
+        0
+      ],
+      "injected_characters": 54,
+      "packet_status": "partial"
+    }
+  ],
+  "slot_pairs": [
+    {
+      "group_id": "lin-allergy",
+      "correct": true,
+      "a_slots": [
+        "allergy:food.peanut"
+      ],
+      "b_slots": [
+        "allergy:food.peanut"
+      ]
+    },
+    {
+      "group_id": "lin-preference",
+      "correct": true,
+      "a_slots": [
+        "like:drink.black_tea"
+      ],
+      "b_slots": [
+        "like:drink.black_tea"
+      ]
+    },
+    {
+      "group_id": "morgan-allergy",
+      "correct": true,
+      "a_slots": [
+        "allergy:food.shrimp"
+      ],
+      "b_slots": [
+        "allergy:food.shrimp"
+      ]
+    },
+    {
+      "group_id": "morgan-preference",
+      "correct": true,
+      "a_slots": [
+        "like:drink.green_tea"
+      ],
+      "b_slots": [
+        "like:drink.green_tea"
+      ]
+    }
+  ],
+  "limits": [
+    "synthetic grouped regression; not blind or independent generalization evidence",
+    "lexical/rule configuration only; no embedding or model answer calls",
+    "profile visibility and historical recall are different metrics",
+    "extraction counts are diagnostics, not extraction precision"
+  ],
+  "schema_version": 1,
+  "corpus_sha256": "2c8f9a8f2fd39ac81e7febee3fd0db8595792115c4eeae81e752913b6a4efd49",
+  "source_commit": "d3f876ed20747e5f43863317bdf9272edcc70b50",
+  "code_dirty": false,
+  "python": "3.12.14",
+  "backend": "lexical-rules-no-model",
+  "split": "all"
+}

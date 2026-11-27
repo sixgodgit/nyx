@@ -140,3 +140,27 @@ def test_canonical_invalidation_is_atomic_and_fences_claim(tmp_path):
             jobs.finish(c, old, 2)
         profile.refresh()
         assert not profile.items()["identity"]
+
+
+@pytest.mark.parametrize("module,table,text", [
+    (profile, "profile_items", "I am allergic to peanuts."),
+    (followups, "followup_items", "I have a dentist appointment tomorrow."),
+])
+def test_readiness_waits_for_foreign_lease_then_recovers(tmp_path, module, table, text):
+    with StoreContext(str(tmp_path / "store")).bind():
+        mid = memid.allocate(text, sender="user", ts="2026-11-27 09:00:00")
+        c = memid.get_conn()
+        name = "profile" if module is profile else "followups"
+        jobs.enqueue(c, name, module.RULES_VERSION, 1)
+        lease = jobs.claim(c, name, module.RULES_VERSION, lease_seconds=60)
+        assert lease is not None
+        with pytest.raises(TimeoutError):
+            module.refresh_ready(deadline=time.monotonic() + 0.03)
+        assert jobs.get(c, name).lease_owner == lease.lease_owner
+        assert not c.execute("SELECT * FROM " + table).fetchall()
+        # A crashed worker's expired lease can be taken over without dropping
+        # the source or claiming that its incomplete view was already ready.
+        c.execute("UPDATE projection_jobs SET lease_until=0 WHERE name=?", (name,))
+        c.commit()
+        module.refresh_ready(deadline=time.monotonic() + 5)
+        assert c.execute("SELECT mem_id FROM " + table).fetchall() == [(mid,)]

@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "negative-zh",
+      "quote": "I no longer like black tea.",
+      "source": "user",
+      "input_language": "en",
+      "response_language": "zh",
+      "frame_language": "zh"
+    },
+    {
+      "id": "negative-en",
+      "quote": "I no longer like black tea.",
+      "source": "user",
+      "input_language": "zh",
+      "response_language": "en",
+      "frame_language": "en"
+    },
+    {
+      "id": "negative-fr",
+      "quote": "I no longer like black tea.",
+      "source": "user",
+      "input_language": "mixed",
+      "response_language": "fr",
+      "frame_language": "en"
+    },
+    {
+      "id": "negative-None",
+      "quote": "I no longer like black tea.",
+      "source": "user",
+      "input_language": "unknown",
+      "response_language": null,
+      "frame_language": null
+    },
+    {
+      "id": "qualified-zh",
+      "quote": "我对花生可能过敏，检查前不要据此推断其他食物。",
+      "source": "user",
+      "input_language": "en",
+      "response_language": "zh",
+      "frame_language": "zh"
+    },
+    {
+      "id": "qualified-en",
+      "quote": "我对花生可能过敏，检查前不要据此推断其他食物。",
+      "source": "user",
+      "input_language": "zh",
+      "response_language": "en",
+      "frame_language": "en"
+    },
+    {
+      "id": "qualified-fr",
+      "quote": "我对花生可能过敏，检查前不要据此推断其他食物。",
+      "source": "user",
+      "input_language": "mixed",
+      "response_language": "fr",
+      "frame_language": "en"
+    },
+    {
+      "id": "qualified-None",
+      "quote": "我对花生可能过敏，检查前不要据此推断其他食物。",
+      "source": "user",
+      "input_language": "unknown",
+      "response_language": null,
+      "frame_language": null
+    },
+    {
+      "id": "external-zh",
+      "quote": "The cobalt cup might be under the tripod.",
+      "source": "tool",
+      "input_language": "en",
+      "response_language": "zh",
+      "frame_language": "zh"
+    },
+    {
+      "id": "external-en",
+      "quote": "The cobalt cup might be under the tripod.",
+      "source": "tool",
+      "input_language": "zh",
+      "response_language": "en",
+      "frame_language": "en"
+    },
+    {
+      "id": "external-fr",
+      "quote": "The cobalt cup might be under the tripod.",
+      "source": "tool",
+      "input_language": "mixed",
+      "response_language": "fr",
+      "frame_language": "en"
+    },
+    {
+      "id": "external-None",
+      "quote": "The cobalt cup might be under the tripod.",
+      "source": "tool",
+      "input_language": "unknown",
+      "response_language": null,
+      "frame_language": null
+    }
+  ],
+  "limits": [
+    "Synthetic API conformance examples frozen before implementation.",
+    "Not a translation or model-answer quality benchmark."
+  ]
+}

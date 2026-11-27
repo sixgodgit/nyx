@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "passed": 12,
+  "total": 12,
+  "results": [
+    {
+      "id": "negative-zh",
+      "passed": true,
+      "frame_language": "zh",
+      "status": "ready",
+      "reason_codes": [],
+      "canonical_unchanged": true,
+      "evidence_unchanged": true,
+      "estimated_tokens": 56
+    },
+    {
+      "id": "negative-en",
+      "passed": true,
+      "frame_language": "en",
+      "status": "ready",
+      "reason_codes": [],
+      "canonical_unchanged": true,
+      "evidence_unchanged": true,
+      "estimated_tokens": 56
+    },
+    {
+      "id": "negative-fr",
+      "passed": true,
+      "frame_language": "en",
+      "status": "partial",
+      "reason_codes": [
+        "presentation_language_fallback"
+      ],
+      "canonical_unchanged": true,
+      "evidence_unchanged": true,
+      "estimated_tokens": 56
+    },
+    {
+      "id": "negative-None",
+      "passed": true,
+      "frame_language": null,
+      "status": "ready",
+      "reason_codes": [],
+      "canonical_unchanged": true,
+      "evidence_unchanged": true,
+      "estimated_tokens": 7
+    },
+    {
+      "id": "qualified-zh",
+      "passed": true,
+      "frame_language": "zh",
+      "status": "ready",
+      "reason_codes": [],
+      "canonical_unchanged": true,
+      "evidence_unchanged": true,
+      "estimated_tokens": 71
+    },
+    {
+      "id": "qualified-en",
+      "passed": true,
+      "frame_language": "en",
+      "status": "ready",
+      "reason_codes": [],
+      "canonical_unchanged": true,
+      "evidence_unchanged": true,
+      "estimated_tokens": 70
+    },
+    {
+      "id": "qualified-fr",
+      "passed": true,
+      "frame_language": "en",
+      "status": "partial",
+      "reason_codes": [
+        "presentation_language_fallback"
+      ],
+      "canonical_unchanged": true,
+      "evidence_unchanged": true,
+      "estimated_tokens": 70
+    },
+    {
+      "id": "qualified-None",
+      "passed": true,
+      "frame_language": null,
+      "status": "ready",
+      "reason_codes": [],
+      "canonical_unchanged": true,
+      "evidence_unchanged": true,
+      "estimated_tokens": 22
+    },
+    {
+      "id": "external-zh",
+      "passed": true,
+      "frame_language": "zh",
+      "status": "ready",
+      "reason_codes": [],
+      "canonical_unchanged": true,
+      "evidence_unchanged": true,
+      "estimated_tokens": 66
+    },
+    {
+      "id": "external-en",
+      "passed": true,
+      "frame_language": "en",
+      "status": "ready",
+      "reason_codes": [],
+      "canonical_unchanged": true,
+      "evidence_unchanged": true,
+      "estimated_tokens": 66
+    },
+    {
+      "id": "external-fr",
+      "passed": true,
+      "frame_language": "en",
+      "status": "partial",
+      "reason_codes": [
+        "presentation_language_fallback"
+      ],
+      "canonical_unchanged": true,
+      "evidence_unchanged": true,
+      "estimated_tokens": 66
+    },
+    {
+      "id": "external-None",
+      "passed": true,
+      "frame_language": null,
+      "status": "ready",
+      "reason_codes": [],
+      "canonical_unchanged": true,
+      "evidence_unchanged": true,
+      "estimated_tokens": 17
+    }
+  ],
+  "corpus_sha256": "e8cb1ab48958ce1d4f2f868ace302e3ad445ddb4fbfdb31ec0bb26a9d1c5f617",
+  "source_commit": "9c304b1361b387a2677ccfd4fd9b484194ade6c5",
+  "code_dirty": false,
+  "python": "3.12.14",
+  "backend": "no-model-no-translator",
+  "limits": [
+    "synthetic new-API conformance, no comparable legacy presentation API",
+    "does not grade translation correctness, answer language adherence or model utilization"
+  ]
+}

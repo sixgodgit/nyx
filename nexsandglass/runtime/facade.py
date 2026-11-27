@@ -91,6 +91,16 @@ def _now() -> str:
 
 def observe(event: str, *, source: str = "runtime", session_id: str | None = None,
              mem_type: str | None = None, raw_already_logged: bool = False,
+             force_promote: bool = False, language=None, observed_at=None) -> ObserveReport:
+    """Write with optional host-supplied utterance locale/zone/reference metadata."""
+    from nexsandglass.language.observation import scope
+    with scope(language=language, observed_at=observed_at):
+        return _observe(event, source=source, session_id=session_id, mem_type=mem_type,
+                        raw_already_logged=raw_already_logged, force_promote=force_promote)
+
+
+def _observe(event: str, *, source: str = "runtime", session_id: str | None = None,
+             mem_type: str | None = None, raw_already_logged: bool = False,
              force_promote: bool = False) -> ObserveReport:
     """观察一个事件并写入记忆（B0/B3 唯一写入 API）。
 

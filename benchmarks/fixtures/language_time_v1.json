@@ -1,0 +1,201 @@
+{
+  "schema_version": 1,
+  "profile": [
+    {
+      "id": "uncertain_preference",
+      "records": [
+        "我不再喜欢红茶。",
+        "Maybe I like black tea."
+      ],
+      "keep": [
+        0
+      ]
+    },
+    {
+      "id": "conditional_preference",
+      "records": [
+        "我喜欢红茶。",
+        "If I stop liking black tea, I will tell you."
+      ],
+      "keep": [
+        0
+      ]
+    },
+    {
+      "id": "uncertain_instruction",
+      "records": [
+        "以后用中文回复，不要用 emoji。",
+        "Maybe from now on reply in English."
+      ],
+      "keep": [
+        0
+      ]
+    },
+    {
+      "id": "partial_language_change",
+      "records": [
+        "以后用中文回复，不要用 emoji。",
+        "From now on reply in English."
+      ],
+      "keep": [
+        0,
+        1
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "distinct_companies",
+      "records": [
+        [
+          "2026-10-05 09:00:00",
+          "下周三我有腾讯的面试。"
+        ],
+        [
+          "2026-10-05 10:00:00",
+          "下周三我有谷歌的面试。"
+        ],
+        [
+          "2026-10-06 09:00:00",
+          "The Google interview was cancelled."
+        ]
+      ],
+      "now": "2026-10-13 09:00:00",
+      "keep": [
+        0
+      ]
+    },
+    {
+      "id": "ambiguous_cancel",
+      "records": [
+        [
+          "2026-10-05 09:00:00",
+          "下周三我有腾讯的面试。"
+        ],
+        [
+          "2026-10-05 10:00:00",
+          "下周三我有谷歌的面试。"
+        ],
+        [
+          "2026-10-06 09:00:00",
+          "面试取消了。"
+        ]
+      ],
+      "now": "2026-10-13 09:00:00",
+      "keep": [
+        0,
+        1
+      ]
+    },
+    {
+      "id": "uncertain_cancel",
+      "records": [
+        [
+          "2026-10-05 09:00:00",
+          "下周三我有腾讯的面试。"
+        ],
+        [
+          "2026-10-06 09:00:00",
+          "Maybe the Tencent interview was cancelled."
+        ]
+      ],
+      "now": "2026-10-13 09:00:00",
+      "keep": [
+        0
+      ]
+    },
+    {
+      "id": "negated_cancel",
+      "records": [
+        [
+          "2026-10-05 09:00:00",
+          "下周三我有腾讯的面试。"
+        ],
+        [
+          "2026-10-06 09:00:00",
+          "我没有取消腾讯的面试。"
+        ]
+      ],
+      "now": "2026-10-13 09:00:00",
+      "keep": [
+        0
+      ]
+    },
+    {
+      "id": "reschedule_from_to",
+      "records": [
+        [
+          "2026-10-05 09:00:00",
+          "My interview was rescheduled from next Monday to next Friday."
+        ]
+      ],
+      "now": "2026-10-15 09:00:00",
+      "keep": [
+        0
+      ],
+      "expected_day": "2026-10-16"
+    }
+  ],
+  "time": [
+    {
+      "id": "ambiguous_numeric",
+      "text": "03/04/2026",
+      "reference": "2026-03-01T23:30:00+00:00",
+      "status": "ambiguous"
+    },
+    {
+      "id": "us_numeric",
+      "text": "03/04/2026",
+      "reference": "2026-03-01T23:30:00+00:00",
+      "locale": "en-US",
+      "status": "resolved",
+      "day": "2026-03-04"
+    },
+    {
+      "id": "gb_numeric",
+      "text": "03/04/2026",
+      "reference": "2026-03-01T23:30:00+00:00",
+      "locale": "en-GB",
+      "status": "resolved",
+      "day": "2026-04-03"
+    },
+    {
+      "id": "shanghai_midnight",
+      "text": "明天",
+      "reference": "2026-03-01T23:30:00+00:00",
+      "timezone": "Asia/Shanghai",
+      "status": "resolved",
+      "day": "2026-03-03"
+    },
+    {
+      "id": "los_angeles_midnight",
+      "text": "tomorrow",
+      "reference": "2026-03-01T23:30:00+00:00",
+      "timezone": "America/Los_Angeles",
+      "status": "resolved",
+      "day": "2026-03-02"
+    },
+    {
+      "id": "spring_gap",
+      "text": "2026-03-29 02:30",
+      "reference": "2026-03-01T12:00:00+00:00",
+      "timezone": "Europe/Berlin",
+      "status": "nonexistent_time"
+    },
+    {
+      "id": "autumn_fold",
+      "text": "2026-10-25 02:30",
+      "reference": "2026-03-01T12:00:00+00:00",
+      "timezone": "Europe/Berlin",
+      "status": "ambiguous_time"
+    },
+    {
+      "id": "next_wednesday",
+      "text": "next Wednesday",
+      "reference": "2026-10-06T12:00:00+00:00",
+      "timezone": "Europe/Berlin",
+      "status": "resolved",
+      "day": "2026-10-14"
+    }
+  ]
+}

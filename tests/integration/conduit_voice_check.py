@@ -134,6 +134,21 @@ def main():
         query_trace = entry.provider.context_trace("hermes_prefetch")
         assert query_trace["evidence_ids"] and query_trace["applied"] is None
         results["explicit_historical_memory_http_lookup"] = True
+        cross_language = client.post("/api/plugins/conduit_push/memory/recall", json={"query": "Am I allergic to peanuts?"})
+        assert cross_language.status_code == 200, cross_language.text
+        assert "花生过敏" in cross_language.json()["results"], cross_language.json()
+        results["cross_language_alias_reached_real_http"] = True
+        entry.provider.save_config({"response_language": "zh"}, str(home))
+        localized = client.get("/api/plugins/conduit_push/memory/context")
+        assert localized.status_code == 200, localized.text
+        assert "首选回答语言：zh" in localized.json()["context"]
+        assert "花生过敏" in localized.json()["context"]
+        localized_recall = client.post("/api/plugins/conduit_push/memory/recall", json={"query": "Am I allergic to peanuts?"})
+        assert localized_recall.status_code == 200, localized_recall.text
+        assert "首选回答语言：zh" in localized_recall.json()["results"]
+        assert "花生过敏" in localized_recall.json()["results"]
+        assert journal.read_bytes() == before
+        results["response_language_frame_reached_http_without_rewriting_memory"] = True
     finally:
         api.memory._memory_providers.clear()
         writer.shutdown()

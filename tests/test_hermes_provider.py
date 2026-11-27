@@ -248,7 +248,7 @@ def test_config_roundtrip_backup_and_identity(tmp_path, monkeypatch):
                     "l3_llm",                                                   # v7.15.2
                     "auto_purge",                                               # v7.22.0
                     "follow_ups",                                               # v7.23.0
-                    "lang"}                                                     # v7.16.0
+                    "lang", "locale", "timezone", "response_language"}  # Optional LANG-05 presentation
     for f in p.get_config_schema():
         assert f["type"] in ("text", "integer", "number", "boolean")
 

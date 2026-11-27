@@ -33,12 +33,12 @@ import re
 import sqlite3
 import threading
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-RULES_VERSION = "1"
+RULES_VERSION = "2"
 UPCOMING_DAYS = 2              # 今天到后天
 AWAITING_DAYS = 10             # 事情过去 10 天以内还没提过的才问
 MAX_SHOWN = 3
@@ -332,9 +332,16 @@ def _resolve(name: str, m: re.Match, d: date) -> Optional[tuple]:
 def _times(text: str, d: date) -> list:
     """一句话里的时间说法：[(起点位置, 名字, (开始, 结束) 或 None, 要不要看时态)]，左起最长、不重叠。"""
     text = _NOT_A_DAY.sub(lambda m: " " * len(m.group(0)), text)      # Black Friday 不是「周五」
+    from nexsandglass.language import observation
+    from nexsandglass.language.time import scan_times
+    ctx = observation.current() or observation.TemporalContext(datetime.combine(d, datetime.min.time()))
+    d = ctx.local.date()
+    modern = scan_times(text, ctx)
     found = []
     for i, (name, rx, bare) in enumerate(_TIME_RX):
         for m in rx.finditer(text):
+            if any(m.start() < r.span[1] and r.span[0] < m.end() for r in modern):
+                continue
             found.append((m.start(), -(m.end() - m.start()), i, m, name, bare))
     found.sort(key=lambda x: (x[0], x[1], x[2]))
     out, end = [], -1
@@ -342,8 +349,17 @@ def _times(text: str, d: date) -> list:
         if start < end:
             continue
         end = m.end()
-        out.append((start, end, name, _resolve(name, m, d), bare))
-    return out
+        span = _resolve(name, m, d)
+        if ctx.reference.tzinfo is not None and not ctx.timezone:
+            if not (name == "md" and m.groupdict().get("y")):
+                span = None
+        out.append((start, end, name, span, bare))
+    for r in modern:
+        raw = text[r.span[0]:r.span[1]].lower()
+        name = "today" if raw in ("today", "今天") else "modern_" + r.basis[0]
+        check = r.basis[0] in ("iso", "numeric", "chinese") or name == "today"
+        out.append((r.span[0], r.span[1], name, (r.start, r.end) if r.status == "resolved" else None, check))
+    return sorted(out)
 
 
 # ══════════════════════════════════════════════════════════
@@ -373,10 +389,10 @@ def _event_spans(text: str, kinds) -> list:
 
 def _is_past_tense(clause: str, sentence: str = "") -> bool:
     """说的是已经发生的事。分句本身看不出时态（「including the Katy Perry concert today」）时看整句。"""
-    zh = bool(re.search(r"[一-鿿]", clause))
-    past, fut = (_PAST_ZH, _FUT_ZH) if zh else (_PAST_EN, _FUT_EN)
-    text = clause if (past.search(clause) or fut.search(clause) or not sentence) else sentence
-    return bool(past.search(text)) and not fut.search(text)
+    past = lambda text: bool(_PAST_ZH.search(text) or _PAST_EN.search(text))
+    future = lambda text: bool(_FUT_ZH.search(text) or _FUT_EN.search(text))
+    text = clause if past(clause) or future(clause) or not sentence else sentence
+    return past(text) and not future(text)
 
 
 def _future_spans(clause: str, d: date, near: Optional[list] = None, sentence: str = "") -> list:
@@ -384,7 +400,9 @@ def _future_spans(clause: str, d: date, near: Optional[list] = None, sentence: s
     times = _times(clause, d)
     mv = _MOVE.search(clause)
     if mv:
-        times = [t for t in times if t[0] >= mv.start()] or times
+        from nexsandglass.language.events import move_target_start
+        cutoff = move_target_start(clause)
+        times = [t for t in times if t[0] >= cutoff]
     ok = []
     for ts, te, name, span, check_tense in times:
         if not span or span[1] < d or span[0] > d + timedelta(days=MAX_AHEAD_DAYS):
@@ -407,7 +425,8 @@ def _future_time(clause: str, d: date, near: Optional[list] = None, sentence: st
             gap = lambda t: min(max(0, es - t[1], t[0] - ee) for es, ee in near)     # noqa: E731
             closest = min(times, key=lambda t: (gap(t), t[0]))
             if closest[3] is None or closest[3][1] < d:
-                if not (_MOVE.search(clause) and closest[0] < _MOVE.search(clause).start()):
+                from nexsandglass.language.events import move_target_start
+                if not (_MOVE.search(clause) and closest[0] < move_target_start(clause)):
                     return None
     ok = _future_spans(clause, d, near, sentence)
     return ok[0][2] if ok else None
@@ -429,7 +448,18 @@ def _part_spans(part: str, kinds: list) -> Optional[list]:
     return spans
 
 
-def extract(text: str, said) -> list:
+def extract(text: str, said, *, language=None) -> list:
+    from nexsandglass.language import observation
+    context = observation.current()
+    if language is not None:
+        context = observation.TemporalContext(said, language.locale, language.timezone, "explicit")
+    if context and context.input_language.split("-", 1)[0] not in ("zh", "en", "mixed", "unknown"):
+        return []
+    with observation.bind(context):
+        return _extract(text, context.local if context else said)
+
+
+def _extract(text: str, said) -> list:
     """一条用户消息里的待跟进：[(类别元组, 开始日期, 结束日期, 所在的句子)]。said = 说这句话的时间。"""
     text = str(text or "").strip()
     if not text or len(text) > _MAX_LEN:
@@ -437,14 +467,15 @@ def extract(text: str, said) -> list:
     d = said.date() if isinstance(said, datetime) else said
     out = []
     for sent in _sentences(text):
-        if _HYPO.search(sent) or _CANCEL.search(sent) or _GREETING.search(sent):
+        from nexsandglass.language.assertions import assertion_state
+        if assertion_state(sent) not in ("affirmed",) or _CANCEL.search(sent) or _GREETING.search(sent):
             continue
         for cl in _clauses(sent):
             if not kinds_in(cl):
                 continue
             # 英文的 and / but 再分一层：「a meeting on Monday and a deadline by Friday」各配各的日子；
             # 「I just got back from a trip and … this weekend」里的 trip 是过去的事
-            parts = [cl] if re.search(r"[一-鿿]", cl) else [p for p in _AND.split(cl) if p.strip()]
+            parts = [p for p in _AND.split(cl) if p.strip()]
             only = None
             if len(parts) > 1:
                 # 只借给并列的另一件事：「an interview and a dentist appointment tomorrow」；
@@ -484,7 +515,8 @@ def _said(ts) -> datetime:
     s = str(ts or "")
     for fmt, n in (("%Y-%m-%d %H:%M:%S", 19), ("%Y-%m-%dT%H:%M:%S", 19), ("%Y-%m-%d", 10)):
         try:
-            return datetime.strptime(s[:n], fmt)
+            parsed = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            return parsed.astimezone(timezone.utc).replace(tzinfo=None) if parsed.tzinfo else parsed
         except ValueError:
             continue
     return datetime.now()
@@ -492,7 +524,9 @@ def _said(ts) -> datetime:
 
 def _store(conn, mem_id: str, seq: int, ts, text: str, line_start) -> int:
     from nexsandglass.core.profile import _trusted
-    found = extract(text, _said(ts))
+    from nexsandglass.language import observation
+    with observation.bind(observation.for_record(conn, mem_id, ts)):
+        found = extract(text, _said(ts))
     if not found or not _trusted(line_start, conn=conn):
         return 0
     for kinds, a, b, _ in found:
@@ -528,6 +562,7 @@ def refresh_ready(conn: Optional[sqlite3.Connection] = None, *, deadline: float)
         conn = conn or memid.get_conn()
         target = int(conn.execute("SELECT COALESCE(MAX(seq), 0) FROM memories").fetchone()[0])
         added = 0
+        previous_progress = None
         while True:
             if time.monotonic() >= deadline:
                 raise TimeoutError("Nyx voice follow-ups are still refreshing")
@@ -537,7 +572,11 @@ def refresh_ready(conn: Optional[sqlite3.Connection] = None, *, deadline: float)
                 raise TimeoutError("Nyx voice follow-ups are still refreshing")
             if ready:
                 return added
-            time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
+            job = projection_jobs.get(conn, "followups")
+            progress = (job.processor_version, job.checkpoint_seq, job.reset_required) if job else None
+            if progress == previous_progress:
+                time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
+            previous_progress = progress
     finally:
         _REFRESH_LOCK.release()
 
@@ -649,23 +688,39 @@ def due(now: Optional[datetime] = None, conn: Optional[sqlite3.Connection] = Non
     job = projection_jobs.get(conn, "followups")
     if job and (job.processor_version != RULES_VERSION or job.reset_required):
         return []
-    now = now or clock.now()
+    from nexsandglass.language import observation
+    from nexsandglass.language import events
+    from nexsandglass.core import settings
+    reference_now = now or clock.utcnow()
+    if reference_now.tzinfo is None:
+        reference_now = reference_now.replace(tzinfo=timezone.utc)  # legacy wall/simulation API
+    if now is None:
+        now = clock.now()
+        if settings.get("NYX_TIMEZONE"):
+            from zoneinfo import ZoneInfo
+            now = reference_now.astimezone(ZoneInfo(settings.get("NYX_TIMEZONE")))
     today = now.date()
     lo = (today - timedelta(days=AWAITING_DAYS)).isoformat()
     hi = (today + timedelta(days=UPCOMING_DAYS)).isoformat()
     rows = conn.execute(
         "SELECT f.mem_id, f.kinds, f.day_from, f.day_to, m.ts, m.text, m.line_start FROM followup_items f JOIN memories m "
-        "ON m.mem_id = f.mem_id WHERE m.deleted_at IS NULL AND m.sender = 'user' AND f.day_to >= ? "
-        "AND f.day_from <= ? AND m.ts <= ? ORDER BY m.ts", (lo, hi, now.strftime("%Y-%m-%d %H:%M:%S"))).fetchall()
+        "ON m.mem_id = f.mem_id LEFT JOIN observation_context o ON o.mem_id=m.mem_id "
+        "WHERE m.deleted_at IS NULL AND m.sender = 'user' AND f.day_to >= ? "
+        "AND julianday(COALESCE(o.reference,m.ts)) <= julianday(?) ORDER BY m.ts",
+        (lo, reference_now.isoformat())).fetchall()
     cands = []
     for mem_id, kinds, a, b, ts, text, line_start in rows:
         if not _trusted(line_start, conn=conn):
             continue
-        said = _said(ts)
+        source_context = observation.for_record(conn, mem_id, ts)
+        said = source_context.reference
+        if said.tzinfo is not None:
+            said = said.astimezone(timezone.utc).replace(tzinfo=None)
         start, end = date.fromisoformat(a), date.fromisoformat(b)
         ks = tuple(kinds.split(","))
         # 正文按现在的样子重新抽一遍：被改写 / 隐去以后对不上的不列
-        sent = next((s for k2, a2, b2, s in extract(text, said) if k2 == ks and a2 == start and b2 == end), None)
+        with observation.bind(observation.for_record(conn, mem_id, ts)):
+            sent = next((s for k2, a2, b2, s in extract(text, said) if k2 == ks and a2 == start and b2 == end), None)
         if sent is None:
             continue
         cands.append({"mem_id": mem_id, "kinds": ks, "start": start, "end": end, "said": said, "text": text,
@@ -677,24 +732,50 @@ def due(now: Optional[datetime] = None, conn: Optional[sqlite3.Connection] = Non
     cands.sort(key=lambda c: c["said"], reverse=True)
     kept = []
     for c in cands:
-        if any(c["kinds"][0] == k["kinds"][0] and c["start"] <= k["end"] and k["start"] <= c["end"] for k in kept):
+        if any(events.same_event(c, k) and c["start"] <= k["end"] and k["start"] <= c["end"] for k in kept):
             continue
         kept.append(c)
     # 后来的消息：取消 / 改期了没有；事情过去以后提过没有（用户说了结果、助手问过，都算）
     since = min(c["said"] for c in kept).strftime("%Y-%m-%d %H:%M:%S")
     later = conn.execute(
-        "SELECT ts, sender, text FROM memories WHERE deleted_at IS NULL AND sender IN ('user', 'agent') "
-        "AND ts > ? AND ts <= ? ORDER BY ts LIMIT 20000", (since, now.strftime("%Y-%m-%d %H:%M:%S"))).fetchall()
+        "SELECT COALESCE(o.reference,m.ts), m.sender, m.text, m.mem_id, m.line_start FROM memories m "
+        "LEFT JOIN observation_context o ON o.mem_id=m.mem_id WHERE m.deleted_at IS NULL AND m.sender IN ('user','agent') "
+        "AND julianday(COALESCE(o.reference,m.ts)) > julianday(?) "
+        "AND julianday(COALESCE(o.reference,m.ts)) <= julianday(?) "
+        "ORDER BY julianday(COALESCE(o.reference,m.ts)),m.seq LIMIT 20001", (since, reference_now.isoformat())).fetchall()
+    if len(later) > 20000:
+        raise TimeoutError("follow-up event reconciliation exceeds the bounded read window")
+    cancelled, binding_states = set(), []
+    for ts, sender, text, mid, line_start in later:
+        if sender != "user" or not _trusted(line_start, conn=conn):
+            continue
+        with observation.bind(observation.for_record(conn, mid, ts)):
+            ids, states = events.targets(text, [c for c in kept if c["mem_id"] not in cancelled], _said(ts))
+        cancelled |= ids
+        binding_states.extend(states)
     out = []
     for c in kept:
+        if c["mem_id"] in cancelled or c["start"] > today + timedelta(days=UPCOMING_DAYS):
+            continue
+        c["binding_states"] = tuple(binding_states)
         drop = False
-        for ts, sender, text in later:
+        for ts, sender, text, mid, line_start in later:
+            if sender == "user" and not _trusted(line_start, conn=conn):
+                continue
+            from nexsandglass.language.assertions import assertion_state
+            if assertion_state(text) not in (("affirmed", "question") if sender == "agent" else ("affirmed",)) or events._NEG_ACTION.search(text):
+                continue
+            target_subject, target_anchors = events.identity(text, c["kinds"])
+            subject, anchors = events.identity(c["sentence"], c["kinds"])
+            if target_subject != subject or (target_anchors and anchors and not target_anchors <= anchors):
+                continue
             when = _said(ts)
             if when <= c["said"]:
                 continue
-            how = _mentions(text, c["kinds"], c["tokens"], when)
-            if how == "cancel":
-                drop = True
+            with observation.bind(observation.for_record(conn, mid, ts)):
+                how = _mentions(text, c["kinds"], c["tokens"], when)
+            if how == "cancel" or events.action(text):
+                continue
             elif how == "mention":
                 wd = when.date()
                 if c["state"] == "awaiting":

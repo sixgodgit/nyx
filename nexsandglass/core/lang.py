@@ -3,8 +3,9 @@ core/lang.py — which language Nyx speaks to people (v7.16.0). English first.
 
 Two kinds of text, two rules:
 
-- **Model-facing** (tool descriptions and results, recalled-memory labels, the system prompt frame,
-  redaction placeholders): always English. Models read it best, and some of it ends up in stored data.
+- **Protocol/storage** (tool fields, relation keys, redaction placeholders): stable labels.
+  Optional host presentation and answer-language hints are separate from this UI
+  setting; original evidence is never translated or rewritten by it.
 - **Human-facing** (CLI output, `hermes memory setup`, install messages): English, or Chinese when asked —
   ``NYX_LANG=zh`` (Hermes: ``lang: zh`` in nyx.json). Without NYX_LANG, a Chinese locale
   (LC_ALL / LC_MESSAGES / LANG starting with ``zh``) also picks Chinese.

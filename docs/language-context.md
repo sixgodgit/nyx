@@ -3,7 +3,7 @@
 `LanguageContext` is immutable request metadata. It separates the language of
 the current input, an explicitly selected response language, regional formatting
 and timezone. It does not detect language, translate evidence, parse relative
-dates or save a preference. Those behaviors belong to later LANG increments.
+dates or save a preference. Those behaviors live outside the metadata contract; the language branch now implements bounded LANG-03 time interpretation separately.
 
 ```python
 from nexsandglass.runtime.contracts import LanguageContext, RecallRequest
@@ -74,11 +74,18 @@ trust or rewrites canonical IDs. The host must bind storage and permissions
 through its independent store context and must validate any persistent preference
 through the normal source/trust path.
 
-The contract adds no cross-language aliases or semantic retrieval guarantees.
-Chinese/English negation, corrections, time interpretation and open-ended
-cross-language recall still require LANG-02–06 implementation and evaluation.
+The LANG-01 contract itself adds no cross-language aliases or semantic retrieval guarantees.
+The language branch adds a separate [LANG-02 adapter foundation](language-adapters.md) with explicit typed aliases;
+it does not turn those metadata fields into retrieval or authorization rules.
+The branch also implements bounded [LANG-03 negation, corrections and observation-time interpretation](language-time.md). Open-ended cross-language recall and the common language gate remain LANG-04–06 work.
 
 Tests in `tests/test_language_context_contracts.py` cover old export compatibility,
 input/output separation, immutable/detached data, syntactic and timezone validation,
 stale-language rejection and the actual typed evidence path retaining its original
 canonical binding and unverified tool provenance.
+
+LANG-03 optionally accepts this same object on `observe(..., language=..., observed_at=...)`. Its input language, locale and timezone can be persisted with a new canonical record for replay; it does not persist the response-language preference as a user fact. Existing records are not reinterpreted using current settings. See [observation frames](language-time.md#observation-frame-and-replay) for import and compatibility boundaries.
+
+[LANG-04 retrieval fusion](language-recall.md) separately uses known aliases and an optional semantic backend; declaring an input language neither enables a model nor guarantees retrieval quality. Original evidence and the input/response-preference boundary remain unchanged.
+
+[LANG-05 presentation](language-presentation.md) now provides explicit `recall_presented()` and host rendering options. Raw typed recall remains compatible. Presentation must match the request's response-language context; original evidence and fact-tool fields are retained. Hermes can separately opt in through `response_language`; `lang` remains a UI setting.

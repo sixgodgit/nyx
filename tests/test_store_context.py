@@ -121,6 +121,12 @@ def test_history_import_progress_and_clock_follow_provider_store(tmp_path, monke
     from nexsandglass import history_import
     from nexsandglass.core.memory_provider import NexSandglassProvider
     monkeypatch.delenv("NEXSANDBASE_HOME", raising=False)
+    def legacy_snapshot():
+        conn = memid.get_conn()
+        tables = conn.execute("SELECT name FROM sqlite_master WHERE name='import_progress'").fetchall()
+        progress = conn.execute("SELECT * FROM import_progress ORDER BY db,session_id").fetchall() if tables else None
+        return progress, conn.execute("SELECT mem_id FROM memories ORDER BY seq").fetchall()
+    legacy_before = legacy_snapshot()
     home = tmp_path / "hermes"
     root = tmp_path / "destination"
     nh.save_config({"data_dir": str(root)}, str(home))
@@ -139,7 +145,7 @@ def test_history_import_progress_and_clock_follow_provider_store(tmp_path, monke
         row = next(r for r in memid.iter_all() if "imported city" in r["text"])
         assert row["ts"] == "2025-02-03 09:00:00"
         assert history_import.done_upto(memid.get_conn(), source.path, "same-session") == 1
-    assert not memid.get_conn().execute("SELECT name FROM sqlite_master WHERE name='import_progress'").fetchall()
+    assert legacy_snapshot() == legacy_before
 
 
 def test_media_purge_cannot_delete_a_foreign_store_blob(tmp_path):
@@ -228,6 +234,9 @@ with stores[0].bind():
     assert forget({'mem_id': ids[0]})['ok']
     assert texts[0] not in recall_request(RecallRequest('cobalt mug', token_budget=800)).text
     assert restore(ids[0])['ok']
+    # Restore schedules vector rebuilding in the background. Complete that
+    # documented step before asserting the derived index is already current.
+    semantic.index_pending()
 read(0)
 read(1)
 print('SCOPED REAL PIPELINE: PASS')

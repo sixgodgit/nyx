@@ -1,0 +1,1439 @@
+{
+  "schema_version": 1,
+  "groups": [
+    {
+      "group_id": "lin-allergy",
+      "split": "dev",
+      "scenario": "allergy",
+      "cases": [
+        {
+          "id": "lin-allergy-zh-zh",
+          "source_language": "zh",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "我对花生过敏。",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "我对哪种食物过敏？花生可以吃吗？",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-allergy-zh-en",
+          "source_language": "zh",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "我对花生过敏。",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "Am I allergic to peanuts?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-allergy-en-zh",
+          "source_language": "en",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "I am allergic to peanuts.",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "我对哪种食物过敏？花生可以吃吗？",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-allergy-en-en",
+          "source_language": "en",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "I am allergic to peanuts.",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "Am I allergic to peanuts?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-allergy-mixed",
+          "source_language": "mixed",
+          "query_language": "mixed",
+          "records": [
+            {
+              "text": "我对花生过敏。 I am allergic to peanuts.",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "我对哪种食物过敏？花生可以吃吗？ Am I allergic to peanuts?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        }
+      ],
+      "slot_pairs": [
+        {
+          "kind": "health",
+          "a": "我对花生过敏。",
+          "b": "I am allergic to peanuts.",
+          "equivalent": true
+        }
+      ]
+    },
+    {
+      "group_id": "lin-preference",
+      "split": "dev",
+      "scenario": "preference",
+      "cases": [
+        {
+          "id": "lin-preference-zh-zh",
+          "source_language": "zh",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "我喜欢喝红茶。",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "我喜欢喝红茶吗？",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-preference-zh-en",
+          "source_language": "zh",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "我喜欢喝红茶。",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "Do I like black tea?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-preference-en-zh",
+          "source_language": "en",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "I like black tea.",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "我喜欢喝红茶吗？",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-preference-en-en",
+          "source_language": "en",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "I like black tea.",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "Do I like black tea?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-preference-mixed",
+          "source_language": "mixed",
+          "query_language": "mixed",
+          "records": [
+            {
+              "text": "我喜欢喝红茶。 I like black tea.",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "我喜欢喝红茶吗？ Do I like black tea?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        }
+      ],
+      "slot_pairs": [
+        {
+          "kind": "likes",
+          "a": "我喜欢喝红茶。",
+          "b": "I like black tea.",
+          "equivalent": true
+        }
+      ]
+    },
+    {
+      "group_id": "lin-correction",
+      "split": "dev",
+      "scenario": "correction",
+      "cases": [
+        {
+          "id": "lin-correction-zh-zh",
+          "source_language": "zh",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "我喜欢喝红茶。",
+              "source": "user",
+              "expected_kind": "likes"
+            },
+            {
+              "text": "I no longer like black tea.",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "我现在还喜欢红茶吗？",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            1
+          ],
+          "forbidden_profile": [
+            0
+          ]
+        },
+        {
+          "id": "lin-correction-zh-en",
+          "source_language": "zh",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "我喜欢喝红茶。",
+              "source": "user",
+              "expected_kind": "likes"
+            },
+            {
+              "text": "I no longer like black tea.",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "Do I still like black tea?",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            1
+          ],
+          "forbidden_profile": [
+            0
+          ]
+        },
+        {
+          "id": "lin-correction-en-zh",
+          "source_language": "en",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "I like black tea.",
+              "source": "user",
+              "expected_kind": "likes"
+            },
+            {
+              "text": "我不再喜欢喝红茶。",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "我现在还喜欢红茶吗？",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            1
+          ],
+          "forbidden_profile": [
+            0
+          ]
+        },
+        {
+          "id": "lin-correction-en-en",
+          "source_language": "en",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "I like black tea.",
+              "source": "user",
+              "expected_kind": "likes"
+            },
+            {
+              "text": "我不再喜欢喝红茶。",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "Do I still like black tea?",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            1
+          ],
+          "forbidden_profile": [
+            0
+          ]
+        },
+        {
+          "id": "lin-correction-mixed",
+          "source_language": "mixed",
+          "query_language": "mixed",
+          "records": [
+            {
+              "text": "我喜欢喝红茶。 I like black tea.",
+              "source": "user",
+              "expected_kind": "likes"
+            },
+            {
+              "text": "I no longer like black tea. 我不再喜欢喝红茶。",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "我现在还喜欢红茶吗？ Do I still like black tea?",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            1
+          ],
+          "forbidden_profile": [
+            0
+          ]
+        }
+      ],
+      "slot_pairs": []
+    },
+    {
+      "group_id": "lin-subject",
+      "split": "dev",
+      "scenario": "subject",
+      "cases": [
+        {
+          "id": "lin-subject-zh-zh",
+          "source_language": "zh",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "我对花生过敏。",
+              "source": "user",
+              "expected_kind": "health"
+            },
+            {
+              "text": "我女儿喜欢花生。",
+              "source": "user",
+              "expected_kind": "people"
+            }
+          ],
+          "query": "我和女儿对花生有什么不同？",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            0,
+            1
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-subject-zh-en",
+          "source_language": "zh",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "我对花生过敏。",
+              "source": "user",
+              "expected_kind": "health"
+            },
+            {
+              "text": "我女儿喜欢花生。",
+              "source": "user",
+              "expected_kind": "people"
+            }
+          ],
+          "query": "What did I say about peanuts and my daughter?",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            0,
+            1
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-subject-en-zh",
+          "source_language": "en",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "I am allergic to peanuts.",
+              "source": "user",
+              "expected_kind": "health"
+            },
+            {
+              "text": "My daughter likes peanuts.",
+              "source": "user",
+              "expected_kind": "people"
+            }
+          ],
+          "query": "我和女儿对花生有什么不同？",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            0,
+            1
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-subject-en-en",
+          "source_language": "en",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "I am allergic to peanuts.",
+              "source": "user",
+              "expected_kind": "health"
+            },
+            {
+              "text": "My daughter likes peanuts.",
+              "source": "user",
+              "expected_kind": "people"
+            }
+          ],
+          "query": "What did I say about peanuts and my daughter?",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            0,
+            1
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-subject-mixed",
+          "source_language": "mixed",
+          "query_language": "mixed",
+          "records": [
+            {
+              "text": "我对花生过敏。 I am allergic to peanuts.",
+              "source": "user",
+              "expected_kind": "health"
+            },
+            {
+              "text": "我女儿喜欢花生。 My daughter likes peanuts.",
+              "source": "user",
+              "expected_kind": "people"
+            }
+          ],
+          "query": "我和女儿对花生有什么不同？ What did I say about peanuts and my daughter?",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            0,
+            1
+          ],
+          "forbidden_profile": []
+        }
+      ],
+      "slot_pairs": []
+    },
+    {
+      "group_id": "lin-negation",
+      "split": "dev",
+      "scenario": "negation",
+      "cases": [
+        {
+          "id": "lin-negation-zh-zh",
+          "source_language": "zh",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "我对花生过敏，但是不过敏的食物不能据此推断。",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "我的花生过敏有哪些限制？",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-negation-zh-en",
+          "source_language": "zh",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "我对花生过敏，但是不过敏的食物不能据此推断。",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "What are the limits of my peanuts allergy statement?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-negation-en-zh",
+          "source_language": "en",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "I am allergic to peanuts, but do not infer allergies to other foods.",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "我的花生过敏有哪些限制？",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-negation-en-en",
+          "source_language": "en",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "I am allergic to peanuts, but do not infer allergies to other foods.",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "What are the limits of my peanuts allergy statement?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-negation-mixed",
+          "source_language": "mixed",
+          "query_language": "mixed",
+          "records": [
+            {
+              "text": "我对花生过敏，但是不过敏的食物不能据此推断。 I am allergic to peanuts, but do not infer allergies to other foods.",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "我的花生过敏有哪些限制？ What are the limits of my peanuts allergy statement?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        }
+      ],
+      "slot_pairs": []
+    },
+    {
+      "group_id": "lin-unknown",
+      "split": "dev",
+      "scenario": "unknown",
+      "cases": [
+        {
+          "id": "lin-unknown-zh-zh",
+          "source_language": "zh",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "我把钴蓝杯子放在三角架下面。",
+              "source": "user",
+              "expected_kind": null
+            }
+          ],
+          "query": "钴蓝杯子在哪里？",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-unknown-zh-en",
+          "source_language": "zh",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "我把钴蓝杯子放在三角架下面。",
+              "source": "user",
+              "expected_kind": null
+            }
+          ],
+          "query": "Where is the cobalt mug?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-unknown-en-zh",
+          "source_language": "en",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "I left the cobalt mug under the tripod.",
+              "source": "user",
+              "expected_kind": null
+            }
+          ],
+          "query": "钴蓝杯子在哪里？",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-unknown-en-en",
+          "source_language": "en",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "I left the cobalt mug under the tripod.",
+              "source": "user",
+              "expected_kind": null
+            }
+          ],
+          "query": "Where is the cobalt mug?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [],
+          "forbidden_profile": []
+        },
+        {
+          "id": "lin-unknown-mixed",
+          "source_language": "mixed",
+          "query_language": "mixed",
+          "records": [
+            {
+              "text": "我把钴蓝杯子放在三角架下面。 I left the cobalt mug under the tripod.",
+              "source": "user",
+              "expected_kind": null
+            }
+          ],
+          "query": "钴蓝杯子在哪里？ Where is the cobalt mug?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [],
+          "forbidden_profile": []
+        }
+      ],
+      "slot_pairs": []
+    },
+    {
+      "group_id": "morgan-allergy",
+      "split": "heldout",
+      "scenario": "allergy",
+      "cases": [
+        {
+          "id": "morgan-allergy-zh-zh",
+          "source_language": "zh",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "我对虾过敏。",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "我对哪种食物过敏？虾可以吃吗？",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-allergy-zh-en",
+          "source_language": "zh",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "我对虾过敏。",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "Am I allergic to shrimp?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-allergy-en-zh",
+          "source_language": "en",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "I am allergic to shrimp.",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "我对哪种食物过敏？虾可以吃吗？",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-allergy-en-en",
+          "source_language": "en",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "I am allergic to shrimp.",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "Am I allergic to shrimp?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-allergy-mixed",
+          "source_language": "mixed",
+          "query_language": "mixed",
+          "records": [
+            {
+              "text": "我对虾过敏。 I am allergic to shrimp.",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "我对哪种食物过敏？虾可以吃吗？ Am I allergic to shrimp?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        }
+      ],
+      "slot_pairs": [
+        {
+          "kind": "health",
+          "a": "我对虾过敏。",
+          "b": "I am allergic to shrimp.",
+          "equivalent": true
+        }
+      ]
+    },
+    {
+      "group_id": "morgan-preference",
+      "split": "heldout",
+      "scenario": "preference",
+      "cases": [
+        {
+          "id": "morgan-preference-zh-zh",
+          "source_language": "zh",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "我喜欢喝绿茶。",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "我喜欢喝绿茶吗？",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-preference-zh-en",
+          "source_language": "zh",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "我喜欢喝绿茶。",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "Do I like green tea?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-preference-en-zh",
+          "source_language": "en",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "I like green tea.",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "我喜欢喝绿茶吗？",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-preference-en-en",
+          "source_language": "en",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "I like green tea.",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "Do I like green tea?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-preference-mixed",
+          "source_language": "mixed",
+          "query_language": "mixed",
+          "records": [
+            {
+              "text": "我喜欢喝绿茶。 I like green tea.",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "我喜欢喝绿茶吗？ Do I like green tea?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        }
+      ],
+      "slot_pairs": [
+        {
+          "kind": "likes",
+          "a": "我喜欢喝绿茶。",
+          "b": "I like green tea.",
+          "equivalent": true
+        }
+      ]
+    },
+    {
+      "group_id": "morgan-correction",
+      "split": "heldout",
+      "scenario": "correction",
+      "cases": [
+        {
+          "id": "morgan-correction-zh-zh",
+          "source_language": "zh",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "我喜欢喝绿茶。",
+              "source": "user",
+              "expected_kind": "likes"
+            },
+            {
+              "text": "I no longer like green tea.",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "我现在还喜欢绿茶吗？",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            1
+          ],
+          "forbidden_profile": [
+            0
+          ]
+        },
+        {
+          "id": "morgan-correction-zh-en",
+          "source_language": "zh",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "我喜欢喝绿茶。",
+              "source": "user",
+              "expected_kind": "likes"
+            },
+            {
+              "text": "I no longer like green tea.",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "Do I still like green tea?",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            1
+          ],
+          "forbidden_profile": [
+            0
+          ]
+        },
+        {
+          "id": "morgan-correction-en-zh",
+          "source_language": "en",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "I like green tea.",
+              "source": "user",
+              "expected_kind": "likes"
+            },
+            {
+              "text": "我不再喜欢喝绿茶。",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "我现在还喜欢绿茶吗？",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            1
+          ],
+          "forbidden_profile": [
+            0
+          ]
+        },
+        {
+          "id": "morgan-correction-en-en",
+          "source_language": "en",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "I like green tea.",
+              "source": "user",
+              "expected_kind": "likes"
+            },
+            {
+              "text": "我不再喜欢喝绿茶。",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "Do I still like green tea?",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            1
+          ],
+          "forbidden_profile": [
+            0
+          ]
+        },
+        {
+          "id": "morgan-correction-mixed",
+          "source_language": "mixed",
+          "query_language": "mixed",
+          "records": [
+            {
+              "text": "我喜欢喝绿茶。 I like green tea.",
+              "source": "user",
+              "expected_kind": "likes"
+            },
+            {
+              "text": "I no longer like green tea. 我不再喜欢喝绿茶。",
+              "source": "user",
+              "expected_kind": "likes"
+            }
+          ],
+          "query": "我现在还喜欢绿茶吗？ Do I still like green tea?",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            1
+          ],
+          "forbidden_profile": [
+            0
+          ]
+        }
+      ],
+      "slot_pairs": []
+    },
+    {
+      "group_id": "morgan-subject",
+      "split": "heldout",
+      "scenario": "subject",
+      "cases": [
+        {
+          "id": "morgan-subject-zh-zh",
+          "source_language": "zh",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "我对虾过敏。",
+              "source": "user",
+              "expected_kind": "health"
+            },
+            {
+              "text": "我女儿喜欢虾。",
+              "source": "user",
+              "expected_kind": "people"
+            }
+          ],
+          "query": "我和女儿对虾有什么不同？",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            0,
+            1
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-subject-zh-en",
+          "source_language": "zh",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "我对虾过敏。",
+              "source": "user",
+              "expected_kind": "health"
+            },
+            {
+              "text": "我女儿喜欢虾。",
+              "source": "user",
+              "expected_kind": "people"
+            }
+          ],
+          "query": "What did I say about shrimp and my daughter?",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            0,
+            1
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-subject-en-zh",
+          "source_language": "en",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "I am allergic to shrimp.",
+              "source": "user",
+              "expected_kind": "health"
+            },
+            {
+              "text": "My daughter likes shrimp.",
+              "source": "user",
+              "expected_kind": "people"
+            }
+          ],
+          "query": "我和女儿对虾有什么不同？",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            0,
+            1
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-subject-en-en",
+          "source_language": "en",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "I am allergic to shrimp.",
+              "source": "user",
+              "expected_kind": "health"
+            },
+            {
+              "text": "My daughter likes shrimp.",
+              "source": "user",
+              "expected_kind": "people"
+            }
+          ],
+          "query": "What did I say about shrimp and my daughter?",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            0,
+            1
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-subject-mixed",
+          "source_language": "mixed",
+          "query_language": "mixed",
+          "records": [
+            {
+              "text": "我对虾过敏。 I am allergic to shrimp.",
+              "source": "user",
+              "expected_kind": "health"
+            },
+            {
+              "text": "我女儿喜欢虾。 My daughter likes shrimp.",
+              "source": "user",
+              "expected_kind": "people"
+            }
+          ],
+          "query": "我和女儿对虾有什么不同？ What did I say about shrimp and my daughter?",
+          "expected_recall": [
+            1
+          ],
+          "expected_profile": [
+            0,
+            1
+          ],
+          "forbidden_profile": []
+        }
+      ],
+      "slot_pairs": []
+    },
+    {
+      "group_id": "morgan-negation",
+      "split": "heldout",
+      "scenario": "negation",
+      "cases": [
+        {
+          "id": "morgan-negation-zh-zh",
+          "source_language": "zh",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "我对虾过敏，但是不过敏的食物不能据此推断。",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "我的虾过敏有哪些限制？",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-negation-zh-en",
+          "source_language": "zh",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "我对虾过敏，但是不过敏的食物不能据此推断。",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "What are the limits of my shrimp allergy statement?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-negation-en-zh",
+          "source_language": "en",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "I am allergic to shrimp, but do not infer allergies to other foods.",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "我的虾过敏有哪些限制？",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-negation-en-en",
+          "source_language": "en",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "I am allergic to shrimp, but do not infer allergies to other foods.",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "What are the limits of my shrimp allergy statement?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-negation-mixed",
+          "source_language": "mixed",
+          "query_language": "mixed",
+          "records": [
+            {
+              "text": "我对虾过敏，但是不过敏的食物不能据此推断。 I am allergic to shrimp, but do not infer allergies to other foods.",
+              "source": "user",
+              "expected_kind": "health"
+            }
+          ],
+          "query": "我的虾过敏有哪些限制？ What are the limits of my shrimp allergy statement?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [
+            0
+          ],
+          "forbidden_profile": []
+        }
+      ],
+      "slot_pairs": []
+    },
+    {
+      "group_id": "morgan-unknown",
+      "split": "heldout",
+      "scenario": "unknown",
+      "cases": [
+        {
+          "id": "morgan-unknown-zh-zh",
+          "source_language": "zh",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "我把钴蓝杯子放在三角架下面。",
+              "source": "user",
+              "expected_kind": null
+            }
+          ],
+          "query": "钴蓝杯子在哪里？",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-unknown-zh-en",
+          "source_language": "zh",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "我把钴蓝杯子放在三角架下面。",
+              "source": "user",
+              "expected_kind": null
+            }
+          ],
+          "query": "Where is the cobalt mug?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-unknown-en-zh",
+          "source_language": "en",
+          "query_language": "zh",
+          "records": [
+            {
+              "text": "I left the cobalt mug under the tripod.",
+              "source": "user",
+              "expected_kind": null
+            }
+          ],
+          "query": "钴蓝杯子在哪里？",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-unknown-en-en",
+          "source_language": "en",
+          "query_language": "en",
+          "records": [
+            {
+              "text": "I left the cobalt mug under the tripod.",
+              "source": "user",
+              "expected_kind": null
+            }
+          ],
+          "query": "Where is the cobalt mug?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [],
+          "forbidden_profile": []
+        },
+        {
+          "id": "morgan-unknown-mixed",
+          "source_language": "mixed",
+          "query_language": "mixed",
+          "records": [
+            {
+              "text": "我把钴蓝杯子放在三角架下面。 I left the cobalt mug under the tripod.",
+              "source": "user",
+              "expected_kind": null
+            }
+          ],
+          "query": "钴蓝杯子在哪里？ Where is the cobalt mug?",
+          "expected_recall": [
+            0
+          ],
+          "expected_profile": [],
+          "forbidden_profile": []
+        }
+      ],
+      "slot_pairs": []
+    }
+  ]
+}
