@@ -134,6 +134,10 @@ def main():
         query_trace = entry.provider.context_trace("hermes_prefetch")
         assert query_trace["evidence_ids"] and query_trace["applied"] is None
         results["explicit_historical_memory_http_lookup"] = True
+        cross_language = client.post("/api/plugins/conduit_push/memory/recall", json={"query": "Am I allergic to peanuts?"})
+        assert cross_language.status_code == 200, cross_language.text
+        assert "花生过敏" in cross_language.json()["results"], cross_language.json()
+        results["cross_language_alias_reached_real_http"] = True
     finally:
         api.memory._memory_providers.clear()
         writer.shutdown()

@@ -341,7 +341,8 @@ class SearchRouter:
     """搜索路由器——四路并发 + 沙子密度融合(density×trust+simhash) + 动态扩窗 + mmap兜底。
     V2.8.6: 统一为唯一搜索入口。
     """
-    def __init__(self, shadow=None, fts5=None, idx=None, tfidf=None, mmap=None, vector=_AUTO):
+    def __init__(self, shadow=None, fts5=None, idx=None, tfidf=None, mmap=None, vector=_AUTO,
+                 language_search=_AUTO):
         self.shadow = shadow or ShadowSearch()
         self.fts5 = fts5 or Fts5Search()
         self.idx = idx or IdxSearch()
@@ -357,19 +358,25 @@ class SearchRouter:
                 vector = None
         self.vector = vector
         self.last_vector_scores: dict = {}
+        if language_search is _AUTO:
+            from nexsandglass.core.language_search import AliasSearch
+            language_search = AliasSearch()
+        self.language_search = language_search
 
     def search(self, query: str, limit: int = 10) -> list:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as ex:
             fut_shadow = ex.submit(copy_context().run, self.shadow.search, query, limit)
             fut_fts5 = ex.submit(copy_context().run, self.fts5.search, query, max(limit * 2, 30))
             fut_idx = ex.submit(copy_context().run, self.idx.search, query, max(limit * 2, 30))
             fut_tfidf = ex.submit(copy_context().run, self.tfidf.search, query, max(limit * 2, 30))
             fut_vector = ex.submit(copy_context().run, self._vector_search_wrapper, query, limit) if self.vector else None
+            fut_language = ex.submit(copy_context().run, self._language_search_wrapper, query, max(limit * 2, 30)) if self.language_search else None
         shadow_hits = fut_shadow.result() or []
         fts5_hits = fut_fts5.result() or []
         idx_hits = fut_idx.result() or []
         tfidf_hits = fut_tfidf.result() or []
         vector_hits = fut_vector.result() if fut_vector else []
+        language_hits = fut_language.result() if fut_language else []
         # 语义这一路命中的行（已过「明显高于背景」的门槛，见 semantic._standout_threshold）：
         # 注入前那道门（core/relevance.py）放行它们 —— 同义改写和问句本来就没有字面重叠（v7.19.0）
         self.last_vector_scores = {}
@@ -386,7 +393,7 @@ class SearchRouter:
                 pass
         all_candidates = []
         seen = set()
-        for hits in [fts5_hits, idx_hits, tfidf_hits]:
+        for hits in [fts5_hits, idx_hits, tfidf_hits, language_hits]:
             for item in hits:
                 ln = item[0]
                 if ln not in seen:
@@ -416,9 +423,9 @@ class SearchRouter:
         if all_candidates:
             tokens = _query_tokens(query)
             ranked = sand_density(all_candidates, tokens, query)
-            if vector_lines:
+            if vector_lines or language_hits:
                 # RRF：词法排序与语义排序各投一票（排名的倒数），任一路排得高都能上来
-                return self._rrf(ranked, vector_lines, tokens)[:limit]
+                return self._rrf(ranked, vector_lines, tokens, [r[0] for r in language_hits])[:limit]
             # 这里曾经还有一句 `ranked = simhash_rerank(ranked, query)`。
             # 它把候选全部按「与 query 的汉明距离」重新排序，把上一行精心算出的
             # density×trust 分数整个洗掉 —— 而 simhash 本来就已经作为 sim_bonus
@@ -449,7 +456,7 @@ class SearchRouter:
         return out
 
     @staticmethod
-    def _rrf(ranked: list, vector_lines: list, tokens=()) -> list:
+    def _rrf(ranked: list, vector_lines: list, tokens=(), language_lines=()) -> list:
         """RRF 融合，但**完整词法命中优先**。
 
         向量检索永远会返回「最像的几条」，哪怕全不相关 —— 纯 RRF 会让这些无关条目
@@ -463,6 +470,8 @@ class SearchRouter:
         w = _vector_weight()
         for r, ln in enumerate(vector_lines):
             score[ln] = score.get(ln, 0.0) + w / (RRF_K + r + 1)
+        for r, ln in enumerate(language_lines):
+            score[ln] = score.get(ln, 0.0) + 1.0 / (RRF_K + r + 1)
         lows = {item[0]: (item[2] if len(item) > 2 else "").lower() for item in ranked}
         # 只认在候选里真实出现过的词：中文 2-gram 会跨过被剔除的数字拼出「第条」这种
         # 哪条记录里都没有的幻影词，带上它就永远没有记录能「完整命中」
@@ -478,10 +487,37 @@ class SearchRouter:
         order = sorted(by_line, key=lambda ln: -score[ln])
         return pinned + [by_line[ln] for ln in order]
 
+    def _language_search_wrapper(self, query: str, limit: int) -> list:
+        try:
+            return self.language_search.search(query, limit)
+        except Exception:
+            try:
+                self.language_search.status = "unavailable"
+            except Exception:
+                pass
+            return []
+
     def _vector_search_wrapper(self, query: str, limit: int) -> list:
         """向量检索包装（fail-safe）。"""
         try:
-            return self.vector.search(query, limit)
+            hits = self.vector.search(query, limit)
+            from nexsandglass.language.query import plan
+            from nexsandglass.core.sandglass_sqlite import get_records
+            from nexsandglass.core.language_search import current_records
+            language_plan = plan(query)
+            lines = self._vector_lines(hits)
+            records = get_records(lines)
+            live, blocked = current_records(lines, allow_unbound=True)
+            records.update(live)
+            kept = []
+            for hit in hits or []:
+                try:
+                    line = int(hit[0])
+                except (ValueError, TypeError, IndexError):
+                    continue
+                if line not in blocked and (line not in records or language_plan.compatible(records[line][2])):
+                    kept.append(hit)
+            return kept
         except Exception:
             return []
 

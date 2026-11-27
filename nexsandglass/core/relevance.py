@@ -112,17 +112,20 @@ def keep(query: str, objs: list) -> list:
     语义命中不另设分数线：semantic.search 只返回「明显比背景更像」的（稳健 z 分数 ≥ NYX_EMBED_Z，默认 3）。
     """
     terms = content_terms(query)
+    from nexsandglass.language.query import plan
+    language_plan = plan(query)
     out = []
     for o in objs:
         if getattr(o, "provenance", "") == "wthread":
             out.append(o)
             continue
-        if getattr(o, "vector_score", None) is not None:
-            out.append(o)
-            continue
         text = str(getattr(o, "content", "") or "")
         if text.startswith("(unverified") and ") " in text:      # 来源标注不算正文
             text = text.split(") ", 1)[1]
-        if terms and matches(terms, text):
+        if getattr(o, "vector_score", None) is not None:
+            if language_plan.compatible(text):
+                out.append(o)
+            continue
+        if (terms and matches(terms, text)) or language_plan.matches(text):
             out.append(o)
     return out

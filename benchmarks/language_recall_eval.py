@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from hashlib import sha256
 import json
+import importlib.metadata
 import os
 from pathlib import Path
 import subprocess
@@ -77,6 +78,7 @@ def main():
                      "NYX_EMBED_Z", "NYX_EMBED_MIN_SCORE", "NYX_EMBED_WEIGHT"):
             os.environ.pop(name, None)
         backend, loaded = None, None
+        model_details = {"ready": False, "device": None, "dimension": None, "packages": {}}
         if args.backend == "local":
             import torch
             torch.set_num_threads(2)
@@ -86,10 +88,15 @@ def main():
             if not backend.load():
                 raise RuntimeError("real local model failed to load")
             loaded = time.perf_counter() - before
+            model_details = {"ready": backend.ready, "device": str(backend._model.device),
+                             "dimension": backend._model.get_sentence_embedding_dimension(),
+                             "packages": {name: importlib.metadata.version(name) for name in
+                                          ("torch", "sentence-transformers", "transformers")}}
         raw = args.corpus.read_bytes()
         report = evaluate(json.loads(raw), Path(root), backend)
     report.update(schema_version=1, corpus_sha256=sha256(raw).hexdigest(), backend=args.backend,
                   model_revision=args.model_revision, model_load_seconds=loaded,
+                  model_details=model_details, external_inference_requests=0,
                   source_commit=subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip(),
                   code_dirty=bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=REPO, text=True).strip()),
                   python=sys.version.split()[0], limits=["synthetic regression, not blind or open-domain quality",
