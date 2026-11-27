@@ -135,4 +135,6 @@ write/recall/forget/restore path. Python 3.12 and 3.13 full suites each passed
 1,244 tests with 2 configured skips, including actual Hermes source integration.
 Separate Conduit HTTP and package-install checks are recorded in PLAN.md.
 
-LANG-03 now adds [temporal/negation policy](language-time.md), preserving the original corpus results in a [separate report](../benchmarks/results/language_v1_lang03.json). Next: LANG-04 retrieval fusion, LANG-05 presentation, then LANG-06's shared gate. M2 remains behind that gate.
+LANG-03 now adds [temporal/negation policy](language-time.md), preserving the original corpus results in a [separate report](../benchmarks/results/language_v1_lang03.json). LANG-04 now adds [bounded historical retrieval fusion](language-recall.md) with separate real-model results. Next: LANG-05 presentation, then LANG-06's shared gate. M2 remains behind that gate.
+
+LANG-04 results supersede the historical-recall status above for the current branch: the same 60-case no-vector corpus now reaches 10/12 in each cross-language direction. The [retrieval documentation](language-recall.md) separates known lexical equivalence from the real model's remaining open-paraphrase failures.

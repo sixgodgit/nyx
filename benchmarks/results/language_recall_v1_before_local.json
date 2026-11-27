@@ -1,0 +1,623 @@
+{
+  "summary": {
+    "alias": {
+      "cases": 12,
+      "hits": 9,
+      "expected": 12,
+      "forbidden": 0,
+      "extra": 18
+    },
+    "negative": {
+      "cases": 4,
+      "hits": 0,
+      "expected": 0,
+      "forbidden": 2,
+      "extra": 5
+    },
+    "open": {
+      "cases": 8,
+      "hits": 3,
+      "expected": 8,
+      "forbidden": 0,
+      "extra": 15
+    },
+    "structure": {
+      "cases": 4,
+      "hits": 4,
+      "expected": 4,
+      "forbidden": 0,
+      "extra": 3
+    }
+  },
+  "results": [
+    {
+      "id": "peanut-zh-en",
+      "group": "peanut",
+      "split": "dev",
+      "kind": "alias",
+      "direction": "zh-en",
+      "expected": [
+        0
+      ],
+      "visible": [
+        0,
+        2,
+        7
+      ],
+      "hits": 1,
+      "forbidden": 0,
+      "extra": 2,
+      "write_seconds": 0.1122419710009126,
+      "recall_seconds": 0.03657983800076181,
+      "injected_characters": 71,
+      "status": "partial"
+    },
+    {
+      "id": "peanut-en-zh",
+      "group": "peanut",
+      "split": "dev",
+      "kind": "alias",
+      "direction": "en-zh",
+      "expected": [
+        0
+      ],
+      "visible": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "hits": 1,
+      "forbidden": 0,
+      "extra": 3,
+      "write_seconds": 0.05115483199915616,
+      "recall_seconds": 0.027542468000319786,
+      "injected_characters": 92,
+      "status": "partial"
+    },
+    {
+      "id": "tea-zh-en",
+      "group": "tea",
+      "split": "heldout",
+      "kind": "alias",
+      "direction": "zh-en",
+      "expected": [
+        0
+      ],
+      "visible": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "hits": 1,
+      "forbidden": 0,
+      "extra": 3,
+      "write_seconds": 0.05507709500307101,
+      "recall_seconds": 0.028385427001921926,
+      "injected_characters": 122,
+      "status": "partial"
+    },
+    {
+      "id": "tea-en-zh",
+      "group": "tea",
+      "split": "heldout",
+      "kind": "alias",
+      "direction": "en-zh",
+      "expected": [
+        0
+      ],
+      "visible": [
+        0,
+        1,
+        2
+      ],
+      "hits": 1,
+      "forbidden": 0,
+      "extra": 2,
+      "write_seconds": 0.05262345200026175,
+      "recall_seconds": 0.040892328001064016,
+      "injected_characters": 111,
+      "status": "partial"
+    },
+    {
+      "id": "lactose-zh-en",
+      "group": "lactose",
+      "split": "dev",
+      "kind": "alias",
+      "direction": "zh-en",
+      "expected": [
+        0
+      ],
+      "visible": [],
+      "hits": 0,
+      "forbidden": 0,
+      "extra": 0,
+      "write_seconds": 0.05119611400004942,
+      "recall_seconds": 0.028779821001080563,
+      "injected_characters": 0,
+      "status": "partial"
+    },
+    {
+      "id": "lactose-en-zh",
+      "group": "lactose",
+      "split": "dev",
+      "kind": "alias",
+      "direction": "en-zh",
+      "expected": [
+        0
+      ],
+      "visible": [],
+      "hits": 0,
+      "forbidden": 0,
+      "extra": 0,
+      "write_seconds": 0.050187246000859886,
+      "recall_seconds": 0.031762959999468876,
+      "injected_characters": 0,
+      "status": "partial"
+    },
+    {
+      "id": "shellfish-zh-en",
+      "group": "shellfish",
+      "split": "heldout",
+      "kind": "alias",
+      "direction": "zh-en",
+      "expected": [
+        0
+      ],
+      "visible": [
+        0,
+        1,
+        2,
+        7
+      ],
+      "hits": 1,
+      "forbidden": 0,
+      "extra": 3,
+      "write_seconds": 0.05543678600224666,
+      "recall_seconds": 0.028628683001443278,
+      "injected_characters": 77,
+      "status": "partial"
+    },
+    {
+      "id": "shellfish-en-zh",
+      "group": "shellfish",
+      "split": "heldout",
+      "kind": "alias",
+      "direction": "en-zh",
+      "expected": [
+        0
+      ],
+      "visible": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "hits": 1,
+      "forbidden": 0,
+      "extra": 3,
+      "write_seconds": 0.052637774002505466,
+      "recall_seconds": 0.034463063999282895,
+      "injected_characters": 92,
+      "status": "partial"
+    },
+    {
+      "id": "vehicle-zh-en",
+      "group": "vehicle",
+      "split": "dev",
+      "kind": "alias",
+      "direction": "zh-en",
+      "expected": [
+        0
+      ],
+      "visible": [
+        0,
+        1
+      ],
+      "hits": 1,
+      "forbidden": 0,
+      "extra": 1,
+      "write_seconds": 0.07227997299924027,
+      "recall_seconds": 0.033519382999656955,
+      "injected_characters": 20,
+      "status": "partial"
+    },
+    {
+      "id": "vehicle-en-zh",
+      "group": "vehicle",
+      "split": "dev",
+      "kind": "alias",
+      "direction": "en-zh",
+      "expected": [
+        0
+      ],
+      "visible": [
+        0,
+        1
+      ],
+      "hits": 1,
+      "forbidden": 0,
+      "extra": 1,
+      "write_seconds": 0.049880574999406235,
+      "recall_seconds": 0.027332071000273572,
+      "injected_characters": 27,
+      "status": "partial"
+    },
+    {
+      "id": "residence-zh-en",
+      "group": "residence",
+      "split": "heldout",
+      "kind": "structure",
+      "direction": "zh-en",
+      "expected": [
+        0
+      ],
+      "visible": [
+        0,
+        2
+      ],
+      "hits": 1,
+      "forbidden": 0,
+      "extra": 1,
+      "write_seconds": 0.05429289400126436,
+      "recall_seconds": 0.02880992599966703,
+      "injected_characters": 65,
+      "status": "partial"
+    },
+    {
+      "id": "residence-en-zh",
+      "group": "residence",
+      "split": "heldout",
+      "kind": "structure",
+      "direction": "en-zh",
+      "expected": [
+        0
+      ],
+      "visible": [
+        0,
+        2
+      ],
+      "hits": 1,
+      "forbidden": 0,
+      "extra": 1,
+      "write_seconds": 0.05348115300148493,
+      "recall_seconds": 0.03392066699962015,
+      "injected_characters": 80,
+      "status": "partial"
+    },
+    {
+      "id": "allergy-zh-en",
+      "group": "allergy",
+      "split": "dev",
+      "kind": "structure",
+      "direction": "zh-en",
+      "expected": [
+        0
+      ],
+      "visible": [
+        0,
+        7
+      ],
+      "hits": 1,
+      "forbidden": 0,
+      "extra": 1,
+      "write_seconds": 0.05869899500248721,
+      "recall_seconds": 0.029472641999745974,
+      "injected_characters": 48,
+      "status": "partial"
+    },
+    {
+      "id": "allergy-en-zh",
+      "group": "allergy",
+      "split": "dev",
+      "kind": "structure",
+      "direction": "en-zh",
+      "expected": [
+        0
+      ],
+      "visible": [
+        0
+      ],
+      "hits": 1,
+      "forbidden": 0,
+      "extra": 0,
+      "write_seconds": 0.058930659000907326,
+      "recall_seconds": 0.024872659996617585,
+      "injected_characters": 25,
+      "status": "partial"
+    },
+    {
+      "id": "coffee-zh-en",
+      "group": "coffee",
+      "split": "heldout",
+      "kind": "alias",
+      "direction": "zh-en",
+      "expected": [
+        0
+      ],
+      "visible": [
+        0
+      ],
+      "hits": 1,
+      "forbidden": 0,
+      "extra": 0,
+      "write_seconds": 0.05477873600102612,
+      "recall_seconds": 0.03249726500143879,
+      "injected_characters": 7,
+      "status": "partial"
+    },
+    {
+      "id": "coffee-en-zh",
+      "group": "coffee",
+      "split": "heldout",
+      "kind": "alias",
+      "direction": "en-zh",
+      "expected": [
+        0
+      ],
+      "visible": [],
+      "hits": 0,
+      "forbidden": 0,
+      "extra": 0,
+      "write_seconds": 0.05432592299985117,
+      "recall_seconds": 0.025631992997659836,
+      "injected_characters": 0,
+      "status": "partial"
+    },
+    {
+      "id": "key-zh-en",
+      "group": "key",
+      "split": "dev",
+      "kind": "open",
+      "direction": "zh-en",
+      "expected": [
+        0
+      ],
+      "visible": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11
+      ],
+      "hits": 0,
+      "forbidden": 0,
+      "extra": 6,
+      "write_seconds": 0.0445961819968943,
+      "recall_seconds": 0.03438919199834345,
+      "injected_characters": 206,
+      "status": "partial"
+    },
+    {
+      "id": "key-en-zh",
+      "group": "key",
+      "split": "dev",
+      "kind": "open",
+      "direction": "en-zh",
+      "expected": [
+        0
+      ],
+      "visible": [],
+      "hits": 0,
+      "forbidden": 0,
+      "extra": 0,
+      "write_seconds": 0.052587917998607736,
+      "recall_seconds": 0.030087749000813346,
+      "injected_characters": 0,
+      "status": "partial"
+    },
+    {
+      "id": "pet-zh-en",
+      "group": "pet",
+      "split": "heldout",
+      "kind": "open",
+      "direction": "zh-en",
+      "expected": [
+        0
+      ],
+      "visible": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11
+      ],
+      "hits": 0,
+      "forbidden": 0,
+      "extra": 6,
+      "write_seconds": 0.06468160799704492,
+      "recall_seconds": 0.03130000300006941,
+      "injected_characters": 204,
+      "status": "partial"
+    },
+    {
+      "id": "pet-en-zh",
+      "group": "pet",
+      "split": "heldout",
+      "kind": "open",
+      "direction": "en-zh",
+      "expected": [
+        0
+      ],
+      "visible": [
+        0
+      ],
+      "hits": 1,
+      "forbidden": 0,
+      "extra": 0,
+      "write_seconds": 0.0547326609994343,
+      "recall_seconds": 0.028254935001314152,
+      "injected_characters": 66,
+      "status": "partial"
+    },
+    {
+      "id": "injury-zh-en",
+      "group": "injury",
+      "split": "dev",
+      "kind": "open",
+      "direction": "zh-en",
+      "expected": [
+        0
+      ],
+      "visible": [
+        0
+      ],
+      "hits": 1,
+      "forbidden": 0,
+      "extra": 0,
+      "write_seconds": 0.04958462899958249,
+      "recall_seconds": 0.03236487100002705,
+      "injected_characters": 19,
+      "status": "partial"
+    },
+    {
+      "id": "injury-en-zh",
+      "group": "injury",
+      "split": "dev",
+      "kind": "open",
+      "direction": "en-zh",
+      "expected": [
+        0
+      ],
+      "visible": [
+        0
+      ],
+      "hits": 1,
+      "forbidden": 0,
+      "extra": 0,
+      "write_seconds": 0.04908886300108861,
+      "recall_seconds": 0.03186451799774659,
+      "injected_characters": 68,
+      "status": "partial"
+    },
+    {
+      "id": "gift-zh-en",
+      "group": "gift",
+      "split": "heldout",
+      "kind": "open",
+      "direction": "zh-en",
+      "expected": [
+        0
+      ],
+      "visible": [
+        1,
+        3
+      ],
+      "hits": 0,
+      "forbidden": 0,
+      "extra": 2,
+      "write_seconds": 0.04843793400141294,
+      "recall_seconds": 0.03590587899816455,
+      "injected_characters": 57,
+      "status": "partial"
+    },
+    {
+      "id": "gift-en-zh",
+      "group": "gift",
+      "split": "heldout",
+      "kind": "open",
+      "direction": "en-zh",
+      "expected": [
+        0
+      ],
+      "visible": [
+        2
+      ],
+      "hits": 0,
+      "forbidden": 0,
+      "extra": 1,
+      "write_seconds": 0.05068957399998908,
+      "recall_seconds": 0.02875085300183855,
+      "injected_characters": 11,
+      "status": "partial"
+    },
+    {
+      "id": "no-match",
+      "group": "no-match",
+      "split": "heldout",
+      "kind": "negative",
+      "direction": "mixed",
+      "expected": [],
+      "visible": [
+        3
+      ],
+      "hits": 0,
+      "forbidden": 0,
+      "extra": 1,
+      "write_seconds": 0.04663049700320698,
+      "recall_seconds": 0.0298275189998094,
+      "injected_characters": 11,
+      "status": "partial"
+    },
+    {
+      "id": "boundary",
+      "group": "boundary",
+      "split": "heldout",
+      "kind": "negative",
+      "direction": "mixed",
+      "expected": [],
+      "visible": [],
+      "hits": 0,
+      "forbidden": 0,
+      "extra": 0,
+      "write_seconds": 0.04279047700038063,
+      "recall_seconds": 0.03004954300195095,
+      "injected_characters": 0,
+      "status": "partial"
+    },
+    {
+      "id": "parent",
+      "group": "parent",
+      "split": "heldout",
+      "kind": "negative",
+      "direction": "mixed",
+      "expected": [],
+      "visible": [
+        0,
+        4
+      ],
+      "hits": 0,
+      "forbidden": 1,
+      "extra": 2,
+      "write_seconds": 0.03803117500137887,
+      "recall_seconds": 0.027562730003410252,
+      "injected_characters": 49,
+      "status": "partial"
+    },
+    {
+      "id": "modifier",
+      "group": "modifier",
+      "split": "heldout",
+      "kind": "negative",
+      "direction": "mixed",
+      "expected": [],
+      "visible": [
+        0,
+        4
+      ],
+      "hits": 0,
+      "forbidden": 1,
+      "extra": 2,
+      "write_seconds": 0.04042510699946433,
+      "recall_seconds": 0.027786356997239636,
+      "injected_characters": 50,
+      "status": "partial"
+    }
+  ],
+  "schema_version": 1,
+  "corpus_sha256": "c036fe34f429755b302dae388416c87af3d2bf1e69b8f490e43b724275423a0f",
+  "backend": "local",
+  "model_revision": "e8f8c211226b894fcb81acc59f3b34ba3efd5f42",
+  "model_load_seconds": 2.7994450879996293,
+  "source_commit": "b02a5ffe9cd3bf381c01b7f98e518fd5a437248d",
+  "code_dirty": false,
+  "python": "3.12.14",
+  "limits": [
+    "synthetic regression, not blind or open-domain quality",
+    "original full evidence visibility, not answer-model utilization",
+    "API mode not evaluated by this runner"
+  ]
+}

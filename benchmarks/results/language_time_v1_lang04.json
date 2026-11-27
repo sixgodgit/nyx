@@ -1,0 +1,337 @@
+{
+  "schema_version": 1,
+  "corpus_sha256": "38467996e0cad233c5df4e6920de9fe0b51d7653c303d7087a1953586f46d329",
+  "summary": {
+    "time": {
+      "passed": 8,
+      "total": 8
+    },
+    "profile": {
+      "passed": 4,
+      "total": 4
+    },
+    "events": {
+      "passed": 5,
+      "total": 5
+    }
+  },
+  "results": [
+    {
+      "id": "ambiguous_numeric",
+      "section": "time",
+      "passed": true,
+      "resolution": {
+        "status": "ambiguous",
+        "span": [
+          0,
+          10
+        ],
+        "basis": [
+          "numeric",
+          "explicit",
+          "zone:unspecified"
+        ],
+        "start": null,
+        "end": null,
+        "instant_utc": null,
+        "candidates": [
+          "2026-03-04",
+          "2026-04-03"
+        ],
+        "policy_version": "1"
+      }
+    },
+    {
+      "id": "us_numeric",
+      "section": "time",
+      "passed": true,
+      "resolution": {
+        "status": "resolved",
+        "span": [
+          0,
+          10
+        ],
+        "basis": [
+          "numeric",
+          "explicit",
+          "zone:unspecified",
+          "order:mdy"
+        ],
+        "start": "2026-03-04",
+        "end": "2026-03-04",
+        "instant_utc": null,
+        "candidates": [],
+        "policy_version": "1"
+      }
+    },
+    {
+      "id": "gb_numeric",
+      "section": "time",
+      "passed": true,
+      "resolution": {
+        "status": "resolved",
+        "span": [
+          0,
+          10
+        ],
+        "basis": [
+          "numeric",
+          "explicit",
+          "zone:unspecified",
+          "order:dmy"
+        ],
+        "start": "2026-04-03",
+        "end": "2026-04-03",
+        "instant_utc": null,
+        "candidates": [],
+        "policy_version": "1"
+      }
+    },
+    {
+      "id": "shanghai_midnight",
+      "section": "time",
+      "passed": true,
+      "resolution": {
+        "status": "resolved",
+        "span": [
+          0,
+          2
+        ],
+        "basis": [
+          "relative",
+          "explicit",
+          "zone:Asia/Shanghai"
+        ],
+        "start": "2026-03-03",
+        "end": "2026-03-03",
+        "instant_utc": null,
+        "candidates": [],
+        "policy_version": "1"
+      }
+    },
+    {
+      "id": "los_angeles_midnight",
+      "section": "time",
+      "passed": true,
+      "resolution": {
+        "status": "resolved",
+        "span": [
+          0,
+          8
+        ],
+        "basis": [
+          "relative",
+          "explicit",
+          "zone:America/Los_Angeles"
+        ],
+        "start": "2026-03-02",
+        "end": "2026-03-02",
+        "instant_utc": null,
+        "candidates": [],
+        "policy_version": "1"
+      }
+    },
+    {
+      "id": "spring_gap",
+      "section": "time",
+      "passed": true,
+      "resolution": {
+        "status": "nonexistent_time",
+        "span": [
+          0,
+          16
+        ],
+        "basis": [
+          "iso",
+          "explicit",
+          "zone:Europe/Berlin"
+        ],
+        "start": null,
+        "end": null,
+        "instant_utc": null,
+        "candidates": [],
+        "policy_version": "1"
+      }
+    },
+    {
+      "id": "autumn_fold",
+      "section": "time",
+      "passed": true,
+      "resolution": {
+        "status": "ambiguous_time",
+        "span": [
+          0,
+          16
+        ],
+        "basis": [
+          "iso",
+          "explicit",
+          "zone:Europe/Berlin"
+        ],
+        "start": null,
+        "end": null,
+        "instant_utc": null,
+        "candidates": [
+          "2026-10-25T00:30:00+00:00",
+          "2026-10-25T01:30:00+00:00"
+        ],
+        "policy_version": "1"
+      }
+    },
+    {
+      "id": "next_wednesday",
+      "section": "time",
+      "passed": true,
+      "resolution": {
+        "status": "resolved",
+        "span": [
+          0,
+          14
+        ],
+        "basis": [
+          "weekday_en",
+          "explicit",
+          "zone:Europe/Berlin",
+          "next_means_next_iso_week"
+        ],
+        "start": "2026-10-14",
+        "end": "2026-10-14",
+        "instant_utc": null,
+        "candidates": [],
+        "policy_version": "1"
+      }
+    },
+    {
+      "id": "uncertain_preference",
+      "section": "profile",
+      "visible": [
+        0
+      ],
+      "days": [],
+      "expected": [
+        0
+      ],
+      "passed": true
+    },
+    {
+      "id": "conditional_preference",
+      "section": "profile",
+      "visible": [
+        0
+      ],
+      "days": [],
+      "expected": [
+        0
+      ],
+      "passed": true
+    },
+    {
+      "id": "uncertain_instruction",
+      "section": "profile",
+      "visible": [
+        0
+      ],
+      "days": [],
+      "expected": [
+        0
+      ],
+      "passed": true
+    },
+    {
+      "id": "partial_language_change",
+      "section": "profile",
+      "visible": [
+        0,
+        1
+      ],
+      "days": [],
+      "expected": [
+        0,
+        1
+      ],
+      "passed": true
+    },
+    {
+      "id": "distinct_companies",
+      "section": "events",
+      "visible": [
+        0
+      ],
+      "days": [
+        "2026-10-14"
+      ],
+      "expected": [
+        0
+      ],
+      "passed": true
+    },
+    {
+      "id": "ambiguous_cancel",
+      "section": "events",
+      "visible": [
+        0,
+        1
+      ],
+      "days": [
+        "2026-10-14",
+        "2026-10-14"
+      ],
+      "expected": [
+        0,
+        1
+      ],
+      "passed": true
+    },
+    {
+      "id": "uncertain_cancel",
+      "section": "events",
+      "visible": [
+        0
+      ],
+      "days": [
+        "2026-10-14"
+      ],
+      "expected": [
+        0
+      ],
+      "passed": true
+    },
+    {
+      "id": "negated_cancel",
+      "section": "events",
+      "visible": [
+        0
+      ],
+      "days": [
+        "2026-10-14"
+      ],
+      "expected": [
+        0
+      ],
+      "passed": true
+    },
+    {
+      "id": "reschedule_from_to",
+      "section": "events",
+      "visible": [
+        0
+      ],
+      "days": [
+        "2026-10-16"
+      ],
+      "expected": [
+        0
+      ],
+      "passed": true
+    }
+  ],
+  "source_commit": "d3f876ed20747e5f43863317bdf9272edcc70b50",
+  "code_dirty": false,
+  "python": "3.12.14",
+  "backend": "rules-no-model",
+  "limits": [
+    "synthetic conformance fixtures; not blind or open-domain language quality",
+    "new time API had no pre-change counterpart; baseline covers only profile/events",
+    "no answer-model or live-audio measurement"
+  ]
+}
